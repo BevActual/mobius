@@ -91,8 +91,9 @@ export function TooltipLayer() {
       if (!title.trim() || !el.isConnected) return;
       shownRef.current = true;
       // Tasks (marked): a row with Mobius's floating bar under it keeps its tips above, off the bar.
-      const place = tipPlace(el.getBoundingClientRect(), window.innerHeight, el.dataset.tipAt === 'pointer' ? pointerX.current : undefined);
       const box = el.getBoundingClientRect();
+      // `data-tip-at="end"`: above the element's trailing end, where a row keeps its date (Notes' list).
+      const place = tipPlace(box, window.innerHeight, el.dataset.tipAt === 'pointer' ? pointerX.current : el.dataset.tipAt === 'end' ? box.right - 28 : undefined);
       setShown({ ...splitTitle(title), ...(el.closest('[data-tip-above]') && place.below ? { x: place.x, y: box.top - 6, below: false } : place) });
     };
     const over = (event: Event) => {

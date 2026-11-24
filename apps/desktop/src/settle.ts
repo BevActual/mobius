@@ -24,6 +24,10 @@ function run(el: Element | null | undefined, frames: Keyframe[]): Promise<void> 
 export const settleKept = (el: Element | null | undefined) =>
   run(el, [{}, { borderColor: 'transparent', outlineColor: 'transparent', backgroundColor: 'transparent', opacity: 0 }]);
 
+/** Kept in place (a change's blocks in a page): only the dashed edge fades, so the words never blink. */
+export const settleEdge = (el: Element | null | undefined) =>
+  run(el, [{}, { borderColor: 'transparent', outlineColor: 'transparent' }]);
+
 /** Discarded: what was proposed fades out. */
 export const settleGone = (el: Element | null | undefined) => run(el, [{ opacity: 1 }, { opacity: 0 }]);
 
@@ -39,4 +43,20 @@ export function settleIn(el: Element | null | undefined): void {
   if (!el || typeof (el as HTMLElement).animate !== 'function') return;
   (el as HTMLElement).getAnimations().forEach((a) => a.cancel());
   (el as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], { duration: duration(el), easing: EASE });
+}
+
+/**
+ * A slot that held something now answered (a change's floating bar, the words a kept change took out) closes as it
+ * fades, so the page below rises into place instead of jumping. Under Reduce Motion it only fades, quicker.
+ */
+export function collapseSlot(el: Element | null | undefined): Promise<void> {
+  if (!el || typeof (el as HTMLElement).animate !== 'function' || document.visibilityState === 'hidden') return Promise.resolve();
+  const box = el as HTMLElement;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return run(box, [{ opacity: 1 }, { opacity: 0 }]);
+  const css = getComputedStyle(box);
+  box.style.overflow = 'hidden';
+  return run(box, [
+    { height: `${box.offsetHeight}px`, marginTop: css.marginTop, marginBottom: css.marginBottom, paddingTop: css.paddingTop, paddingBottom: css.paddingBottom, opacity: 1 },
+    { height: '0px', marginTop: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0 },
+  ]);
 }

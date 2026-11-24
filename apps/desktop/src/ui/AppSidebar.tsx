@@ -51,7 +51,7 @@ export function SidebarSection({ title, action, children, foldable = false, open
 /** What a row needs to take a drop: the drag handlers, and `data-drop` while something hovers over it. */
 export type SidebarRowDrop<T extends Element = HTMLButtonElement> = Pick<DOMAttributes<T>, 'onDragOver' | 'onDragLeave' | 'onDrop'> & { 'data-drop'?: true | undefined };
 
-export function SidebarRow({ icon, label, sub, count, current = false, proposed = false, onSelect, onContextMenu, title, trail, drop }: {
+export function SidebarRow({ icon, label, sub, count, current = false, proposed = false, onSelect, onContextMenu, title, tipAt, trail, drop }: {
   icon?: ReactNode;
   label: string;
   /** A second, quieter line under the name (a note's first words, a date). */
@@ -64,6 +64,8 @@ export function SidebarRow({ icon, label, sub, count, current = false, proposed 
   onSelect: () => void;
   onContextMenu?: (event: MouseEvent<HTMLButtonElement>) => void;
   title?: string;
+  /** The title's tip shows above the row's trailing end (over a date there), not under its name. */
+  tipAt?: 'end';
   /** Extra controls drawn after the row button, inside the row (a hover Pin, an inline Confirm). */
   trail?: ReactNode;
   /** Files: the row takes a dragged item (a folder row a file can be dropped on). `data-drop` marks it while one hovers. */
@@ -78,6 +80,7 @@ export function SidebarRow({ icon, label, sub, count, current = false, proposed 
         aria-current={current ? 'page' : undefined}
         data-proposed={proposed || undefined}
         title={title}
+        data-tip-at={tipAt}
         // With a sub line, the row is still named by its label alone; the sub line describes it.
         aria-label={sub === undefined ? undefined : label}
         aria-describedby={sub === undefined ? undefined : subId}

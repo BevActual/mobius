@@ -35,7 +35,7 @@ import { ChangeBar, ReviewActions, WhyThis } from './ReviewBar';
 import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { AppSidebar, Button, DateField, Dialog, PanelTab, Select, useShowPanelTab, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, ViewSwitch } from './ui';
+import { AppSidebar, Button, DateField, Dialog, Menu, PanelTab, Select, useShowPanelTab, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 
 /** An hour's height: 64 in the comfortable density (a working day shows whole), 48 in the compact one. */
 const hourPx = () => (document.documentElement.dataset.density === 'compact' ? 48 : 64);
@@ -1060,18 +1060,20 @@ function whenSaid(p: { start: string; end: string; allDay: boolean }): string {
  * Quick event: an event said in words ("Lunch fri 1pm"), typed in a field that opens under the toolbar, from Q or
  * Calendar › Quick event. A press elsewhere closes it.
  */
-function QuickEvent({ calendar, into, onAdded, onClose }: { calendar: CalendarState; into: string; onAdded: (start: string) => void; onClose: () => void }) {
+function QuickEvent({ calendar, into, choices, onAdded, onClose }: { calendar: CalendarState; into: string; choices: readonly string[]; onAdded: (start: string) => void; onClose: () => void }) {
   const self = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const away = (e: PointerEvent) => { if (!self.current?.contains(e.target as Node)) onClose(); };
+    // The calendar pill's menu opens in a layer of its own: a press there is still inside.
+    const away = (e: PointerEvent) => { if (!self.current?.contains(e.target as Node) && !(e.target as Element | null)?.closest?.('.ui-menu-positioner')) onClose(); };
     window.addEventListener('pointerdown', away, true);
     return () => window.removeEventListener('pointerdown', away, true);
   }, [onClose]);
-  return <div ref={self} className="cal-quick-at"><QuickAdd calendar={calendar} into={into} onAdded={onAdded} onClose={onClose} /></div>;
+  return <div ref={self} className="cal-quick-at"><QuickAdd calendar={calendar} into={into} choices={choices} onAdded={onAdded} onClose={onClose} /></div>;
 }
 
-function QuickAdd({ calendar, into, onAdded, onClose }: { calendar: CalendarState; into: string; onAdded: (start: string) => void; onClose: () => void }) {
+function QuickAdd({ calendar, into: first, choices, onAdded, onClose }: { calendar: CalendarState; into: string; /** The calendars it can go into, for the calendar pill's menu. */ choices: readonly string[]; onAdded: (start: string) => void; onClose: () => void }) {
   const [text, setText] = useState('');
+  const [into, setInto] = useState(first);
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLInputElement>(null);
   const parsed = text.trim() ? parseEventWithPlace(text, new Date(), parseWhen) : null;
@@ -1089,7 +1091,10 @@ function QuickAdd({ calendar, into, onAdded, onClose }: { calendar: CalendarStat
       {text.trim() && (
         <p id="cal-quick-hint" className="cal-quick-hint" role="status" data-ok={parsed ? true : undefined}>
           {parsed
-            ? <><b>{parsed.title}</b><span className="cal-pill" data-kind="when">{whenSaid(parsed)}</span>{parsed.location && <span className="cal-pill" data-kind="place">{parsed.location}</span>}<span className="cal-pill" data-kind="calendar">{into}</span><kbd>↵</kbd></>
+            ? <><b>{parsed.title}</b><span className="cal-pill" data-kind="when">{whenSaid(parsed)}</span>{parsed.location && <span className="cal-pill" data-kind="place">{parsed.location}</span>}{choices.length > 1
+                ? <Menu label="Calendar" entries={choices.map((c) => ({ label: c, checked: c === into, run: () => { setInto(c); field.current?.focus(); } }))}
+                    trigger={<button type="button" className="cal-pill" data-kind="calendar" aria-label={`Calendar: ${into}`} title="Choose the calendar">{into}<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 4.75 6 7.25l2.5-2.5" /></svg></button>} />
+                : <span className="cal-pill" data-kind="calendar">{into}</span>}<kbd>↵</kbd></>
             : 'Add a day or a time, such as “tomorrow 9am” or “fri 2-3pm”.'}
         </p>
       )}
@@ -1311,7 +1316,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
           </div>
           <ViewSwitch label="View" views={MODES} value={calendar.mode} onChange={calendar.setMode} />
           <button type="button" className="strip-btn cal-new" aria-label="New event" title="New event (Q): say it in words" aria-expanded={quick} onClick={() => setQuick(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg></button>
-          {quick && <QuickEvent calendar={calendar} into={into} onAdded={(start) => { setQuick(false); calendar.setAnchor(localDate(start)); }} onClose={closeQuick} />}
+          {quick && <QuickEvent calendar={calendar} into={into} choices={writable} onAdded={(start) => { setQuick(false); calendar.setAnchor(localDate(start)); }} onClose={closeQuick} />}
           </div>
         </div>
       </ToolbarControls>
