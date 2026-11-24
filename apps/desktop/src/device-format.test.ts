@@ -61,7 +61,7 @@ describe('device files', () => {
   });
   it('has each built-in effect the Workbench can draw as a device that reads back as it is', () => {
     const drawn = EFFECT_KINDS.filter((kind) => builtinDevice(newEffect(kind, 'fx1') as BuiltinEffect) !== null);
-    expect(EFFECT_KINDS.filter((kind) => !drawn.includes(kind))).toEqual(['gate', 'limiter', 'chorus', 'beatrepeat']);
+    expect(EFFECT_KINDS.filter((kind) => !drawn.includes(kind))).toEqual(['gate', 'limiter', 'chorus', 'autopan', 'beatrepeat']);
     for (const kind of drawn) {
       const device = builtinDevice(newEffect(kind, 'fx1') as BuiltinEffect)!;
       const r = read(JSON.parse(JSON.stringify(device)) as Device);

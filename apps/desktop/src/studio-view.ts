@@ -267,6 +267,11 @@ export function effectText(kind: EffectKind, k: string, v: number): string {
     // Offset and Gate in sixteenths, as Live shows them; a whole bar or more as bars.
     if (k === 'offset' || k === 'gate') return v >= 16 && v % 16 === 0 ? `${v / 16} ${v === 16 ? 'bar' : 'bars'}` : `${Number(v.toFixed(2))}/16`;
   }
+  if (kind === 'autopan') {
+    if (k === 'rate') return `${v < 10 ? v.toFixed(2) : v.toFixed(1)} Hz`;
+    if (k === 'phase' || k === 'offset') return `${Math.round(v)}°`;
+    if (k === 'shape') return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(Math.round(v * 100))}%`;
+  }
   if (kind === 'autofilter' || kind === 'chorus' || kind === 'phaser') {
     if (k === 'cutoff' || k === 'center') return hz(v);
     if (k === 'depth') return kind === 'chorus' ? secs(v) : hz(v);

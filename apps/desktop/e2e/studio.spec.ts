@@ -423,6 +423,29 @@ test('Chorus-Ensemble: Vibrato mode, the high-pass and inverted feedback, kept i
   await expect(knobs.getByRole('slider', { name: 'Dry/Wet' })).toBeDisabled();
 });
 
+test('Auto Pan-Tremolo: Tremolo, a synced rate, Spin and Harmonic, kept in the song', async () => {
+  await start();
+  const device = await openDevice('Keys');
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: 'Auto Pan-Tremolo', exact: true }).click();
+  const fx = () => ((saved().tracks[0] as { fx?: Record<string, unknown>[] }).fx ?? [])[0];
+  await expect.poll(fx).toMatchObject({ kind: 'autopan', mode: 'panning', wave: 'sine', amount: 0.5, sync: 0, phase: 180, spin: 0 });
+  const knobs = device.getByRole('group', { name: 'Auto Pan-Tremolo settings' });
+  // Spin stands in for Phase, and a synced rate is a note value with an Offset.
+  await device.getByRole('radiogroup', { name: 'Stereo offset' }).getByRole('radio', { name: 'Spin' }).click();
+  await expect(knobs.getByRole('slider', { name: 'Spin' })).toBeVisible();
+  await expect(knobs.getByRole('slider', { name: 'Phase' })).toHaveCount(0);
+  await device.getByRole('radiogroup', { name: 'Rate mode' }).getByRole('radio', { name: 'Synced' }).click();
+  await expect(knobs.getByRole('slider', { name: 'Offset' })).toBeVisible();
+  await expect.poll(fx).toMatchObject({ spin: 0.1, sync: 4 });
+  // Harmonic is Tremolo's; in Tremolo the stereo offset rests.
+  await expect(device.getByRole('switch', { name: 'Harmonic' })).toBeDisabled();
+  await device.getByRole('radiogroup', { name: 'Mode' }).getByRole('radio', { name: 'Tremolo' }).click();
+  await device.getByRole('switch', { name: 'Harmonic' }).click();
+  await expect.poll(fx).toMatchObject({ mode: 'tremolo', harmonic: true });
+  await expect(knobs.getByRole('slider', { name: 'Spin' })).toBeDisabled();
+});
+
 test('an instrument stack: chains with their own instruments and key zones, kept in the song', async () => {
   await start();
   const device = await openDevice('Keys');

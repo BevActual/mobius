@@ -193,6 +193,17 @@ describe('a track\'s effects', () => {
     expect(song(writeSong(s)).tracks[0]!.fx).toEqual(fx);
     expect(newEffect('chorus', 'fx9')).toMatchObject({ mode: 'chorus', feedback: 0, invert: false, highpass: 0 });
   });
+  it('keeps Auto Pan-Tremolo, its words, switches and ranges', () => {
+    const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
+      { id: 'p', kind: 'autopan', mode: 'tremolo', wave: 'sharktooth', amount: 2, rate: 3, sync: 8, offset: 90, phase: 400, spin: 0.25, shape: -0.5, invert: true, harmonic: true, vintage: 'yes' },
+      { id: 'q', kind: 'autopan', mode: 'wobble', wave: 'noise' },
+    ] }] }));
+    const fx = s.tracks[0]!.fx!;
+    expect(fx[0]).toMatchObject({ kind: 'autopan', mode: 'tremolo', wave: 'sharktooth', amount: 1, rate: 3, sync: 8, offset: 90, phase: 360, spin: 0.25, shape: -0.5, invert: true, harmonic: true, vintage: false });
+    expect(fx[1]).toMatchObject({ mode: 'panning', wave: 'sine', amount: 0.5, rate: 1, sync: 0, phase: 180, spin: 0, invert: false });
+    expect(song(writeSong(s)).tracks[0]!.fx).toEqual(fx);
+    expect(newEffect('autopan', 'fx9')).toMatchObject({ mode: 'panning', wave: 'sine', amount: 0.5, sync: 0, offset: 0, phase: 180, spin: 0, shape: 0, invert: false, harmonic: false, vintage: false });
+  });
   it('keeps Beat Repeat, its sixteenths and its mix mode, in range', () => {
     const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
       { id: 'r', kind: 'beatrepeat', interval: 4, grid: 2 / 3, gate: 200, chance: 0.5, volume: -6, mix: 'insert' },

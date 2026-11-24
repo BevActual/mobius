@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, AUTO_PAN_WAVES, RANDOM_PAN_WAVES, type AutoPanWave, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
@@ -297,6 +297,9 @@ const EFFECT_CELLS: { [K in EffectKind]: readonly { k: string; name: string; ste
   phaser: [{ k: 'center', name: 'Frequency', step: 1, log: true }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 1 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
   // Interval and Grid are chosen from note values above the knobs, as Live 12's Beat Repeat (29.5) has them.
   beatrepeat: [{ k: 'offset', name: 'Offset', step: 1 }, { k: 'chance', name: 'Chance', step: 0.01 }, { k: 'gate', name: 'Gate', step: 1 }, { k: 'volume', name: 'Volume', step: 0.5, origin: 0 }, { k: 'decay', name: 'Decay', step: 0.01 }],
+  // Live 12's Auto Pan-Tremolo (29.3): Amount, Rate (or, synced, Offset), Phase (or Spin, drawn on its own) and Shape.
+  // The mode, waveform, rate mode and stereo offset are chosen above the knobs; Invert, Harmonic and Vintage switch.
+  autopan: [{ k: 'amount', name: 'Amount', step: 0.01 }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'offset', name: 'Offset', step: 1 }, { k: 'phase', name: 'Phase', step: 1 }, { k: 'shape', name: 'Shape', step: 0.01, origin: 0 }],
 };
 /** The words an effect's choices read as. */
 const WORD_NAMES: Record<string, string> = { filter: 'Filter', shape: 'Shape', lowpass: 'Low-pass', highpass: 'High-pass', bandpass: 'Band-pass', notch: 'Notch', sine: 'Sine', triangle: 'Triangle', square: 'Square', sawtooth: 'Saw' };
@@ -317,6 +320,7 @@ const EFFECT_DETAILS: { [K in EffectKind]: string } = {
   chorus: 'Thickens with a slightly detuned copy, or wobbles in pitch',
   phaser: 'A sweeping, swirling notch',
   beatrepeat: 'Stutters: repeats a slice of the beat',
+  autopan: 'Moves the sound side to side, or its level up and down',
 };
 /** Beat Repeat's Interval (how often it takes a slice) and Grid (how long the slice is), in sixteenths (Live 12, 29.5). */
 const REPEAT_INTERVALS = [{ value: '0.5', label: '1/32' }, { value: '1', label: '1/16' }, { value: '2', label: '1/8' }, { value: '4', label: '1/4' }, { value: '8', label: '1/2' }, { value: '16', label: '1 Bar' }, { value: '32', label: '2 Bars' }, { value: '64', label: '4 Bars' }];
@@ -330,8 +334,24 @@ const sixteenthChoices = (choices: readonly { value: string; label: string }[], 
 const CHORUS_MODES_SHOWN = [{ value: 'chorus', label: 'Chorus' }, { value: 'vibrato', label: 'Vibrato' }] as const;
 /** The high-pass a Chorus-Ensemble's switch turns on at, and its frequency knob's range (Live 12, 29.8: 20 Hz to 2 kHz). */
 const CHORUS_HIGHPASS = { on: 200, lo: 20, hi: 2000 } as const;
-/** Settings that do nothing in a mode, drawn dimmed as Live draws them: Vibrato has no Feedback or Dry/Wet. */
-const idleIn = (e: Effect, k: string) => e.kind === 'chorus' && e.mode === 'vibrato' && (k === 'feedback' || k === 'mix');
+/** Settings that do nothing in a mode, drawn dimmed as Live draws them: Vibrato has no Feedback or Dry/Wet, and
+ * Tremolo moves both sides together, so its Phase does nothing. */
+const idleIn = (e: Effect, k: string) => (e.kind === 'chorus' && e.mode === 'vibrato' && (k === 'feedback' || k === 'mix'))
+  || (e.kind === 'autopan' && e.mode === 'tremolo' && (k === 'phase' || k === 'spin'));
+/** Settings that one control stands in for, as in Live: a synced Auto Pan-Tremolo has a note value for its Rate and an
+ * Offset; in Spin, the Phase knob is the Spin knob. */
+const shownIn = (e: Effect, k: string) => e.kind !== 'autopan' || (k === 'rate' ? e.sync <= 0 : k === 'offset' ? e.sync > 0 : k === 'phase' ? !panSpins(e) : true);
+type AutoPan = Extract<Effect, { kind: 'autopan' }>;
+const AUTO_PAN_MODES_SHOWN = [{ value: 'panning', label: 'Panning' }, { value: 'tremolo', label: 'Tremolo' }] as const;
+const AUTO_PAN_WAVE_NAMES: Record<AutoPanWave, string> = { sine: 'Sine', triangle: 'Triangle', sharktooth: 'Shark Tooth', sawup: 'Saw Up', sawdown: 'Saw Down', square: 'Square', random: 'Random', wander: 'Wander', sh: 'S&H' };
+/** A synced Auto Pan-Tremolo's cycle as note values, in sixteenths (Live 12, 29.3: Synced, Dotted and Triplet). */
+const AUTO_PAN_SYNCS = [{ value: '64', label: '4 Bars' }, { value: '32', label: '2 Bars' }, { value: '16', label: '1 Bar' }, { value: '8', label: '1/2' }, { value: '6', label: '1/4 dotted' }, { value: '4', label: '1/4' }, { value: String(8 / 3), label: '1/4 triplet' }, { value: '3', label: '1/8 dotted' }, { value: '2', label: '1/8' }, { value: String(4 / 3), label: '1/8 triplet' }, { value: '1', label: '1/16' }, { value: String(2 / 3), label: '1/16 triplet' }, { value: '0.5', label: '1/32' }];
+/** Where a synced cycle starts: a quarter note, Live's 1/4. */
+const AUTO_PAN_SYNC_START = 4;
+/** Where Spin starts when it is chosen, and its knob's least (0 is Phase): the right side 10% faster. */
+const AUTO_PAN_SPIN = { on: 0.1, lo: 0.01 } as const;
+/** Whether the right side runs faster (Spin) rather than behind (Phase); the random waves have no Spin (29.3). */
+const panSpins = (e: AutoPan) => e.spin > 0 && !RANDOM_PAN_WAVES.includes(e.wave);
 type Chorus = Extract<Effect, { kind: 'chorus' }>;
 /** A mode change; a Chorus still where it started moves to where a Vibrato starts, and back, as Live's modes do. */
 function setChorusMode(e: Chorus, mode: ChorusMode) {
@@ -633,12 +653,25 @@ function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
       {effect.kind === 'chorus' && (
         <Segmented label="Mode" value={effect.mode} choices={CHORUS_MODES_SHOWN} onChange={(v) => onChange((e) => { setChorusMode(e as Chorus, v); }, 'fx:mode')} />
       )}
-      {effect.kind !== 'beatrepeat' && effect.kind !== 'chorus' && Object.entries(EFFECT_WORDS[effect.kind] ?? {}).map(([k, w]) => (
+      {effect.kind === 'autopan' && (() => {
+        const sync = sixteenthChoices(AUTO_PAN_SYNCS, effect.sync), random = RANDOM_PAN_WAVES.includes(effect.wave);
+        return <>
+          <Segmented label="Mode" value={effect.mode} choices={AUTO_PAN_MODES_SHOWN} onChange={(v) => onChange((e) => { (e as AutoPan).mode = v; }, 'fx:mode')} />
+          <Select label="Waveform" value={effect.wave} choices={AUTO_PAN_WAVES.map((w) => ({ value: w, label: AUTO_PAN_WAVE_NAMES[w] }))} onChange={(v) => onChange((e) => { (e as AutoPan).wave = v; }, 'fx:wave')} />
+          <Segmented label="Rate mode" value={effect.sync > 0 ? 'synced' : 'hz'} choices={[{ value: 'hz', label: 'Hz' }, { value: 'synced', label: 'Synced' }]}
+            onChange={(v) => onChange((e) => { (e as AutoPan).sync = v === 'synced' ? AUTO_PAN_SYNC_START : 0; }, 'fx:sync')} />
+          {effect.sync > 0 && <Select label="Rate" value={sync.value} choices={sync.choices} onChange={(v) => onChange((e) => { (e as AutoPan).sync = Number(v); }, 'fx:sync')} />}
+          <Segmented label="Stereo offset" value={panSpins(effect) ? 'spin' : 'phase'} disabled={idleIn(effect, 'phase')}
+            choices={[{ value: 'phase', label: 'Phase' }, { value: 'spin', label: 'Spin', disabled: random }]}
+            onChange={(v) => onChange((e) => { (e as AutoPan).spin = v === 'spin' ? AUTO_PAN_SPIN.on : 0; }, 'fx:spin')} />
+        </>;
+      })()}
+      {effect.kind !== 'beatrepeat' && effect.kind !== 'chorus' && effect.kind !== 'autopan' && Object.entries(EFFECT_WORDS[effect.kind] ?? {}).map(([k, w]) => (
         <Select key={k} label={WORD_NAMES[k] ?? k} value={(effect as unknown as Record<string, string>)[k] ?? w.start} choices={w.choices.map((c) => ({ value: c, label: WORD_NAMES[c] ?? c }))}
           onChange={(v) => onChange((e) => { (e as unknown as Record<string, string>)[k] = v; }, `fx:${k}`)} />
       ))}
       {EFFECT_CELLS[effect.kind].length > 0 && <ParamGrid label={`${name} settings`} columns={4}>
-        {EFFECT_CELLS[effect.kind].map(({ k, name: cell, step, log, origin }) => {
+        {EFFECT_CELLS[effect.kind].filter(({ k }) => shownIn(effect, k)).map(({ k, name: cell, step, log, origin }) => {
           const r = EFFECT_PARAMS[effect.kind][k]!;
           return <Knob key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} disabled={idleIn(effect, k)} format={(v) => effectText(effect.kind, k, v)} proposed={proposed?.has(`fx:${effect.id}:${k}`)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
         })}
@@ -647,11 +680,24 @@ function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
             disabled={effect.highpass < CHORUS_HIGHPASS.lo} format={(v) => effectText('chorus', 'highpass', v)} proposed={proposed?.has(`fx:${effect.id}:highpass`)}
             onChange={(v) => onChange((e) => { (e as Chorus).highpass = Math.round(v); }, 'fx:highpass')} />
         )}
+        {effect.kind === 'autopan' && panSpins(effect) && (
+          <Knob label="Spin" value={effect.spin} min={AUTO_PAN_SPIN.lo} max={EFFECT_PARAMS.autopan.spin!.hi} step={0.01} reset={AUTO_PAN_SPIN.on}
+            disabled={idleIn(effect, 'spin')} format={(v) => effectText('autopan', 'spin', v)} proposed={proposed?.has(`fx:${effect.id}:spin`)}
+            onChange={(v) => onChange((e) => { (e as AutoPan).spin = v; }, 'fx:spin')} />
+        )}
       </ParamGrid>}
       {effect.kind === 'chorus' && (
         <div className="studio-fx-switches">
           <Switch label="High-pass filter" checked={effect.highpass >= CHORUS_HIGHPASS.lo} onChange={(on) => onChange((e) => { (e as Chorus).highpass = on ? CHORUS_HIGHPASS.on : 0; }, 'fx:highpass')} />
           <Switch label="Invert feedback" checked={effect.invert} disabled={idleIn(effect, 'feedback')} onChange={(on) => onChange((e) => { (e as Chorus).invert = on; }, 'fx:invert')} />
+        </div>
+      )}
+      {effect.kind === 'autopan' && (
+        <div className="studio-fx-switches">
+          <Switch label="Invert" checked={effect.invert} onChange={(on) => onChange((e) => { (e as AutoPan).invert = on; }, 'fx:invert')} />
+          {/* Tremolo only (29.3): lows against highs, and Vintage's curve. */}
+          <Switch label="Harmonic" checked={effect.harmonic} disabled={effect.mode !== 'tremolo'} onChange={(on) => onChange((e) => { (e as AutoPan).harmonic = on; }, 'fx:harmonic')} />
+          <Switch label="Vintage" checked={effect.vintage} disabled={effect.mode !== 'tremolo'} onChange={(on) => onChange((e) => { (e as AutoPan).vintage = on; }, 'fx:vintage')} />
         </div>
       )}
       {(effect.kind === 'compressor' || effect.kind === 'gate') && <SidechainSection effect={effect} name={name} sources={sources} onChange={onChange} />}

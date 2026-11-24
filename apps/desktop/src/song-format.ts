@@ -72,6 +72,11 @@ export function nextColour(tracks: readonly { color: TrackColour }[]): TrackColo
  * - `beatrepeat` (Live 12's Beat Repeat, 29.5): every `interval` sixteenths, `offset` sixteenths in and by `chance`
  *   (0 to 1), it takes a `grid` of what comes in and repeats it for `gate` sixteenths, each repeat quieter by `decay`
  *   (0 to 1), at `volume` dB, with the input (`mix` "mix"), in its place ("insert") or alone ("gate").
+ * - `autopan` (Live 12's Auto Pan-Tremolo, 29.3): an LFO of `wave` that moves the sound by `amount` (0 to 1), at `rate`
+ *   Hz or, when `sync` is over 0, once every `sync` sixteenths starting `offset` degrees into its cycle; bent by `shape`
+ *   (-1 to 1) and turned over by `invert`. In `mode` "panning" it moves the sound between left and right, the right
+ *   side `phase` degrees behind (180 is opposite) or, with `spin` over 0, running that share faster (not for the random
+ *   waves); in "tremolo" it moves the level, lows against highs in `harmonic`, on a curve in `vintage`.
  */
 export type Effect =
   | { id: string; kind: 'eq'; on: boolean; low: number; lowFreq: number; mid: number; midFreq: number; midQ: number; high: number; highFreq: number }
@@ -85,6 +90,7 @@ export type Effect =
   | { id: string; kind: 'chorus'; on: boolean; mode: ChorusMode; delay: number; rate: number; depth: number; feedback: number; invert: boolean; highpass: number; mix: number }
   | { id: string; kind: 'phaser'; on: boolean; center: number; rate: number; depth: number; mix: number }
   | { id: string; kind: 'beatrepeat'; on: boolean; interval: number; offset: number; gate: number; grid: number; chance: number; decay: number; volume: number; mix: BeatRepeatMix }
+  | { id: string; kind: 'autopan'; on: boolean; mode: AutoPanMode; wave: AutoPanWave; amount: number; rate: number; sync: number; offset: number; phase: number; spin: number; shape: number; invert: boolean; harmonic: boolean; vintage: boolean }
   | { id: string; kind: 'device'; on: boolean; device: Device; sidechain?: Sidechain }
   | StackEffect;
 /**
@@ -177,8 +183,8 @@ export function readSidechain(v: unknown): Sidechain | undefined {
 /** The four built-in effects; a song's own devices (`kind: "device"`) are the rest. */
 export type EffectKind = Exclude<Effect['kind'], 'device' | 'stack'>;
 export type BuiltinEffect = Extract<Effect, { kind: EffectKind }>;
-export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'gate', 'limiter', 'saturator', 'autofilter', 'chorus', 'phaser', 'beatrepeat', 'delay', 'reverb'];
-export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', gate: 'Gate', limiter: 'Limiter', saturator: 'Saturator', autofilter: 'Auto Filter', chorus: 'Chorus-Ensemble', phaser: 'Phaser', beatrepeat: 'Beat Repeat', delay: 'Delay', reverb: 'Reverb' };
+export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'gate', 'limiter', 'saturator', 'autofilter', 'chorus', 'phaser', 'autopan', 'beatrepeat', 'delay', 'reverb'];
+export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', gate: 'Gate', limiter: 'Limiter', saturator: 'Saturator', autofilter: 'Auto Filter', chorus: 'Chorus-Ensemble', phaser: 'Phaser', autopan: 'Auto Pan-Tremolo', beatrepeat: 'Beat Repeat', delay: 'Delay', reverb: 'Reverb' };
 /** An auto filter's filter types and LFO shapes, as a device's filter and LFO parts take them. */
 export const AUTO_FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'notch'] as const;
 export type AutoFilterType = (typeof AUTO_FILTER_TYPES)[number];
@@ -191,14 +197,25 @@ export const VIBRATO_START = { delay: 0.005, rate: 5, depth: 0.002 } as const;
 /** Beat Repeat's mix modes (Live 12, 29.5): its repeats with the input, in its place, or alone. */
 export const BEAT_REPEAT_MIXES = ['mix', 'insert', 'gate'] as const;
 export type BeatRepeatMix = (typeof BEAT_REPEAT_MIXES)[number];
+/** Auto Pan-Tremolo's modes and waveforms (Live 12, 29.3), as the engine names them (mobius-audio fx.rs `AutoPan`). */
+export const AUTO_PAN_MODES = ['panning', 'tremolo'] as const;
+export type AutoPanMode = (typeof AUTO_PAN_MODES)[number];
+export const AUTO_PAN_WAVES = ['sine', 'triangle', 'sharktooth', 'sawup', 'sawdown', 'square', 'random', 'wander', 'sh'] as const;
+export type AutoPanWave = (typeof AUTO_PAN_WAVES)[number];
+/** The waves with no Spin (29.3): with them, Phase sets how far the sides stray apart. */
+export const RANDOM_PAN_WAVES: readonly AutoPanWave[] = ['random', 'wander', 'sh'];
 /** Effects whose settings are words, not numbers, and where they start. */
 export const EFFECT_WORDS: Partial<Record<EffectKind, Record<string, { choices: readonly string[]; start: string }>>> = {
   autofilter: { filter: { choices: AUTO_FILTER_TYPES, start: 'lowpass' }, shape: { choices: LFO_SHAPES, start: 'sine' } },
   beatrepeat: { mix: { choices: BEAT_REPEAT_MIXES, start: 'mix' } },
+  autopan: { mode: { choices: AUTO_PAN_MODES, start: 'panning' }, wave: { choices: AUTO_PAN_WAVES, start: 'sine' } },
   chorus: { mode: { choices: CHORUS_MODES, start: 'chorus' } },
 };
 /** Effects with settings that are on or off, and where they start. */
-export const EFFECT_FLAGS: Partial<Record<EffectKind, Record<string, boolean>>> = { chorus: { invert: false } };
+export const EFFECT_FLAGS: Partial<Record<EffectKind, Record<string, boolean>>> = {
+  chorus: { invert: false },
+  autopan: { invert: false, harmonic: false, vintage: false },
+};
 /** The effects another track can key (Live 12, 29.9.1). */
 export const KEYED_KINDS: readonly EffectKind[] = ['compressor', 'gate'];
 /** Each effect's settings: range, and where a new one starts. */
@@ -222,6 +239,11 @@ export const EFFECT_PARAMS: { [K in EffectKind]: Record<string, { lo: number; hi
   beatrepeat: {
     interval: { lo: 0.5, hi: 64, start: 16 }, offset: { lo: 0, hi: 15, start: 0 }, gate: { lo: 1, hi: 64, start: 8 }, grid: { lo: 0.5, hi: 16, start: 2 },
     chance: { lo: 0, hi: 1, start: 1 }, decay: { lo: 0, hi: 1, start: 0 }, volume: { lo: -36, hi: 12, start: 0 },
+  },
+  // As the engine takes them (fx.rs `AutoPan`): `sync` in sixteenths, 0 for Hz; `offset` and `phase` in degrees.
+  autopan: {
+    amount: { lo: 0, hi: 1, start: 0.5 }, rate: { lo: 0.01, hi: 40, start: 1 }, sync: { lo: 0, hi: 64, start: 0 }, offset: { lo: 0, hi: 360, start: 0 },
+    phase: { lo: 0, hi: 360, start: 180 }, spin: { lo: 0, hi: 1, start: 0 }, shape: { lo: -1, hi: 1, start: 0 },
   },
 };
 /**
@@ -254,8 +276,8 @@ export function builtinDevice(e: BuiltinEffect): Device | null {
       return { name: 'Phaser', parts: [p('in', 'input'), ...stages.map((id) => p(id, 'filter', { type: 'allpass', cutoff: e.center, resonance: 0.7, gain: 0 })), p('lfo', 'lfo', { rate: e.rate, depth: e.depth }), p('mix', 'mix', { amount: e.mix }), p('out', 'output')],
         cables: [['in', 'mix.dry'], ['in', 'a1'], ['a1', 'a2'], ['a2', 'a3'], ['a3', 'a4'], ['a4', 'mix.wet'], ...stages.map((id): [string, string] => ['lfo', `${id}.cutoff`]), ['mix', 'out']], controls: [] };
     }
-    // The gate, limiter and Beat Repeat are parts the Workbench doesn't draw yet, and the chorus's delay is in seconds,
-    // not beats.
+    // The gate, limiter, Beat Repeat and Auto Pan-Tremolo are parts the Workbench doesn't draw yet, and the chorus's
+    // delay is in seconds, not beats.
     default:
       return null;
   }
