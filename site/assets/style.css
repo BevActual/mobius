@@ -23,6 +23,8 @@
   --sel: #ececef;
   --mobius: #5e5ce6;
   --mobius-wash: #efeefd;
+  --now: #d93a32;
+  --ev-fill: 0.14;
   --glow: rgba(94, 92, 230, 0.16);
   --shot-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 30px 80px -20px rgba(20, 20, 40, 0.25), 0 12px 24px -12px rgba(20, 20, 40, 0.12);
   --radius: 12px;
@@ -43,6 +45,8 @@
     --sel: #222227;
     --mobius: #8f8cff;
     --mobius-wash: #1f1e3d;
+    --now: #ff5f57;
+    --ev-fill: 0.22;
     --glow: rgba(133, 130, 255, 0.22);
     --shot-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 40px 100px -20px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.03);
   }
@@ -156,6 +160,49 @@ h1 { font-size: clamp(46px, 8.4vw, 92px); line-height: 1.0; letter-spacing: -0.0
 .hero-shot { margin-top: 72px; border-radius: 14px; }
 @media (max-width: 640px) { .hero-shot { margin-top: 48px; border-radius: 10px; } }
 
+/* The hero: Calendar in the panel look, drawn as SVG from the same tokens (docs/design/panel-look.md and the
+   Calendar review), so it stays sharp at any size and follows light and dark. */
+.hero-mock { display: block; width: 100%; height: auto; font-family: inherit; }
+.hero-mock .m-frame { fill: var(--frame); }
+.hero-mock .m-panel { fill: var(--panel); stroke: var(--line); }
+.hero-mock .m-tool { fill: var(--panel); stroke: var(--line); }
+.hero-mock .m-seg { fill: var(--sel); }
+.hero-mock .m-seg-on { fill: var(--panel); stroke: var(--line2); }
+.hero-mock .m-sel { fill: var(--sel); }
+.hero-mock .m-sub, .hero-mock .m-sub-fill { fill: var(--sub); stroke: var(--line); }
+.hero-mock .m-card { fill: var(--panel); stroke: var(--line2); }
+.hero-mock .m-btn { fill: var(--panel); stroke: var(--line2); }
+.hero-mock .m-hair { stroke: var(--line); stroke-width: 1; }
+.hero-mock .m-stroke { fill: none; stroke: var(--ink2); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.hero-mock .m-ico { fill: none; stroke: var(--ink2); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.hero-mock .m-t { fill: var(--ink); font-size: 12.5px; }
+.hero-mock .m-ink2 { fill: var(--ink2); }
+.hero-mock .m-ink3 { fill: var(--ink3); }
+.hero-mock .m-ink-fill { fill: var(--ink); }
+.hero-mock .m-on-ink { fill: var(--panel); }
+.hero-mock .m-mob-btn { fill: var(--mobius-wash); }
+.hero-mock .m-mob-fill { fill: var(--mobius); }
+.hero-mock .m-mob-ink { fill: var(--mobius); }
+.hero-mock .m-mob-ev { fill: var(--mobius-wash); stroke: var(--mobius); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.hero-mock .m-mob-row { fill: var(--panel); stroke: var(--mobius); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.hero-mock .m-bar { fill: var(--panel); stroke: var(--line2); }
+.hero-mock .m-float { filter: drop-shadow(0 10px 18px rgba(10, 10, 30, 0.18)); }
+.hero-mock .m-now { stroke: var(--now); stroke-width: 1.5; }
+.hero-mock .m-now-dot { fill: var(--now); }
+.hero-mock .m-now-ink { fill: var(--now); }
+/* Event fills: the calendar's colour at about 14% on light and 22% on dark, a solid left edge, ink text. */
+.hero-mock .m-ev { fill-opacity: var(--ev-fill); }
+.hero-mock .m-c-teal { fill: #1f9e93; }
+.hero-mock .m-c-blue { fill: #3b7ddd; }
+.hero-mock .m-c-amber { fill: #d98f1c; }
+.hero-mock .m-c-grey { fill: var(--ink3); }
+.hero-mock .m-edge { fill-opacity: 1; }
+@media (max-width: 640px) {
+  /* On a phone, show the week and the change rather than shrinking the whole window to unreadable text. */
+  .hero-shot { overflow: hidden; }
+  .hero-shot .hero-mock { width: 190%; max-width: none; margin-left: -34%; }
+}
+
 .facts { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 64px; }
 .facts li { padding: 8px 20px; border-left: 1px solid var(--line); }
 .facts li:first-child { border-left: 0; }
@@ -232,15 +279,15 @@ html:not(.js) .story-panels [role="tabpanel"][hidden] { display: block; }
 .demo-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 550; }
 .demo-title .ico { width: 16px; height: 16px; color: var(--ink2); }
 .demo-meta { color: var(--ink3); font-size: 12.5px; }
-.proposal { margin: 14px; padding: 12px 14px; border: 1.5px dashed var(--mobius); border-radius: 9px; background: var(--mobius-wash); }
-.proposal-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.proposal-label { display: inline-flex; align-items: center; gap: 7px; color: var(--mobius); font-weight: 550; margin-right: auto; }
-.proposal-label .ico { width: 15px; height: 15px; }
-.proposal-actions { display: inline-flex; gap: 2px; font-size: 12.5px; }
-.proposal-actions span { padding: 4px 9px; border-radius: 6px; color: var(--ink2); }
-.proposal-actions .keep { background: var(--ink); color: var(--panel); font-weight: 550; }
-.proposal-why { margin-top: 6px; font-size: 12.5px; color: var(--ink2); }
-.demo-rows { padding: 2px 14px 16px; font-variant-numeric: tabular-nums; }
+.changebar { margin: 4px 14px 16px; padding: 8px 10px 10px; background: var(--panel); border: 1px solid var(--line2); border-radius: 10px; box-shadow: 0 10px 24px -10px rgba(10, 10, 30, 0.25); }
+.changebar-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.changebar-label { display: inline-flex; align-items: center; gap: 7px; color: var(--mobius); font-weight: 550; margin-right: auto; }
+.changebar-label .ico { width: 15px; height: 15px; }
+.changebar-actions { display: inline-flex; flex-wrap: wrap; gap: 2px; font-size: 12.5px; }
+.changebar-actions span { padding: 4px 9px; border-radius: 6px; color: var(--ink2); }
+.changebar-actions .keep { background: var(--ink); color: var(--panel); font-weight: 550; }
+.changebar-ask { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink2); }
+.demo-rows { padding: 8px 14px 6px; font-variant-numeric: tabular-nums; }
 .demo-row { display: grid; grid-template-columns: 1.3fr 1fr .8fr; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .demo-row-h { color: var(--ink3); font-size: 12.5px; font-weight: 500; }
 .demo-row .num { text-align: right; justify-self: end; }

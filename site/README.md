@@ -36,9 +36,16 @@ Then open http://localhost:8000. Switch your system between light and dark to se
 
 ### Pictures
 
-The screenshots in `assets/shots/` are WebP copies of the README's pictures in `docs/readme/` (light and dark), cut to
-1600 px wide. To refresh them, retake the README's pictures (`npm run readme-shots` in `apps/desktop`, and
-`docs/readme/hero-*.png` for Calendar), then convert:
+The picture at the top is not a screenshot: it is Calendar in the panel look drawn as SVG inside `index.html`, coloured
+from the stylesheet's tokens, so it stays sharp at any size and follows light and dark. It follows the Calendar review
+(event fills at about 14 % on light and 22 % on dark with a solid left edge, the red now line, a Mobius event with a
+dashed indigo edge and the Why · Discard · Try another · Keep bar under it). Change it when Calendar's look changes.
+It is drawn by `scripts/site-hero.py`: edit that, run `python scripts/site-hero.py`, and paste its output over the
+`<svg class="hero-mock">` in `index.html`.
+
+The other screenshots in `assets/shots/` are WebP copies of the README's pictures in `docs/readme/` (light and dark),
+cut to 1600 px wide. Several still show the look from before the panel look; retake each once its app is in the new
+look (`npm run readme-shots` in `apps/desktop`), then convert:
 
 ```
 python -c "from PIL import Image; im = Image.open('docs/readme/apps/music-dark.png').convert('RGB'); im.thumbnail((1600, 1600)); im.save('site/assets/shots/music-dark.webp', quality=82, method=6)"
