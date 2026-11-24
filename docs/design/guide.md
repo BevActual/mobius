@@ -52,7 +52,7 @@ Checked 24 November 2026; pull requests not merged yet are marked (open).
 | Notes | Yes | #804, #862 (open) | Nothing for the look |
 | Docs | Yes | #809, #862 (open) | Part B: Editing, Suggesting and Viewing; comment on a selection; Page setup |
 | Files | In review | #865 (open) | Screens from a PC check |
-| Messages | Spec written | [Messages](messages.md) | The app work |
+| Messages | Spec written | Its own pull request, next | The app work |
 | Home | No | | Next: its spec is in the Hub's review files |
 | Everything else | Frame only | #770 | Each app's own pass, after the seven folded apps move to their new homes |
 
