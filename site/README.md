@@ -43,7 +43,8 @@ dashed indigo edge and the Why · Discard · Try another · Keep bar under it). 
 It is drawn by `scripts/site-hero.py`: edit that, run `python scripts/site-hero.py`, and paste its output over the
 `<svg class="hero-mock">` in `index.html`.
 
-The other screenshots in `assets/shots/` are WebP copies of the README's pictures in `docs/readme/` (light and dark),
+The **Every app** section shows a screen for each app (Messages and Store have none yet, so they show their icon).
+The screenshots in `assets/shots/` are WebP copies of the README's pictures in `docs/readme/` (light and dark),
 cut to 1600 px wide. Several still show the look from before the panel look; retake each once its app is in the new
 look (`npm run readme-shots` in `apps/desktop`), then convert:
 
