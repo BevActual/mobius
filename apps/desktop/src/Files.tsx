@@ -12,6 +12,7 @@ import { appName, type AppId } from './apps';
 import { fileKind, sortEntries, type FilesSort } from './files-view';
 import { relativeTime } from './relative-time';
 import { EmptyState } from './EmptyState';
+import { MobiusMark } from './MobiusMark';
 import { FileIcon, GLYPH, placeIcon, size } from './file-icons';
 import { AddDrivePage, DriveBars, DrivePage, isPlace, useDrives, type DrivePlace } from './Drives';
 import { PairDialog, SignInDialog, SyncConflicts, SyncDeletes, SyncGlyph, SyncSub, useSync } from './Sync';
@@ -296,11 +297,10 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
   return (
     <AppSidebar label="Places">
       <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : files.place.kind === 'trash' ? 'Search the Trash' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
-      <SidebarSection title="This computer" {...(pin ? { action: pin } : {})}>
+      {/* Adding a place is a + on its group's header, so the lists show only places (the panel look). */}
+      <SidebarSection title="This computer" {...(pin || files.drives.canAddPlace ? { action: <>{pin}{files.drives.canAddPlace && <AddPlace label="Add a folder…" title="Show a folder on this computer in Files" onAdd={() => void files.drives.addPlace()} />}</> } : {})}>
         <SidebarRow icon={placeIcon('workspace')} label="Workspace" current={here === ''} onSelect={() => files.setPlace({ kind: 'folder', path: '' })} drop={files.can.move ? files.drop('') : undefined} />
         {files.drives.available && <DriveRows files={files} local />}
-        {files.drives.canAddPlace && <SidebarRow icon={placeIcon('add')} label="Add a folder…" title="Show a folder on this computer in Files" onSelect={() => void files.drives.addPlace()} />}
-        {files.can.trash && <SidebarRow icon={placeIcon('trash')} label="Trash" current={files.place.kind === 'trash'} onSelect={() => files.setPlace({ kind: 'trash' })} />}
       </SidebarSection>
       {files.roots.length > 0 && (
         <SidebarSection title="Folders">
@@ -312,11 +312,26 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
           ))}
         </SidebarSection>
       )}
-      {files.drives.available && <SidebarSection title="Drives"><DriveRows files={files} /></SidebarSection>}
+      {files.drives.available && <SidebarSection title="Drives" action={<AddPlace label="Add a drive" title="Add a drive: Nextcloud or another WebDAV server" pressed={files.place.kind === 'add-drive'} onAdd={() => files.setPlace({ kind: 'add-drive' })} />}><DriveRows files={files} /></SidebarSection>}
       <SidebarSection title="From Mobius">
         <SidebarRow icon={placeIcon('made')} label="Made by Mobius" count={files.made.files.length} title={files.made.files.length === 1 ? '1 file Mobius made or changed' : `${files.made.files.length} files Mobius made or changed`} current={files.place.kind === 'made'} onSelect={() => files.setPlace({ kind: 'made' })} />
       </SidebarSection>
+      {/* The Trash last, on its own, as Finder and Explorer keep it. */}
+      {files.can.trash && (
+        <ul role="list" className="ui-side-list files-side-trash" aria-label="Trash">
+          <SidebarRow icon={placeIcon('trash')} label="Trash" current={files.place.kind === 'trash'} onSelect={() => files.setPlace({ kind: 'trash' })} />
+        </ul>
+      )}
     </AppSidebar>
+  );
+}
+
+/** A group header's +: adds a place to that group (a folder on this computer, a drive). Seen on the header's hover. */
+function AddPlace({ label, title, pressed, onAdd }: { label: string; title: string; pressed?: boolean; onAdd: () => void }) {
+  return (
+    <button type="button" className="strip-btn" aria-label={label} title={title} aria-pressed={pressed} onClick={onAdd}>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg>
+    </button>
   );
 }
 
@@ -355,7 +370,6 @@ function DriveRows({ files, local = false }: { files: FilesState; local?: boolea
           onSelect={() => files.setPlace({ kind: 'drive', drive: a.id, path: '' })} drop={drop(a.id)}
           onContextMenu={(e) => { e.preventDefault(); setMenu({ id: a.id, name: a.name, x: e.clientX, y: e.clientY }); }} />
       ))}
-      {!local && <SidebarRow icon={placeIcon('add')} label="Add a drive" current={files.place.kind === 'add-drive'} onSelect={() => files.setPlace({ kind: 'add-drive' })} />}
       {menu && <PointMenu x={menu.x} y={menu.y} label={menu.name} entries={[
         { label: 'Open', run: () => files.setPlace({ kind: 'drive', drive: menu.id, path: '' }) },
         { label: local ? 'Remove from This Computer…' : 'Remove Drive…', danger: true, separated: true, run: () => setRemoving({ id: menu.id, name: menu.name }) },
@@ -689,7 +703,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         <div className="files-loading" role="status" aria-label="Loading this folder">{['46%', '32%', '58%', '38%', '50%'].map((w) => <span key={w} style={{ '--w': w } as React.CSSProperties} />)}</div>
       )}
       {!files.problem && !files.loading && files.entries.length === 0 && (
-        <EmptyState icon={GLYPH.folder} title="This folder is empty" {...(files.can.change ? { action: { label: 'New folder', run: () => void startNewFolder() } } : {})} />
+        <EmptyState icon={GLYPH.folder} title="This folder is empty" line={files.can.change ? 'Drop files here, or make a new folder.' : undefined} {...(files.can.change ? { action: { label: 'New folder', keys: 'Ctrl+Shift+N', run: () => void startNewFolder() } } : {})} />
       )}
       {!files.problem && !files.loading && files.entries.length > 0 && (
         <div className="files-table" data-view={view} role="grid" aria-label="Files in this folder" aria-rowcount={rows.length + 1}>
@@ -711,7 +725,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
                   className="files-row" data-proposed={(mine && e.type === 'file') || undefined} aria-label={mine ? `${e.name}, from Mobius` : e.name}
                   onClick={() => setSelected(e.path)} onDoubleClick={() => open(e.path, e.type)}
                   onContextMenu={(ev) => { ev.preventDefault(); setSelected(e.path); setMenu({ path: e.path, type: e.type, x: ev.clientX, y: ev.clientY }); }}>
-                  <span role="gridcell" className="files-cell files-name">{view === 'grid' ? <FileTile path={e.path} type={e.type} /> : <FileIcon path={e.path} type={e.type} />}{nameCell(e.path, e.name)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-dot" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Holds one thing from Mobius, not kept yet' : `Holds ${held} things from Mobius, not kept yet`} />}</span>
+                  <span role="gridcell" className="files-cell files-name">{view === 'grid' ? <FileTile path={e.path} type={e.type} /> : <FileIcon path={e.path} type={e.type} />}{nameCell(e.path, e.name)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-held" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Mobius changed 1 file here, not kept yet' : `Mobius changed ${held} files here, not kept yet`}><MobiusMark size={14} /></span>}</span>
                   <span role="gridcell" className="files-cell files-date">{e.modified ? relativeTime(e.modified, Date.now()) : '—'}</span>
                   <span role="gridcell" className="files-cell files-kind">{fileKind(e.path, e.type)}</span>
                   <span role="gridcell" className="files-cell files-size">{e.type === 'folder' ? itemCount(e.items) : size(e.bytes)}</span>
