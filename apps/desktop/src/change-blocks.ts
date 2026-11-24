@@ -8,6 +8,7 @@ import { changeGroups, type DiffLine } from './line-diff';
 import { placeChanges } from './docs-view';
 import './change-blocks.css';
 import { afterPaint } from './ui/frame';
+import { collapseSlot, settleEdge, settleGone } from './settle';
 import { MARK_PATHS } from './MobiusMark';
 
 /*
@@ -18,7 +19,7 @@ import { MARK_PATHS } from './MobiusMark';
 /** What Mobius's last turn changed, as the page shows it: each change one dashed block where it is (the blocks it
  *  added, with the words it took out struck through at the top), and floating under it Discard, Try another and Keep for that
  *  change alone. Read from `look` when told to look again. */
-export interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Keeps every change at once: offered in each bar when there are several. */ keepAll?: () => void; /** Mobius is still at work: its changes show, and their answers wait for the turn's end. */ waiting?: boolean; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
+export interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Keeps every change at once: offered in each bar when there are several. */ keepAll?: () => void; /** Mobius is still at work: its changes show, and their answers wait for the turn's end. */ waiting?: boolean; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number>; /** What was asked in the turn, for the bar's Why ("You asked …"). */ why?: string | null }
 export const changeKey = new PluginKey<DecorationSet>('doc-changes');
 /** The words a change took out, struck through: the top of its dashed block, or all of it when nothing was added. */
 function changeWas(group: number, removed: string[], view: ChangeView, whole: boolean): HTMLElement {
@@ -73,13 +74,38 @@ function changeNote(group: number, removed: boolean, added: boolean, view: Chang
     b.addEventListener('click', run);
     return b;
   };
+  // Why: what was asked, one line under the bar, as the floating ChangeBar shows it.
+  if (view.why) {
+    const why = document.createElement('p');
+    why.className = 'change-float-why';
+    why.textContent = view.why;
+    why.hidden = true;
+    const open = button('Why', 'Why Mobius made this change', 'why', () => { why.hidden = !why.hidden; open.setAttribute('aria-expanded', String(!why.hidden)); });
+    open.setAttribute('aria-expanded', 'false');
+    bar.append(open);
+    note.append(bar, why);
+  } else note.append(bar);
   // Asked through `look` when pressed: the note can outlive the render it was drawn in, and its change's number holds.
-  if (view.waiting) { note.append(bar); return note; }
-  bar.append(button('Discard', 'Discard this change', 'discard', () => look()?.discard(group)));
-  if (view.again) bar.append(button('Try another', 'Try another way for this change', 'again', () => look()?.again?.(group)));
-  bar.append(button('Keep', 'Keep this change', 'keep', () => look()?.keep(group)));
-  if (several && view.keepAll) bar.append(button('Keep all', 'Keep every change Mobius made here', 'keep', () => look()?.keepAll?.()));
-  note.append(bar);
+  if (view.waiting) return note;
+  // An answer settles before the change is made (settle.ts): kept, the dashed edge fades into the page and the struck
+  // words close up; discarded, the added words fade out. The bar's slot closes with it either way.
+  const answer = (kept: boolean | 'all', act: () => void) => () => {
+    if (note.dataset.answered !== undefined) return;
+    note.dataset.answered = '';
+    for (const b of note.querySelectorAll('button')) b.disabled = true;
+    const page = note.closest('.ProseMirror');
+    const of = (sel: string) => [...(page?.querySelectorAll(kept === 'all' ? sel : `${sel}[data-group="${group}"]`) ?? [])];
+    const notes = kept === 'all' ? of('.doc-change') : [note];
+    void Promise.all([
+      ...of('.doc-change-new').map((n) => (kept ? settleEdge(n) : settleGone(n))),
+      ...of('.doc-change-old').map((n) => (kept ? collapseSlot(n) : settleGone(n))),
+      ...notes.map((n) => collapseSlot(n)),
+    ]).then(act);
+  };
+  bar.append(button('Discard', 'Discard this change', 'discard', answer(false, () => look()?.discard(group))));
+  if (view.again) bar.append(button('Try another', 'Try another way for this change', 'again', answer(false, () => look()?.again?.(group))));
+  bar.append(button('Keep', 'Keep this change', 'keep', answer(true, () => look()?.keep(group))));
+  if (several && view.keepAll) bar.append(button('Keep all', 'Keep every change Mobius made here', 'keep', answer('all', () => look()?.keepAll?.())));
   return note;
 }
 function changeDecorations(doc: PmNode, look: () => ChangeView | null): DecorationSet {
@@ -121,7 +147,7 @@ function changeDecorations(doc: PmNode, look: () => ChangeView | null): Decorati
     const removed = removedOf(g);
     const own = [...topGroup].filter(([, og]) => og === g).map(([t]) => t);
     // The same change drawn while Mobius is at work has no answers: a new key, so they come when it is done.
-    const key = `${g}-${removed.join('\u0000').length}${view.waiting ? '-w' : ''}`;
+    const key = `${g}-${removed.join('\u0000').length}${view.waiting ? '-w' : ''}${view.why ? '-y' : ''}`;
     const opts = (side: number, k: string) => ({ side, key: `change-${k}-${key}`, stopEvent: () => true, ignoreSelection: true });
     if (own.length) {
       // The answers float under the change, once it has been read, in Notes and Docs alike.

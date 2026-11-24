@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ChangeBar, ReviewActions, TryAnotherContext, TurnRunningContext, WAITS_FOR_TURN } from './ReviewBar';
+import { ChangeBar, ReviewActions, TryAnotherContext, TurnRunningContext, WAITS_FOR_TURN, whyLine } from './ReviewBar';
 
 const noop = () => {};
 
@@ -29,5 +29,14 @@ describe('the floating change bar', () => {
   it('has no Why without an ask, and keeps the plain line when not floating', () => {
     expect(renderToStaticMarkup(<ChangeBar floating who="x" onKeep={noop} onDiscard={noop} />)).not.toContain('>Why<');
     expect(renderToStaticMarkup(<ChangeBar who="x" onKeep={noop} onDiscard={noop} />)).toContain('doc-change-bar');
+  });
+});
+
+describe('the Why line in a page\'s change bar', () => {
+  it('quotes the ask, cut to one line', () => {
+    expect(whyLine('Tighten the intro')).toBe('You asked “Tighten the intro”');
+    const long = whyLine('word '.repeat(60).trim());
+    expect(long.length).toBeLessThanOrEqual(152);
+    expect(long.endsWith('…”')).toBe(true);
   });
 });

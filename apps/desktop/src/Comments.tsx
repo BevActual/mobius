@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CommentAnchor, CommentThread, ContextItem, Message } from '@mobius/shared';
 import { KEPT_EVENT } from './ReviewStrip';
 import { RichText } from './RichText';
@@ -59,12 +59,39 @@ export function useOpenComments(app: string) {
 
 const BUBBLE = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4.5h12a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H9l-4 3v-3H4A1.5 1.5 0 0 1 2.5 13V6A1.5 1.5 0 0 1 4 4.5z" /></svg>;
 
-/** The toolbar's comment button: pressed in comment mode, with the count of open threads in this app. */
-export function CommentButton({ on, count, onToggle }: { on: boolean; count: number; onToggle: () => void }) {
+/*
+ * Mobius's open suggestions on the page an app shows (Docs, Notes: the changes of its last turn still to answer). They
+ * count on the Comments badge with the open threads, so what is left to review is one number in one place (the panel
+ * look: indigo is only Mobius, and the count is not a separate indigo link).
+ */
+const suggestionCounts = new Map<string, number>();
+const suggestionWatchers = new Set<() => void>();
+/** Says how many of Mobius's suggestions are open in `app`; 0 when none show. */
+export function publishSuggestions(app: string, count: number): void {
+  if ((suggestionCounts.get(app) ?? 0) === count) return;
+  if (count > 0) suggestionCounts.set(app, count); else suggestionCounts.delete(app);
+  for (const tell of suggestionWatchers) tell();
+}
+const watchSuggestions = (tell: () => void) => { suggestionWatchers.add(tell); return () => { suggestionWatchers.delete(tell); }; };
+/** How many of Mobius's suggestions are open in `app`. */
+export function useSuggestions(app: string): number {
+  return useSyncExternalStore(watchSuggestions, () => suggestionCounts.get(app) ?? 0, () => suggestionCounts.get(app) ?? 0);
+}
+/** Publishes `count` for `app` while the page shows it, and clears it when the page goes. */
+export function usePublishSuggestions(app: string | null, count: number): void {
+  useEffect(() => { if (app) publishSuggestions(app, count); }, [app, count]);
+  useEffect(() => () => { if (app) publishSuggestions(app, 0); }, [app]);
+}
+
+/** The toolbar's comment button: pressed in comment mode, with the count of open threads and Mobius's open
+ *  suggestions in this app. */
+export function CommentButton({ on, count, suggestions = 0, onToggle }: { on: boolean; count: number; suggestions?: number; onToggle: () => void }) {
+  const all = count + suggestions;
+  const said = [count > 0 && (count === 1 ? '1 comment' : `${count} comments`), suggestions > 0 && (suggestions === 1 ? '1 suggestion' : `${suggestions} suggestions`)].filter(Boolean).join(' and ');
   return (
-    <button type="button" className="strip-btn comment-toggle" data-comment-toggle data-priority="low" data-keys="C" aria-pressed={on} aria-label="Comments" title={on ? 'Leave comment mode (C)' : 'Comment on anything here (C)'} onClick={onToggle}>
+    <button type="button" className="strip-btn comment-toggle" data-comment-toggle data-priority="low" data-keys="C" aria-pressed={on} aria-label="Comments" title={on ? 'Leave comment mode (C)' : said ? `Comments: ${said} open (C)` : 'Comment on anything here (C)'} onClick={onToggle}>
       {BUBBLE}
-      {count > 0 && <span className="comment-badge" aria-label={`${count} open`}>{count}</span>}
+      {all > 0 && <span className="comment-badge" aria-label={`${said} open`}>{all}</span>}
     </button>
   );
 }
