@@ -45,7 +45,7 @@ Save button.
 | **Calendar** | Calendar accounts: subscribe to a link, connect iCloud, Fastmail or Nextcloud, or sign in to Google or Outlook | [Calendar](../apps/write-and-plan.md#calendar) |
 | **Conversations** | Saved conversations, and where they are kept | [Agent](../apps/assistant.md#agent) |
 | **Schedules** | Requests to Mobius at a time of day | [Working with Mobius](working-with-mobius.md#schedules) |
-| **Abilities** | Opens the Abilities app | [Abilities](abilities.md) |
+| **Store** | Opens the Store | [Store](abilities.md) |
 
 ## System
 

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { MenuBar } from './MenuBar';
 import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, parseLaunchChoice, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type CalendarEvent } from '@mobius/shared';
+import { MAIN_BOT_ID, parseLaunchChoice, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, settleBindings, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type CalendarEvent } from '@mobius/shared';
 import { MEETINGS_NOTEBOOK, meetingNote } from './note-insert';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
@@ -135,6 +135,7 @@ const NOTICES: Record<string, string> = {
 };
 
 /** The key that shows and hides Mobius beside the work. */
+/** Shows and hides Mobius beside the work: a key Mobius keeps for itself (FIXED_KEYS), which no shortcut can take. */
 const MOBIUS_KEYS = 'mod+shift+m';
 
 /** The toolbar's Mobius button. Pressed means Mobius is in front: while it has stepped aside for the inspector (a window
@@ -301,7 +302,8 @@ export function App() {
   const tasks = useTasks();
   const calendar = useCalendar();
   const [eventToken, setEventToken] = useState(0);
-  const bindings = preferences.value.keybindings;
+  // A saved shortcut on a key Mobius keeps for itself (Little Mobius was Ctrl+Shift+M) goes back to its usual keys.
+  const bindings = useMemo(() => settleBindings(preferences.value.keybindings), [preferences.value.keybindings]);
   // Clicking a notification brings Mobius forward; show the conversation it was about.
   useEffect(() => window.mobius.app.onOpenConversation((id) => { conversation.select(id); setChatOpen(true); }), [conversation.select]);
   // Once the saved choices are known, apply the ones that only matter at start-up, once.
