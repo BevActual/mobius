@@ -313,10 +313,35 @@ fn chunk_from_full_reply(reply: &Value) -> Result<Value, ProviderError> {
     Ok(chunk)
 }
 
+/// Asks for an answer that follows the request's schema, the way a server of this address takes it. OpenRouter is
+/// told to use only routes that can (`require_parameters`). Anthropic's OpenAI-style endpoint is left plain: the answer
+/// is checked in code instead ([`crate::schema`]).
+pub fn add_format(body: &mut Value, request: &ChatRequest, base_url: &str) {
+    let Some(format) = &request.format else { return };
+    let host = base_url.split("://").nth(1).unwrap_or(base_url).split(['/', ':']).next().unwrap_or("").to_ascii_lowercase();
+    if host == "api.anthropic.com" {
+        return;
+    }
+    body["response_format"] = json!({ "type": "json_schema", "json_schema": { "name": format.name, "schema": format.schema, "strict": true } });
+    if host == "openrouter.ai" || host.ends_with(".openrouter.ai") {
+        body["provider"] = json!({ "require_parameters": true });
+    }
+}
+
 impl Provider for OpenAiProvider {
     fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
-        let body = body_for(request, self.local);
+        let mut body = body_for(request, self.local);
+        add_format(&mut body, request, &self.base_url);
         match self.complete_body(&body, on_text) {
+            // A server that does not take an answer format is asked plainly; the answer is still checked in code.
+            Err(ProviderError::Http { status: 400 | 404 | 422, message }) if body.get("response_format").is_some() && message.to_ascii_lowercase().contains("response_format") => {
+                let mut plain = body;
+                if let Some(o) = plain.as_object_mut() {
+                    o.remove("response_format");
+                    o.remove("provider");
+                }
+                self.complete_body(&plain, on_text)
+            }
             // A server that refuses the request for the token count is asked again without it.
             Err(ProviderError::Http { status: 400, message }) if message.to_ascii_lowercase().contains("stream_options") => {
                 let mut plain = body;
@@ -409,6 +434,28 @@ mod tests {
     use crate::message::Message;
     use crate::provider::{StopReason, ToolDef};
     use serde_json::json;
+
+    #[test]
+    fn an_answer_format_is_asked_for_where_the_service_takes_one() {
+        let request = ChatRequest {
+            model: "m".into(),
+            format: Some(crate::provider::OutputFormat { name: "sort".into(), schema: json!({ "type": "object" }) }),
+            ..Default::default()
+        };
+        let mut body = json!({});
+        add_format(&mut body, &request, "http://127.0.0.1:8080/v1");
+        assert_eq!(body["response_format"], json!({ "type": "json_schema", "json_schema": { "name": "sort", "schema": { "type": "object" }, "strict": true } }));
+        assert!(body.get("provider").is_none());
+        let mut body = json!({});
+        add_format(&mut body, &request, "https://openrouter.ai/api/v1");
+        assert_eq!(body["provider"], json!({ "require_parameters": true }), "OpenRouter only sends it to models that take it");
+        let mut body = json!({});
+        add_format(&mut body, &request, "https://api.anthropic.com/v1");
+        assert_eq!(body, json!({}), "Anthropic's OpenAI-style endpoint is left to the check in code");
+        let mut body = json!({});
+        add_format(&mut body, &ChatRequest::default(), "http://127.0.0.1:8080/v1");
+        assert_eq!(body, json!({}));
+    }
 
     fn feed_all(chunks: Vec<Value>) -> Result<(String, Completion), ProviderError> {
         let mut acc = StreamAccumulator::new();
@@ -541,6 +588,7 @@ mod tests {
             tools: vec![ToolDef { name: "demo.echo".into(), description: "Echo".into(), input_schema: json!({ "type": "object" }) }],
             effort: None,
             max_tokens: None,
+            format: None,
         };
         let body = build_request_body(&request);
         assert_eq!(body["model"], "m");
@@ -564,7 +612,7 @@ mod tests {
 
     #[test]
     fn with_no_tools_the_field_is_left_out() {
-        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::user("hi")], tools: vec![], effort: None, max_tokens: None };
+        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::user("hi")], tools: vec![], effort: None, max_tokens: None, format: None };
         let body = build_request_body(&request);
         assert!(body.get("tools").is_none());
         assert_eq!(body["messages"].as_array().unwrap().len(), 1, "an empty system prompt is not sent");
@@ -572,7 +620,7 @@ mod tests {
 
     #[test]
     fn a_bounded_request_says_so_and_no_reasoning_is_asked_for_only_on_this_computer() {
-        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::user("hi")], tools: vec![], effort: None, max_tokens: None };
+        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::user("hi")], tools: vec![], effort: None, max_tokens: None, format: None };
         assert!(body_for(&request, true).get("max_tokens").is_none());
         request.max_tokens = Some(900);
         request.effort = Some(crate::provider::NO_REASONING.into());
@@ -589,7 +637,7 @@ mod tests {
 
     #[test]
     fn the_effort_is_sent_only_when_one_was_chosen() {
-        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::user("hi")], tools: vec![], effort: None, max_tokens: None };
+        let mut request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::user("hi")], tools: vec![], effort: None, max_tokens: None, format: None };
         assert!(build_request_body(&request).get("reasoning_effort").is_none());
         request.effort = Some("high".into());
         assert_eq!(build_request_body(&request)["reasoning_effort"], "high");
@@ -598,7 +646,7 @@ mod tests {
     #[test]
     fn pictures_go_as_content_parts_after_the_words() {
         let picture = "data:image/png;base64,iVBORw0KGgo=".to_owned();
-        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "what is this?".into(), images: vec![picture.clone()], at_ms: None }], tools: vec![], effort: None, max_tokens: None };
+        let request = ChatRequest { model: "m".into(), system: String::new(), messages: vec![Message::User { text: "what is this?".into(), images: vec![picture.clone()], at_ms: None }], tools: vec![], effort: None, max_tokens: None, format: None };
         let body = body_for(&request, false);
         assert_eq!(body["messages"][0]["content"], json!([{ "type": "text", "text": "what is this?" }, { "type": "image_url", "image_url": { "url": picture } }]));
     }

@@ -13,7 +13,19 @@ pub struct ToolDef {
     pub input_schema: Value,
 }
 
+/// An answer that must be JSON following a schema (structured output). Each provider sends it the way it takes it;
+/// one that cannot is asked plainly, and the answer is checked against the schema in code either way
+/// ([`crate::schema::check_answer`]).
 #[derive(Debug, Clone, PartialEq)]
+pub struct OutputFormat {
+    /// A short name for it (`mail_sort`), which some services ask for.
+    pub name: String,
+    /// The JSON schema: an object with every property listed in `required` and `additionalProperties: false`, which
+    /// is what the strictest services (OpenAI strict mode, Claude) take.
+    pub schema: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ChatRequest {
     pub model: String,
     pub system: String,
@@ -23,6 +35,8 @@ pub struct ChatRequest {
     pub effort: Option<String>,
     /// The most the answer may be, in tokens, when it must be bounded (a summary). Otherwise the server decides.
     pub max_tokens: Option<u32>,
+    /// The answer must follow this schema, when set.
+    pub format: Option<OutputFormat>,
 }
 
 /// An `effort` that asks the model not to reason at all, for short mechanical work such as a summary. Sent only to a

@@ -950,6 +950,7 @@ impl Engine {
             tools: outside.into_iter().map(|t| ToolDef { name: t.name, description: t.description, input_schema: t.input_schema }).chain(own_tools()).collect(),
             effort: turn.setup.effort.clone().or_else(|| self.effort.clone()),
             max_tokens: None,
+            format: None,
         }
     }
 

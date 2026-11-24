@@ -14,6 +14,7 @@ pub mod openai;
 pub mod provider;
 pub mod responses;
 pub mod review;
+pub mod schema;
 pub mod sessions;
 pub mod sse;
 pub mod untrusted;

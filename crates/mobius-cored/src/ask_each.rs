@@ -9,8 +9,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use mobius_agent::message::Message;
-use mobius_agent::provider::{ChatRequest, NO_REASONING, Provider, ProviderError, Usage};
+use mobius_agent::provider::{ChatRequest, Completion, NO_REASONING, OutputFormat, Provider, ProviderError, Usage};
+use mobius_agent::schema::check_answer;
 use serde::Deserialize;
+use serde_json::Value;
 
 /// How many calls run at once when the caller does not say. Tunable; `MOST_AT_ONCE` is the most a caller may ask for.
 pub const AT_ONCE: usize = 6;
@@ -43,7 +45,20 @@ pub struct AskEachParams {
     pub quick: bool,
     #[serde(default)]
     pub at_once: Option<usize>,
+    /// Each answer must be JSON following this schema: asked for where the model's service takes it, and checked in
+    /// code either way, with one more try when an answer does not follow it.
+    #[serde(default)]
+    pub format: Option<FormatParam>,
 }
+
+#[derive(Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct FormatParam {
+    pub name: String,
+    pub schema: Value,
+}
+
+const MOST_SCHEMA_CHARS: usize = 8_000;
 
 fn yes() -> bool {
     true
@@ -94,6 +109,12 @@ impl AskEachParams {
         if self.at_once.is_some_and(|n| n == 0 || n > MOST_AT_ONCE) {
             return Err("at_once must be from 1 to 24");
         }
+        if let Some(f) = &self.format {
+            let name_ok = !f.name.is_empty() && f.name.len() <= MOST_ID_CHARS && f.name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+            if !name_ok || !f.schema.is_object() || f.schema.to_string().len() > MOST_SCHEMA_CHARS {
+                return Err("format needs a name of letters, digits, _ or - and a JSON schema object of at most 8000 characters");
+            }
+        }
         Ok(())
     }
 
@@ -105,6 +126,7 @@ impl AskEachParams {
             tools: Vec::new(),
             effort: Some(NO_REASONING.to_owned()),
             max_tokens: Some(self.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS)),
+            format: self.format.as_ref().map(|f| OutputFormat { name: f.name.clone(), schema: f.schema.clone() }),
         }
     }
 }
@@ -162,6 +184,34 @@ fn ask_one(provider: &dyn Provider, request: &ChatRequest, stop: &AtomicBool, wa
     }
 }
 
+/// Ask once, and when the request has an answer format, check the answer against it. An answer that does not follow
+/// it is asked for once more; a service that refused the request is asked once more plainly (it may not take a
+/// format), and that answer is checked the same way. Two misses fail the item, saying what was wrong.
+fn ask_checked(provider: &dyn Provider, request: &ChatRequest, stop: &AtomicBool, waits: &[Duration]) -> Result<Completion, ProviderError> {
+    let first = ask_one(provider, request, stop, waits);
+    let Some(format) = &request.format else { return first };
+    let (again, spent) = match &first {
+        Ok(done) if check_answer(&format.schema, &done.text).is_ok() => return first,
+        Ok(done) => (request.clone(), done.usage.clone()),
+        Err(ProviderError::Cancelled) => return first,
+        Err(_) => (ChatRequest { format: None, ..request.clone() }, None),
+    };
+    if stop.load(Ordering::SeqCst) {
+        return Err(ProviderError::Cancelled);
+    }
+    let mut second = ask_one(provider, &again, stop, waits)?;
+    // Both calls are counted.
+    if let (Some(total), Some(before)) = (second.usage.as_mut(), spent) {
+        total.input += before.input;
+        total.output += before.output;
+        total.cached += before.cached;
+    }
+    match check_answer(&format.schema, &second.text) {
+        Ok(_) => Ok(second),
+        Err(why) => Err(ProviderError::Protocol(format!("the answer did not follow its format: {why}"))),
+    }
+}
+
 /// One item's answer.
 pub enum Answer {
     Text(String, Option<Usage>),
@@ -195,7 +245,7 @@ pub fn ask_all(
                         return;
                     };
                     asked.fetch_add(1, Ordering::SeqCst);
-                    let result = ask_one(provider.as_ref(), &request, stop, BUSY_WAITS);
+                    let result = ask_checked(provider.as_ref(), &request, stop, BUSY_WAITS);
                     match result {
                         Ok(done) => each(&id, Answer::Text(done.text, done.usage)),
                         Err(e) => each(
@@ -269,6 +319,7 @@ mod tests {
             max_tokens: None,
             quick: true,
             at_once: None,
+            format: None,
         }
     }
 
@@ -417,5 +468,45 @@ mod tests {
         assert!(a.load(Ordering::SeqCst) && !b.load(Ordering::SeqCst));
         assert!(stop_job(&running, "j2") && b.load(Ordering::SeqCst));
         assert!(!stop_job(&running, "nope"));
+    }
+
+    /// Answers from a list, one per call, noting whether each call asked for a format.
+    struct Scripted {
+        answers: Mutex<VecDeque<Result<&'static str, ProviderError>>>,
+        formats: Mutex<Vec<bool>>,
+    }
+    impl Provider for Scripted {
+        fn complete(&self, request: &ChatRequest, _: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
+            self.formats.lock().unwrap().push(request.format.is_some());
+            let text = self.answers.lock().unwrap().pop_front().unwrap()?;
+            Ok(Completion { text: text.into(), tool_calls: Vec::new(), stop: StopReason::EndTurn, usage: None })
+        }
+    }
+
+    fn formatted(answers: Vec<Result<&'static str, ProviderError>>) -> (Scripted, ChatRequest) {
+        let mut p = params(1);
+        p.format = Some(FormatParam {
+            name: "pick".into(),
+            schema: serde_json::json!({ "type": "object", "properties": { "group": { "type": "string", "enum": ["a", "b"] } }, "required": ["group"], "additionalProperties": false }),
+        });
+        let request = p.request_for("quick", &p.items[0]);
+        (Scripted { answers: Mutex::new(answers.into()), formats: Mutex::new(Vec::new()) }, request)
+    }
+
+    #[test]
+    fn an_answer_off_its_format_is_asked_for_once_more() {
+        let (p, r) = formatted(vec![Ok("I'd say a."), Ok(r#"{"group": "a"}"#)]);
+        assert_eq!(ask_checked(&p, &r, &AtomicBool::new(false), &[]).unwrap().text, r#"{"group": "a"}"#);
+        assert_eq!(*p.formats.lock().unwrap(), [true, true]);
+    }
+
+    #[test]
+    fn a_service_that_refuses_the_format_is_asked_plainly_and_still_checked() {
+        let (p, r) = formatted(vec![Err(ProviderError::Http { status: 400, message: "unknown field".into() }), Ok("```json\n{\"group\": \"b\"}\n```")]);
+        assert!(ask_checked(&p, &r, &AtomicBool::new(false), &[]).is_ok());
+        assert_eq!(*p.formats.lock().unwrap(), [true, false]);
+        let (p, r) = formatted(vec![Ok(r#"{"group": "c"}"#), Ok("no idea")]);
+        let e = ask_checked(&p, &r, &AtomicBool::new(false), &[]).unwrap_err();
+        assert_eq!(e.to_string(), ProviderError::Protocol("the answer did not follow its format: the answer is not JSON".into()).to_string());
     }
 }

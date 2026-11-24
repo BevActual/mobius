@@ -402,6 +402,7 @@ mod tests {
             tools: vec![ToolDef { name: "files.read".into(), description: "Read".into(), input_schema: json!({}) }],
             effort: None,
             max_tokens: None,
+            format: None,
         };
         let p = prompt(&request);
         assert!(p.starts_with("<instructions>\nBe brief."));

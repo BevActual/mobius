@@ -231,6 +231,11 @@ pub fn prepare(request: &ChatRequest, natives: &NativeTurns) -> Result<Prepared,
     if let Some(e) = &effort {
         body["output_config"] = json!({ "effort": e });
     }
+    // Claude Code passes `output_config.format` on to the Messages API as given (checked with Claude Code 2.1.331 by
+    // capturing its request), so an answer format needs nothing from the CLI itself.
+    if let Some(format) = &request.format {
+        body["output_config"]["format"] = json!({ "type": "json_schema", "schema": format.schema });
+    }
     let thinking_off = matches!(off, Some(ThinkingOff::Disabled | ThinkingOff::BetweenTools));
     let updates_in_thinking = off == Some(ThinkingOff::BetweenTools);
     Ok(Prepared { thinking_off, updates_in_thinking, system: request.system.clone(), frames, manifest, body, names, model, effort })
@@ -302,6 +307,19 @@ mod tests {
     use super::*;
     use mobius_agent::provider::ToolDef;
 
+    #[test]
+    fn an_answer_format_goes_in_output_config_beside_the_effort() {
+        let mut r = request(vec![Message::user("sort this")]);
+        r.model = "haiku".into();
+        r.effort = Some("low".into());
+        r.format = Some(mobius_agent::provider::OutputFormat { name: "sort".into(), schema: json!({ "type": "object" }) });
+        let p = prepare(&r, &NativeTurns::default()).unwrap();
+        assert_eq!(p.body["output_config"]["format"], json!({ "type": "json_schema", "schema": { "type": "object" } }));
+        r.effort = None;
+        let p = prepare(&r, &NativeTurns::default()).unwrap();
+        assert_eq!(p.body["output_config"], json!({ "format": { "type": "json_schema", "schema": { "type": "object" } } }));
+    }
+
     fn request(messages: Vec<Message>) -> ChatRequest {
         ChatRequest {
             model: "sonnet".into(),
@@ -310,6 +328,7 @@ mod tests {
             tools: vec![ToolDef { name: "files.read".into(), description: "Read".into(), input_schema: json!({ "type": "object", "properties": { "path": { "type": "string" } }, "anyOf": [] }) }],
             effort: Some("high".into()),
             max_tokens: None,
+            format: None,
         }
     }
     fn call(id: &str) -> ToolCall {
