@@ -7,8 +7,9 @@ import { SchedulesSection } from './Schedules';
 import { PageBoundary } from './PageBoundary';
 import { UsageSection } from './Usage';
 import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection, VoiceModelRows } from './Voice';
-import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from '../ui';
+import { AppSidebar, IconButton, KeyCaps, SidebarRow, SidebarSection, ToolbarControls } from '../ui';
 import { SectionIcon } from './icons';
+import { GLYPH } from '../file-icons';
 import '../settings.css';
 import { MailAccountsSettings } from '../MailAccounts';
 import { ConnectionsList } from './AccountsPage';
@@ -16,6 +17,23 @@ import { CalendarAccountsSettings } from '../CalendarAccounts';
 import { MessagesAccountsSettings } from '../MessagesAccounts';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
+
+// The same glyphs as Files' Back and Forward, so the two toolbars match.
+const BACK = <svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.back}</svg>;
+const FORWARD = <svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.forward}</svg>;
+const MAC = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
+
+/** Whether a key press lands in a field being typed in: Escape there leaves the field, not Settings. */
+export function typingIn(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el || typeof el.tagName !== 'string') return false;
+  if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+  if (el.tagName !== 'INPUT') return false;
+  return ['text', 'search', 'email', 'url', 'password', 'number', 'tel', ''].includes((el as HTMLInputElement).type);
+}
+
+/** A place in Settings, for Back and Forward. */
+interface Place { section: SectionId; subpage: string }
 
 const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   connections: ({ onGo, onOpenApp }) => <ConnectionsList onGo={onGo ?? (() => {})} {...(onOpenApp ? { onOpenApp } : {})} />,
@@ -52,6 +70,8 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   const [highlight, setHighlight] = useState<string | null>(null);
   // Bumped on every move to a page, so the page is scrolled to even when it is the one already open.
   const [moved, setMoved] = useState(0);
+  // Back and Forward, as in System Settings: every section visited, and where in that list Settings is now.
+  const [trail, setTrail] = useState<{ places: Place[]; at: number }>(() => ({ places: [{ section, subpage }], at: 0 }));
   const root = useRef<HTMLElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const results = useRef<HTMLUListElement>(null);
@@ -89,13 +109,35 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   }, [sidebar]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented) onClose();
+      const search = event.target instanceof HTMLInputElement && event.target.type === 'search' && event.target.closest('.settings-search');
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        // While typing, Escape only leaves the field, so a half-filled form is not lost; the next Escape closes.
+        if (!search && typingIn(event.target)) { (event.target as HTMLElement).blur(); return; }
+        onClose();
+      }
       // Ctrl+F finds a setting, as in every settings window.
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.code === 'KeyF') { event.preventDefault(); (sidebar ?? root.current)?.querySelector<HTMLElement>('input[type="search"]')?.focus(); }
     };
+    // Alt+Left and Alt+Right go Back and Forward, as in a browser (Command-[ and Command-] too on a Mac); typing keeps
+    // the arrows for moving by word. Caught first, so the app under Settings (the Browser's own Back) does not take them too.
+    const onArrow = (event: KeyboardEvent) => {
+      const arrows = event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !typingIn(event.target);
+      const brackets = event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && (event.code === 'BracketLeft' || event.code === 'BracketRight');
+      if (!arrows && !brackets) return;
+      event.preventDefault();
+      step(event.key === 'ArrowLeft' || event.code === 'BracketLeft' ? -1 : 1);
+    };
+    // The mouse's own Back and Forward buttons.
+    const onMouse = (event: MouseEvent) => {
+      if (event.button !== 3 && event.button !== 4) return;
+      event.preventDefault();
+      step(event.button === 3 ? -1 : 1);
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, sidebar]);
+    window.addEventListener('keydown', onArrow, true);
+    window.addEventListener('mouseup', onMouse, true);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keydown', onArrow, true); window.removeEventListener('mouseup', onMouse, true); };
+  }); // eslint-disable-line react-hooks/exhaustive-deps -- reads the latest trail
   // Each move lands where it was going: the setting a search found, the page asked for (Appearance's Layout from the
   // View menu), or the top of the section, not wherever the last section had been scrolled to.
   useEffect(() => {
@@ -107,13 +149,32 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
     else content.current?.scrollTo?.({ top: 0 });
   }, [moved]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Opens a section, at one of its pages and one of its settings when given. */
-  const go = (id: SectionId, sub?: string, row?: string) => {
+  /** Shows a place without adding it to Back and Forward. */
+  const show = (id: SectionId, sub: string, row?: string) => {
     setSection(id);
-    setSubpage(sub ?? findSection(id)?.subpages[0]?.id ?? '');
+    setSubpage(sub);
     setHighlight(row ?? null);
     setQuery('');
     setMoved((n) => n + 1);
+  };
+  /** Opens a section, at one of its pages and one of its settings when given; Back returns to where it was. */
+  const go = (id: SectionId, sub?: string, row?: string) => {
+    const page = sub ?? findSection(id)?.subpages[0]?.id ?? '';
+    setTrail((t) => {
+      const here = t.places[t.at];
+      if (here && here.section === id && here.subpage === page) return t;
+      const places = [...t.places.slice(0, t.at + 1), { section: id, subpage: page }];
+      return { places, at: places.length - 1 };
+    });
+    show(id, page, row);
+  };
+  /** One place back (-1) or forward (1). */
+  const step = (by: -1 | 1) => {
+    const at = trail.at + by;
+    const place = trail.places[at];
+    if (!place) return;
+    setTrail({ ...trail, at });
+    show(place.section, place.subpage);
   };
   const openSection = (id: SectionId) => go(id);
   // Opened again at another section while it is open (Help › Keyboard Shortcuts, View › Layout), it goes there.
@@ -138,6 +199,10 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
 
   return (
     <section ref={root} className="settings-page" role="region" aria-label="Settings">
+      <ToolbarControls label="Settings" above>
+        <IconButton label="Back" keys={MAC ? 'Cmd+[' : 'Alt+Left'} icon={BACK} disabled={trail.at === 0} onClick={() => step(-1)} />
+        <IconButton label="Forward" keys={MAC ? 'Cmd+]' : 'Alt+Right'} icon={FORWARD} disabled={trail.at >= trail.places.length - 1} onClick={() => step(1)} />
+      </ToolbarControls>
       <div className="settings-body">
         {sidebar ? createPortal(nav, sidebar) : ownsNav ? null : nav}
         <div ref={content} className="settings-content">

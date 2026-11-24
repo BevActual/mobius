@@ -64,7 +64,8 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
   const [appMenu, setAppMenu] = useAppMenuHost();
   const dropped = useToolbarFit(slot);
   const titled = toolbar.menus !== undefined;
-  const noTools = useEmpty(slot) || toolbar.appControls === false;
+  // While the app is covered (Settings open), only what is drawn over it shows, so the row counts only that.
+  const noTools = useEmpty(slot, toolbar.appControls === false);
   // Controls that did not fit come first in the one ⋯, above the app's own commands, with a line after them. With a
   // title row the app's commands are in its menu there, so the ⋯ holds only what did not fit.
   const menu = useMemo<AppMenuState | null>(() => {
@@ -101,7 +102,7 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
           </div>
           <header className="context-strip" data-titled hidden={noTools}>
             {toolbar.middle}
-            <div ref={setSlot} className="ui-toolbar-slot" hidden={toolbar.appControls === false} />
+            <div ref={setSlot} className="ui-toolbar-slot" data-covered={toolbar.appControls === false || undefined} />
             {!noTools && <div className="strip-right" role="group" aria-label="Applications">{trail}</div>}
           </header>
         </> : (
@@ -112,7 +113,7 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
             {toolbar.sub && <span className="toolbar-sub">{toolbar.sub}</span>}
           </div>
           {toolbar.middle}
-          <div ref={setSlot} className="ui-toolbar-slot" hidden={toolbar.appControls === false} />
+          <div ref={setSlot} className="ui-toolbar-slot" data-covered={toolbar.appControls === false || undefined} />
           {toolbar.panels?.(panels)}
           {toolbar.status}
           <div className="strip-right" role="group" aria-label="Applications">{trail}</div>
@@ -131,23 +132,23 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
  * An app's own controls in the toolbar's middle (zone 3), written in the app's own file. They show only while the
  * app is on screen, and go when it goes. Keep to what is used often; the rest goes in the app's menu (⋯).
  */
-export function ToolbarControls({ label, children }: { label: string; children: ReactNode }) {
+export function ToolbarControls({ label, children, above }: { label: string; children: ReactNode; /** Drawn over the app, as Settings is: shown while the app's own tools are covered. */ above?: boolean }) {
   const slot = useContext(ToolbarSlot);
   if (!slot) return null;
-  return createPortal(<div className="ui-toolbar-group" role="group" aria-label={label}>{children}</div>, slot);
+  return createPortal(<div className="ui-toolbar-group" role="group" aria-label={label} data-above={above || undefined}>{children}</div>, slot);
 }
 
 /** Whether an element has no children, kept up to date as they come and go (an app's tools, portalled in). */
-function useEmpty(el: HTMLElement | null): boolean {
+function useEmpty(el: HTMLElement | null, covered = false): boolean {
   const [empty, setEmpty] = useState(true);
   useEffect(() => {
     if (!el) return undefined;
-    const check = () => setEmpty(el.childElementCount === 0);
+    const check = () => setEmpty(covered ? !el.querySelector(':scope > [data-above]') : el.childElementCount === 0);
     check();
     const watch = new MutationObserver(check);
     watch.observe(el, { childList: true });
     return () => watch.disconnect();
-  }, [el]);
+  }, [el, covered]);
   return empty;
 }
 
