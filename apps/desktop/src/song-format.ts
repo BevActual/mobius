@@ -260,9 +260,10 @@ export interface Clip { name: string; bars: number; notes: SongNote[]; /** On an
  * An audio clip's sound (Live 12 manual, chapter 9), as the engine reads it (mobius-audio song.rs `Audio`): a WAV file
  * in the song's folder (`file`, relative to it), from `offset` seconds in, at `gainDb`. Unwarped, it plays at its own
  * speed; warped, it follows the song's tempo by its `bpm` or its warp `markers` (a sample frame of the file at a beat
- * of the clip, as WaveformView's WarpMarker). `mode` is the warp mode, "repitch" first.
+ * of the clip, as WaveformView's WarpMarker). `mode` is the warp mode, "repitch" first. `transpose` is its pitch in
+ * semitones, hundredths as cents (8.4.7 "Clip Gain and Pitch"), -48 to 48: only a warped clip in a mode that keeps pitch.
  */
-export interface ClipAudio { file: string; gainDb?: number; offset?: number; warp?: boolean; mode?: string; bpm?: number; markers?: { sample: number; beat: number }[] }
+export interface ClipAudio { file: string; gainDb?: number; transpose?: number; offset?: number; warp?: boolean; mode?: string; bpm?: number; markers?: { sample: number; beat: number }[] }
 
 /**
  * A sampler's sound (Live 12 manual, 36.8 "Working with Samples"), as the engine reads it (mobius-audio sampler.rs
@@ -294,6 +295,7 @@ export function readAudio(v: unknown): ClipAudio | undefined {
   if (typeof a.file !== 'string' || !a.file.trim()) return undefined;
   const audio: ClipAudio = { file: a.file.slice(0, 400) };
   if (typeof a.gainDb === 'number' && Number.isFinite(a.gainDb) && a.gainDb !== 0) audio.gainDb = num(a.gainDb, 0, -70, 24);
+  if (typeof a.transpose === 'number' && Number.isFinite(a.transpose) && a.transpose !== 0) audio.transpose = num(a.transpose, 0, -48, 48);
   if (typeof a.offset === 'number' && Number.isFinite(a.offset) && a.offset > 0) audio.offset = num(a.offset, 0, 0, 24 * 3600);
   if (a.warp === true) audio.warp = true;
   if (typeof a.mode === 'string' && a.mode) audio.mode = a.mode.slice(0, 20);
