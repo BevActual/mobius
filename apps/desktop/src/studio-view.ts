@@ -273,6 +273,7 @@ export function effectText(kind: EffectKind, k: string, v: number): string {
     if (k === 'rate') return `${v < 10 ? v.toFixed(2) : v.toFixed(1)} Hz`;
     if (k === 'resonance') return v.toFixed(1);
     if (k === 'delay') return secs(v);
+    if (k === 'highpass') return v < 20 ? 'Off' : hz(v);
   }
   if (k === 'midFreq') return v >= 1000 ? `${(v / 1000).toFixed(1)} kHz` : `${Math.round(v)} Hz`;
   if (kind === 'eq' || k === 'makeup') return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} dB`;
