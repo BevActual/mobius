@@ -35,10 +35,10 @@ export interface PanelSpec {
   /** Panels with the same group in one dock share a place there, as tabs in one header (Code's Terminal, Tests and
    *  Problems at the bottom). Each is still shown and hidden on its own; showing one brings its tab to the front. */
   group?: string;
-  /** Always there, as System Settings' sidebar is: no Hide button, not in the Panels menu, and the dock's key and a
+  /** Always there, as System Settings' list of sections is: no Hide button, not in the Panels menu, and the dock's key and a
    *  layout kept from before leave it shown (Settings' sections, without which its pages cannot be reached). */
   fixed?: boolean;
-  /** The name screen readers hear, when it must differ from the header's (Settings' panel, beside a page also named Settings). */
+  /** The name screen readers hear, when it must differ from the header's. */
   label?: string;
   /** The panel's body. Its own controls go here, never in the header. */
   render: () => ReactNode;

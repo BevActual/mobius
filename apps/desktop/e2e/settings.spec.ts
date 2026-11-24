@@ -59,7 +59,7 @@ test('Settings opens as an app: its sections in the sidebar, the page name in th
   expect(await visibleViews()).toHaveLength(0);
   // The sections are always there, as in System Settings: no Hide button, and Ctrl+\ leaves them.
   const sections = () => shell().getByRole('navigation', { name: 'Settings sections' });
-  await expect(shell().getByRole('button', { name: 'Hide Settings' })).toHaveCount(0);
+  await expect(shell().getByRole('button', { name: 'Hide Sections' })).toHaveCount(0);
   await shell().keyboard.press('Control+Backslash');
   await expect(sections()).toBeVisible();
   await shell().keyboard.press('Escape');

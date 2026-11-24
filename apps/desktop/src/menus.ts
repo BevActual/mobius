@@ -21,8 +21,6 @@ export interface MenuContext {
   apps: readonly { id: AppId; name: string }[];
   keys: { newTab?: string; closeTab?: string; settings?: string; find?: string; launcher?: string; splitView?: string; littleMobius?: string; address?: string };
   state: {
-    sidebarShown: boolean;
-    hasSidebar: boolean;
     agentShown: boolean;
     hasAgentPanel: boolean;
     commenting: boolean;
@@ -47,7 +45,6 @@ export interface MenuContext {
     about: () => void;
     edit: (command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll') => void;
     find: () => void;
-    toggleSidebar: () => void;
     toggleAgent: () => void;
     toggleComments: () => void;
     toggleSplit: () => void;
@@ -112,7 +109,8 @@ export function buildMenus(c: MenuContext): Menu[] {
     item('find', 'Find on page…', d.find, { keys: keys.find, disabled: c.app !== 'browser' || !s.browser.hasPage }),
   ] };
   const view: Menu = { id: 'view', label: 'View', items: [
-    item('sidebar', 'Sidebar', d.toggleSidebar, { checked: s.sidebarShown, disabled: !s.hasSidebar }),
+    // The open app's own panels (Mailboxes, Sections, Tabs...) are listed at the end by their own names, with their real
+    // state, from its layout: never a generic "Sidebar", whose tick read a stored layout and could say the opposite.
     item('agent-panel', 'Agent panel', d.toggleAgent, { checked: s.agentShown, disabled: !s.hasAgentPanel }),
     item('comments', 'Comments', d.toggleComments, { keys: 'c', checked: s.commenting }),
     separator,
