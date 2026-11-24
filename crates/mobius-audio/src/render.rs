@@ -1495,6 +1495,7 @@ impl Renderer {
         for ret in returns.iter_mut() {
             let (rl, rr) = (&mut ret.left[..frames], &mut ret.right[..frames]);
             if let Some(chain) = &mut ret.chain {
+                chain.set_clock(clock.beat(from), clock.beat(from + 1) - clock.beat(from));
                 chain.process_keyed(rl, rr, rate, &key_slices(&self.keys, &ret.key_from, frames));
             }
             for i in 0..frames {
@@ -1598,11 +1599,13 @@ fn fx_moves<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Ite
 /// devices take their settings, as Web Audio's do).
 #[allow(clippy::too_many_arguments)]
 fn run_chain(chain: &mut Chain, autos: &[Move], mods: &[Mod], left: &mut [f32], right: &mut [f32], rate: f64, beat_of: impl Fn(usize) -> f64, keys: &Keys<'_>, clip: impl Fn(usize, f64) -> Option<f64>) {
+    let n = left.len().min(right.len());
+    let per = if n > 1 { beat_of(1) - beat_of(0) } else { 0.0 };
     if autos.is_empty() {
+        chain.set_clock(beat_of(0), per);
         chain.process_keyed(left, right, rate, &keys.0[..keys.1]);
         return;
     }
-    let n = left.len().min(right.len());
     let mut done = 0;
     while done < n {
         let m = (n - done).min(QUANTUM);
@@ -1617,6 +1620,7 @@ fn run_chain(chain: &mut Chain, autos: &[Move], mods: &[Mod], left: &mut [f32], 
         for (to, key) in piece.iter_mut().zip(&keys.0[..keys.1]) {
             *to = key.get(done..done + m).unwrap_or(&[]);
         }
+        chain.set_clock(beat_of(done), per);
         chain.process_keyed(&mut left[done..done + m], &mut right[done..done + m], rate, &piece[..keys.1]);
         done += m;
     }
@@ -2285,6 +2289,39 @@ mod tests {
         let (mut left, mut right) = (vec![0f32; 512], vec![0f32; 512]);
         r.render(&mut left, &mut right);
         assert!((left[0] - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn beat_repeat_repeats_a_grid_on_the_beat_for_its_gate_by_chance() {
+        // A rising line, a second long, from beat 0; at 120 a sixteenth is 6000 samples.
+        let line: Vec<f32> = (0..48_000).map(|i| i as f32 / 48_000.0).collect();
+        let play = |fx: &str| {
+            let mut song = Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":1,"main":{{"volume":1}},"tracks":[{{"id":"v","kind":"audio","fx":[{{"id":"r","kind":"beatrepeat",{fx}}}],"clips":[{{"start":0,"length":2,"audio":{{"file":"line.wav"}}}}]}}]}}"#)).unwrap();
+            song.sounds.insert("line.wav".into(), std::sync::Arc::new(crate::wav::Sound { rate: 48_000.0, left: line.clone(), right: line.clone() }));
+            render_song(&song, 48_000).0
+        };
+        // Every beat, the first sixteenth over and over for the beat, in place of what comes in.
+        let out = play(r#""interval":4,"grid":1,"gate":4,"mix":"insert""#);
+        assert!((out[3_000] - 0.0625).abs() < 1e-3, "{}", out[3_000]);
+        for repeat in 1..4 {
+            assert!((out[repeat * 6_000 + 3_000] - 0.0625).abs() < 1e-3, "repeat {repeat}: {}", out[repeat * 6_000 + 3_000]);
+        }
+        // The next beat takes its own first sixteenth.
+        assert!((out[24_000 + 6_000 + 3_000] - 0.5625).abs() < 1e-3, "{}", out[33_000]);
+        // Decay makes each repeat quieter than the one before; volume sets them all (dB).
+        let out = play(r#""interval":4,"grid":1,"gate":4,"mix":"insert","decay":0.5,"volume":-6.0206"#);
+        assert!((out[6_000 + 3_000] - 0.03125).abs() < 1e-3 && (out[12_000 + 3_000] - 0.015_625).abs() < 1e-3, "{} {}", out[9_000], out[15_000]);
+        // Mix adds the repeats to what comes in; Gate plays only the repeats.
+        let out = play(r#""interval":4,"grid":1,"gate":2,"mix":"mix""#);
+        assert!((out[9_000] - (0.1875 + 0.0625)).abs() < 1e-3, "{}", out[9_000]);
+        assert!((out[15_000] - 0.3125).abs() < 1e-3, "after the gate, only what comes in: {}", out[15_000]);
+        let out = play(r#""interval":4,"grid":1,"gate":2,"mix":"gate""#);
+        assert!(out[3_000].abs() < 1e-6 && (out[9_000] - 0.0625).abs() < 1e-3 && out[15_000].abs() < 1e-6);
+        // With no chance it never repeats; an offset starts it that many sixteenths into the interval.
+        let out = play(r#""interval":4,"grid":1,"gate":4,"mix":"insert","chance":0"#);
+        assert!((out[9_000] - 0.1875).abs() < 1e-3);
+        let out = play(r#""interval":4,"offset":2,"grid":1,"gate":2,"mix":"insert""#);
+        assert!((out[9_000] - 0.1875).abs() < 1e-3 && (out[12_000 + 6_000 + 3_000] - 0.3125).abs() < 1e-3, "{} {}", out[9_000], out[21_000]);
     }
 
     #[test]
