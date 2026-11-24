@@ -145,8 +145,10 @@ A small studio for writing songs as notes.
   Damp, Mix) at the end of the track's chain. After Live 12's (26), there are also a Gate (Threshold, Return, Floor,
   Attack, Hold, Release), a Limiter (Gain, Ceiling, Release), a Saturator (Drive, Shape, Output, Dry/Wet), an Auto
   Filter (a filter type, Frequency and Resonance, swept by an LFO of a Shape, Rate and Amount), a Chorus (Delay, Rate,
-  Amount, Dry/Wet) and a Phaser (Frequency, Rate, Amount, Dry/Wet). The Workbench can't draw the Gate, Limiter or
-  Chorus yet. Each one has a switch to turn it off, a grip to drag it along the
+  Amount, Dry/Wet), a Phaser (Frequency, Rate, Amount, Dry/Wet) and a Beat Repeat (Live 12's, 29.5: every Interval,
+  Offset sixteenths in and by Chance, it takes a Grid of what comes in and repeats it for its Gate, each repeat
+  quieter by Decay, at its Volume, mixed with the input, in its place or alone; it follows the song's beat). The
+  Workbench can't draw the Gate, Limiter, Beat Repeat or Chorus yet. Each one has a switch to turn it off, a grip to drag it along the
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
 - **Sidechain**: a Compressor or Gate (and a song's own device with a compressor in it) has a Sidechain section, as in Live
   (29.9.1). **Audio From** picks another track whose level triggers it, so a kick can duck a bass or pad; **Gain** raises
