@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNotesFailure, type NoteHit, type Notebook } from '@mobius/shared';
-import { onPageChanged, type SaveStatus } from './notes-state';
+import { liveTitle, onPageChanged, type SaveStatus } from './notes-state';
 import { saveBeforeQuit } from './saveBeforeQuit';
 
 const SAVE_DELAY_MS = 500;
+/** Said when another page is asked for while the open one waits on Keep mine or Use their version. */
+export const CHOOSE_FIRST = 'Choose Keep mine or Use their version first.';
 
 /** The page last open, so Notes (or Docs) opens on it again (after a restart too). Per device; nothing breaks without it. */
 const lastKey = (kind: NotesKind) => `mobius.${kind}.last`;
@@ -74,6 +76,8 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     if (live.current.page?.path === p.path) live.current = { ...live.current, page: { ...live.current.page, base: result.modified } };
     // Typing went on while saving: keep it marked as edited, the next timer saves it.
     setStatus(live.current.text === sent ? 'saved' : 'unsaved');
+    // A save that failed before said why in the status line; now that one went through, that is no longer true.
+    setMessage('');
     return true;
   }, [api]);
   const save = useCallback((force = false): Promise<boolean> => {
@@ -81,32 +85,59 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     saving.current = next.catch(() => false);
     return next;
   }, [saveNow]);
+  /** Before the window goes: what was typed is written. A save that failed is tried again; text the person has not
+   *  yet chosen to keep over a version changed elsewhere is kept as a copy beside it, so neither is lost. */
+  const keepBeforeGoing = useCallback(async () => {
+    const { page: p, status: s, text: mine } = live.current;
+    if (!p || !api) { await saving.current; return; }
+    if (s === 'unsaved' || s === 'error') { await save(); return; }
+    if (s === 'conflict') {
+      const made = await api.createPage(p.path.split('/')[0] ?? '', `${liveTitle(mine, p.title || 'Note')} (your version)`);
+      if (!isNotesFailure(made)) await api.save(made.path, mine, made.modified);
+      return;
+    }
+    await saving.current;
+  }, [api, save]);
   // Quitting (the tray's Quit, or the installer replacing Mobius) waits for an edit not yet written.
-  useEffect(() => saveBeforeQuit(async () => {
-    if (live.current.page && live.current.status === 'unsaved') await save();
-    else await saving.current;
-  }), [save]);
+  useEffect(() => saveBeforeQuit(keepBeforeGoing), [keepBeforeGoing]);
 
   // Whether a page is being read, so an item offered while one is on its way does not take its place.
   const loading = useRef(0);
+  // Pages asked for one after another (a quick click on one, then another) can be read in either order: only the
+  // newest is shown, so the page open is always the one asked for last.
+  const asked = useRef(0);
   const load = useCallback(async (path: string, title = '') => {
     if (!api) return;
+    const ask = ++asked.current;
     loading.current++;
     const got = await api.read(path).finally(() => { loading.current--; });
+    if (ask !== asked.current) return;
     if (isNotesFailure(got)) { setMessage(got.message); return; }
+    // Typing went on in the page being left while this one was read: it is saved before the page goes.
+    const before = live.current;
+    if (before.page && before.page.path !== path && (before.status === 'unsaved' || before.status === 'saving') && !(await save())) return;
+    if (ask !== asked.current) return;
     setPage({ path, title, base: got.modified });
     setText(got.content);
     setStatus('saved');
     setMessage('');
     remember(path);
-  }, [api, remember]);
+  }, [api, remember, save]);
+
+  /** Whether the open page can be left: what was typed is saved first. While the person has not yet chosen between
+   *  their text and a version changed elsewhere, it cannot: leaving would drop their text without asking. */
+  const leave = useCallback(async (): Promise<boolean> => {
+    const { page: p, status: s } = live.current;
+    if (!p || s === 'saved') return true;
+    if (s === 'conflict') { setMessage(CHOOSE_FIRST); return false; }
+    return save();
+  }, [save]);
 
   const open = useCallback(async (path: string, title = '') => {
-    const { page: p, status: s } = live.current;
-    if (p?.path === path) return;
-    if (p && s !== 'saved' && s !== 'conflict' && !(await save())) return;
+    if (live.current.page?.path === path) return;
+    if (!(await leave())) return;
     await load(path, title);
-  }, [load, save]);
+  }, [leave, load]);
 
   const edit = useCallback((next: string) => {
     setText(next);
@@ -133,7 +164,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
 
   /** Makes a page and opens it; `content`, when given, is what it holds instead of the usual start. Gives its path. */
   const createPage = useCallback(async (notebook: string, title = 'Untitled', content?: string): Promise<string | null> => {
-    if (live.current.page && live.current.status === 'unsaved') await save();
+    if (!(await leave())) return null;
     const made = await api?.createPage(notebook, title);
     if (!made || isNotesFailure(made)) { if (made) setMessage(made.message); return null; }
     let { content: text, modified } = made;
@@ -147,7 +178,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     setText(text);
     setStatus('saved');
     return made.path;
-  }, [api, refresh, save, remember]);
+  }, [api, refresh, leave, remember]);
 
   const remove = useCallback(async (path: string) => {
     // The open page is closed first, so nothing of it is still in use while it goes: no save of it lands after the
@@ -200,7 +231,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   }, [active, api, refresh, load, remembered, kind]);
 
   // Nothing typed is lost when the window goes away.
-  useEffect(() => () => { if (live.current.status === 'unsaved') void save(); }, [save]);
+  useEffect(() => () => { void keepBeforeGoing(); }, [keepBeforeGoing]);
 
   /** Opens `path` only when no page is open or on its way: for something Mobius changed, offered on arrival. */
   const openIfIdle = useCallback((path: string, title = '') => {
