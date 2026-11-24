@@ -511,9 +511,10 @@ test('Accounts lists one row per account, opens its own page, and Add Account of
 
   await list.getByRole('button', { name: 'Add Account…' }).click();
   const add = shell().getByRole('dialog', { name: 'Add Account' });
-  await expect(add.getByRole('list', { name: 'Providers' }).getByRole('button')).toHaveText(['Google', 'Microsoft', 'iCloud', 'Fastmail', 'Slack', 'Dropbox', 'Other Account…']);
+  // Each row's name, without its mark's letter.
+  await expect(add.getByRole('list', { name: 'Providers' }).locator('.conn-account')).toHaveText(['Google', 'Microsoft', 'iCloud', 'Fastmail', 'Slack', 'Dropbox', 'Other Account…']);
   await add.getByRole('button', { name: 'Other Account…' }).click();
-  await expect(add.getByRole('list', { name: 'Kinds of account' }).getByRole('button')).toHaveText(['Mail account', 'CalDAV calendar', 'Calendar subscription', 'CardDAV contacts', 'WebDAV or S3 drive', 'Matrix', 'Telegram']);
+  await expect(add.getByRole('list', { name: 'Kinds of account' }).locator('.conn-account')).toHaveText(['Mail account', 'CalDAV calendar', 'Calendar subscription', 'CardDAV contacts', 'WebDAV or S3 drive', 'Matrix', 'Telegram']);
   await add.getByRole('button', { name: 'Back' }).click();
   await expect(add.getByRole('list', { name: 'Providers' })).toBeVisible();
   await add.getByRole('button', { name: 'Other Account…' }).click();
