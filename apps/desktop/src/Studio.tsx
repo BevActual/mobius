@@ -293,6 +293,8 @@ const EFFECT_CELLS: { [K in EffectKind]: readonly { k: string; name: string; ste
   autofilter: [{ k: 'cutoff', name: 'Frequency', step: 1, log: true }, { k: 'resonance', name: 'Resonance', step: 0.1, log: true }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 1 }],
   chorus: [{ k: 'delay', name: 'Delay', step: 0.0005 }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 0.0001 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
   phaser: [{ k: 'center', name: 'Frequency', step: 1, log: true }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 1 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
+  // Interval and Grid are chosen from note values above the knobs, as Live 12's Beat Repeat (29.5) has them.
+  beatrepeat: [{ k: 'offset', name: 'Offset', step: 1 }, { k: 'chance', name: 'Chance', step: 0.01 }, { k: 'gate', name: 'Gate', step: 1 }, { k: 'volume', name: 'Volume', step: 0.5, origin: 0 }, { k: 'decay', name: 'Decay', step: 0.01 }],
 };
 /** The words an effect's choices read as. */
 const WORD_NAMES: Record<string, string> = { filter: 'Filter', shape: 'Shape', lowpass: 'Low-pass', highpass: 'High-pass', bandpass: 'Band-pass', notch: 'Notch', sine: 'Sine', triangle: 'Triangle', square: 'Square', sawtooth: 'Saw' };
@@ -312,6 +314,16 @@ const EFFECT_DETAILS: { [K in EffectKind]: string } = {
   autofilter: 'A filter that sweeps up and down by itself',
   chorus: 'Thickens with slightly detuned copies',
   phaser: 'A sweeping, swirling notch',
+  beatrepeat: 'Stutters: repeats a slice of the beat',
+};
+/** Beat Repeat's Interval (how often it takes a slice) and Grid (how long the slice is), in sixteenths (Live 12, 29.5). */
+const REPEAT_INTERVALS = [{ value: '0.5', label: '1/32' }, { value: '1', label: '1/16' }, { value: '2', label: '1/8' }, { value: '4', label: '1/4' }, { value: '8', label: '1/2' }, { value: '16', label: '1 Bar' }, { value: '32', label: '2 Bars' }, { value: '64', label: '4 Bars' }];
+const REPEAT_GRIDS = [{ value: '16', label: '1 Bar' }, { value: '8', label: '1/2' }, { value: '4', label: '1/4' }, { value: String(8 / 3), label: '1/6' }, { value: '2', label: '1/8' }, { value: String(4 / 3), label: '1/12' }, { value: '1', label: '1/16' }, { value: String(2 / 3), label: '1/24' }, { value: '0.5', label: '1/32' }];
+const REPEAT_MIXES = [{ value: 'mix', label: 'Mix' }, { value: 'insert', label: 'Insert' }, { value: 'gate', label: 'Gate' }] as const;
+/** A note value among `choices` for a length in sixteenths, or the sixteenths themselves when a file gave another. */
+const sixteenthChoices = (choices: readonly { value: string; label: string }[], v: number) => {
+  const near = choices.find((c) => Math.abs(Number(c.value) - v) < 1e-3);
+  return { value: near?.value ?? String(v), choices: near ? choices : [...choices, { value: String(v), label: `${Number(v.toFixed(2))}/16` }] };
 };
 const DELAY_TIMES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '0.75', label: '3/16' }, { value: '1', label: '1/4' }, { value: '1.5', label: '3/8' }, { value: '2', label: '1/2' }] as const;
 
@@ -594,7 +606,16 @@ function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
           })}
           onChange={(i, band) => onChange((e) => { Object.assign(e, eqFromBand(i, band)); }, `fx:band${i}`)} />
       )}
-      {Object.entries(EFFECT_WORDS[effect.kind] ?? {}).map(([k, w]) => (
+      {effect.kind === 'beatrepeat' && (() => {
+        const interval = sixteenthChoices(REPEAT_INTERVALS, effect.interval), grid = sixteenthChoices(REPEAT_GRIDS, effect.grid);
+        type Repeat = Extract<Effect, { kind: 'beatrepeat' }>;
+        return <>
+          <Select label="Interval" value={interval.value} choices={interval.choices} onChange={(v) => onChange((e) => { (e as Repeat).interval = Number(v); }, 'fx:interval')} />
+          <Select label="Grid" value={grid.value} choices={grid.choices} onChange={(v) => onChange((e) => { (e as Repeat).grid = Number(v); }, 'fx:grid')} />
+          <Segmented label="Mix mode" value={effect.mix} choices={REPEAT_MIXES} onChange={(v) => onChange((e) => { (e as Repeat).mix = v; }, 'fx:mix')} />
+        </>;
+      })()}
+      {effect.kind !== 'beatrepeat' && Object.entries(EFFECT_WORDS[effect.kind] ?? {}).map(([k, w]) => (
         <Select key={k} label={WORD_NAMES[k] ?? k} value={(effect as unknown as Record<string, string>)[k] ?? w.start} choices={w.choices.map((c) => ({ value: c, label: WORD_NAMES[c] ?? c }))}
           onChange={(v) => onChange((e) => { (e as unknown as Record<string, string>)[k] = v; }, `fx:${k}`)} />
       ))}

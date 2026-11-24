@@ -18,10 +18,11 @@ export const AUTOMATABLE: { [K in EffectKind]: readonly string[] } = {
   autofilter: ['cutoff', 'resonance', 'rate', 'depth'],
   chorus: ['rate', 'depth', 'mix'],
   phaser: ['rate', 'depth', 'mix'],
+  beatrepeat: ['chance', 'decay', 'volume'],
 };
 /** A setting's name where an effect's knob calls it something else (Live's Dry/Wet). */
 const KIND_SETTING_NAMES: Partial<Record<EffectKind, Record<string, string>>> = { saturator: { mix: 'Dry/Wet' }, chorus: { mix: 'Dry/Wet' }, phaser: { mix: 'Dry/Wet' } };
-const SETTING_NAMES: Record<string, string> = { low: 'Low', lowFreq: 'Low freq', mid: 'Mid', midFreq: 'Mid freq', midQ: 'Mid Q', high: 'High', highFreq: 'High freq', makeup: 'Makeup', time: 'Time', feedback: 'Feedback', mix: 'Mix', gain: 'Gain', drive: 'Drive', shape: 'Shape', output: 'Output', cutoff: 'Frequency', resonance: 'Resonance', rate: 'Rate', depth: 'Amount' };
+const SETTING_NAMES: Record<string, string> = { low: 'Low', lowFreq: 'Low freq', mid: 'Mid', midFreq: 'Mid freq', midQ: 'Mid Q', high: 'High', highFreq: 'High freq', makeup: 'Makeup', time: 'Time', feedback: 'Feedback', mix: 'Mix', gain: 'Gain', drive: 'Drive', shape: 'Shape', output: 'Output', cutoff: 'Frequency', resonance: 'Resonance', rate: 'Rate', depth: 'Amount', chance: 'Chance', decay: 'Decay', volume: 'Volume' };
 
 /** The settings a track's lane can show: Volume, Pan, a send per return track, then each built-in effect's settings. */
 export function autoChoices(track: Track, returns: readonly ReturnTrack[] = []): AutoChoice[] {
