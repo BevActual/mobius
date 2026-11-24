@@ -44,6 +44,54 @@ under "New in the apps" below.
 - Reading and settings pages are one centred column (about 600 px for reading, 720 px for settings), with grouped
   rows: name, one line of explanation, the control on the right.
 
+## Naming panels
+
+Andrew, 24 November 2026: no panel is called a sidebar; each is named for what it holds, the same way in every app
+and in Mobius itself.
+
+- **A panel's name is what it holds, as a plural noun or a place**: Mailboxes, Notebooks, Layers, Mixer. Never
+  "Sidebar", "Panel", "Pane" or "List" on its own, and never the app's name (the frame already says which app).
+- **One name everywhere**: the panel's header, its Hide button ("Hide Mailboxes"), the View menu, the Panels button on
+  macOS, the guide and tooltips all use the same word.
+- **The View menu ends with the panels by name**, each with a tick that shows whether it is on screen now, read from
+  the panel itself, never from a saved setting. There is no generic "Sidebar" or "Agent panel" item above them.
+- **A panel that can't be hidden** (Settings' Sections) is not in the View menu at all, so it can't show a tick that
+  does nothing.
+- **Mobius is "Mobius"** in menus and tooltips, and "the Mobius panel" in Settings and the guide. Not "agent panel"
+  or "chat panel". Its two modes are Docked and Floating.
+- Code may keep "side" or "sidebar" in names of files, classes and settings keys; the rule is for words people read.
+
+| App | Left | Right | Bottom |
+| --- | --- | --- | --- |
+| Home | Chats (Agents, Filter in those views) | Mobius | |
+| Mail | Mailboxes | Mobius | |
+| Messages | Conversations | Thread, Person, Mobius | |
+| Calendar | Calendars | Mobius | |
+| Tasks | Lists | Details, Mobius | |
+| Notes | Notebooks | Mobius | |
+| Docs | Documents | Mobius | |
+| Files | Places | Mobius | |
+| Browser | Tabs | Mobius | |
+| Reader | Library | Mobius | |
+| Research | Reports | Sources, Mobius | |
+| Knowledge | Knowledge | Mobius | |
+| Projects | Projects | Mobius | |
+| Views | Dashboards | Mobius | |
+| Review | Changes | Mobius | |
+| Store | Store | Mobius | |
+| Sheets | Sheets | Mobius | |
+| Database | Tables | Record, Mobius | Query |
+| Code | Explorer | Outline, Mobius | Tests, Console |
+| Terminal | Sessions | Mobius | |
+| Canvas | Boards | Mobius | |
+| Design | Designs, Layers, Assets | Inspector, Mobius | |
+| Slides | Decks | Mobius | Presenter notes |
+| Photo | Albums | Mobius | Filmstrip |
+| Music | Songs, Browser (Live's name) | Mobius | Mixer |
+| Video | Videos | Mobius | Timeline |
+| Search | Scopes | Mobius | |
+| Settings | Sections (always shown) | | |
+
 ## Mobius
 
 - The panel is docked right as today. At rest it shows **Waiting for you** as real objects (the Pad idea, the reply to
@@ -57,10 +105,10 @@ under "New in the apps" below.
 
 | App | Shape |
 | --- | --- |
-| Mail | Mail panel (search, Inbox, Later, Drafts, Sent, Done, Labels, From Mobius, Accounts) · list with split tabs Important, Waiting, Other · centred reading column with a facts row under the sender and the reply box inside the message ("Draft with Mobius" in it) · keys bar at the foot |
+| Mail | Mailboxes panel (search, Inbox, Later, Drafts, Sent, Done, Labels, From Mobius, Accounts) · list with split tabs Important, Waiting, Other · centred reading column with a facts row under the sender and the reply box inside the message ("Draft with Mobius" in it) · keys bar at the foot |
 | Music | Browser panel after Live 12's browser ([manual](https://www.ableton.com/en/live-manual/12/working-with-the-browser/)): search, Collections, Library categories, Places (This song, Songs, Packs, User Library, folders), tag filters by sound type and character, name and type list, preview strip with Similar sounds · Arrangement panel · tool row: Session/Arrange, transport group, one mono readout, icons for loop, metronome, tap, mixer, automation, export |
 | Browser | Tabs panel after Arc: spaces switched at its foot, favourites as tiles, Pinned, Today with Clear, From Mobius, Ask about this page · the page fills its panel · address bar in the middle of the tool row |
-| Settings | Settings panel with search and iconed sections · centred page with grouped rows |
+| Settings | Sections panel with search and icons · centred page with grouped rows |
 
 ![Music in the panel look, dark](panel-look/music-dark.png)
 ![Browser in the panel look, dark](panel-look/browser-dark.png)

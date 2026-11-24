@@ -8,7 +8,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
     apps: [{ id: 'agent', name: 'Agent' }, { id: 'browser', name: 'Browser' }, { id: 'notes', name: 'Notes' }, { id: 'tasks', name: 'Tasks' }],
     keys: { newTab: 'mod+t', splitView: 'mod+\\', settings: 'mod+,' },
     state: {
-      sidebarShown: true, hasSidebar: true, agentShown: true, hasAgentPanel: true, commenting: false, split: false, canSplit: true, miniOpen: false, zoom: 1,
+      commenting: false, split: false, canSplit: true, miniOpen: false, zoom: 1,
       browser: { hasPage: true, canBack: false, canForward: false, bookmarked: false, pinned: false },
       notes: { hasPage: false, pinned: false, changed: false, checkedLast: false },
       docs: { hasPage: false, isTemplate: false, templates: [] },
@@ -19,7 +19,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
     },
     do: {
       create: { conversation: noop, tab: noop, note: noop, task: noop },
-      closeTab: noop, settings: noop, shortcuts: noop, learn: noop, profiles: noop, about: noop, edit: noop, find: noop, toggleSidebar: noop, toggleAgent: noop, toggleComments: noop,
+      closeTab: noop, settings: noop, shortcuts: noop, learn: noop, profiles: noop, about: noop, edit: noop, find: noop, toggleComments: noop,
       toggleSplit: noop, toggleMini: noop, zoom: noop, open: noop, allApps: noop, launcher: noop,
       browser: { back: noop, forward: noop, reload: noop, address: noop, bookmark: noop, pin: noop, reopen: noop, nextSpace: noop, previousSpace: noop, selection: noop, saveToReader: noop },
       notes: { newNotebook: noop, today: noop, pin: noop, changes: noop, history: noop, clip: noop, markdown: noop, checkedLast: noop },

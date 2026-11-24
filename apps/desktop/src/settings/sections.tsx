@@ -212,7 +212,7 @@ function useApply(): [boolean, (on: boolean) => void] {
   }, []);
   return [apply, (on) => { setApply(on); saveApply(on); }];
 }
-const SIDEBAR_MODES: Array<{ id: SidebarMode; label: string }> = [{ id: 'attached', label: 'Attached' }, { id: 'floating', label: 'Floating' }];
+const SIDEBAR_MODES: Array<{ id: SidebarMode; label: string }> = [{ id: 'attached', label: 'Docked' }, { id: 'floating', label: 'Floating' }];
 const EFFORT_OPTIONS: Array<{ id: EffortChoice; label: string }> = [{ id: '', label: 'Default' }, { id: 'none', label: 'Off' }, { id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }];
 const TOOL_STEPS: Array<{ id: ToolSteps; label: string }> = [{ id: 'show', label: 'Show all' }, { id: 'hide-finished', label: 'Hide finished' }];
 
@@ -233,7 +233,7 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
         <Row path={path('ui-zoom')} title="Interface zoom" description="Make everything in the window larger or smaller." highlight={highlight === 'ui-zoom'}>
           <Slider label="Interface zoom" value={appearance.zoom} range={ZOOM_RANGE} step={0.05} format={percent} onCommit={(zoom) => set({ zoom })} />
         </Row>
-        <Row path={path('chat-text')} title="Conversation text size" description="The size of text in the agent panel." highlight={highlight === 'chat-text'}>
+        <Row path={path('chat-text')} title="Conversation text size" description="The size of text in the Mobius panel." highlight={highlight === 'chat-text'}>
           <Slider label="Conversation text size" value={appearance.chatTextScale} range={CHAT_TEXT_RANGE} step={0.05} format={percent} onCommit={(chatTextScale) => set({ chatTextScale })} />
         </Row>
         <Row path={path('chat-font')} title="Conversation font" description="The typeface used for messages." highlight={highlight === 'chat-font'}>
@@ -248,10 +248,10 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
         <Row path={path('sidebar-apps')} title="Pinned apps" description="The apps pinned at the top of Go (Ctrl+K), in order. Ctrl+1 to Ctrl+9 open the first nine. The others are under Applications." highlight={highlight === 'sidebar-apps'}>
           <SidebarAppsEditor value={appearance.sidebarApps} onChange={(sidebarApps) => set({ sidebarApps })} />
         </Row>
-        <Row path={path('right-sidebar')} title="Agent panel" description="Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again." highlight={highlight === 'right-sidebar'}>
-          <Choice label="Agent panel" name="right-sidebar" value={appearance.rightSidebar} options={SIDEBAR_MODES} onChange={(rightSidebar) => set({ rightSidebar })} />
+        <Row path={path('right-sidebar')} title="Mobius panel" description="Docked keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again." highlight={highlight === 'right-sidebar'}>
+          <Choice label="Mobius panel" name="right-sidebar" value={appearance.rightSidebar} options={SIDEBAR_MODES} onChange={(rightSidebar) => set({ rightSidebar })} />
         </Row>
-        <Row path={path('sidebar-size')} title="Agent panel size" description="Drag the edge of the agent panel to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back. An app's own panels keep their sizes in that app." highlight={highlight === 'sidebar-size'}>
+        <Row path={path('sidebar-size')} title="Mobius panel size" description="Drag the edge of the Mobius panel to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back. An app's own panels keep their sizes in that app." highlight={highlight === 'sidebar-size'}>
           <p className="srow-text">Now: {appearance.rightWidth} px.</p>
           <button type="button" className="btn" disabled={appearance.rightWidth === SIDEBAR_WIDTH.right.default} onClick={() => set({ rightWidth: SIDEBAR_WIDTH.right.default })}>Reset size</button>
         </Row>

@@ -21,10 +21,6 @@ export interface MenuContext {
   apps: readonly { id: AppId; name: string }[];
   keys: { newTab?: string; closeTab?: string; settings?: string; find?: string; launcher?: string; splitView?: string; littleMobius?: string; address?: string };
   state: {
-    sidebarShown: boolean;
-    hasSidebar: boolean;
-    agentShown: boolean;
-    hasAgentPanel: boolean;
     commenting: boolean;
     split: boolean;
     canSplit: boolean;
@@ -47,8 +43,6 @@ export interface MenuContext {
     about: () => void;
     edit: (command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll') => void;
     find: () => void;
-    toggleSidebar: () => void;
-    toggleAgent: () => void;
     toggleComments: () => void;
     toggleSplit: () => void;
     toggleMini: () => void;
@@ -112,8 +106,8 @@ export function buildMenus(c: MenuContext): Menu[] {
     item('find', 'Find on page…', d.find, { keys: keys.find, disabled: c.app !== 'browser' || !s.browser.hasPage }),
   ] };
   const view: Menu = { id: 'view', label: 'View', items: [
-    item('sidebar', 'Sidebar', d.toggleSidebar, { checked: s.sidebarShown, disabled: !s.hasSidebar }),
-    item('agent-panel', 'Agent panel', d.toggleAgent, { checked: s.agentShown, disabled: !s.hasAgentPanel }),
+    // No Sidebar or Agent panel here: the panels follow at the end of View by their own names (Mailboxes, Mobius),
+    // with ticks from their real state (on macOS, in the Panels button). docs/design/panel-look.md, Naming panels.
     item('comments', 'Comments', d.toggleComments, { keys: 'c', checked: s.commenting }),
     separator,
     item('zoom-in', 'Zoom in', () => d.zoom(nextZoom(s.zoom, 1)), { disabled: s.zoom >= ZOOM_STEPS.at(-1)! }),

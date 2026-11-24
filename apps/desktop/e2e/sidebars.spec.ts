@@ -77,7 +77,7 @@ test('the tabs panel can be dragged wider, within limits, and the Browser keeps 
 
 test('the agent panel can float, from its All chats menu, and the choice is kept', async () => {
   await agentPanel().getByRole('button', { name: 'All chats' }).click();
-  await agentPanel().getByRole('menuitem', { name: 'Float the agent panel' }).click();
+  await agentPanel().getByRole('menuitem', { name: 'Float Mobius' }).click();
   await expect.poll(async () => (await appearance()).rightSidebar).toBe('floating');
   await expect(right()).toHaveAttribute('data-floating', 'true');
 });
@@ -117,7 +117,7 @@ test('Home keeps its chats in a panel of its own: on the left, hidden and shown 
 
 test('the agent panel grows when its edge is dragged left, the keys work, and a double-click puts the usual width back', async () => {
   await resizeWindow(mobius!.app, 1600, 900);
-  const handle = shell().getByRole('separator', { name: 'Resize the agent panel' });
+  const handle = shell().getByRole('separator', { name: 'Resize Mobius' });
   await expect(handle).toHaveAttribute('aria-valuenow', '340');
   const box = (await handle.boundingBox())!;
   await shell().mouse.move(box.x + 3, box.y + 200);
@@ -143,7 +143,7 @@ test('the agent panel’s width and mode survive a restart, and the settings pag
   mobius = await launch(fixture.origin + '/', { userData: mobius!.userData });
   await resizeWindow(mobius.app, 1600, 900);
   await expect(shell().locator('.dock.right')).toBeVisible();
-  await expect(shell().getByRole('separator', { name: 'Resize the agent panel' })).toHaveAttribute('aria-valuenow', '500');
+  await expect(shell().getByRole('separator', { name: 'Resize Mobius' })).toHaveAttribute('aria-valuenow', '500');
 
   await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });

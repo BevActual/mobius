@@ -95,7 +95,7 @@ import { APP_ICONS, type OwnApp } from './Rail';
 import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
-import { parseLayout, pressIs } from './ui/PanelLayout';
+import { pressIs } from './ui/PanelLayout';
 import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
@@ -130,7 +130,7 @@ import { TRY_ANOTHER_ASK, TryAnotherContext, TurnRunningContext } from './Review
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
 
 const NOTICES: Record<string, string> = {
-  ask: 'Set up a model in the agent panel to ask questions.',
+  ask: 'Set up a model in Mobius to ask questions.',
   blocked: 'Mobius only opens web addresses (http or https).',
 };
 
@@ -193,7 +193,7 @@ async function albumSheet(read: (path: string) => Promise<unknown> | undefined, 
 const NO_PANELS: readonly PanelSpec[] = [];
 const OWN_LIST: Partial<Record<AppId, string>> = {
   agent: 'Chats', mail: 'Mailboxes', messages: 'Conversations', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
-  reader: 'Tabs', research: 'Reports', wiki: 'Knowledge', projects: 'Projects', views: 'Dashboards', review: 'Changes',
+  reader: 'Library', research: 'Reports', wiki: 'Knowledge', projects: 'Projects', views: 'Dashboards', review: 'Changes',
   skills: 'Store', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
@@ -1272,16 +1272,6 @@ export function App() {
     const panels = ownListPanels[id];
     return panels && !LIST_HANDED.includes(id) ? <PanelLayout app={id} panels={settingsOpen ? NO_PANELS : panels}>{content}</PanelLayout> : content;
   };
-  // Whether the open app's own list is showing, as it was kept (for the View menu's tick).
-  const ownListShown = (() => {
-    try { return parseLayout(window.localStorage.getItem(`mobius.layout.${app}`)).shown.list ?? true; } catch { return true; }
-  })();
-  // The View menu's Sidebar, in an app with its own list: the same as its key, which the app's layout answers.
-  const toggleOwnList = () => {
-    const mac = window.mobius.platform === 'darwin';
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '\\', code: 'Backslash', ctrlKey: !mac, metaKey: mac, bubbles: true, cancelable: true }));
-  };
-
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
@@ -1304,7 +1294,7 @@ export function App() {
   const pinnedLists = useMemo(() => new Set(favourites.filter((f) => f.kind === 'list').map((f) => f.id)), [favourites]);
   const togglePin = (fav: Favourite) => {
     const has = favourites.some((f) => f.kind === fav.kind && f.id === fav.id);
-    if (!has && favourites.length >= MAX_FAVOURITES) { setToast(`The sidebar holds ${MAX_FAVOURITES} pinned items. Unpin one first.`); return; }
+    if (!has && favourites.length >= MAX_FAVOURITES) { setToast(`You can pin ${MAX_FAVOURITES} items. Unpin one first.`); return; }
     void appearance.set({ favourites: has ? favourites.filter((f) => !(f.kind === fav.kind && f.id === fav.id)) : [...favourites, { ...fav, title: fav.title.slice(0, 120) || fav.id.slice(0, 120) }] });
   };
   const openFavourite = (fav: Favourite) => {
@@ -1344,8 +1334,7 @@ export function App() {
     apps: APPS.filter((a) => isListed(a) && isAvailable(a.id)),
     keys: bindings,
     state: {
-      // The sidebar is the open app's own list, a panel of its layout.
-      sidebarShown: ownListShown, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
+      commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn },
@@ -1364,8 +1353,6 @@ export function App() {
       about: () => openSettingsAt('about'),
       edit,
       find: openFind,
-      toggleSidebar: toggleOwnList,
-      toggleAgent: () => setChatOpen((open) => !open),
       toggleComments: () => setCommenting((on) => !on),
       toggleSplit,
       toggleMini,
@@ -1933,7 +1920,7 @@ export function App() {
             pin={pinned}
             place={settingsOpen ? 'Settings' : appName(app)}
             onPlace={openHub}
-            menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => void appearance.set({ rightSidebar: rightFloating ? 'attached' : 'floating' }) }] : undefined}
+            menuItems={rightOpen ? [{ label: rightFloating ? 'Dock Mobius' : 'Float Mobius', onSelect: () => void appearance.set({ rightSidebar: rightFloating ? 'attached' : 'floating' }) }] : undefined}
             onHide={hideRight}
             {...(window.mobius.mini ? { onPopOut: toggleMini } : {})}
             onOpenVoice={() => openSettingsAt('voice')}
@@ -2101,7 +2088,7 @@ export function App() {
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
             {/* The Mobius panel is just Mobius: never a tab, never sharing its dock. */}
             {chatPanel(null)}
-            {resizer('right', 'Resize the agent panel')}
+            {resizer('right', 'Resize Mobius')}
           </div>
         )}
         {learnOpen && (
