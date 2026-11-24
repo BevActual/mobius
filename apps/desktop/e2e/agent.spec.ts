@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { coreCall, coreHistory, crashCore, launch, startFixture, type Fixture, type Launched } from './harness';
+import { coreCall, coreHistory, crashCore, launch, startFixture, type Fixture, type Launched, showMobius } from './harness';
 import { callsTool, dataOf, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -155,11 +155,13 @@ test('reloading the window brings the conversation back, including a question st
   const card = mobius!.shell.getByRole('group', { name: /Approval needed/ });
   await expect(card).toBeVisible();
   await mobius!.shell.reload();
+  await showMobius(mobius!.shell);
   await expect(log().locator('.msg.user')).toHaveText('time please');
   await expect(mobius!.shell.getByRole('group', { name: /Approval needed/ })).toBeVisible();
   await mobius!.shell.getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('Done.');
   await mobius!.shell.reload();
+  await showMobius(mobius!.shell);
   await expect(log().locator('.msg.assistant')).toHaveText('Done.');
   await expect(log().locator('.msg.user')).toHaveText('time please');
 });
