@@ -8,7 +8,7 @@ Each section opens with where it is, its name and one grey line on what it is fo
 grey heading over a card of rows: the name and a line of help on the left, the control on the right. Settings take
 effect as soon as you change them; there is no Save button.
 
-**Back** and **Forward** in the toolbar (or Alt+Left and Alt+Right) step through the sections you've visited, as in
+**Back** and **Forward** in the toolbar (or Alt+Left and Alt+Right, Command-[ and Command-] on a Mac, or the mouse's back and forward buttons) step through the sections you've visited, as in
 System Settings. Esc closes Settings, except while you're typing in a field: then the first Esc only leaves the field,
 so a half-filled form isn't lost, and the next Esc closes Settings.
 

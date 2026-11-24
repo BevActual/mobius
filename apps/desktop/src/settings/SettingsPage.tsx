@@ -9,6 +9,7 @@ import { UsageSection } from './Usage';
 import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection, VoiceModelRows } from './Voice';
 import { AppSidebar, IconButton, KeyCaps, SidebarRow, SidebarSection, ToolbarControls } from '../ui';
 import { SectionIcon } from './icons';
+import { GLYPH } from '../file-icons';
 import '../settings.css';
 import { MailAccountsSettings } from '../MailAccounts';
 import { ConnectionsList } from './AccountsPage';
@@ -17,8 +18,10 @@ import { MessagesAccountsSettings } from '../MessagesAccounts';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
-const BACK = <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" /></svg>;
-const FORWARD = <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" /></svg>;
+// The same glyphs as Files' Back and Forward, so the two toolbars match.
+const BACK = <svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.back}</svg>;
+const FORWARD = <svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.forward}</svg>;
+const MAC = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform);
 
 /** Whether a key press lands in a field being typed in: Escape there leaves the field, not Settings. */
 export function typingIn(target: EventTarget | null): boolean {
@@ -115,16 +118,25 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
       // Ctrl+F finds a setting, as in every settings window.
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.code === 'KeyF') { event.preventDefault(); (sidebar ?? root.current)?.querySelector<HTMLElement>('input[type="search"]')?.focus(); }
     };
-    // Alt+Left and Alt+Right go Back and Forward, as in a browser; typing keeps them for moving by word. Caught first,
-    // so the app under Settings (the Browser's own Back) does not take them too.
+    // Alt+Left and Alt+Right go Back and Forward, as in a browser (Command-[ and Command-] too on a Mac); typing keeps
+    // the arrows for moving by word. Caught first, so the app under Settings (the Browser's own Back) does not take them too.
     const onArrow = (event: KeyboardEvent) => {
-      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || typingIn(event.target)) return;
+      const arrows = event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !typingIn(event.target);
+      const brackets = event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && (event.code === 'BracketLeft' || event.code === 'BracketRight');
+      if (!arrows && !brackets) return;
       event.preventDefault();
-      step(event.key === 'ArrowLeft' ? -1 : 1);
+      step(event.key === 'ArrowLeft' || event.code === 'BracketLeft' ? -1 : 1);
+    };
+    // The mouse's own Back and Forward buttons.
+    const onMouse = (event: MouseEvent) => {
+      if (event.button !== 3 && event.button !== 4) return;
+      event.preventDefault();
+      step(event.button === 3 ? -1 : 1);
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('keydown', onArrow, true);
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keydown', onArrow, true); };
+    window.addEventListener('mouseup', onMouse, true);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keydown', onArrow, true); window.removeEventListener('mouseup', onMouse, true); };
   }); // eslint-disable-line react-hooks/exhaustive-deps -- reads the latest trail
   // Each move lands where it was going: the setting a search found, the page asked for (Appearance's Layout from the
   // View menu), or the top of the section, not wherever the last section had been scrolled to.
@@ -188,8 +200,8 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   return (
     <section ref={root} className="settings-page" role="region" aria-label="Settings">
       <ToolbarControls label="Settings">
-        <IconButton label="Back" keys="Alt+Left" icon={BACK} disabled={trail.at === 0} onClick={() => step(-1)} />
-        <IconButton label="Forward" keys="Alt+Right" icon={FORWARD} disabled={trail.at >= trail.places.length - 1} onClick={() => step(1)} />
+        <IconButton label="Back" keys={MAC ? 'Cmd+[' : 'Alt+Left'} icon={BACK} disabled={trail.at === 0} onClick={() => step(-1)} />
+        <IconButton label="Forward" keys={MAC ? 'Cmd+]' : 'Alt+Right'} icon={FORWARD} disabled={trail.at >= trail.places.length - 1} onClick={() => step(1)} />
       </ToolbarControls>
       <div className="settings-body">
         {sidebar ? createPortal(nav, sidebar) : ownsNav ? null : nav}
