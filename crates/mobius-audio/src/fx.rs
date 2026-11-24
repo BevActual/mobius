@@ -539,13 +539,28 @@ impl Repeat {
             return if self.mix == RepeatMix::Gate { (0.0, 0.0) } else { x };
         }
         let fade = REPEAT_FADE.min(grid / 4).max(1) as f64;
-        let edge = (i as f64 / fade).min((grid - i) as f64 / fade).min((gate - e) as f64 / fade).min(1.0);
-        let level = (volume * (1.0 - decay.clamp(0.0, 1.0)).powi(r as i32 - 1) * edge) as f32;
+        // Each repeat fades in and out at the grid's ends, so it never clicks against the next one.
+        let edge = (i as f64 / fade).min((grid - i) as f64 / fade).min(1.0);
+        let level = volume * (1.0 - decay.clamp(0.0, 1.0)).powi(r as i32 - 1) * edge;
         let (a, b) = self.buffer[i];
-        let (a, b) = (a * level, b * level);
         match self.mix {
-            RepeatMix::Mix => (x.0 + a, x.1 + b),
-            RepeatMix::Insert | RepeatMix::Gate => (a, b),
+            // Mix and Gate fade the repeats out by the gate's end; what comes in goes on underneath (Mix) or not (Gate).
+            RepeatMix::Mix | RepeatMix::Gate => {
+                let level = (level * ((gate - e) as f64 / fade).min(1.0)) as f32;
+                let (a, b) = (a * level, b * level);
+                if self.mix == RepeatMix::Mix { (x.0 + a, x.1 + b) } else { (a, b) }
+            }
+            // Insert cuts the live sound for the repeats and back: a crossfade at both ends, not a cut, or a tone that
+            // isn't at a zero crossing jumps (the grid's own fade only hid that when it was). The first repeat's start
+            // needs no fade of its own, since it carries on from the same sound the grid took.
+            RepeatMix::Insert => {
+                let into = (e + 1 - grid) as f64 / fade;
+                let level = if r == 1 { volume * ((grid - i) as f64 / fade).min(1.0) } else { level };
+                let wet = into.min((gate - e - 1) as f64 / fade).clamp(0.0, 1.0);
+                let (a, b) = (a * level as f32, b * level as f32);
+                let wet = wet as f32;
+                (x.0 * (1.0 - wet) + a * wet, x.1 * (1.0 - wet) + b * wet)
+            }
         }
     }
 }
@@ -1965,6 +1980,30 @@ mod tests {
             assert!((chain.get(aim) - value).abs() < 1e-9, "{setting}");
         }
         assert!(chain.aim(&gated, "r", "grid", 0.5).is_none());
+    }
+
+    #[test]
+    fn beat_repeat_insert_crossfades_from_and_back_to_what_comes_in() {
+        // Tones whose sixteenths don't end on a zero crossing (a 220 Hz one does at 120, which hid the step): a repeat
+        // that starts or stops at full level against the live sound clicks.
+        for hz in [333.0, 441.0] {
+            for fx in [json!({ "id": "r", "kind": "beatrepeat", "interval": 4, "grid": 1, "gate": 2, "mix": "insert" }),
+                json!({ "id": "r", "kind": "beatrepeat", "interval": 8, "grid": 1, "gate": 3, "mix": "insert", "decay": 0.3 })] {
+                let tone: Vec<f32> = (0..96_000).map(|i| ((TAU * hz * f64::from(i) / f64::from(RATE)).sin() * 0.5) as f32).collect();
+                let mut chain = Chain::new(std::slice::from_ref(&fx), RATE, 0.5, false).unwrap();
+                // At 120 a beat is 24 000 samples and a sixteenth 6 000.
+                chain.set_clock(0.0, 1.0 / (0.5 * f64::from(RATE)));
+                let (mut l, mut r) = (tone.clone(), tone.clone());
+                chain.process(&mut l, &mut r, f64::from(RATE));
+                // The tone itself moves at most 2π·f·0.5/48 000 a sample (0.029 at 441 Hz); the fix keeps every step
+                // near that, where the cut jumped 0.35 to 0.5.
+                let step = l.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0.0f32, f32::max);
+                let most = (TAU * hz * 0.5 / f64::from(RATE)) as f32 * 1.5;
+                assert!(step < most, "{hz} Hz, {fx}: a step of {step}");
+                // It did repeat: in the middle of the first repeat the output is the first sixteenth, not the tone.
+                assert!((l[9_000] - tone[3_000]).abs() < 1e-3 && (l[9_000] - tone[9_000]).abs() > 1e-2, "{hz} Hz, {fx}");
+            }
+        }
     }
 
     /// A second of a steady 1.0 on both sides through `fx`, with the song stopped.
