@@ -6,7 +6,7 @@ Everything Mobius changed, from every conversation, in one place.
 
 ![The Review app in Mobius](../readme/apps/review.png)
 
-- **The sidebar** filters to everything, what still waits for you, or one app's changes, with counts.
+- **The Changes panel** filters to everything, what still waits for you, or one app's changes, with counts.
 - **The list** groups changes by day. Each turn shows what you asked, and each file it changed opens in its app or can be
   put back from here.
 
@@ -27,7 +27,7 @@ Dashboards of live tiles from your other apps.
   shows, moves it, or removes it. **Edit** shows a remove button on every tile and lets you drag tiles into a new order;
   **Alt+←/→** moves the focused tile. Removing a tile can be undone.
 - **Keys on a tile:** Enter opens its app, Delete removes it, and Shift+F10 opens its menu.
-- **A new view** starts with the usual tiles. Views are kept in folders in the sidebar, like notes.
+- **A new view** starts with the usual tiles. Views are kept in folders in the Dashboards panel, like notes.
 
 Views only point at things: the tasks, events, mail and notes stay in their own apps, and a view never changes them.
 Each view is a JSON file in `views/<folder>/<view>.json`, so Mobius can make one ("Make a view for the Kestrel build")
@@ -44,5 +44,5 @@ Comment on anything in Mobius, as you would in a design tool.
    - **Keep as a note for people.** Mobius does not read these.
    - **Delete.**
 
-The comment button shows how many threads are open in the app, and the sidebar lists them under **Comments**. Threads
+The Comments icon shows how many threads are open in the app, and the **Comments** panel lists them. Threads
 are kept per document in a `.comments` folder in the workspace.

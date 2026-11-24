@@ -6,7 +6,7 @@ Quick pages, saved as you type.
 
 ![The Notes app in Mobius](../readme/apps/notes.png)
 
-- **Notebooks** in the sidebar, each one folding away, newest pages first, each page as its title with when it was edited at the end (the time today, the weekday this week, the date before that) and a grey line of how it starts, with search, **Pinned** pages at the top,
+- **The Notebooks panel** lists each notebook, folding away, newest pages first, each page as its title with when it was edited at the end (the time today, the weekday this week, the date before that) and a grey line of how it starts, with search, **Pinned** pages at the top,
   **New notebook** under the notebooks and a **Tags** section built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
@@ -32,7 +32,7 @@ Longer documents, with an outline and comments.
 
 ![The Docs app in Mobius](../readme/apps/docs.png)
 
-- **The sidebar** lists each folder as a heading over its documents, with when each was last edited on the right.
+- **The Documents panel** lists each folder as a heading over its documents, with when each was last edited on the right.
   Under the open document are its headings: click one to go there, and the one you are reading is marked as you
   scroll. **From Mobius** lists documents Mobius changed that are waiting for you. Right-click a document to open or
   delete it (Delete asks once more). New folder is in the app's menu.
@@ -43,7 +43,7 @@ Longer documents, with an outline and comments.
   link, then **Share**. While you are in a table, its button has the rows and columns. The window's **⋯** opens on
   the **Docs** menu with the rest: numbered lists, checklists, quotes, strikethrough and code; Insert (table, picture,
   divider, code block); Mobius's writing tools; the margin's comments; earlier versions; and a serif font.
-- **Outline** is a panel in the [inspector](../getting-started/tour.md#the-inspector) (show it from the Panels menu): the document's headings, the one you are reading marked.
+- **Outline** is a panel in the [inspector](../getting-started/tour.md#the-inspector) (show it from the View menu): the document's headings, the one you are reading marked.
   Click one to go there.
 - **Comments** in the Comments panel on the right, beside the outline (Document options, Show comments). **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
@@ -64,12 +64,12 @@ right edge its subtask count, its list (in views across lists), a flag and when 
 
 ![The Tasks app in Mobius](../readme/apps/tasks.png)
 
-- **The sidebar** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
+- **The Lists panel** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
   **My lists**, each with a dot in its colour and how many are open. Hover a list to pin it or open its menu (Rename, Delete).
   **All** and **Completed** group tasks under each list's name with a count; **Scheduled** groups them under day
   headings with a count: Overdue (in red), Today, Tomorrow, each day of the coming week, then by month.
 - **Times and repeats**: type a time after the day ("Call Sam tomorrow at 3pm", "Stand-up mon 9:30"; a time on its
-  own means today), or set a time and a repeat (every day, weekday, week, month or year) in the inspector. Ticking off
+  own means today), or set a time and a repeat (every day, weekday, week, month or year) in **Details**. Ticking off
   a repeating task moves it to its next day and leaves it open.
 - **Right-click a task** to tick it, rename it, show its details, set it due today, tomorrow or next week, flag it, move it to another
   list or delete it.
@@ -78,7 +78,7 @@ right edge its subtask count, its list (in views across lists), a flag and when 
 - **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back. Completed
   tasks fold away under the list; **Clear N completed** in the fold's ⋯ menu (or the window's ⋯ menu) removes them. A list with nothing in it shows one plain line under the add row.
 - **Deleting** a task or a list shows **Undo** at the bottom of the page (Ctrl+Z works too).
-- **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
+- **The Details panel** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
   picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
   format. Drag tasks to reorder them or move them between lists.
 - Tasks Mobius added are dashed until kept. **Discard** puts the list back as it was before that turn.
@@ -105,7 +105,7 @@ Your calendars by day, week or month.
   accounts in **Settings › Calendar › Add a calendar account**. Until a build of Mobius is registered with Google and
   Microsoft, their sign-in says it isn't set up yet, and their calendars can still be subscribed to through the private
   iCal address each one gives (see [calendar sign-in](../reference/calendar-sign-in.md)).
-- **The sidebar** lists your calendars as plain rows, each with its colour as a dot. Press one to hide its events, and
+- **The Calendars panel** lists your calendars as plain rows, each with its colour as a dot. Press one to hide its events, and
   again to show them; **Tasks with due dates** works the same way. Under **From Mobius**, **Suggested events** says how
   many events Mobius suggested or added are waiting for you, and goes to the first.
 - **Tasks due at a time** sit at their hour in Day and Week as a thin line you can tick, beside any event at that hour
@@ -119,9 +119,9 @@ Your calendars by day, week or month.
   named for its day and title and saying which event it was and who is on it, and starts listening as Notes' Record a meeting does.
   The same event opens the same page again.
 - **Make an event** by sweeping across the hours, double-clicking a time, right-clicking empty time, or with **New
-  event** at the top of the sidebar (Ctrl+N). **Q**, or **Calendar › Quick event**, takes one said in words, such as
+  event** at the top of the Calendars panel (Ctrl+N). **Q**, or **Calendar › Quick event**, takes one said in words, such as
   "Lunch fri 1pm". Drag an event to move it, in any view.
-- **Search** at the top of the sidebar finds events from a month back to a year ahead, by title, place or notes. Pick
+- **Search** at the top of the Calendars panel finds events from a month back to a year ahead, by title, place or notes. Pick
   one to go to its day.
 - **The toolbar** holds Back, Today and Forward, and Day, Week, Month and Year; the title says the week's number. When Mobius
   is open beside a small window, Today's word, then the views give way; T, N, Q, D, W, M, Y and the arrow keys still work. An hour is taller in the comfortable density, so a working day
@@ -193,7 +193,7 @@ count beside it, and **Data**, **Structure** and **SQL** sit in the toolbar.
 - **SQL** runs any statement and shows what it gave. **History** brings back an earlier one, and **Copy as CSV** copies
   the result.
 
-**Search** at the top of the sidebar finds a database or table by name. Right-click a table, press Shift+F10 on it, or
+**Search** at the top of the Tables panel finds a database or table by name. Right-click a table, press Shift+F10 on it, or
 use its **⋯** button, to open it, copy all of it as CSV, rename it or delete it. Right-click a
 database to import a CSV file into it or delete it. On a selected table, F2 renames it and Delete asks to delete it.
 Deleting asks first, as it can't be undone. Database is compact, like the other pro apps: 13px text on 32px rows.
@@ -224,19 +224,19 @@ A place for one piece of work.
 
 The page opens with one line about the project (its threads, what they made, what waits on you and when it last
 moved). **New thread** is in the toolbar, and the toolbar's ⋯ has the project's own commands first: Rename (F2), Show
-the folder in Files, Open memory in Knowledge and Delete project (Delete). Right-click a project in the sidebar for the
-same Rename and Delete, double-click it to rename, or select it and press F2 or Delete. The sidebar's search narrows the
+the folder in Files, Open memory in Knowledge and Delete project (Delete). Right-click a project in the Projects panel for the
+same Rename and Delete, double-click it to rename, or select it and press F2 or Delete. The panel's search narrows the
 list by name. Each part is a grouped list: a thread shows how many messages it has and when it last moved, and
 something made shows its app's glyph.
 
 Renaming a project renames its folder and its memory page too. Deleting a project asks first, and keeps its threads,
 its folder and its memory page: only the project and its rules go. **Rules** lists the apps you have added from
-Abilities, plus any other app that already has a rule of its own.
+Store, plus any other app that already has a rule of its own.
 
 ## Knowledge
 
 What Mobius knows: your private **How I work** page, grouped by kind with what Mobius learned waiting on top, and
-shared pages such as each project's memory, listed by folder in the sidebar. Lines offered to a shared page wait under
+shared pages such as each project's memory, listed by folder in the Knowledge panel. Lines offered to a shared page wait under
 **Suggested changes**. See [Memory and Knowledge](../guide/memory-and-knowledge.md).
 
 

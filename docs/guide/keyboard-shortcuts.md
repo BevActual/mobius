@@ -8,7 +8,7 @@ The small x clears a shortcut, and **Reset** puts back the usual keys.
 | Ctrl+K | Find apps, pages and commands (the launcher) |
 | Ctrl+Space | The launcher from any app, even when Mobius is in the background |
 | Ctrl+, | Open Settings |
-| Ctrl+\ | Show two apps side by side, or one |
+| Ctrl+Shift+\ | Show two apps side by side, or one |
 | Ctrl+Shift+M | Open or close Little Mobius |
 | Ctrl+Shift+Space | Dictate in the message box: hold and let go to stop, or tap to start and tap again to stop |
 | Shift+Tab (in the message box) | Next mode: Agent, Ask, Plan, then the app's own mode |
