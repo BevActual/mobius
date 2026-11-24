@@ -64,8 +64,10 @@ export function nextColour(tracks: readonly { color: TrackColour }[]): TrackColo
  *   under it, in `attack`, `hold` and `release` seconds, down to `floor` dB; keyable as the compressor is), `limiter`
  *   (`gain` dB in, never over `ceiling` dB, letting go in `release` s), `saturator` (`drive` dB into soft clipping of
  *   `shape` 0 to 1, then `output` dB, blended by `mix`), `autofilter` (a `filter` of `cutoff` Hz and `resonance`, swept
- *   by an LFO of `shape` at `rate` Hz by `depth` Hz), `chorus` (a copy `delay` seconds late, its delay moved by `depth`
- *   seconds at `rate` Hz, blended by `mix`) and `phaser` (four all-pass stages at `center` Hz, swept by `depth` Hz at
+ *   by an LFO of `shape` at `rate` Hz by `depth` Hz), `chorus` (Live 12's Chorus-Ensemble, 29.8: a copy `delay` seconds
+ *   late, its delay moved by `depth` seconds at `rate` Hz, fed back into itself by `feedback` (0 to 0.95, its sign
+ *   flipped by `invert`), its lows cut below `highpass` Hz (0 is off), blended by `mix`; in `mode` "vibrato", the copy
+ *   alone, with no feedback) and `phaser` (four all-pass stages at `center` Hz, swept by `depth` Hz at
  *   `rate` Hz, blended by `mix`).
  * - `beatrepeat` (Live 12's Beat Repeat, 29.5): every `interval` sixteenths, `offset` sixteenths in and by `chance`
  *   (0 to 1), it takes a `grid` of what comes in and repeats it for `gate` sixteenths, each repeat quieter by `decay`
@@ -80,7 +82,7 @@ export type Effect =
   | { id: string; kind: 'limiter'; on: boolean; gain: number; ceiling: number; release: number }
   | { id: string; kind: 'saturator'; on: boolean; drive: number; shape: number; output: number; mix: number }
   | { id: string; kind: 'autofilter'; on: boolean; filter: AutoFilterType; shape: LfoShape; cutoff: number; resonance: number; rate: number; depth: number }
-  | { id: string; kind: 'chorus'; on: boolean; delay: number; rate: number; depth: number; mix: number }
+  | { id: string; kind: 'chorus'; on: boolean; mode: ChorusMode; delay: number; rate: number; depth: number; feedback: number; invert: boolean; highpass: number; mix: number }
   | { id: string; kind: 'phaser'; on: boolean; center: number; rate: number; depth: number; mix: number }
   | { id: string; kind: 'beatrepeat'; on: boolean; interval: number; offset: number; gate: number; grid: number; chance: number; decay: number; volume: number; mix: BeatRepeatMix }
   | { id: string; kind: 'device'; on: boolean; device: Device; sidechain?: Sidechain }
@@ -176,11 +178,16 @@ export function readSidechain(v: unknown): Sidechain | undefined {
 export type EffectKind = Exclude<Effect['kind'], 'device' | 'stack'>;
 export type BuiltinEffect = Extract<Effect, { kind: EffectKind }>;
 export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'gate', 'limiter', 'saturator', 'autofilter', 'chorus', 'phaser', 'beatrepeat', 'delay', 'reverb'];
-export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', gate: 'Gate', limiter: 'Limiter', saturator: 'Saturator', autofilter: 'Auto Filter', chorus: 'Chorus', phaser: 'Phaser', beatrepeat: 'Beat Repeat', delay: 'Delay', reverb: 'Reverb' };
+export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', gate: 'Gate', limiter: 'Limiter', saturator: 'Saturator', autofilter: 'Auto Filter', chorus: 'Chorus-Ensemble', phaser: 'Phaser', beatrepeat: 'Beat Repeat', delay: 'Delay', reverb: 'Reverb' };
 /** An auto filter's filter types and LFO shapes, as a device's filter and LFO parts take them. */
 export const AUTO_FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'notch'] as const;
 export type AutoFilterType = (typeof AUTO_FILTER_TYPES)[number];
 export type LfoShape = (typeof LFO_SHAPES)[number];
+/** Chorus-Ensemble's modes (Live 12, 29.8): the voice with the dry sound, or the voice alone (no Feedback or Dry/Wet). */
+export const CHORUS_MODES = ['chorus', 'vibrato'] as const;
+export type ChorusMode = (typeof CHORUS_MODES)[number];
+/** Where a Vibrato starts, as the engine has it (mobius-audio fx.rs "chorus"): a quicker, narrower wobble than a Chorus's. */
+export const VIBRATO_START = { delay: 0.005, rate: 5, depth: 0.002 } as const;
 /** Beat Repeat's mix modes (Live 12, 29.5): its repeats with the input, in its place, or alone. */
 export const BEAT_REPEAT_MIXES = ['mix', 'insert', 'gate'] as const;
 export type BeatRepeatMix = (typeof BEAT_REPEAT_MIXES)[number];
@@ -188,7 +195,10 @@ export type BeatRepeatMix = (typeof BEAT_REPEAT_MIXES)[number];
 export const EFFECT_WORDS: Partial<Record<EffectKind, Record<string, { choices: readonly string[]; start: string }>>> = {
   autofilter: { filter: { choices: AUTO_FILTER_TYPES, start: 'lowpass' }, shape: { choices: LFO_SHAPES, start: 'sine' } },
   beatrepeat: { mix: { choices: BEAT_REPEAT_MIXES, start: 'mix' } },
+  chorus: { mode: { choices: CHORUS_MODES, start: 'chorus' } },
 };
+/** Effects with settings that are on or off, and where they start. */
+export const EFFECT_FLAGS: Partial<Record<EffectKind, Record<string, boolean>>> = { chorus: { invert: false } };
 /** The effects another track can key (Live 12, 29.9.1). */
 export const KEYED_KINDS: readonly EffectKind[] = ['compressor', 'gate'];
 /** Each effect's settings: range, and where a new one starts. */
@@ -205,7 +215,8 @@ export const EFFECT_PARAMS: { [K in EffectKind]: Record<string, { lo: number; hi
   limiter: { gain: { lo: -24, hi: 24, start: 0 }, ceiling: { lo: -24, hi: 0, start: -0.3 }, release: { lo: 0.001, hi: 3, start: 0.05 } },
   saturator: { drive: { lo: -36, hi: 36, start: 6 }, shape: { lo: 0, hi: 1, start: 0 }, output: { lo: -36, hi: 36, start: 0 }, mix: { lo: 0, hi: 1, start: 1 } },
   autofilter: { cutoff: { lo: 20, hi: 20000, start: 1000 }, resonance: { lo: 0.1, hi: 20, start: 3 }, rate: { lo: 0.01, hi: 40, start: 1 }, depth: { lo: 0, hi: 10000, start: 0 } },
-  chorus: { delay: { lo: 0.001, hi: 0.05, start: 0.012 }, rate: { lo: 0.01, hi: 10, start: 0.8 }, depth: { lo: 0, hi: 0.01, start: 0.003 }, mix: { lo: 0, hi: 1, start: 0.5 } },
+  // `highpass` 0 is off; the engine filters the voice from 20 Hz to 2 kHz, as Live's High-Pass Frequency.
+  chorus: { delay: { lo: 0.001, hi: 0.05, start: 0.012 }, rate: { lo: 0.01, hi: 10, start: 0.8 }, depth: { lo: 0, hi: 0.01, start: 0.003 }, feedback: { lo: 0, hi: 0.95, start: 0 }, highpass: { lo: 0, hi: 2000, start: 0 }, mix: { lo: 0, hi: 1, start: 0.5 } },
   phaser: { center: { lo: 50, hi: 10000, start: 800 }, rate: { lo: 0.01, hi: 10, start: 0.5 }, depth: { lo: 0, hi: 5000, start: 600 }, mix: { lo: 0, hi: 1, start: 0.5 } },
   // In sixteenths, as the engine takes them (mobius-audio fx.rs `Repeat`): a 1/32 interval or grid is half of one.
   beatrepeat: {
@@ -254,7 +265,7 @@ export const partStarts = (kind: DevicePart['kind']): Record<string, string | nu
 
 /** A new effect of a kind, with its starting settings. */
 export function newEffect(kind: EffectKind, id: string): Effect {
-  return { id, kind, on: true, ...Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, r.start])), ...Object.fromEntries(Object.entries(EFFECT_WORDS[kind] ?? {}).map(([k, w]) => [k, w.start])) } as Effect;
+  return { id, kind, on: true, ...Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, r.start])), ...Object.fromEntries(Object.entries(EFFECT_WORDS[kind] ?? {}).map(([k, w]) => [k, w.start])), ...EFFECT_FLAGS[kind] } as Effect;
 }
 /** An effect id not yet on the track. */
 export function freshEffectId(track: { fx?: readonly Effect[] }): string {
@@ -706,8 +717,11 @@ function readFx(list: unknown, where: string, refuse: (why: string) => void, nes
     // Kept to six decimals, not three: a chorus's depth and a gate's attack are fractions of a millisecond.
     const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, typeof eo[k] === 'number' && Number.isFinite(eo[k]) ? Math.min(r.hi, Math.max(r.lo, Math.round((eo[k] as number) * 1e6) / 1e6)) : r.start]));
     const words = Object.fromEntries(Object.entries(EFFECT_WORDS[kind] ?? {}).map(([k, w]) => [k, typeof eo[k] === 'string' && w.choices.includes(eo[k] as string) ? eo[k] : w.start]));
+    const flags = Object.fromEntries(Object.entries(EFFECT_FLAGS[kind] ?? {}).map(([k, start]) => [k, typeof eo[k] === 'boolean' ? eo[k] : start]));
+    // A Vibrato left without its own delay, rate or depth starts where the engine's Vibrato does, not a Chorus's.
+    if (kind === 'chorus' && words.mode === 'vibrato') for (const [k, v] of Object.entries(VIBRATO_START)) if (typeof eo[k] !== 'number') params[k] = v;
     const side = KEYED_KINDS.includes(kind) ? readSidechain(eo.sidechain) : undefined;
-    return [{ id: fxId, kind, on: eo.on !== false, ...params, ...words, ...(side ? { sidechain: side } : {}) } as Effect];
+    return [{ id: fxId, kind, on: eo.on !== false, ...params, ...words, ...flags, ...(side ? { sidechain: side } : {}) } as Effect];
   });
 }
 
