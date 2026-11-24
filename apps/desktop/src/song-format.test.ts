@@ -178,6 +178,17 @@ describe('a track\'s effects', () => {
     const fine = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [{ id: 'c', kind: 'chorus', depth: 0.0045 }, { id: 'g', kind: 'gate', attack: 0.0004 }] }] }));
     expect(song(writeSong(fine)).tracks[0]!.fx).toMatchObject([{ depth: 0.0045 }, { attack: 0.0004 }]);
   });
+  it('keeps Beat Repeat, its sixteenths and its mix mode, in range', () => {
+    const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
+      { id: 'r', kind: 'beatrepeat', interval: 4, grid: 2 / 3, gate: 200, chance: 0.5, volume: -6, mix: 'insert' },
+      { id: 'q', kind: 'beatrepeat', mix: 'stutter' },
+    ] }] }));
+    const fx = s.tracks[0]!.fx!;
+    expect(fx[0]).toMatchObject({ kind: 'beatrepeat', interval: 4, offset: 0, grid: 0.666667, gate: 64, chance: 0.5, decay: 0, volume: -6, mix: 'insert' });
+    expect(fx[1]).toMatchObject({ interval: 16, grid: 2, gate: 8, chance: 1, mix: 'mix' });
+    expect(song(writeSong(s)).tracks[0]!.fx).toEqual(fx);
+    expect(newEffect('beatrepeat', 'fx9')).toMatchObject({ interval: 16, offset: 0, gate: 8, grid: 2, chance: 1, decay: 0, volume: 0, mix: 'mix' });
+  });
   it('keeps an instrument stack\'s chains, zones in range and in order, and leaves its defaults out', () => {
     const s = song(JSON.stringify({ tracks: [{ id: 'a', instrument: 'pad', notes: [], stack: { chains: [
       { instrument: 'bass', keys: { low: 0, high: 59 }, volume: 1, pan: 0 },
