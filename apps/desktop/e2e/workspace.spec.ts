@@ -340,7 +340,9 @@ test('Mobius beside the page is a panel of its own on the frame, a gap and its o
         const found: string[] = [];
         // Panels on the frame (docs/design/panel-look.md): the panel's own edge is its one line, a gap from the page.
         const dock = card.closest('.dock.right')!;
-        if (getComputedStyle(card).borderLeftWidth !== '1px') found.push('no edge on the Mobius panel');
+        // A hairline is 1px, but Chromium draws a border in whole device pixels and reports what it drew: 0.8px at 125%
+        // display scaling, 0.67px at 150%. Any width is an edge; none is the fault.
+        if (!(parseFloat(getComputedStyle(card).borderLeftWidth) > 0)) found.push('no edge on the Mobius panel');
         if (getComputedStyle(dock).borderLeftWidth !== '0px') found.push('a line on the dock as well as the panel');
         if (edge - document.querySelector('.stage')!.getBoundingClientRect().right < 6) found.push('no gap between the page and the panel');
         for (const el of Array.from(document.querySelectorAll('*'))) {

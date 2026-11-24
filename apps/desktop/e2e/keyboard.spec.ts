@@ -131,8 +131,10 @@ test('quick entry is off until chosen, then it is registered with the system and
   await openKeyboard();
   await expect(page().getByTestId('quick-entry-working')).toHaveCount(0);
   await page().getByRole('button', { name: 'Change Bring Mobius up and start a message, from anywhere' }).click();
-  await shell().keyboard.press('Control+Alt+Space');
-  await expect(keys('quickEntry')).toHaveText('Ctrl+Alt+Space');
+  // A key the system lets go of: on a computer where another program holds a common one (Ctrl+Alt+Space is a usual
+  // quick-entry key for other assistants), Mobius rightly says it's taken (the next test) and this one couldn't pass.
+  await shell().keyboard.press('Control+Alt+Shift+F9');
+  await expect(keys('quickEntry')).toHaveText('Ctrl+Alt+Shift+F9');
   await expect(page().getByTestId('quick-entry-working')).toBeVisible();
   await expect.poll(() => hook((h) => h.quickEntry.active())).toBe(true);
   await hook((h) => h.quickEntry.press());
