@@ -173,3 +173,14 @@ test('a section header folds what follows it, by click or key, and the fold is k
   await expect(header).toHaveAttribute('aria-expanded', 'true');
   await expect(body).toBeVisible();
 });
+
+test('the Mobius panel starts closed, and its button opens it beside the work', async () => {
+  await mobius!.close({ keepUserData: true });
+  mobius = await launch(fixture.origin + '/', { userData: mobius!.userData, openMobius: false });
+  const show = shell().getByRole('button', { name: 'Show Mobius', exact: true });
+  await expect(show).toHaveAttribute('aria-pressed', 'false', { timeout: 20_000 });
+  await expect(shell().locator('.dock.right > .chat')).toHaveCount(0);
+  await show.click();
+  await expect(shell().locator('.dock.right > .chat')).toBeVisible();
+  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+});
