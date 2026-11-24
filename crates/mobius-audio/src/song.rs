@@ -239,10 +239,14 @@ impl Track {
     }
 }
 
-/// A frozen track's sound (relative to the song's folder, as `Samples/Processed/Freeze/Lead Freeze.wav`).
+/// A frozen track's sound (relative to the song's folder, as `Samples/Processed/Freeze/Lead Freeze.wav`) and, by
+/// Session slot, each slot clip's own (38.1.4: "only two loop cycles are included in the frozen sample file"). A
+/// track frozen with no slot files plays its clips live in the Session view, as before slots were frozen.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Frozen {
     pub file: String,
+    #[serde(default)]
+    pub slots: Vec<Option<String>>,
 }
 
 /// A drums track's kit (song-format.ts `KitSound`): tune in semitones, decay as a multiple, tone from dark to bright.
@@ -609,7 +613,7 @@ impl Song {
 
     /// The song as one track heard alone for freezing `id`: its instrument, clips and effects at full volume, in the
     /// middle, sending nothing, through a Main with no effects at 1 (so the file is what goes into its volume and pan).
-    /// `None` when the song has no such track.
+    /// It keeps its Session clips, for [`crate::render::render_slot`]. `None` when the song has no such track.
     #[must_use]
     pub fn for_freezing(&self, id: &str) -> Option<Song> {
         let mut track = self.tracks.iter().find(|t| t.id == id)?.clone();
@@ -622,7 +626,6 @@ impl Song {
         track.auto.retain(|name, _| name.starts_with("fx:"));
         track.mods.retain(|m| m.target.starts_with("fx:"));
         track.sends.clear();
-        track.slots.clear();
         Some(Song { tracks: vec![track], returns: Vec::new(), main: Main { volume: 1.0, ..Main::default() }, ..self.clone() })
     }
 

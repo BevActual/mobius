@@ -522,7 +522,9 @@ impl Music {
 
     /// Renders track `id` of the song (its instrument, clips and effects, at full volume in the middle, from the song's
     /// start to its end and tail) into `Samples/Processed/Freeze/<track> Freeze.wav` in the song's folder, numbered if
-    /// taken, as Live keeps freeze files. The window then marks the track `frozen: { file }`; unfreezing drops it.
+    /// taken, as Live keeps freeze files, and each of its Session clips, two times round (38.1.4), into
+    /// `<track> Freeze Clip <n>.wav`. The window then marks the track `frozen: { file, slots }`, `slots` by slot (null
+    /// for an empty one); unfreezing drops it.
     fn freeze(&self, value: &Value, path: &str, id: &str, songs: &mobius_workspace::notes::Notes) -> Result<Value, String> {
         let song = match value {
             Value::Null => lock(&self.song).clone().ok_or("load a song first")?,
@@ -535,23 +537,16 @@ impl Music {
         let alone = song.for_freezing(id).ok_or_else(|| format!("No track \"{id}\" in the song."))?;
         let track = &alone.tracks[0];
         let name = mobius_audio::record::file_stem(track.name.as_deref().unwrap_or(id), "Track");
-        let (left, right) = mobius_audio::render::render_song(&alone, RENDER_RATE);
-        let mut bytes = Vec::with_capacity(left.len() * 8 + 64);
-        mobius_audio::wav::write(&mut bytes, &left, &right, RENDER_RATE).map_err(|e| e.to_string())?;
         let dir = songs.folder_of(path)?.join("Samples").join("Processed").join("Freeze");
         std::fs::create_dir_all(&dir).map_err(|e| format!("The Freeze folder could not be made: {e}"))?;
-        for n in 1u32.. {
-            let file = if n == 1 { format!("{name} Freeze.wav") } else { format!("{name} Freeze {n}.wav") };
-            match std::fs::OpenOptions::new().write(true).create_new(true).open(dir.join(&file)) {
-                Ok(mut out) => {
-                    std::io::Write::write_all(&mut out, &bytes).map_err(|e| format!("The track could not be frozen: {e}"))?;
-                    return Ok(json!({ "ok": true, "file": format!("Samples/Processed/Freeze/{file}") }));
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
-                Err(e) => return Err(format!("The track could not be frozen: {e}")),
-            }
+        let (left, right) = mobius_audio::render::render_song(&alone, RENDER_RATE);
+        let file = write_new(&dir, &format!("{name} Freeze"), &left, &right)?;
+        let mut slots = Vec::new();
+        for k in 0..track.slots.len() {
+            let (left, right) = mobius_audio::render::render_slot(&alone, k, RENDER_RATE);
+            slots.push(if left.is_empty() { Value::Null } else { Value::from(format!("Samples/Processed/Freeze/{}", write_new(&dir, &format!("{name} Freeze Clip {}", k + 1), &left, &right)?)) });
         }
-        Err("The track could not be frozen.".into())
+        Ok(json!({ "ok": true, "file": format!("Samples/Processed/Freeze/{file}"), "slots": slots }))
     }
 
     fn render(&self, value: &Value, path: &str, name: &str, songs: &mobius_workspace::notes::Notes) -> Result<Value, String> {
@@ -653,6 +648,25 @@ fn position_json_of(p: &mobius_audio::engine::Position) -> Value {
     } else {
         json!({ "playing": p.playing, "sounding": p.sounding, "beat": p.beat, "meters": meters, "levels": levels, "session": session })
     }
+}
+
+/// Writes a WAV of `left` and `right` into `dir` as `<stem>.wav`, or `<stem> 2.wav` and so on when that is taken, and
+/// gives its name.
+fn write_new(dir: &std::path::Path, stem: &str, left: &[f32], right: &[f32]) -> Result<String, String> {
+    let mut bytes = Vec::with_capacity(left.len() * 8 + 64);
+    mobius_audio::wav::write(&mut bytes, left, right, RENDER_RATE).map_err(|e| e.to_string())?;
+    for n in 1u32.. {
+        let file = if n == 1 { format!("{stem}.wav") } else { format!("{stem} {n}.wav") };
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(dir.join(&file)) {
+            Ok(mut out) => {
+                std::io::Write::write_all(&mut out, &bytes).map_err(|e| format!("The track could not be frozen: {e}"))?;
+                return Ok(file);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(format!("The track could not be frozen: {e}")),
+        }
+    }
+    Err("The track could not be frozen.".into())
 }
 
 #[cfg(test)]
@@ -763,15 +777,20 @@ mod tests {
         std::fs::create_dir_all(&folder).unwrap();
         std::fs::write(folder.join("Song.md"), SONG).unwrap();
         let mut song = json!({ "version": 2, "tempo": 120, "bars": 1, "tracks": [
-            { "id": "a", "name": "Lead", "instrument": "lead", "clips": [{ "id": "c", "start": 0, "length": 4, "notes": [{ "pitch": 60, "start": 0, "length": 1, "velocity": 1 }] }] }] });
+            { "id": "a", "name": "Lead", "instrument": "lead", "clips": [{ "id": "c", "start": 0, "length": 4, "notes": [{ "pitch": 60, "start": 0, "length": 1, "velocity": 1 }] }],
+              "slots": [null, { "bars": 1, "notes": [{ "pitch": 64, "start": 0, "length": 1, "velocity": 1 }] }] }] });
         let frozen = m.call("freeze", &[json!("Songs/Song.md"), json!("a"), song.clone()], &songs);
         assert_eq!(frozen["file"], "Samples/Processed/Freeze/Lead Freeze.wav", "{frozen}");
+        // Each Session clip, two times round (38.1.4).
+        assert_eq!(frozen["slots"], json!([null, "Samples/Processed/Freeze/Lead Freeze Clip 2.wav"]));
+        let clip = mobius_audio::wav::read(&std::fs::read(folder.join("Samples/Processed/Freeze/Lead Freeze Clip 2.wav")).unwrap()).unwrap();
+        assert_eq!(clip.left.len(), (4.0 * f64::from(RENDER_RATE)) as usize);
         assert_eq!(m.call("freeze", &[json!("Songs/Song.md"), json!("a"), song.clone()], &songs)["file"], "Samples/Processed/Freeze/Lead Freeze 2.wav");
         assert_eq!(m.call("freeze", &[json!("Songs/Song.md"), json!("nope"), song.clone()], &songs)["ok"], false);
-        song["tracks"][0]["frozen"] = json!({ "file": "Samples/Processed/Freeze/Lead Freeze.wav" });
+        song["tracks"][0]["frozen"] = json!({ "file": "Samples/Processed/Freeze/Lead Freeze.wav", "slots": frozen["slots"] });
         let loaded = m.call("load", &[song, json!("Songs/Song.md")], &songs);
         assert_eq!(loaded["missing"], json!([]), "{loaded}");
-        assert_eq!(lock(&m.song).as_ref().unwrap().sounds.len(), 1);
+        assert_eq!(lock(&m.song).as_ref().unwrap().sounds.len(), 2);
     }
 
     #[test]

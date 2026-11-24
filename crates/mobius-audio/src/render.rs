@@ -915,7 +915,16 @@ impl Renderer {
                     slots: t
                         .slots
                         .iter()
-                        .map(|c| c.as_ref().filter(|c| c.bars > 0.0).map(|c| (c.bars * BEATS_PER_BAR, c.notes.clone(), placed(song, Song::is_audio(t), c.audio.as_ref()))))
+                        .enumerate()
+                        .map(|(k, c)| {
+                            let c = c.as_ref().filter(|c| c.bars > 0.0)?;
+                            // Frozen, a slot plays its file: two times round the clip (38.1.4).
+                            if let Some(files) = frozen_slots(t) {
+                                let sound = song.sounds.get(files.get(k)?.as_ref()?)?;
+                                return Some((2.0 * c.bars * BEATS_PER_BAR, Vec::new(), Some(frozen_sound(sound, song.tempo))));
+                            }
+                            Some((c.bars * BEATS_PER_BAR, c.notes.clone(), placed(song, Song::is_audio(t), c.audio.as_ref())))
+                        })
                         .collect(),
                     playing: None,
                     queued: None,
@@ -951,18 +960,18 @@ impl Renderer {
                     }
                 }
                 // Frozen (38.1.4 "Track Freeze"), Arrange plays its file from the song's start in place of its notes,
-                // clips and effects; Session still plays its clips.
+                // clips and effects, and Session its slots' files; Session plays a track frozen without them live.
                 let frozen = t.frozen.as_ref().filter(|_| !how.session).and_then(|f| song.sounds.get(&f.file)).map(|sound| AudioClip {
                     start: 0.0,
                     length: f64::INFINITY,
                     offset: 0.0,
                     cycle: None,
-                    placed: Placed::new(&crate::song::Audio { file: String::new(), gain_db: 0.0, offset: 0.0, warp: false, mode: None, bpm: None, transpose: 0.0, markers: Vec::new() }, sound.clone(), song.tempo),
+                    placed: frozen_sound(sound, song.tempo),
                     stretch: Stretch::default(),
                     fades: false,
                     transpose: Env::default(),
                 });
-                let is_frozen = frozen.is_some();
+                let is_frozen = frozen.is_some() || how.session && frozen_slots(t).is_some();
                 if is_frozen {
                     notes.clear();
                 }
@@ -1027,7 +1036,8 @@ impl Renderer {
                         .collect()
                 };
                 env_spans.sort_by(|a, b| a.start.total_cmp(&b.start));
-                let slot_envs = if how.session { t.slots.iter().map(|c| c.as_ref().and_then(|c| Envelopes::of(&c.envelopes, &c.unlinked, &sends, &fx_auto))).collect() } else { Vec::new() };
+                // A frozen clip's envelopes are in its file.
+                let slot_envs = if how.session && !is_frozen { t.slots.iter().map(|c| c.as_ref().and_then(|c| Envelopes::of(&c.envelopes, &c.unlinked, &sends, &fx_auto))).collect() } else { Vec::new() };
                 Lane {
                     id: t.id.clone(),
                     notes,
@@ -1550,6 +1560,32 @@ impl Renderer {
         let in_loop = self.cycle.is_some_and(|(_, to)| self.sample < to);
         if in_loop { self.cycle_end.min(self.total) } else { self.total }
     }
+}
+
+/// A frozen track's slot files, when it has them.
+fn frozen_slots(t: &crate::song::Track) -> Option<&[Option<String>]> {
+    t.frozen.as_ref().map(|f| &f.slots[..]).filter(|s| !s.is_empty())
+}
+
+/// A frozen file placed on the song's beats: unwarped, as it was rendered at the song's tempo.
+fn frozen_sound(sound: &std::sync::Arc<crate::wav::Sound>, tempo: f64) -> Placed {
+    Placed::new(&crate::song::Audio { file: String::new(), gain_db: 0.0, offset: 0.0, warp: false, mode: None, bpm: None, transpose: 0.0, markers: Vec::new() }, sound.clone(), tempo)
+}
+
+/// Session slot `slot` of the song's first track as it is frozen (38.1.4): launched at the start and rendered two times
+/// round, "only two loop cycles". Empty when there is no clip there.
+#[must_use]
+pub fn render_slot(song: &Song, slot: usize, sample_rate: u32) -> (Vec<f32>, Vec<f32>) {
+    let Some(clip) = song.tracks.first().and_then(|t| t.slots.get(slot)?.as_ref()).filter(|c| c.bars > 0.0) else { return (Vec::new(), Vec::new()) };
+    let seconds = 2.0 * clip.bars * BEATS_PER_BAR * 60.0 / song.tempo;
+    let frames = (seconds * f64::from(sample_rate)).round() as usize;
+    let (mut left, mut right) = (vec![0f32; frames], vec![0f32; frames]);
+    let mut renderer = Renderer::playing(song, sample_rate, Playing { from: 0.0, cycle: None, click: false, session: true });
+    renderer.launch(0, Some(slot));
+    for (l, r) in left.chunks_mut(512).zip(right.chunks_mut(512)) {
+        renderer.render(l, r);
+    }
+    (left, right)
 }
 
 /// An audio clip's sound placed on its beats, when it is on an audio track and its file was read.
@@ -2401,6 +2437,42 @@ mod tests {
     }
 
     #[test]
+    fn a_frozen_session_clip_is_two_times_round_and_plays_in_place_of_its_notes() {
+        // Tempo 120: a one-bar clip is 96 000 samples, so its frozen file is 192 000.
+        let mut s = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"main":{"volume":1},"tracks":[
+            {"id":"a","instrument":"lead","volume":0.5,"fx":[{"id":"d","kind":"delay","time":0.5,"feedback":0.5,"mix":0.5}],"slots":[null,{"bars":1,"notes":[{"pitch":60,"start":0,"length":1,"velocity":1}]}]}]}"#).unwrap();
+        let session = |s: &Song, frames: usize| {
+            let mut r = Renderer::playing(s, 48_000, Playing { from: 0.0, cycle: None, click: false, session: true });
+            r.launch(0, Some(1));
+            let (mut l, mut rr) = (vec![0f32; frames], vec![0f32; frames]);
+            for (a, b) in l.chunks_mut(512).zip(rr.chunks_mut(512)) {
+                r.render(a, b);
+            }
+            (l, rr)
+        };
+        let before = session(&s, 192_000);
+        let alone = s.for_freezing("a").unwrap();
+        assert!(render_slot(&alone, 0, 48_000).0.is_empty());
+        let (fl, fr) = render_slot(&alone, 1, 48_000);
+        assert_eq!(fl.len(), 192_000);
+        // The second time round carries the first's echoes, as the live clip does.
+        assert!(fl[96_000..].iter().zip(&fl[..96_000]).any(|(b, a)| (b - a).abs() > 1e-3));
+        s.sounds.insert("f".into(), std::sync::Arc::new(crate::wav::Sound { rate: 48_000.0, left: fl, right: fr }));
+        s.tracks[0].frozen = Some(crate::song::Frozen { file: "none".into(), slots: vec![None, Some("f".into())] });
+        // Its notes and effects no longer play: change them and it sounds the same, through its volume.
+        s.tracks[0].fx.clear();
+        if let Some(c) = s.tracks[0].slots[1].as_mut() {
+            c.notes.clear();
+        }
+        let after = session(&s, 384_000);
+        for i in (0..192_000).step_by(7) {
+            assert!((before.0[i] - after.0[i]).abs() < 1e-4, "{i}: {} {}", before.0[i], after.0[i]);
+        }
+        // Then it goes round the file again.
+        assert!(after.0[192_000..].iter().zip(&after.0[..192_000]).all(|(b, a)| (b - a).abs() < 1e-4));
+    }
+
+    #[test]
     fn a_frozen_track_plays_its_file_through_its_volume_and_sends_and_sounds_as_before() {
         let mut s = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"returns":[{"id":"r","volume":1}],"tracks":[
             {"id":"a","instrument":"lead","volume":0.5,"pan":0,"sends":{"r":0.25},"fx":[{"id":"f","kind":"filter","on":true}],"clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":60,"start":0,"length":1,"velocity":1},{"pitch":67,"start":2,"length":1,"velocity":1}]}]}]}"#).unwrap();
@@ -2408,7 +2480,7 @@ mod tests {
         // Frozen: its instrument, clips and effects at full volume, in the middle.
         let (fl, fr) = render_song(&s.for_freezing("a").unwrap(), 48_000);
         s.sounds.insert("Samples/Processed/Freeze/a Freeze.wav".into(), std::sync::Arc::new(crate::wav::Sound { rate: 48_000.0, left: fl, right: fr }));
-        s.tracks[0].frozen = Some(crate::song::Frozen { file: "Samples/Processed/Freeze/a Freeze.wav".into() });
+        s.tracks[0].frozen = Some(crate::song::Frozen { file: "Samples/Processed/Freeze/a Freeze.wav".into(), slots: Vec::new() });
         // Its notes and effects no longer play: change them and it sounds the same.
         s.tracks[0].clips.clear();
         let after = render_song(&s, 48_000);
