@@ -315,6 +315,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   // The open page, for pictures to be read from its files folder; and files pasted or dropped on it.
   const pathNow = useRef(path);
   pathNow.current = path;
+  // The open page's text now, for words that arrive later (dictation, a clip, a meeting) from an older render.
+  const textNow = useRef(notes.text);
+  textNow.current = notes.text;
   const filesIn = useRef<(files: File[]) => void>(() => undefined);
   // A link to another note opens it; typing [[ asks which note to link.
   const openPage = useRef<(page: string) => void>(() => undefined);
@@ -509,15 +512,21 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   }, [linkAt]);
   const [insertProblem, setInsertProblem] = useState<string | null>(null);
   const recordedFor = useRef(0);
-  /** A block of Markdown put in where the cursor is. */
-  const put = (text: string) => {
+  /** A block of Markdown put in where the cursor is. `forPage`: the page it was started on, when it arrives later
+   *  (dictation, a clip); if another page is open by then, it is copied instead of going into the wrong one. */
+  const put = (text: string, forPage?: string | null) => {
+    if (forPage !== undefined && pathNow.current !== forPage) {
+      void navigator.clipboard?.writeText(text).catch(() => undefined);
+      setInsertProblem('Another note was open by the time it was ready, so it was copied instead. Paste it where it belongs.');
+      return;
+    }
     if (!sourceNow.current && editor && !editor.isDestroyed) {
       editor.chain().focus().insertContent(text, { contentType: 'markdown' }).run();
       return;
     }
     const field = area.current;
-    const at = field && document.activeElement === field ? field.selectionStart : caret.current ?? notes.text.length;
-    const done = insertBlock(notes.text, at, text);
+    const at = field && document.activeElement === field ? field.selectionStart : caret.current ?? textNow.current.length;
+    const done = insertBlock(textNow.current, at, text);
     notes.edit(done.page);
     caret.current = done.cursor;
     afterPaint(() => { const f = area.current; if (f) { f.focus(); f.setSelectionRange(done.cursor, done.cursor); } });
@@ -547,8 +556,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     if (added.length && pathNow.current === page) put(added.join('\n\n'));
   };
   filesIn.current = (files) => void addFiles(files);
-  const recording = useDictation((words) => put(recordingBlock(words, recordedFor.current)), NOTE_RECORDING_SECONDS);
+  // The page dictation started on: its words go there, or are copied if another page is open when they come back.
+  const dictatingFor = useRef<string | null>(null);
+  const recording = useDictation((words) => put(recordingBlock(words, recordedFor.current), dictatingFor.current), NOTE_RECORDING_SECONDS);
   recordedFor.current = recording.seconds;
+  const dictate = () => { if (recording.state === 'idle') dictatingFor.current = pathNow.current ?? null; recording.toggle(); };
   // A meeting: heard in parts for as long as it runs, its words put in the page it started on, then offered to Mobius.
   const meetingPage = useRef<string | null>(null);
   const [meetingDone, setMeetingDone] = useState<{ path: string; title: string } | null>(null);
@@ -561,9 +573,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       setInsertProblem('Another page was open when the meeting ended, so its words were copied instead. Paste them where they belong.');
       return;
     }
-    if (sourceNow.current || !editor || editor.isDestroyed) notes.edit(insertBlock(notes.text, notes.text.length, block).page);
+    if (sourceNow.current || !editor || editor.isDestroyed) notes.edit(insertBlock(textNow.current, textNow.current.length, block).page);
     else editor.chain().focus('end').insertContent(block, { contentType: 'markdown' }).run();
-    setMeetingDone({ path: page, title: liveTitle(notes.text, page.split('/').pop()?.replace(/\.md$/, '') ?? 'Note') });
+    setMeetingDone({ path: page, title: liveTitle(textNow.current, page.split('/').pop()?.replace(/\.md$/, '') ?? 'Note') });
   });
   useEffect(() => { setMeetingDone((m) => (m && m.path !== path ? null : m)); }, [path]);
   const startMeeting = () => { meetingPage.current = pathNow.current ?? null; setMeetingDone(null); meeting.start(); };
@@ -572,12 +584,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   useEffect(() => { if (recordToken && pathNow.current && meeting.state === 'idle' && recording.state === 'idle') startLatest.current(); }, [recordToken]); // eslint-disable-line react-hooks/exhaustive-deps
   const clip = async (url: string) => {
     const address = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
+    const page = pathNow.current ?? null;
     const got = await window.mobius.reading?.fetch(address);
     if (!got) { setInsertProblem('Clipping is not available here.'); return; }
     if (!got.ok) { setInsertProblem(`That page could not be clipped: ${got.message}.`); return; }
     setClipping(null);
     setInsertProblem(null);
-    put(clipBlock(got));
+    put(clipBlock(got), page);
   };
   const addLink = (event: FormEvent) => {
     event.preventDefault();
@@ -827,7 +840,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
         { label: 'Table', icon: TABLE_ICON, run: insertTable },
         ...(window.mobius.notes?.attach ? [{ label: adding > 0 ? 'Adding…' : 'Picture or file…', disabled: adding > 0, run: () => picker.current?.click() }] : []),
       ] : []),
-      { label: 'Dictate', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: recording.toggle },
+      { label: 'Dictate', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: dictate },
       { label: 'Record a meeting', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: startMeeting },
       { label: 'Clip a web page…', run: () => setClipping(''), separated: true },
     ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Dictate, record a meeting or clip a page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
@@ -874,7 +887,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
           {insertMenu}
           {/* While Mobius listens, the way to stop it stays in sight. */}
           {recording.state !== 'idle' && (
-            <button type="button" className="note-insert-btn" data-recording={recording.state === 'recording' || undefined} disabled={recording.state === 'transcribing'} title="Stop and keep the words in this page" onPointerDown={keep} onClick={recording.toggle}>
+            <button type="button" className="note-insert-btn" data-recording={recording.state === 'recording' || undefined} disabled={recording.state === 'transcribing'} title="Stop and keep the words in this page" onPointerDown={keep} onClick={dictate}>
               {recording.state === 'recording' ? `Stop · ${Math.floor(recording.seconds / 60)}:${String(recording.seconds % 60).padStart(2, '0')}` : 'Writing it down…'}
             </button>
           )}

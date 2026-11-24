@@ -173,6 +173,7 @@ test('a change Mobius makes to the open page is marked as it lands, and its Keep
 test('if the agent changes the page while the person is typing, nothing is lost and the person chooses', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n');
+  fs.writeFileSync(file('Work', 'Other.md'), '# Other\n');
   await start();
   await side().getByRole('button', { name: 'Plan', exact: true }).click();
   await expect(text().locator('h1')).toHaveText('Plan');
@@ -193,7 +194,12 @@ test('if the agent changes the page while the person is typing, nothing is lost 
   await expect(shell().getByRole('alert')).toContainText('changed this page');
   await expect(text().locator('h1')).toHaveText('Plan mine!');
   expect(onDisk('Work', 'Plan.md')).toBe('# Plan\nfrom the agent\n');
+  // Another page waits until the person has chosen: leaving now would drop what they typed.
+  await side().getByRole('button', { name: 'Other', exact: true }).click();
+  await expect(status()).toHaveText('Choose Keep mine or Use their version first.');
+  await expect(text().locator('h1')).toHaveText('Plan mine!');
   await shell().getByRole('button', { name: 'Keep mine' }).click();
+  // Once saved, the status line says so again, not the earlier message.
   await expect(status()).toHaveText('Saved');
   expect(onDisk('Work', 'Plan.md')).toBe('# Plan mine!\n');
 });
