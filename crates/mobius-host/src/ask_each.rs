@@ -38,6 +38,8 @@ pub struct Job {
     /// Ask the chat model instead of the quick one: for writing that must meet the chat model's bar (drafts), where
     /// the quick model is for sorting and short answers.
     pub chat: bool,
+    /// Each answer must be JSON following this schema (a name and the schema): see the core's `agent.ask_each`.
+    pub format: Option<(String, Value)>,
 }
 
 /// The answers the core is still sending, by job.
@@ -96,6 +98,9 @@ impl Asks {
         }
         if job.chat {
             params["quick"] = json!(false);
+        }
+        if let Some((name, schema)) = &job.format {
+            params["format"] = json!({ "name": name, "schema": schema });
         }
         call("agent.ask_each", params)?;
         let mut got: HashMap<String, Result<String, String>> = HashMap::new();

@@ -20,6 +20,7 @@ fn request(text: &str) -> ChatRequest {
         tools: vec![ToolDef { name: "files.read".into(), description: "Read a file".into(), input_schema: json!({ "type": "object" }) }],
         effort: None,
         max_tokens: None,
+        format: None,
     }
 }
 

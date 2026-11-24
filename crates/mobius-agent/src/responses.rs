@@ -103,6 +103,9 @@ pub fn build_body(request: &ChatRequest) -> Value {
     if let Some(effort) = request.effort.as_deref().filter(|e| *e != NO_REASONING) {
         body["reasoning"] = json!({ "effort": effort });
     }
+    if let Some(format) = &request.format {
+        body["text"] = json!({ "format": { "type": "json_schema", "name": format.name, "schema": format.schema, "strict": true } });
+    }
     body
 }
 
@@ -283,6 +286,14 @@ mod tests {
     use super::*;
     use crate::provider::ToolDef;
 
+    #[test]
+    fn an_answer_format_goes_in_text_format() {
+        let mut r = request();
+        assert!(build_body(&r).get("text").is_none());
+        r.format = Some(crate::provider::OutputFormat { name: "sort".into(), schema: json!({ "type": "object" }) });
+        assert_eq!(build_body(&r)["text"], json!({ "format": { "type": "json_schema", "name": "sort", "schema": { "type": "object" }, "strict": true } }));
+    }
+
     fn request() -> ChatRequest {
         ChatRequest {
             model: "gpt-5.5".into(),
@@ -295,6 +306,7 @@ mod tests {
             tools: vec![ToolDef { name: "files.read".into(), description: "Read".into(), input_schema: json!({ "type": "object" }) }],
             effort: Some("high".into()),
             max_tokens: Some(100),
+            format: None,
         }
     }
 

@@ -204,7 +204,7 @@ pub fn summary_request(model: &str, previous: Option<&str>, middle: &[Message], 
     // Bounded, and without reasoning where the server can be told: a summary is mechanical work, and a reasoning
     // model can otherwise spend the whole budget thinking and write nothing.
     let max_tokens = u32::try_from(target * 2).unwrap_or(8_000).min(8_000);
-    ChatRequest { model: model.to_owned(), system: String::new(), messages: vec![Message::user(prompt)], tools: Vec::new(), effort: Some(NO_REASONING.to_owned()), max_tokens: Some(max_tokens) }
+    ChatRequest { model: model.to_owned(), system: String::new(), messages: vec![Message::user(prompt)], tools: Vec::new(), effort: Some(NO_REASONING.to_owned()), max_tokens: Some(max_tokens), format: None }
 }
 
 /// Used when the summary cannot be written: the earlier summary, plus what the person asked and which tools ran.

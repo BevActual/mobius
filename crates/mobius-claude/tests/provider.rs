@@ -104,6 +104,7 @@ fn request(model: &str, messages: Vec<Message>) -> ChatRequest {
         tools: vec![ToolDef { name: "files.read".into(), description: "Read a file".into(), input_schema: json!({ "type": "object", "properties": { "path": { "type": "string" } } }) }],
         effort: Some("medium".into()),
         max_tokens: None,
+        format: None,
     }
 }
 

@@ -1745,7 +1745,9 @@ impl Bridge {
                 // Two rounds for forty messages (each call can be its own process, so many at once pays).
                 at_once: Some(20),
                 // On the chat model: Haiku as the quick model sorted more loosely (30L), and the counts rest on it.
+                // Moving it back waits on the comparison in tests/mail_sort_eval.rs.
                 chat: true,
+                format: Some(crate::mail::store::sort_format()),
                 ..Default::default()
             };
             let answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
