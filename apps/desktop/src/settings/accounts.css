@@ -12,9 +12,9 @@
 :is(.settings-page, .acct-sheet) .acct-row-button:disabled .conn-mark { opacity: 0.5; }
 .settings-page .acct-row-button .conn-service { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .settings-page .acct-chevron { flex: none; width: 16px; height: 16px; margin-left: auto; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-/* Add Account…: a plus in the mark's place, outlined rather than filled, so it reads as an action, not an account. */
-.settings-page .conn-mark.acct-plus { --chip: transparent; color: var(--muted); border: var(--hairline-w) solid var(--line); font-size: var(--fs-md); font-weight: var(--fw-regular); }
-.settings-page .acct-row-button:hover .acct-plus { color: var(--ink); }
+/* Add Account… (a plus) and Other Account… (an ellipsis): outlined, not filled, so they read as actions, not accounts. */
+:is(.settings-page, .acct-sheet) .conn-mark.acct-plus { --chip: transparent; color: var(--muted); border: var(--hairline-w) solid var(--line); font-size: var(--fs-md); font-weight: var(--fw-regular); }
+:is(.settings-page, .acct-sheet) .acct-row-button:hover .acct-plus { color: var(--ink); }
 .acct-sheet .conn-list { margin-top: var(--sp-1); }
 
 /* An account's page: the mark at 40px beside its address and state, then its cards, then Remove Account… alone. */
