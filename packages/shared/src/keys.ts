@@ -34,7 +34,8 @@ export const DEFAULT_KEYBINDINGS: KeyBindings = {
   settings: 'mod+,',
   find: 'mod+f',
   splitView: 'mod+shift+\\',
-  littleMobius: 'mod+shift+m',
+  // Not Mod+Shift+M: that shows and hides Mobius beside the work (FIXED_KEYS).
+  littleMobius: 'mod+shift+l',
   quickEntry: '',
   holdToTalk: 'mod+shift+space',
   launcherAnywhere: 'mod+space',
@@ -131,6 +132,30 @@ export function isKeyBindings(value: unknown): value is KeyBindings {
     }
   }
   return true;
+}
+
+/** Keys Mobius keeps for itself, the same in every app, which no shortcut can take: showing Mobius beside the work, the
+ *  panels' three places, and New. */
+export const FIXED_KEYS: ReadonlyArray<{ binding: string; label: string }> = [
+  { binding: 'mod+shift+m', label: 'Show or hide Mobius beside the work' },
+  { binding: 'mod+\\', label: 'Show or hide the panels on the left' },
+  { binding: 'mod+alt+\\', label: 'Show or hide the panels on the right' },
+  { binding: 'mod+j', label: 'Show or hide the panels at the bottom' },
+  { binding: 'mod+n', label: 'New, in the app that is open' },
+];
+/** The fixed key a combination is, if it is one. */
+export const fixedKeyFor = (binding: string): { binding: string; label: string } | null => FIXED_KEYS.find((fixed) => fixed.binding === binding) ?? null;
+/** Saved shortcuts with any that a fixed key now has (Little Mobius was Mod+Shift+M) moved back to their usual keys,
+ *  or cleared when those are taken too, so one press never does two things. */
+export function settleBindings(bindings: KeyBindings): KeyBindings {
+  if (!SHORTCUT_ACTIONS.some((action) => fixedKeyFor(bindings[action]))) return bindings;
+  const next = { ...bindings };
+  for (const action of SHORTCUT_ACTIONS) {
+    if (!fixedKeyFor(next[action])) continue;
+    const usual = DEFAULT_KEYBINDINGS[action];
+    next[action] = !fixedKeyFor(usual) && conflictFor(next, action, usual) === null ? usual : '';
+  }
+  return next;
 }
 
 /** Another action that already uses this combination. */

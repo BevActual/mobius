@@ -189,8 +189,8 @@ export const PrivacySection = (props: SectionProps) => <><SafetySection {...prop
 /** Extensions has an app of its own: Settings opens it rather than repeating its pages. */
 export function ExtensionsSettings({ highlight, onOpenApp }: SectionProps) {
   return (
-    <Row path={settingPath('extensions', 'open', 'extensions-app')} title="Open Abilities" description="Add and remove apps, and install, update and turn off skills, connectors and plugins." highlight={highlight === 'extensions-app'}>
-      <button type="button" className="btn" disabled={!onOpenApp} onClick={() => onOpenApp?.('skills')}>Open Abilities</button>
+    <Row path={settingPath('extensions', 'open', 'extensions-app')} title="Open Store" description="Add and remove apps, and install, update and turn off skills, connectors and plugins." highlight={highlight === 'extensions-app'}>
+      <button type="button" className="btn" disabled={!onOpenApp} onClick={() => onOpenApp?.('skills')}>Open Store</button>
     </Row>
   );
 }
