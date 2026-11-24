@@ -1,6 +1,6 @@
 //! Mail sort: the quick model (Haiku) against the chat model (Sonnet), on 54 sample emails with the group a person
 //! would give each one, through the same prompt and the same rules in code as the app. It also scores the quick
-//! model asking the chat model again about what it was unsure of (`SORT_ON_QUICK` in bridge.rs). The sort stays on
+//! model asking the chat model again about what it may have got wrong (`SORT_ON_QUICK` in bridge.rs). The sort stays on
 //! the chat model unless one of those matches it here.
 //!
 //! Uses the signed-in Claude subscription, so it only runs when asked:
@@ -19,7 +19,7 @@ use mobius_agent::message::Message;
 use mobius_agent::provider::{ChatRequest, NO_REASONING, OutputFormat, Provider};
 use mobius_agent::schema::check_answer;
 use mobius_claude::provider::ClaudeCodeProvider;
-use mobius_host::mail::store::{self, Person, SORT_SYSTEM, categorize, sort_format, sort_group, sort_prompt, sort_unsure};
+use mobius_host::mail::store::{self, Person, SORT_SYSTEM, categorize, sort_format, sort_group, sort_needs_chat, sort_prompt};
 
 /// (from, subject, text, bulk headers, the group it ends in, whether it asks the person something).
 const SAMPLES: &[(&str, &str, &str, bool, &str, bool)] = &[
@@ -79,7 +79,22 @@ const SAMPLES: &[(&str, &str, &str, bool, &str, bool)] = &[
     ("Venmo <venmo@venmo.com>", "Sam requested $24.00", "Sam Ortiz requested $24.00 for 'pizza night'. Pay or decline in Venmo.", false, "reply", true),
     ("Nextdoor <no-reply@nextdoor.com>", "Lost cat on Elm Street", "A neighbour posted: grey cat missing near Elm and 4th. 23 replies.", true, "archive", false),
     ("Maya Chen <maya@gmail.com>", "Re: Saturday dinner", "Can someone bring dessert? I'll do drinks.", false, "reply", true),
+    // Fresh cases of each kind the second run missed (sign-in alerts, scams, a tool assigning a task, social and
+    // neighbourhood posts, an order already delivered), written after it and never tuned on.
+    ("Microsoft account team <account-security-noreply@accountprotection.microsoft.com>", "Unusual sign-in activity", "We detected something unusual about a recent sign-in to your Microsoft account. Review your recent activity.", false, "reply", true),
+    ("Dropbox <no-reply@dropbox.com>", "New device signed in", "A new device, iPhone 17, signed in to your Dropbox account. If this was you, you can ignore this email.", false, "reply", true),
+    ("USPS Delivery <notice@track-usps-info.com>", "Your package could not be delivered", "We could not deliver your package. Pay the $1.99 redelivery fee within 24 hours to avoid return to sender.", false, "archive", false),
+    ("Walmart Rewards <rewards@walmart-winners.net>", "Claim your $500 gift card", "You were selected for a $500 gift card. Confirm your shipping details to claim it today.", false, "archive", false),
+    ("Asana <no-reply@asana.com>", "Dana Reyes assigned you a task", "Dana Reyes assigned you \"Q4 budget draft\" in Planning. Due Dec 5.", false, "later", false),
+    ("Linear <notifications@linear.app>", "MOB-301 assigned to you", "Chris Wu assigned you MOB-301 'Fix calendar sync' in Mobius.", false, "later", false),
+    ("Facebook <notification@facebookmail.com>", "You have 3 new notifications", "Jordan Lee and 2 others commented on a post you follow.", true, "archive", false),
+    ("Reddit <noreply@redditmail.com>", "Trending in r/rust", "Popular posts from communities you follow: async closures, a new borrow checker blog.", true, "archive", false),
+    ("Amazon <shipment-tracking@amazon.com>", "Delivered: your package", "Your package was delivered. It was handed to a resident.", false, "archive", false),
+    ("Instacart <orders@instacart.com>", "Your order has been delivered", "Your groceries were left at the door. Rate your shopper.", false, "archive", false),
 ];
+
+/// Where the fresh cases start: the samples before them were seen when the rules were written.
+const FRESH_FROM: usize = 54;
 
 type Sample = (&'static str, &'static str, &'static str, bool, &'static str, bool);
 
@@ -184,8 +199,27 @@ impl Score {
         self.right += usize::from(got == *group);
         let said: serde_json::Value = serde_json::from_str(text).unwrap_or_default();
         self.asks_right += usize::from(said["asks_me"].as_bool() == Some(*asks));
-        format!("{got}{}{}", if got == *group { " " } else { "x" }, if sort_unsure(text) { "?" } else { " " })
+        format!("{got}{}{}", if got == *group { " " } else { "x" }, if sort_needs_chat(m, text) { "^" } else { " " })
     }
+}
+
+/// Asked of the chat model again for each sample, if the quick model answered with the label itself.
+fn escalated_on_labels(messages: &[store::Message]) -> Vec<bool> {
+    SAMPLES.iter().zip(messages).map(|((_, _, _, _, group, asks), m)| sort_needs_chat(m, &format!(r#"{{"why":"x","group":"{group}","asks_me":{asks},"urgent":false,"sure":true}}"#))).collect()
+}
+
+/// Without a model: even where the quick model is right every time, most mail stays with it.
+#[test]
+fn most_mail_stays_with_the_quick_model() {
+    let messages: Vec<store::Message> = SAMPLES.iter().enumerate().map(|(k, s)| message(k, s)).collect();
+    let up = escalated_on_labels(&messages);
+    let count = up.iter().filter(|u| **u).count();
+    for (k, u) in up.iter().enumerate() {
+        if *u {
+            eprintln!("asked again: {}", SAMPLES[k].1);
+        }
+    }
+    assert!(count * 3 < SAMPLES.len(), "{count} of {} would be asked of the chat model", SAMPLES.len());
 }
 
 #[test]
@@ -199,39 +233,55 @@ fn live_quick_model_against_chat_model() {
     let messages: Vec<store::Message> = SAMPLES.iter().enumerate().map(|(k, s)| message(k, s)).collect();
     let quick = sort_all(&p, models[0], &messages);
     let chat = sort_all(&p, models[1], &messages);
-    // The quick model, with the chat model's answer wherever the quick one was unsure (or had none).
-    let both: Vec<Answer> = quick.iter().zip(&chat).map(|(q, c)| if q.as_ref().is_ok_and(|t| !sort_unsure(t)) { q.clone() } else { c.clone() }).collect();
-    let escalated = quick.iter().filter(|q| !q.as_ref().is_ok_and(|t| !sort_unsure(t))).count();
+    // The quick model, with the chat model's answer wherever the quick one may be wrong (or had none), as the app
+    // does with SORT_ON_QUICK.
+    let up: Vec<bool> = quick.iter().zip(&messages).map(|(q, m)| !q.as_ref().is_ok_and(|t| !sort_needs_chat(m, t))).collect();
+    let both: Vec<Answer> = quick.iter().zip(&chat).zip(&up).map(|((q, c), u)| if *u { c.clone() } else { q.clone() }).collect();
+    let escalated = up.iter().filter(|u| **u).count();
 
-    let (mut sq, mut sc, mut sb) = (Score::default(), Score::default(), Score::default());
-    eprintln!("x: wrong group  ?: unsure");
+    let n = SAMPLES.len();
+    let mut scores: Vec<[Score; 3]> = vec![Default::default(), Default::default()];
+    // Mail that should be archived (bulk, a scam, a notice) but ended in reply, by the quick model asking again.
+    let mut junk_in_reply = Vec::new();
+    eprintln!("x: wrong group  ^: asked of the chat model again");
     for (k, sample) in SAMPLES.iter().enumerate() {
         let m = &messages[k];
-        let (from, subject, _, _, group, _) = sample;
+        let (from, subject, _, list, group, _) = sample;
+        let [sq, sc, sb] = &mut scores[usize::from(k >= FRESH_FROM)];
         let q = sq.add(m, &quick[k], sample);
         let c = sc.add(m, &chat[k], sample);
         let b = sb.add(m, &both[k], sample);
+        if (*group == "archive" || *list && *group != "reply") && b.starts_with("reply") {
+            junk_in_reply.push(*subject);
+        }
         eprintln!("{subject:<40} {:<24} want {group:<7} | {} {q:<10} | {} {c:<10} | both {b}", from.split('<').next().unwrap_or(from).trim(), models[0], models[1]);
     }
     for (k, a) in quick.iter().chain(&chat).enumerate() {
         if let Err(e) = a {
-            eprintln!("no answer from {} on {:?}: {e}", models[k / SAMPLES.len()], SAMPLES[k % SAMPLES.len()].1);
+            eprintln!("no answer from {} on {:?}: {e}", models[k / n], SAMPLES[k % n].1);
         }
     }
-    let n = SAMPLES.len();
-    for (name, s) in [(models[0].to_owned(), &sq), (models[1].to_owned(), &sc), (format!("{} asking {} when unsure", models[0], models[1]), &sb)] {
-        eprintln!("{name}: group right {}/{n}, asks right {}/{n}, no answer {}", s.right, s.asks_right, s.failed);
+    let both_name = format!("{} asking {} again", models[0], models[1]);
+    for (part, [sq, sc, sb], of) in [("seen", &scores[0], FRESH_FROM), ("fresh", &scores[1], n - FRESH_FROM)] {
+        for (name, s) in [(models[0], sq), (models[1], sc), (both_name.as_str(), sb)] {
+            eprintln!("{part} {name}: group right {}/{of}, asks right {}/{of}, no answer {}", s.right, s.asks_right, s.failed);
+        }
     }
-    eprintln!("{} was unsure of {escalated}/{n}, so the chat model would be asked about those.", models[0]);
-    // Matching: at most one email behind the chat model on the group, and never failing more often.
-    let matches = |s: &Score| s.right + 1 >= sc.right && s.failed <= sc.failed;
-    let verdict = if matches(&sq) {
+    let total = |i: usize| (scores[0][i].right + scores[1][i].right, scores[0][i].failed + scores[1][i].failed);
+    let ((q_right, q_failed), (c_right, c_failed), (b_right, b_failed)) = (total(0), total(1), total(2));
+    eprintln!("all: {} {q_right}/{n}, {} {c_right}/{n}, {both_name} {b_right}/{n}", models[0], models[1]);
+    eprintln!("{} would ask {} again about {escalated}/{n}.", models[0], models[1]);
+    if !junk_in_reply.is_empty() {
+        eprintln!("mail to archive put in reply: {junk_in_reply:?}");
+    }
+    // The bar: as many right as the chat model, no mail to archive in reply, and most mail kept on the quick model.
+    let verdict = if q_right >= c_right && q_failed <= c_failed {
         format!("{} matches {} on its own: the sort can move to the quick model", models[0], models[1])
-    } else if matches(&sb) {
-        format!("{} matches {} when it asks about what it is unsure of: turn on SORT_ON_QUICK", models[0], models[1])
+    } else if b_right >= c_right && b_failed <= c_failed && junk_in_reply.is_empty() && escalated * 2 < n {
+        format!("{} matches {} when it asks again about what it may have got wrong: turn on SORT_ON_QUICK", models[0], models[1])
     } else {
-        format!("{} does not match {}: keep the sort on the chat model", models[0], models[1])
+        format!("{} does not match {} yet: keep the sort on the chat model", models[0], models[1])
     };
     eprintln!("verdict: {verdict}");
-    assert!(sq.failed < n && sc.failed < n, "a model answered nothing: is the Claude subscription signed in?");
+    assert!(q_failed < n && c_failed < n, "a model answered nothing: is the Claude subscription signed in?");
 }
