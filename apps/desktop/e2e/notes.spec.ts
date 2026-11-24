@@ -114,7 +114,7 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   // Opening a page does not rewrite it: the file stays as it was written.
   expect(onDisk('Home', 'Garden.md')).toBe('# Garden\n- tomatoes\n');
   expect(onDisk('Home', 'Suppliers.md')).toBe(SUPPLIERS);
-  await expect(shell().getByRole('region', { name: 'No page open' })).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'No note open' })).toBeVisible();
 });
 
 test('Ctrl+Z takes back what was typed and stops there: never the page as it was before it opened', async () => {
@@ -190,7 +190,7 @@ test('if the agent changes the page while the person is typing, nothing is lost 
   await mobius!.shell.evaluate(() => (window as unknown as { releaseSave: () => void }).releaseSave());
   // The disk change comes from outside Mobius here, so ask the editor to save; the stale save is refused.
   await shell().keyboard.type('!');
-  await expect(shell().getByRole('alert')).toContainText('changed this page');
+  await expect(shell().getByRole('alert')).toContainText('changed this note');
   await expect(text().locator('h1')).toHaveText('Plan mine!');
   expect(onDisk('Work', 'Plan.md')).toBe('# Plan\nfrom the agent\n');
   await shell().getByRole('button', { name: 'Keep mine' }).click();
