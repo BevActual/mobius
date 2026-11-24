@@ -107,14 +107,20 @@ export async function launch(startUrl: string, options: { env?: Record<string, s
   if (options.openMobius !== false) {
     // The Mobius panel starts closed, so open it with its button, as a person would. An app with no Mobius button
     // (Home is the conversation itself) is left as it is; a test that asked for the panel waits for it.
-    const show = launched.shell.getByRole('button', { name: 'Show Mobius', exact: true });
-    if (await show.waitFor({ timeout: 20_000 }).then(() => true, () => false)) await show.click();
+    await showMobius(launched.shell);
     if (options.openMobius) await launched.shell.locator('.dock.right > .chat').waitFor({ timeout: 20_000 });
   }
   // The runner's screen can be smaller than the window asks for, and below 1200 px with Mobius docked an app's list
   // starts folded (docs/design/panel-layouts.md). Tests start at the size a laptop person has; narrow-window tests resize.
   if ((await launched.shell.evaluate(() => window.innerWidth)) < 1200) await resizeWindow(launched.app, 1440, 900);
   return launched;
+}
+
+/** Opens the Mobius panel with its button, as a person would after a start or a reload (it starts closed). An app
+ * with no Mobius button (Home is the conversation itself) is left as it is. */
+export async function showMobius(shell: Page): Promise<void> {
+  const show = shell.getByRole('button', { name: 'Show Mobius', exact: true });
+  if (await show.waitFor({ timeout: 20_000 }).then(() => true, () => false)) await show.click();
 }
 
 export interface ViewInfo { id: string; visible: boolean; bounds: { x: number; y: number; width: number; height: number }; url: string }

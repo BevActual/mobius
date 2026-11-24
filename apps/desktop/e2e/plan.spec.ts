@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, openAllApps, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
+import { launch, openAllApps, startFixture, type Fixture, type Launched, removeTestData, openSettings, showMobius } from './harness';
 import { callsTool, says, startModel, type ModelFixture } from './model-fixture';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'The plan and questions are built in the Tauri shell');
@@ -71,6 +71,7 @@ test('a question can be answered in your own words, and is still there when the 
   await say('make a page');
   await expect(log().getByRole('group', { name: 'Mobius asks' })).toBeVisible();
   await shell().reload();
+  await showMobius(shell());
   const card = log().getByRole('group', { name: 'Mobius asks' });
   await expect(card).toContainText('What should the title be?', { timeout: 15_000 });
   // Your own words go in the message box, which says so, and Enter answers.
