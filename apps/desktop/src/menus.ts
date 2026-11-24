@@ -21,8 +21,6 @@ export interface MenuContext {
   apps: readonly { id: AppId; name: string }[];
   keys: { newTab?: string; closeTab?: string; settings?: string; find?: string; launcher?: string; splitView?: string; littleMobius?: string; address?: string };
   state: {
-    agentShown: boolean;
-    hasAgentPanel: boolean;
     commenting: boolean;
     split: boolean;
     canSplit: boolean;
@@ -45,7 +43,6 @@ export interface MenuContext {
     about: () => void;
     edit: (command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste' | 'selectAll') => void;
     find: () => void;
-    toggleAgent: () => void;
     toggleComments: () => void;
     toggleSplit: () => void;
     toggleMini: () => void;
@@ -109,9 +106,8 @@ export function buildMenus(c: MenuContext): Menu[] {
     item('find', 'Find on page…', d.find, { keys: keys.find, disabled: c.app !== 'browser' || !s.browser.hasPage }),
   ] };
   const view: Menu = { id: 'view', label: 'View', items: [
-    // The open app's own panels (Mailboxes, Sections, Tabs...) are listed at the end by their own names, with their real
-    // state, from its layout: never a generic "Sidebar", whose tick read a stored layout and could say the opposite.
-    item('agent-panel', 'Agent panel', d.toggleAgent, { checked: s.agentShown, disabled: !s.hasAgentPanel }),
+    // The open app's own panels (Mailboxes, Sections, Tabs...) and Mobius are listed at the end by their own names, with
+    // their real state: never a generic "Sidebar" or "Agent panel" (docs/design/guide.md, Naming panels).
     item('comments', 'Comments', d.toggleComments, { keys: 'c', checked: s.commenting }),
     separator,
     item('zoom-in', 'Zoom in', () => d.zoom(nextZoom(s.zoom, 1)), { disabled: s.zoom >= ZOOM_STEPS.at(-1)! }),

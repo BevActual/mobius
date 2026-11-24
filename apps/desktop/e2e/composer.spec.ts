@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
+import { launch, startFixture, type Fixture, type Launched, removeTestData, turnEnded, showMobius } from './harness';
 import { says, startModel, type ModelFixture, type ModelOptions, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -152,6 +152,7 @@ test('a file can be attached, the page text cannot pretend to close its marker, 
   expect(sent.match(/<\/attached>/g)).toHaveLength(1);
   expect(sent).not.toContain(work);
   await shell().reload();
+  await showMobius(shell());
   await expect(log().getByRole('list', { name: 'Attached' })).toContainText('notes.txt');
   await expect(log().locator('.msg.user')).toHaveText('read it');
 });

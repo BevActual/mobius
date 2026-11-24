@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { goTo, launch, openAllApps, startFixture, views, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
+import { goTo, launch, openAllApps, startFixture, views, type Fixture, type Launched, removeTestData, turnEnded, showMobius } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 // The Mobius 2 shell: split view, on-canvas actions in notes, and review and undo of the agent's last turn.
@@ -177,6 +177,7 @@ test('Keep accepts the last turn’s changes from the keyboard, and the strip st
   await expect(strip).toHaveCount(0);
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
   await shell().reload();
+  await showMobius(shell());
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
   await expect(strip).toHaveCount(0);

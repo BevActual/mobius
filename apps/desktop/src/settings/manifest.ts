@@ -47,13 +47,13 @@ const SECTIONS: readonly SettingsSection[] = [
       { id: 'theme', label: 'Theme', rows: [row('theme', 'Theme', 'Follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark.', 'color', 'colour', 'mode', 'dark', 'light', 'night', 'grey', 'gray', 'mid', 'cool')] },
       { id: 'typography', label: 'Typography', rows: [
         row('ui-zoom', 'Interface zoom', 'Make everything in the window larger or smaller.', 'scale', 'zoom', 'bigger', 'smaller', 'size'),
-        row('chat-text', 'Conversation text size', 'The size of text in the agent panel.', 'font', 'chat', 'text', 'size', 'bigger', 'smaller'),
+        row('chat-text', 'Conversation text size', 'The size of text in the Mobius panel.', 'font', 'chat', 'text', 'size', 'bigger', 'smaller'),
         row('chat-font', 'Conversation font', 'The typeface used for messages.', 'font', 'typeface', 'serif', 'sans', 'monospace', 'mono', 'family'),
       ] },
       { id: 'layout', label: 'Layout', rows: [
         row('sidebar-apps', 'Pinned apps', 'The apps pinned at the top of Go (Ctrl+K), in order. Ctrl+1 to Ctrl+9 open the first nine. The others are under Applications.', 'pin', 'pinned', 'apps', 'go', 'launcher', 'reorder', 'order', 'hide', 'show', 'customise', 'customize', 'ctrl+1', 'shortcut'),
-        row('right-sidebar', 'Agent panel', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'right', 'chat panel'),
-        row('sidebar-size', 'Agent panel size', 'Drag the edge of the agent panel to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back.', 'width', 'resize', 'wider', 'narrower', 'reset size'),
+        row('right-sidebar', 'Mobius panel', 'Docked keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'right', 'chat panel', 'agent panel', 'docked'),
+        row('sidebar-size', 'Mobius panel size', 'Drag the edge of the Mobius panel to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back.', 'width', 'resize', 'wider', 'narrower', 'reset size'),
         row('density', 'List density', 'How tightly tabs and conversations are packed.', 'compact', 'comfortable', 'spacing', 'sidebar', 'dense'),
         row('panel-gaps', 'Panels on the frame', "Each panel is rounded and sits apart from the others on the window's frame. Off puts them flush, with one line between.", 'gaps', 'rounded', 'cards', 'flush', 'frame', 'panels'),
         row('key-hints', 'Key hints', 'A small bar under lists with their most useful keys. It hides itself once you use them.', 'keyboard', 'shortcuts', 'keys', 'hints', 'hint bar'),

@@ -3,10 +3,9 @@
 Instrument is the agreed look and behaviour of Mobius: calm, precise and labelled, with colour only from your own work
 and from Mobius. Andrew agreed it on 13 November 2026, with the decisions listed [at the end](#decisions).
 
-This page is the full specification: sizes, colour, every element, pop-out, the Mobius panel and its composer.
-[Design rules](rules.md) is the short checklist reviewers use on a pull request, and it follows this page.
-[Panel layouts](panel-layouts.md) describes the frame (decided 17 November 2026): a top bar led by the Go button, the
-content, the app's own docks, and Mobius at the right edge. There is no app rail and no shared sidebar.
+This page is the detailed reference for the Mobius panel, its composer, cards and slots, pop-out and every element. The
+[design guide](guide.md) is the one source for how Mobius looks and behaves; where this page differs from it, the guide
+is right and this page is out of date.
 
 > **While the shell catches up.** The Builder makes the shell changes once for every app (see
 > [How it rolls out](#how-it-rolls-out)). Until a size, control or card described here exists in the shell, an app
@@ -96,7 +95,7 @@ small and sparse next to the mocks.
 | Setting | Before | Instrument |
 | --- | --- | --- |
 | Comfortable text | 13px | 14px |
-| Comfortable row height | 30px | 36px in list panels, 40px in content lists |
+| Comfortable row height | 30px | 28px in side panels (the guide, 24 November 2026), 40px in content lists |
 | Compact text | 12.5px | 13px |
 | Compact row height | 26px | 30px in list panels, 32px in content lists |
 | Toolbar height | 48px | 52px comfortable, 44px compact |
@@ -279,7 +278,7 @@ comfortable first, then compact. Comment on a row to change it.
 | Panel header | The panel's name (or its tabs), then dock, pop out and close. The same in every dock and every app. | `--panel-head-h` |
 | New button | Bordered white button across a left list panel (or in the top bar where an app has no list panel), a plus icon, a verb-led label ("New task") and its key at the right. | 34px / 30px tall |
 | Search field | Shared field with a magnifier and the "/" key shown. | 32px / 28px tall |
-| List panel row | `SidebarRow`: line icon, label, and an optional grey count at the right. Selected is a grey fill with medium-weight ink. | 32px / 28px |
+| List panel row | `SidebarRow`: line icon, label, and an optional grey count at the right. Selected is a grey fill with medium-weight ink. | 28px in both densities |
 | List panel section label | `SidebarSection`: small grey semibold label above a group ("Lists"). Sentence case. Small all-caps only in pro apps' panels. | 11 to 12px |
 | From Mobius row | In a list panel, the last group. Dashed Mobius icon, with an indigo note at the right such as "2 new". | Same as a row |
 | Top bar | One row across the whole window, above every panel and Mobius. The Go button, the title of what is open, the app's controls in the middle, then the trailing group (and the window controls on Windows). A hairline below and no fill. | 52px / 44px tall |

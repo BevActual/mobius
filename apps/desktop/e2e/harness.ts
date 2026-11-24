@@ -94,7 +94,7 @@ export type AppHandle = object;
 
 export interface Launched { app: AppHandle; shell: Page; userData: string; close(options?: { keepUserData?: boolean }): Promise<void> }
 
-export async function launch(startUrl: string, options: { env?: Record<string, string>; userData?: string; /** Leave the agent's keep-out-of-local-addresses rule on, as a real person has it. */ realNetworkRules?: boolean; /** Start with the approval mode a new person gets (Propose), instead of Ask first, which most tests are written for. */ newPerson?: boolean; /** Start as a new person does, with Mobius open in the right panel: for tests about what Mobius does. */ openMobius?: boolean } = {}): Promise<Launched> {
+export async function launch(startUrl: string, options: { env?: Record<string, string>; userData?: string; /** Leave the agent's keep-out-of-local-addresses rule on, as a real person has it. */ realNetworkRules?: boolean; /** Start with the approval mode a new person gets (Propose), instead of Ask first, which most tests are written for. */ newPerson?: boolean; /** Open the Mobius panel once the window is up, as most tests are about what Mobius does (the default). It starts closed for a person (Andrew, 24 November 2026); false leaves it so. */ openMobius?: boolean } = {}): Promise<Launched> {
   const userData = options.userData ?? fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-e2e-'));
   // Every fixture page lives on this computer, so the tests start with the agent allowed to use local addresses. They
   // also start in Ask each time, so each tool the agent uses shows its approval, unless the test is about a new person.
@@ -104,14 +104,23 @@ export async function launch(startUrl: string, options: { env?: Record<string, s
     fs.writeFileSync(prefsFile, JSON.stringify(options.newPerson ? { agentPrivateUrls: true } : { agentPrivateUrls: true, approvalMode: 'manual' }));
   }
   const launched = LOCAL ? await launchLocal(userData, options.env ?? {}) : await launchTauri(startUrl, userData, options.env ?? {});
-  if (options.openMobius) {
-    // Mobius opens in the right panel, beside the work, from the start.
-    await launched.shell.locator('.dock.right > .chat').waitFor({ timeout: 20_000 });
+  if (options.openMobius !== false) {
+    // The Mobius panel starts closed, so open it with its button, as a person would. An app with no Mobius button
+    // (Home is the conversation itself) is left as it is; a test that asked for the panel waits for it.
+    await showMobius(launched.shell);
+    if (options.openMobius) await launched.shell.locator('.dock.right > .chat').waitFor({ timeout: 20_000 });
   }
   // The runner's screen can be smaller than the window asks for, and below 1200 px with Mobius docked an app's list
   // starts folded (docs/design/panel-layouts.md). Tests start at the size a laptop person has; narrow-window tests resize.
   if ((await launched.shell.evaluate(() => window.innerWidth)) < 1200) await resizeWindow(launched.app, 1440, 900);
   return launched;
+}
+
+/** Opens the Mobius panel with its button, as a person would after a start or a reload (it starts closed). An app
+ * with no Mobius button (Home is the conversation itself) is left as it is. */
+export async function showMobius(shell: Page): Promise<void> {
+  const show = shell.getByRole('button', { name: 'Show Mobius', exact: true });
+  if (await show.waitFor({ timeout: 20_000 }).then(() => true, () => false)) await show.click();
 }
 
 export interface ViewInfo { id: string; visible: boolean; bounds: { x: number; y: number; width: number; height: number }; url: string }

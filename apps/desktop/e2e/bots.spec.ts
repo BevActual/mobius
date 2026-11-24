@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { expectOnApp, goToPlace, launch, openAllApps, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { expectOnApp, goToPlace, launch, openAllApps, startFixture, type Fixture, type Launched, removeTestData, showMobius } from './harness';
 import { says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -233,6 +233,7 @@ test('a bot\'s group can be folded away, and stays folded after a restart', asyn
   await expect(list()).not.toContainText('writer question');
   await expect(list()).toContainText('plain question');
   await shell().reload();
+  await showMobius(shell());
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openApp('Agent');
   await expect(list().getByRole('button', { name: /^Writer/ }).first()).toHaveAttribute('aria-expanded', 'false');

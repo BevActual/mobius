@@ -21,3 +21,4 @@ where each one went.
 | Mobius: where it stands, how people will react, where to share it | [reference/launch-assessment-2026-11.md](../reference/launch-assessment-2026-11.md) | Reference for the launch |
 | Mobius apps: the bar for each, and the order | [reference/app-bar.md](../reference/app-bar.md) | Already moved on 12 November |
 | Mobius: recommendation and improvements | [reference/market-research-2026-11.md](../reference/market-research-2026-11.md) | Already moved on 12 November |
+| Design rules, the panel look, Theme tokens, Panel layouts, Workspace layout (repo pages) | [design-rules.md](design-rules.md), [design-panel-look.md](design-panel-look.md), [design-theme-tokens.md](design-theme-tokens.md), [design-panel-layouts.md](design-panel-layouts.md), [design-workspace-layout.md](design-workspace-layout.md) | Merged into the [design guide](../design/guide.md) on 24 November 2026 |

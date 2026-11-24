@@ -418,7 +418,7 @@ export interface ChatPanelProps {
   lead?: ReactNode;
   /** In the sidebar: "In Notes" opens the app switcher. */
   onPlace?: () => void;
-  /** More for the All chats menu (Float the agent panel). */
+  /** More for the All chats menu (Float Mobius). */
   menuItems?: Array<{ label: string; onSelect: () => void }>;
   /** Under the head: the page's controls, when the panel takes the sidebar. */
   below?: ReactNode;
