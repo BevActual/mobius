@@ -159,6 +159,39 @@ test('Keyboard lists the keys Mobius keeps, and Little Mobius no longer shares C
   await expect(page().getByTestId('keys-littleMobius')).toHaveText('Not set');
 });
 
+test('Back and Forward go between the sections visited, and Escape while typing leaves the field, not Settings', async () => {
+  await start([]);
+  await openSettings();
+  const tools = shell().getByRole('group', { name: 'Settings', exact: true });
+  const back = tools.getByRole('button', { name: 'Back' });
+  const forward = tools.getByRole('button', { name: 'Forward' });
+  const title = shell().locator('.toolbar-sub');
+  await expect(back).toBeDisabled();
+  await expect(forward).toBeDisabled();
+  await go('Appearance');
+  await go('Advanced');
+  await expect(title).toHaveText('Advanced');
+  await back.click();
+  await expect(title).toHaveText('Appearance');
+  await shell().keyboard.press('Alt+ArrowLeft');
+  await expect(title).toHaveText('General');
+  await expect(back).toBeDisabled();
+  await forward.click();
+  await expect(title).toHaveText('Appearance');
+  // A new section after going back drops what was ahead, as in a browser.
+  await go('Keyboard');
+  await expect(forward).toBeDisabled();
+  // Typing in a field, Escape leaves the field and Settings stays; the next Escape closes it.
+  await go('Advanced');
+  const steps = page().getByRole('spinbutton', { name: 'Steps per request' });
+  await steps.click();
+  await shell().keyboard.press('Escape');
+  await expect(page()).toBeVisible();
+  await expect(steps).not.toBeFocused();
+  await shell().keyboard.press('Escape');
+  await expect(page()).toHaveCount(0);
+});
+
 test('theme: choosing dark changes the whole app, and it is remembered', async () => {
   await start([]);
   await openSettings();
@@ -317,7 +350,10 @@ test('Advanced: the step limit is enforced', async () => {
   await page().getByRole('spinbutton', { name: 'Steps per request' }).fill('1');
   await page().getByRole('spinbutton', { name: 'Steps per request' }).press('Enter');
   await expect(page().getByText('Saved')).toBeVisible();
+  // The first Escape leaves the field, the second closes Settings.
   await shell().keyboard.press('Escape');
+  await shell().keyboard.press('Escape');
+  await expect(page()).toHaveCount(0);
   await say('time again');
   await expect(log().getByRole('alert')).toContainText('too many steps');
 });
