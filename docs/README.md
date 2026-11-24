@@ -57,6 +57,8 @@ you want to build or change Mobius, go to **Developers**.
 | [Releases and updates](developers/releasing.md) | Packaging the installer, signing, and the in-app updater |
 | [Architecture decisions](adr/README.md) | Why Mobius is built the way it is (ADRs) |
 | [Design guide](design/guide.md) | The one guide to how Mobius looks and behaves: principles, the frame and panels, panel names, colour, type and density, shadows, Mobius, motion, and where each app's style stands |
+| [Settings: Accounts and Back and Forward](design/settings-accounts.md) | The look of the Accounts page, an account's own page, and Settings' Back and Forward |
+| [Messages](design/messages.md) | The design of Messages, Mobius's own Slack or Teams on Matrix: its panels, the conversation, the composer and drafts by Mobius |
 | [Instrument](design/instrument.md) | The detailed reference behind the guide: sizes, colour, every element, pop-out, and the Mobius panel with its modes, permissions and cards |
 | [Design mocks](design/mocks/README.md) | The mock-ups behind Instrument, in light and dark |
 | [Archive](archive/README.md) | Earlier specs and reviews, and where each claude.ai page moved when the project came to the repo |
