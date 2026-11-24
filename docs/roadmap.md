@@ -17,16 +17,17 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 **Built and usable today**
 
-- The workspace: each app with its own panels, a title row and a tool row, the launcher (Ctrl+K) from anywhere, the
-  app hub, split view, the desk, Mobius in the right panel beside the work (with a Glance at what is open and
-  numbered actions), first run, the tray, and Little Mobius.
+- The workspace in the [panel look](design/panel-look.md): rounded panels on a darker frame, each named for what it
+  holds, a title row with the Go button and a centred tool row, the launcher (Ctrl+K) from anywhere, All apps, split
+  view, the desk, the Mobius panel beside the work (closed until you open it, with what waits for you and numbered
+  actions), first run, the tray, and Little Mobius.
 - The agent: modes (Agent, Ask, Plan, and app modes such as Triage in Mail) and permissions (Ask each time, Review changes, Apply changes, Auto), Keep / Discard / Try another in every app, Rewind to here, plans,
   questions, a message queue, memory, past-conversation search, skills, connectors (MCP client and server), schedules
   and Agents.
 - Models: sign-in with ChatGPT, Claude Pro or Max through Claude Code, GitHub Copilot, OpenRouter and Hugging Face; API
   keys for about twenty services plus Azure OpenAI and Amazon Bedrock; local servers, and one-step local models with
   llama.cpp; a model for each job (chat, second, quick, images, listen, speak), and Best fit.
-- Apps: Notes, Docs, Tasks, Calendar, Mail, Messages, Browser, Files, Search, Research, Reader, Sheets, Database,
+- Apps: Notes, Docs, Tasks, Calendar, Mail, Messages, Browser (with Reader as its reader mode), Files, Search, Research, Sheets, Database,
   Slides, Design, Photo, Music, Video, Code, Terminal, Canvas, Projects, Knowledge, Review, Views, Agents, Activity
   and Store. Meetings are recorded from Calendar and Notes, and contacts show inside Mail and Calendar.
 - Messages: Slack, Matrix (encrypted rooms and bridges), Teams chats and Telegram in one list, with a catch-up.
@@ -42,9 +43,9 @@ promises or dates. Changes to it land in pull requests like any other doc.
   ([the plan](reference/music-parity.md)). The engine already plays songs, effect racks, instrument stacks,
   modulators and clip envelopes; the window catches up feature by feature. The
   [Music roadmap](reference/music-roadmap.md) keeps the line-by-line status.
-- **Fewer, fuller apps.** On 22 November 2026 the plan became 23 apps instead of 30: Research, Search, Reader, Views,
-  Review, Activity and Terminal will fold into the apps where people already look for them. Each one stays until its
-  new home works.
+- **Fewer, fuller apps.** On 22 November 2026 the plan became 23 apps instead of 30: Reader is already the Browser's reader
+  mode, and Research, Search, Views, Review, Activity and Terminal will fold into the apps where people already look
+  for them. Each one stays until its new home works.
 - **Messages as Mobius's own Slack or Teams**, on Matrix: a local Mobius space run on this computer, agents as members
   and one-to-one calls, built only from MIT or Apache code. Teams of people come later; Mobius is for one person for
   now.

@@ -14,14 +14,14 @@ you want to build or change Mobius, go to **Developers**.
 | --- | --- |
 | [Install Mobius](getting-started/install.md) | Download, install, update and uninstall on Windows |
 | [Your first run](getting-started/first-run.md) | Choosing how much Mobius does on its own, and connecting a model |
-| [A tour of the workspace](getting-started/tour.md) | The sidebar, the launcher, the desk, the Mobius panel and split view |
+| [A tour of the workspace](getting-started/tour.md) | The top rows, panels, the launcher, the desk, the Mobius panel and split view |
 
 ## User guide
 
 | Page | What it covers |
 | --- | --- |
 | [Working with Mobius](guide/working-with-mobius.md) | Mode and permission, app modes, the Mobius panel; Keep, Discard and Try another; Rewind; what always asks |
-| [Abilities](guide/abilities.md) | Adding and removing apps, skills, connectors (MCP) and plugins |
+| [Store](guide/abilities.md) | Adding and removing apps, skills, connectors (MCP) and plugins |
 | [Models and gateways](guide/models-and-gateways.md) | Signing in to a plan, API keys, local models, and a model for each job |
 | [Voice](guide/voice.md) | Dictating, and having replies read aloud |
 | [Memory and Knowledge](guide/memory-and-knowledge.md) | What Mobius remembers, and how to correct it |
@@ -33,7 +33,7 @@ you want to build or change Mobius, go to **Developers**.
 
 [All apps](apps/README.md), grouped the way the app hub shows them:
 
-- [Assistant](apps/assistant.md): Home (the desk and your conversations), Agents, Activity, Abilities
+- [Assistant](apps/assistant.md): Home (the desk and your conversations), Agents, Activity, Store
 - [Browse and find](apps/browse-and-find.md): Browser, Mail, Search, Research, Reader, Files
 - [Write and plan](apps/write-and-plan.md): Notes, Docs, Tasks, Calendar, Sheets, Database, Projects, Knowledge
 - [Create](apps/create.md): Slides, Design, Photo, Music, Video, Code, Terminal, Canvas

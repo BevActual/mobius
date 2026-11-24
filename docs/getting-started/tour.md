@@ -1,68 +1,71 @@
 # A tour of the workspace
 
-Every app in Mobius has the same frame, so once you know one you know them all.
+Every app in Mobius has the same frame, so once you know one you know them all. Each area of the window (an app's
+list, its page, Mobius) is its own rounded panel on a darker frame. How the look is built, app by app, is in the
+[design guide](../design/panel-look.md).
 
-## The rail and the sidebar
+## The top rows
 
-The **rail** on the far left is a slim column of icons that never moves: **Home** and **Search** at the top, a hairline,
-your apps, then **All apps**. At the foot are the **Mobius** button and **Settings**. Hover an icon for its name.
+- **The title row** starts with the **Go** button: the open app's icon. Press it, or Ctrl+K, to go to another app or
+  find a page or command. A dot on it means something waits for you in some app. Then come the menus (**File**,
+  **Edit**, **View**, **Go**, the app's own, **Window** and **Help**), and the name of what is open in the middle, with
+  a grey line about it beside it (a note's notebook and whether it is saved, how many messages are unread).
+- **The tool row** under it holds the open app's tools, centred. An app with no tools, such as Settings, has only the
+  title row.
+- At the right end sit the **Comments** icon, **More** (the app's menu) and the **Mobius** icon, always last. Hover an
+  icon for its name and keys.
 
-- **All apps** opens the app hub. Mobius's own apps (Agents, Activity and Abilities) open from there, and show in the
-  rail while they are open.
+## Panels
 
-- Right-click an app in the rail to move or hide it.
-- An app Mobius is working in glows while it works. An app it changed while you were elsewhere carries a dot until you
-  look.
+An app's areas are **panels**, each named for what it holds: Notes' **Notebooks**, Mail's **Mailboxes**, Tasks'
+**Lists** and **Details**, Code's **Explorer**, **Tests** and **Console**, Music's **Browser**, **Mixer** and
+**Devices**. Each has a short header with its name.
 
-Beside it, the **sidebar** belongs to the app you are in: Notes shows your notebooks, Mail your mailboxes, Browser your
-tabs. It runs from the top of the window to the bottom, with the app's name at the top.
+- The **View** menu lists the open app's panels, each with a tick when it is shown and its key, then **Reset
+  layout**. Drag a panel's edge to resize it; each app keeps its own layout on this computer.
+- The **New** button at the top of an app's list follows the app: New note, New task, New tab, New event. Ctrl+N
+  presses it.
+- In a narrow window an app's list steps aside while Mobius is open, so the page keeps its room. The View menu
+  brings it back.
+- Settings › Appearance › Layout has **Panels on the frame**: turn it off to put the panels flush, for more room.
 
-- The **New** button under the name follows the app: New note, New task, New tab, New event.
-- The button at the start of the toolbar shows and hides the sidebar.
+### The inspector
 
-## The toolbar
-
-One row over the page: the name of what is open, the app's own controls (the browser's address sits here), then at
-the end the comment button, **⋯** (the menus) and the **Mobius** button, always last. Split view and Little Mobius
-are in the **Window** menu.
+Some apps' smaller panels (Docs' Outline, Slides' Format, Photo's Adjust, Video's Shot, Reader's Highlights, and
+Comments) share the **inspector**, a column between your work and Mobius, as tabs. Show or hide each from the **View**
+menu, and drag the inspector's edge to resize it. In a narrower window the inspector and Mobius take turns: the one
+you brought forward last shows.
 
 ## Mobius in every app
 
-Mobius sits in the panel on the right, beside your work, in every app. The **Mobius** button at the end of the
-toolbar shows and hides it.
-Mobius sees the app you have open (the note, the page, the selected text) and can work across all your apps from there.
-When nothing is running, the panel shows a glance at what is open, what is waiting for you and a few numbered things
-Mobius can do; see [The Mobius panel](../guide/working-with-mobius.md#the-mobius-panel).
+Mobius has its own panel at the right edge, beside your work, in every app. It starts closed: press the **Mobius**
+icon at the end of the tool row to open it, and again to close it. Browser, Reader and Store keep it closed while
+you are in them, and it comes back as you leave. Mobius sees the app you have open (the note, the page, the selected text) and can work across all your apps from there.
+When nothing is running, the panel shows what is waiting for you and a few numbered things Mobius can do; see
+[The Mobius panel](../guide/working-with-mobius.md#the-mobius-panel).
 
-- **Little Mobius** (Ctrl+Shift+M) is the conversation in a small window that stays above your other apps.
+- **Little Mobius** (Ctrl+Shift+M, or **Window › Little Mobius**) is the conversation in a small window that stays
+  above your other apps.
 - The message box says what Mobius would ask about where you are ("Ask about this note"), and what is open goes
   with your message.
-
-## The inspector
-
-An app's own panels (Docs' Outline, Slides' Format, Photo's Adjust, Video's Shot, Reader's Highlights, Music's Device)
-sit in the **inspector**, a column between your work and Mobius. Several panels are tabs among themselves. Show or hide
-each from the **Panels** menu in the toolbar, and drag the inspector's edge to resize it. In a narrower window the
-inspector and Mobius take turns: the one you brought forward last shows.
 
 ## The desk
 
 **Home** opens on the **desk**. It greets you with the date and what is in flight, with a few suggestions to
 start from. Below that comes what waits for you (questions and approvals you can answer in place) and what Mobius is
 doing, then your recent conversations, the one thing in each app worth a look (your next event, the first task due, the
-page you edited last), and what is scheduled next. The sidebar here lists your
-conversations, with a search at the top. **Agents** and **Activity** open from **All apps**. **Activity** is an app of
-its own: what Mobius did, a day at a time, and what needs you.
+page you edited last), and what is scheduled next. Its **Chats** panel lists your conversations, with a search at
+the top. **Agents** and **Activity** open from **Go** or Ctrl+K. **Activity** is an app of its own: what Mobius did, a day at a time, and what needs you.
 
 ## Finding things
 
 - **The launcher** (Ctrl+K) is one search for apps, open pages and commands. "Ask Mobius" is always its first row.
-- **The app hub** shows every app as a tile with what is happening in it, grouped by what it is for.
+- **All apps** (in the Go menu) shows every app as a tile with what is happening in it, grouped by what it is for.
 - **Search** looks through everything Mobius keeps: conversations, notes, tasks and pages.
 
 ## Split view
 
-Ctrl+\ shows two apps side by side. Drag the line between them to resize, or double-click it to put it back in the
+Ctrl+Shift+\ (or **Window › Split view**) shows two apps side by side. Drag the line between them to resize, or double-click it to put it back in the
 middle.
 
 ## Changes you review
@@ -80,7 +83,7 @@ back in the thread, or keep it as a note for people. See [Review](../apps/review
 **Help › Learn Mobius** opens lessons beside the page: Start here, one lesson for each app (what it is for and what you
 can do in it) and how to work with Mobius. In an app, that app's lesson comes first. Search finds a lesson by anything
 it mentions, Previous and Next step through a topic, and Escape steps back, then closes. Learn takes the place of
-Mobius in the right panel, one at a time.
+the Mobius panel while it is open.
 
 ## Settings
 

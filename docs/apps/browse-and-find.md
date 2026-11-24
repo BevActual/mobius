@@ -7,17 +7,17 @@ A full web browser, with Mobius able to read and work on pages for you.
 ![The Browser app in Mobius](../readme/apps/browser.png)
 
 - **The toolbar** has back (Alt+Left), forward (Alt+Right) and reload (Ctrl+R), the address (Ctrl+L; the site in full
-  ink, the rest of the address in grey) and the star. Everything else about the page (Save to Reader, selected text,
-  pin to the sidebar) is in **⋯**. The address suggests open tabs, bookmarks and history as you type.
-- **The sidebar** holds New tab (Ctrl+T), a search for your tabs and bookmarks, then **Tabs**, **Pinned** and **From
-  Mobius**. Tabs live in the sidebar, as in Safari and Arc: each is a plain row whose buttons (pin, duplicate, close)
+  ink, the rest of the address in grey) and the star. Everything else about the page (Save to Read later, selected text,
+  pin to the Tabs panel) is in **⋯**. The address suggests open tabs, bookmarks and history as you type.
+- **The Tabs panel** holds New tab (Ctrl+T), a search for your tabs and bookmarks, then **Tabs**, **Pinned**, **Read
+  later** and **From Mobius**. Tabs live in this panel, as in Safari and Arc: each is a plain row whose buttons (pin, duplicate, close)
   show when the pointer is on it, and right-clicking a tab gives the rest. Drag a tab to reorder it or across the line
   to pin it. The Mobius mark shows only on tabs Mobius opened or is using; **From Mobius › Opened for research** shows
   just those.
 - **A new tab** opens Mobius's start page: your favourites, other sites you visit most, and your reading list. It is drawn
   by Mobius, so none of it is shown to a web page.
-- **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history. To pin a page to the
-  sidebar, right-click its tab and choose **Pin to the sidebar**. **Reopen closed tab** is in the same menu (Ctrl+Shift+T).
+- **Bookmarks** with the star beside the address, **Find** (Ctrl+F), downloads and history. To pin a page, right-click
+  its tab and choose **Pin tab**. **Reopen closed tab** is in the same menu (Ctrl+Shift+T).
 - **Mobius on the page.** Ask about the page, or select text and act on it. Opening a site the agent hasn't been allowed
   asks first, and clicking or typing on a page asks every time. When a page needs a sign-in, you sign in yourself.
 - Pages are shown by the system web view (WebView2) in the installer, or by Chromium (CEF) in a build from source that includes it.
@@ -31,14 +31,14 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 ![The Mail app in Mobius](../readme/apps/mail.png)
 
 - **Accounts** are in **Settings › Mail**, and sign in with an app password. Ready-made settings for iCloud, Fastmail, Gmail and Yahoo, or any provider by its IMAP and SMTP servers.
-- **The sidebar** holds New message, Search, your mailboxes (Inbox, Drafts, Flagged, Sent and Archive), Labels, and From Mobius. Flagged and Archive gather your flagged and archived mail.
+- **The Mailboxes panel** holds New message, Search, your mailboxes (Inbox, Drafts, Flagged, Sent and Archive), Labels, and From Mobius. Flagged and Archive gather your flagged and archived mail.
 - **The list** shows each message in two lines: who it is from and the date, then the subject and its first words. Unread mail is in bold with a small dot. A short list ends with one line and New message.
 - **Labels:** Mobius sorts the Inbox into Primary, Transactions and Updates; the Inbox shows them all. Move a message to another from the toolbar’s ⋯ or from its right-click menu.
 - **The message toolbar** in the window's top row, as in Apple Mail: Reply, Reply All and Forward; Archive and Flag; and, at the top of the toolbar’s ⋯, Mark as Unread, Remind Me Tomorrow and moving it to another category. Archive and Remind Me Tomorrow can be undone from the note that appears at the bottom. Right-click a message in the list for the same actions without opening it.
 - **Replies quote the message** under where you write, and forwards carry who it was from and to. Attachments are not forwarded yet.
 - **Keys:** the up and down arrows move through the list; E archives, R replies, Shift+R replies to all, F forwards, U marks it unread and H brings the message back tomorrow at 8:00. Menus and tooltips show each key.
 - **Email is shown safely:** no scripts, and nothing loaded from the web, so tracking pixels don't fire.
-- **Suggested replies** sit under the message as one dashed block, marked Draft from Mobius, until you choose **Keep and edit** (it opens as your draft), **Discard** or **Try another**. **From Mobius › Suggested replies** in the sidebar lists the ones waiting. A reply you kept, here or with Keep all, waits under the message it answers with **Send** and **Edit**.
+- **Suggested replies** sit under the message as one dashed block, marked Draft from Mobius, until you choose **Keep and edit** (it opens as your draft), **Discard** or **Try another**. **From Mobius › Suggested replies** in the Mailboxes panel lists the ones waiting. A reply you kept, here or with Keep all, waits under the message it answers with **Send** and **Edit**.
 - **Take care of this** (in the Mobius panel with an email open) does the whole job in one ask: to-dos go to Tasks with their due dates, a meeting it asks for goes in Calendar (at the time the email names if you are free, otherwise at a free time it picks), and a reply is suggested. Each waits for you.
 - **Get to zero** (in the Mobius panel while no email is open) proposes a plan for the whole inbox, dashed until kept.
 - **Triage** (in the Mobius panel: *Triage the unread*, or *Triage this message* with one open) sends its turn in Mail's [Triage mode](../guide/working-with-mobius.md#app-modes): Mobius sorts into Reply, Later and Archive and drafts the replies, and never sends. Triage is also in the composer's Mode menu while you are in Mail.
@@ -66,7 +66,7 @@ Slack, Matrix, Teams chats and Telegram in one place, with a catch-up when you c
 
 ## Search
 
-One box for everything Mobius keeps: conversations, notes, tasks and pages. The sidebar narrows it to one kind of thing.
+One box for everything Mobius keeps: conversations, notes, tasks and pages. The **Scopes** panel narrows it to one kind of thing.
 Type a question instead and Search hands it to Mobius.
 
 ![The Search app in Mobius](../readme/apps/search.png)
@@ -91,13 +91,14 @@ keep.
 
 ## Reader
 
-Pages saved to read later, shown as plain readable text with where each came from. Save the page you're on from the
-Browser, or give Reader an address.
+Reader is the Browser's reader mode: pages saved to read later, shown as plain readable text with where each came
+from. Press **Reader mode** in the toolbar to keep the page in **Read later** and read it there; press it again to go
+back to the page. Reader in Ctrl+K opens the same thing.
 
 ![The Reader app in Mobius](../readme/apps/reader.png)
 
-- **The sidebar** lists the Reading list, any lists of your own and the Archive as plain rows, then From Mobius
-  (articles Mobius changed, to review). **New article** saves a link.
+- **Read later**, in the Browser's Tabs panel, lists the articles you kept, newest first. The article you are reading
+  shows as the current row.
 - **The article** is set in a serif at reading width. Above its title, a quiet line says when you saved it and how many
   minutes are left; it opens where you stopped. The toolbar shows its title and the site it came from (click the site
   to open the original in the Browser).
@@ -123,23 +124,23 @@ Your whole workspace as a drive.
   arrow keys move, Backspace goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
 - **The toolbar** names the open folder with how many items it holds, and has Back, Forward and New folder. The
   **path bar** at the foot shows where the folder is; click any part to go back up.
-- **Search**, at the top of the sidebar, narrows the open folder by name. **Right-click** a row to open (Enter), rename (F2), copy its path
+- **Search**, at the top of the Places panel, narrows the open folder by name. **Right-click** a row to open (Enter), rename (F2), copy its path
   (Ctrl+Shift+C), show it in Explorer, ask Mobius about it, or move it to the Trash (Delete).
 - **New folder** (Ctrl+Shift+N) is named in place; **F2** renames; **Delete** moves to the Trash, with Undo in a toast
   at the foot of the page. The Trash is
   `workspace/.trash/`, hidden from Files' folders and from Mobius.
-- **Drag** a file or folder onto a folder row, a folder in the sidebar, or a folder in the path bar to move it there, with
+- **Drag** a file or folder onto a folder row, a folder in the Places panel, or a folder in the path bar to move it there, with
   Undo in a toast. The folder it would land in is ringed while you hover. From the keyboard, **Cut** (Ctrl+X) and then
   **Paste** (Ctrl+V) in another folder; Escape lets go. Something Mobius made stays put until you keep or discard it.
-- **Trash**, under Places in the sidebar, lists what you moved there, when, and where it was. **Put Back** (Ctrl+Backspace, or a
+- **Trash**, under Places, lists what you moved there, when, and where it was. **Put Back** (Ctrl+Backspace, or a
   double-click) returns it to that folder; **Empty Trash** (Ctrl+Shift+Backspace) and **Delete Immediately** (right-click, or Delete) delete for good, and
   always ask first. Mobius cannot empty the Trash. An app's own folder (notes/, docs/...) is never renamed or
   trashed from here.
 - **Date Modified** shows when each file and folder last changed. The agent's own `files.list` leaves dates out.
-- **The sidebar** has Workspace and Trash under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
+- **The Places panel** has Workspace and Trash under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
   a folder holding something new from Mobius until you look in it, and Made by Mobius under From Mobius.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.
-- **Drives** are folders on storage you already use. **Add a drive**, under Drives in the sidebar, offers each kind:
+- **Drives** are folders on storage you already use. **Add a drive**, under Drives in the Places panel, offers each kind:
   - **Server (WebDAV)**: Nextcloud, ownCloud, a Synology or QNAP, Fastmail Files, or any WebDAV server. It asks for the
     server's address, your user name and an app password (for Nextcloud and ownCloud the address alone is enough;
     Files finds your folder).
@@ -151,15 +152,15 @@ Your whole workspace as a drive.
 
   Passwords and sign-ins are kept in your computer's secret store and sent only to that service. A drive's folders list like the workspace's, with New
   folder, F2 to rename, and drag to move within it. Each request goes to the server; nothing is mirrored.
-- **Copy between a drive and the workspace** by dragging: a drive's file onto Workspace or a folder in the sidebar
-  copies it there, and a workspace file onto a drive in the sidebar copies it to the drive's top. Neither ever writes
+- **Copy between a drive and the workspace** by dragging: a drive's file onto Workspace or a folder in the Places panel
+  copies it there, and a workspace file onto a drive there copies it to the drive's top. Neither ever writes
   over a file already there. Double-click a drive's file to open a copy in its app (it lands in `workspace/Drives/`).
 - **Save Back to <drive>**: right-click a copy of a drive's file, once you've changed it, and it goes back over the
   file it came from. Files does that only while the drive's file is still the version that was copied. If someone
   changed it there since, nothing is replaced and Files says so; copy it again to see their version.
 - **Delete** on a drive deletes from the server for good, after asking. If someone changed the file on the server
   since Files listed it, the delete is refused and Files says so; the server's version stays. Right-click a drive in
-  the sidebar to remove it: Files forgets its password, and everything on the server stays.
+  the Places panel to remove it: Files forgets its password, and everything on the server stays.
 - **Sync a folder with a drive**: right-click a workspace folder and choose **Sync with a Drive…**, then the drive and
   the folder on it. From then on changes go both ways. When both sides changed a file, both are kept: yours as a
   `(conflict, Mobius, …)` copy beside it, with **Open both**, **Keep mine** and **Keep theirs**. A round that would
