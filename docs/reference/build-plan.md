@@ -113,12 +113,11 @@ that round's pull request.
 | Order | Library piece | First user |
 | --- | --- | --- |
 | 1 | Anything an open pull request is waiting on | That pull request |
-| 2 | `Chart` | Sheets' demo moment; Views tiles |
-| 3 | A before and after hold | Photo's demo moment |
-| 4 | Mixer strip built on `LevelMeter` | Music: mixer view |
-| 5 | A folded `DeviceFrame` as a strip | Music: devices in the bottom dock |
 
-`StepGrid`, `PadGrid`, `AutomationLane` and `LetterToggle` are already on `main`.
+Nothing is queued past that. `Chart`, the before and after hold (`BeforeAfter`), the mixer strip on `LevelMeter` and
+the folded `DeviceFrame` are on `main` (checked 24 November 2026), as are `StepGrid`, `PadGrid`, `AutomationLane` and
+`LetterToggle`. Between reviews, the Design lead draws the panel look for the apps whose round has not started, so
+each round has a spec waiting.
 
 Music's note editor already exists inside Music. It moves into the library only when a second app needs it or Music's
 next round has to change it; until then it is not a library task.
