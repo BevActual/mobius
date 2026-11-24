@@ -259,9 +259,7 @@ failure came from pull requests that passed apart; it comes back if one does.
 
 | Page | What is out of date | Owner |
 | --- | --- | --- |
-| [Roadmap](../roadmap.md) | Says "three modes (Ask first, Propose, Act)" and names Apple's guidelines as the look. The composer now has Mode and Permission, and the look is Instrument. | Launch |
 | [The bar for each app](app-bar.md) | Polish is described as "feels like an Apple app". It should point at Instrument. | Design lead, fixed in #242 |
-| README and `docs/guide/` | Any use of the old mode names. | Launch |
 
 ## Launch
 

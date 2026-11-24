@@ -17,44 +17,53 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 **Built and usable today**
 
-- The workspace: the five zones (a slim rail of apps, each app's own sidebar, one toolbar row, the content and the
-  right panel), the launcher, the app hub, split view, the desk,
-  Mobius in the right panel beside the work (with a Glance at what is open and numbered actions), an inspector
-  column for each app's own panels, and Little Mobius.
+- The workspace: each app with its own panels, a title row and a tool row, the launcher (Ctrl+K) from anywhere, the
+  app hub, split view, the desk, Mobius in the right panel beside the work (with a Glance at what is open and
+  numbered actions), first run, the tray, and Little Mobius.
 - The agent: modes (Agent, Ask, Plan, and app modes such as Triage in Mail) and permissions (Ask each time, Review changes, Apply changes, Auto), Keep / Discard / Try another in every app, Rewind to here, plans,
   questions, a message queue, memory, past-conversation search, skills, connectors (MCP client and server), schedules
   and Agents.
 - Models: sign-in with ChatGPT, Claude Pro or Max through Claude Code, GitHub Copilot, OpenRouter and Hugging Face; API
   keys for about twenty services plus Azure OpenAI and Amazon Bedrock; local servers, and one-step local models with
   llama.cpp; a model for each job (chat, second, quick, images, listen, speak), and Best fit.
-- Apps: Notes, Docs, Tasks, Calendar, Mail, Browser, Files, Search, Research, Reader, Sheets, Database, Slides, Design,
-  Photo, Music, Video, Code, Terminal, Canvas, Projects, Knowledge, Review, Views, Agents, Activity and Abilities.
+- Apps: Notes, Docs, Tasks, Calendar, Mail, Messages, Browser, Files, Search, Research, Reader, Sheets, Database,
+  Slides, Design, Photo, Music, Video, Code, Terminal, Canvas, Projects, Knowledge, Review, Views, Agents, Activity
+  and Store. Meetings are recorded from Calendar and Notes, and contacts show inside Mail and Calendar.
+- Messages: Slack, Matrix (encrypted rooms and bridges), Teams chats and Telegram in one list, with a catch-up.
 - Comments on anything, sent to Mobius or kept for people.
 - A Windows installer with automatic, signed updates.
 
 ## Next
 
-- **A bottom dock** for wide panels, such as Music's devices. Other app panels already sit in the inspector.
-- **Polish the existing apps** against Instrument and against real workflows, one round per app. The
+- **The panel look**, the current focus: every area a calm, rounded panel on a darker frame, with a centred tool row
+  ([the spec](design/panel-look.md)). The shared frame and library pieces come first, then the apps one at a time:
+  Mail, Music's browser, Browser and Settings, then Calendar, Tasks, Notes and Docs.
+- **Music at parity with Ableton Live**, on Mobius's own audio engine written in Rust
+  ([the plan](reference/music-parity.md)). The engine already plays songs, effect racks, instrument stacks,
+  modulators and clip envelopes; the window catches up feature by feature. The
+  [Music roadmap](reference/music-roadmap.md) keeps the line-by-line status.
+- **Fewer, fuller apps.** On 22 November 2026 the plan became 23 apps instead of 30: Research, Search, Reader, Views,
+  Review, Activity and Terminal will fold into the apps where people already look for them. Each one stays until its
+  new home works.
+- **Messages as Mobius's own Slack or Teams**, on Matrix: a local Mobius space run on this computer, agents as members
+  and one-to-one calls, built only from MIT or Apache code. Teams of people come later; Mobius is for one person for
+  now.
+- **Polish the existing apps** against real workflows, one round per app. The
   [apps roadmap](reference/apps-roadmap.md) lists each app's state and its next round.
-- **Music as a full small studio**: more instruments (a morph synth, a sampler), playing from the computer keyboard,
-  recording, note tools and automation, built on the shared controls. Drum pads and effects on every track are in. The [Music roadmap](reference/music-roadmap.md) lists each
-  one and its status.
-- **Signed installers** through Azure Artifact Signing, so Windows names the publisher and its warning fades as
-  people install.
-- **Google and Microsoft calendar sign-in**, once Mobius is registered with each
-  ([what it needs](reference/calendar-sign-in.md)).
-- **Connectors**: a settings page, and HTTP and OAuth transports. (They already start and stop without a restart.)
-- **Plugins** in Abilities.
-- **The Chromium (CEF) engine** in the installer, so the Browser uses one engine everywhere.
+- **Signed installers**, so Windows names the publisher and its warning fades as people install.
+- **Google and Microsoft sign-in** for calendars, drives and Teams chats: built, and waiting on Mobius being registered
+  with each ([what it needs](reference/calendar-sign-in.md)).
 
 ## Later
 
 - **macOS release.** The shell already compiles on macOS in CI; it needs an end-to-end suite and packaging.
 - **Subagents** that split a task and work in parallel.
+- **Tauri v3**, once it is released.
+- **The Chromium (CEF) engine** in the installer, so the Browser uses one engine everywhere.
+- **Plugins** in Store, installed the same way whether free or paid.
+- **Sync between devices** and a self-hosted Mobius server, for people who want one.
 - **Image generation and speech out** for more gateways.
-- **A Messages app** built only on official APIs (Slack, Discord, Telegram, email), or the same accounts
-  inside Mail. Which one is still to be decided.
+- **Teams in Messages**: shared spaces for several people, once Mobius has more than one person per workspace.
 
 ## Ideas and feedback
 
