@@ -181,6 +181,7 @@ test('the Mobius panel starts closed, and its button opens it beside the work', 
   await expect(show).toHaveAttribute('aria-pressed', 'false', { timeout: 20_000 });
   await expect(shell().locator('.dock.right > .chat')).toHaveCount(0);
   await show.click();
+  // These tests set up no model, so the panel opens on the model choice rather than the message box.
   await expect(shell().locator('.dock.right > .chat')).toBeVisible();
-  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  await expect(shell().getByRole('button', { name: 'Hide Mobius', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
