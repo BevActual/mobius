@@ -3,10 +3,9 @@
 Instrument is the agreed look and behaviour of Mobius: calm, precise and labelled, with colour only from your own work
 and from Mobius. Andrew agreed it on 13 November 2026, with the decisions listed [at the end](#decisions).
 
-This page is the full specification: sizes, colour, every element, pop-out, the Mobius panel and its composer.
-[Design rules](rules.md) is the short checklist reviewers use on a pull request, and it follows this page.
-[Panel layouts](panel-layouts.md) describes the frame (decided 17 November 2026): a top bar led by the Go button, the
-content, the app's own docks, and Mobius at the right edge. There is no app rail and no shared sidebar.
+This page is the detailed reference for the Mobius panel, its composer, cards and slots, pop-out and every element. The
+[design guide](guide.md) is the one source for how Mobius looks and behaves; where this page differs from it, the guide
+is right and this page is out of date.
 
 > **While the shell catches up.** The Builder makes the shell changes once for every app (see
 > [How it rolls out](#how-it-rolls-out)). Until a size, control or card described here exists in the shell, an app
