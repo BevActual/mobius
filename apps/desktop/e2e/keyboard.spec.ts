@@ -56,14 +56,14 @@ test('the usual keys work, and the settings page lists them', async () => {
 test('a shortcut can be changed, the old keys stop working, and it can be put back', async () => {
   await openKeyboard();
   await page().getByRole('button', { name: 'Change Find apps, pages and commands' }).click();
-  // Not Ctrl+J: Mobius keeps that one for the panels at the bottom.
-  await shell().keyboard.press('Control+Shift+K');
-  await expect(keys('launcher')).toHaveText('Ctrl+Shift+K');
-  expect((await prefs()).keybindings.launcher).toBe('mod+shift+k');
+  // Not Ctrl+J: Mobius keeps that one for the panels at the bottom. Ctrl+Shift+Y is used nowhere else.
+  await shell().keyboard.press('Control+Shift+Y');
+  await expect(keys('launcher')).toHaveText('Ctrl+Shift+Y');
+  expect((await prefs()).keybindings.launcher).toBe('mod+shift+y');
   await shell().keyboard.press('Escape');
   await shell().keyboard.press('Control+k');
   await expect(launcher()).toHaveCount(0);
-  await shell().keyboard.press('Control+Shift+K');
+  await shell().keyboard.press('Control+Shift+Y');
   await expect(launcher()).toBeVisible();
   await shell().keyboard.press('Escape');
   await openKeyboard();

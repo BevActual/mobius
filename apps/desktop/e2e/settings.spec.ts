@@ -151,12 +151,12 @@ test('Keyboard lists the keys Mobius keeps, and Little Mobius no longer shares C
   await openSettings();
   await go('Keyboard');
   await expect(page().getByRole('button', { name: 'Show or hide Mobius beside the work: Ctrl+Shift+M, cannot be changed' })).toBeDisabled();
-  await expect(page().getByTestId('keys-littleMobius')).toHaveText('Ctrl+Shift+L');
+  await expect(page().getByTestId('keys-littleMobius')).toHaveText('Not set');
   // A shortcut can't take one of them.
   await page().getByRole('button', { name: 'Change Open or close Little Mobius' }).click();
   await shell().keyboard.press('Control+Shift+M');
   await expect(page().getByRole('alert')).toContainText('Mobius keeps these keys');
-  await expect(page().getByTestId('keys-littleMobius')).toHaveText('Ctrl+Shift+L');
+  await expect(page().getByTestId('keys-littleMobius')).toHaveText('Not set');
 });
 
 test('theme: choosing dark changes the whole app, and it is remembered', async () => {

@@ -35,7 +35,8 @@ export const DEFAULT_KEYBINDINGS: KeyBindings = {
   find: 'mod+f',
   splitView: 'mod+shift+\\',
   // Not Mod+Shift+M: that shows and hides Mobius beside the work (FIXED_KEYS).
-  littleMobius: 'mod+shift+l',
+  // No keys of its own: Ctrl+Shift+M shows Mobius beside the work, and Ctrl+Shift+L locks a layer in Design.
+  littleMobius: '',
   quickEntry: '',
   holdToTalk: 'mod+shift+space',
   launcherAnywhere: 'mod+space',

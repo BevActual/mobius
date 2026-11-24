@@ -88,7 +88,7 @@ describe('a set of bindings', () => {
 
   it('has the defaults it always had, all valid and all different', () => {
     expect(SHORTCUT_ACTIONS).toHaveLength(11);
-    expect(DEFAULT_KEYBINDINGS).toMatchObject({ launcher: 'mod+k', address: 'mod+l', newTab: 'mod+t', closeTab: 'mod+w', settings: 'mod+,', find: 'mod+f', splitView: 'mod+shift+\\', littleMobius: 'mod+shift+l', holdToTalk: 'mod+shift+space', launcherAnywhere: 'mod+space' });
+    expect(DEFAULT_KEYBINDINGS).toMatchObject({ launcher: 'mod+k', address: 'mod+l', newTab: 'mod+t', closeTab: 'mod+w', settings: 'mod+,', find: 'mod+f', splitView: 'mod+shift+\\', littleMobius: '', holdToTalk: 'mod+shift+space', launcherAnywhere: 'mod+space' });
     expect(isKeyBindings(DEFAULT_KEYBINDINGS)).toBe(true);
     // None of them is a key Mobius keeps for itself.
     expect(SHORTCUT_ACTIONS.filter((action) => fixedKeyFor(DEFAULT_KEYBINDINGS[action]))).toEqual([]);
@@ -98,8 +98,8 @@ describe('a set of bindings', () => {
     expect(fixedKeyFor('mod+shift+m')?.label).toBe('Show or hide Mobius beside the work');
     expect(fixedKeyFor('mod+k')).toBeNull();
     // Little Mobius was Mod+Shift+M, which also showed and hid Mobius.
-    expect(settleBindings({ ...DEFAULT_KEYBINDINGS, littleMobius: 'mod+shift+m' }).littleMobius).toBe('mod+shift+l');
-    expect(settleBindings({ ...DEFAULT_KEYBINDINGS, find: 'mod+shift+l', littleMobius: 'mod+shift+m' })).toMatchObject({ find: 'mod+shift+l', littleMobius: '' });
+    expect(settleBindings({ ...DEFAULT_KEYBINDINGS, littleMobius: 'mod+shift+m' }).littleMobius).toBe('');
+    expect(settleBindings({ ...DEFAULT_KEYBINDINGS, address: 'mod+k', launcher: 'mod+j' })).toMatchObject({ address: 'mod+k', launcher: '' });
     expect(settleBindings({ ...DEFAULT_KEYBINDINGS, launcher: 'mod+j' }).launcher).toBe('mod+k');
     expect(settleBindings(DEFAULT_KEYBINDINGS)).toBe(DEFAULT_KEYBINDINGS);
   });
