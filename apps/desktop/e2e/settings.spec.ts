@@ -90,7 +90,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.locator('.side-title')).toHaveText(['Connections', 'Mobius', 'Models', 'Safety', 'Apps', 'System']);
-  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Chats with Mobius', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Advanced', 'About']);
+  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Chats with Mobius', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Store', 'Advanced', 'About']);
   await expect(shell().getByRole('complementary', { name: 'Sections' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');

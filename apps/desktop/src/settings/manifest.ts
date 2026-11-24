@@ -324,7 +324,7 @@ const ORDER: ReadonlyArray<[SectionId, string]> = [
   ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'], ['sessions', 'Mobius'], ['schedules', 'Mobius'],
   ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
-  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['messages', 'Apps'],
+  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['messages', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],
 ];
 
