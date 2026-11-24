@@ -385,6 +385,24 @@ test('the newer effects: a Saturator\'s Drive and an Auto Filter\'s type, kept i
   await expect.poll(() => fx()[1]).toMatchObject({ kind: 'autofilter', filter: 'highpass', shape: 'sine' });
 });
 
+test('Beat Repeat: its Interval and Grid as note values, its mix mode and Chance, kept in the song', async () => {
+  await start();
+  const device = await openDevice('Keys');
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: 'Beat Repeat', exact: true }).click();
+  const fx = () => ((saved().tracks[0] as { fx?: Record<string, unknown>[] }).fx ?? [])[0];
+  await expect.poll(fx).toMatchObject({ kind: 'beatrepeat', interval: 16, grid: 2, gate: 8, chance: 1, mix: 'mix' });
+  await device.getByRole('combobox', { name: 'Interval' }).click();
+  await shell().getByRole('option', { name: '1/4', exact: true }).click();
+  await device.getByRole('combobox', { name: 'Grid' }).click();
+  await shell().getByRole('option', { name: '1/16', exact: true }).click();
+  await device.getByRole('radiogroup', { name: 'Mix mode' }).getByRole('radio', { name: 'Insert' }).click();
+  await device.getByRole('group', { name: 'Beat Repeat settings' }).getByRole('slider', { name: 'Chance' }).focus();
+  await shell().keyboard.press('ArrowDown');
+  await expect.poll(() => fx()?.chance as number).toBeLessThan(1);
+  expect(fx()).toMatchObject({ interval: 4, grid: 1, mix: 'insert' });
+});
+
 test('an instrument stack: chains with their own instruments and key zones, kept in the song', async () => {
   await start();
   const device = await openDevice('Keys');

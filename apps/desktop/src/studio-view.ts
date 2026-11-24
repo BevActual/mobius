@@ -262,6 +262,11 @@ export function effectText(kind: EffectKind, k: string, v: number): string {
     return secs(v);
   }
   if (kind === 'saturator' && (k === 'drive' || k === 'output')) return db(v);
+  if (kind === 'beatrepeat') {
+    if (k === 'volume') return db(v);
+    // Offset and Gate in sixteenths, as Live shows them; a whole bar or more as bars.
+    if (k === 'offset' || k === 'gate') return v >= 16 && v % 16 === 0 ? `${v / 16} ${v === 16 ? 'bar' : 'bars'}` : `${Number(v.toFixed(2))}/16`;
+  }
   if (kind === 'autofilter' || kind === 'chorus' || kind === 'phaser') {
     if (k === 'cutoff' || k === 'center') return hz(v);
     if (k === 'depth') return kind === 'chorus' ? secs(v) : hz(v);

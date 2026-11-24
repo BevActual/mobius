@@ -67,6 +67,9 @@ export function nextColour(tracks: readonly { color: TrackColour }[]): TrackColo
  *   by an LFO of `shape` at `rate` Hz by `depth` Hz), `chorus` (a copy `delay` seconds late, its delay moved by `depth`
  *   seconds at `rate` Hz, blended by `mix`) and `phaser` (four all-pass stages at `center` Hz, swept by `depth` Hz at
  *   `rate` Hz, blended by `mix`).
+ * - `beatrepeat` (Live 12's Beat Repeat, 29.5): every `interval` sixteenths, `offset` sixteenths in and by `chance`
+ *   (0 to 1), it takes a `grid` of what comes in and repeats it for `gate` sixteenths, each repeat quieter by `decay`
+ *   (0 to 1), at `volume` dB, with the input (`mix` "mix"), in its place ("insert") or alone ("gate").
  */
 export type Effect =
   | { id: string; kind: 'eq'; on: boolean; low: number; lowFreq: number; mid: number; midFreq: number; midQ: number; high: number; highFreq: number }
@@ -79,6 +82,7 @@ export type Effect =
   | { id: string; kind: 'autofilter'; on: boolean; filter: AutoFilterType; shape: LfoShape; cutoff: number; resonance: number; rate: number; depth: number }
   | { id: string; kind: 'chorus'; on: boolean; delay: number; rate: number; depth: number; mix: number }
   | { id: string; kind: 'phaser'; on: boolean; center: number; rate: number; depth: number; mix: number }
+  | { id: string; kind: 'beatrepeat'; on: boolean; interval: number; offset: number; gate: number; grid: number; chance: number; decay: number; volume: number; mix: BeatRepeatMix }
   | { id: string; kind: 'device'; on: boolean; device: Device; sidechain?: Sidechain }
   | StackEffect;
 /**
@@ -171,15 +175,19 @@ export function readSidechain(v: unknown): Sidechain | undefined {
 /** The four built-in effects; a song's own devices (`kind: "device"`) are the rest. */
 export type EffectKind = Exclude<Effect['kind'], 'device' | 'stack'>;
 export type BuiltinEffect = Extract<Effect, { kind: EffectKind }>;
-export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'gate', 'limiter', 'saturator', 'autofilter', 'chorus', 'phaser', 'delay', 'reverb'];
-export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', gate: 'Gate', limiter: 'Limiter', saturator: 'Saturator', autofilter: 'Auto Filter', chorus: 'Chorus', phaser: 'Phaser', delay: 'Delay', reverb: 'Reverb' };
+export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'gate', 'limiter', 'saturator', 'autofilter', 'chorus', 'phaser', 'beatrepeat', 'delay', 'reverb'];
+export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', gate: 'Gate', limiter: 'Limiter', saturator: 'Saturator', autofilter: 'Auto Filter', chorus: 'Chorus', phaser: 'Phaser', beatrepeat: 'Beat Repeat', delay: 'Delay', reverb: 'Reverb' };
 /** An auto filter's filter types and LFO shapes, as a device's filter and LFO parts take them. */
 export const AUTO_FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'notch'] as const;
 export type AutoFilterType = (typeof AUTO_FILTER_TYPES)[number];
 export type LfoShape = (typeof LFO_SHAPES)[number];
+/** Beat Repeat's mix modes (Live 12, 29.5): its repeats with the input, in its place, or alone. */
+export const BEAT_REPEAT_MIXES = ['mix', 'insert', 'gate'] as const;
+export type BeatRepeatMix = (typeof BEAT_REPEAT_MIXES)[number];
 /** Effects whose settings are words, not numbers, and where they start. */
 export const EFFECT_WORDS: Partial<Record<EffectKind, Record<string, { choices: readonly string[]; start: string }>>> = {
   autofilter: { filter: { choices: AUTO_FILTER_TYPES, start: 'lowpass' }, shape: { choices: LFO_SHAPES, start: 'sine' } },
+  beatrepeat: { mix: { choices: BEAT_REPEAT_MIXES, start: 'mix' } },
 };
 /** The effects another track can key (Live 12, 29.9.1). */
 export const KEYED_KINDS: readonly EffectKind[] = ['compressor', 'gate'];
@@ -199,6 +207,11 @@ export const EFFECT_PARAMS: { [K in EffectKind]: Record<string, { lo: number; hi
   autofilter: { cutoff: { lo: 20, hi: 20000, start: 1000 }, resonance: { lo: 0.1, hi: 20, start: 3 }, rate: { lo: 0.01, hi: 40, start: 1 }, depth: { lo: 0, hi: 10000, start: 0 } },
   chorus: { delay: { lo: 0.001, hi: 0.05, start: 0.012 }, rate: { lo: 0.01, hi: 10, start: 0.8 }, depth: { lo: 0, hi: 0.01, start: 0.003 }, mix: { lo: 0, hi: 1, start: 0.5 } },
   phaser: { center: { lo: 50, hi: 10000, start: 800 }, rate: { lo: 0.01, hi: 10, start: 0.5 }, depth: { lo: 0, hi: 5000, start: 600 }, mix: { lo: 0, hi: 1, start: 0.5 } },
+  // In sixteenths, as the engine takes them (mobius-audio fx.rs `Repeat`): a 1/32 interval or grid is half of one.
+  beatrepeat: {
+    interval: { lo: 0.5, hi: 64, start: 16 }, offset: { lo: 0, hi: 15, start: 0 }, gate: { lo: 1, hi: 64, start: 8 }, grid: { lo: 0.5, hi: 16, start: 2 },
+    chance: { lo: 0, hi: 1, start: 1 }, decay: { lo: 0, hi: 1, start: 0 }, volume: { lo: -36, hi: 12, start: 0 },
+  },
 };
 /**
  * Each built-in effect as the device it is: the same parts and cables a song's own device would use, so the four
@@ -230,7 +243,8 @@ export function builtinDevice(e: BuiltinEffect): Device | null {
       return { name: 'Phaser', parts: [p('in', 'input'), ...stages.map((id) => p(id, 'filter', { type: 'allpass', cutoff: e.center, resonance: 0.7, gain: 0 })), p('lfo', 'lfo', { rate: e.rate, depth: e.depth }), p('mix', 'mix', { amount: e.mix }), p('out', 'output')],
         cables: [['in', 'mix.dry'], ['in', 'a1'], ['a1', 'a2'], ['a2', 'a3'], ['a3', 'a4'], ['a4', 'mix.wet'], ...stages.map((id): [string, string] => ['lfo', `${id}.cutoff`]), ['mix', 'out']], controls: [] };
     }
-    // The gate and limiter are parts the Workbench doesn't draw yet, and the chorus's delay is in seconds, not beats.
+    // The gate, limiter and Beat Repeat are parts the Workbench doesn't draw yet, and the chorus's delay is in seconds,
+    // not beats.
     default:
       return null;
   }
