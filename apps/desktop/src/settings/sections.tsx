@@ -515,7 +515,7 @@ export function SafetySection({ subpage, highlight, settings, preferences, onPre
           <p className="srow-text">{storage}</p>
         </Row>
         <Row path={path('web-content')} title="Web content" description="Text from web pages is treated as untrusted and never as instructions." highlight={highlight === 'web-content'}>
-          <p className="srow-text">When the agent reads a page, the text is marked as untrusted. Nothing in a page can change what is allowed: every action still asks you first, unless you chose to always allow it.</p>
+          <p className="srow-text">When Mobius reads a page, the text is marked as untrusted. Nothing in a page can change what is allowed: every action still asks you first, unless you chose to always allow it.</p>
         </Row>
       </>
     );
@@ -658,17 +658,17 @@ export function BrowserSection({ subpage, highlight, preferences, onPreferences 
   const { grants, remove } = useGrants();
   if (subpage === 'network') {
     return (
-      <Row path={rowPath('browser', 'network', 'private-addresses')} title="Local addresses" description="Let the agent use addresses on this computer or your local network. Off by default, so a web page cannot steer it at your router or a local service." highlight={highlight === 'private-addresses'}>
-        <Toggle label="Let the agent use local addresses" checked={preferences.agentPrivateUrls} onChange={(agentPrivateUrls) => void onPreferences({ agentPrivateUrls })} />
-        <p className="srow-text">This only limits the agent. You can open any address yourself.</p>
+      <Row path={rowPath('browser', 'network', 'private-addresses')} title="Local addresses" description="Let Mobius use addresses on this computer or your local network. Off by default, so a web page cannot steer it at your router or a local service." highlight={highlight === 'private-addresses'}>
+        <Toggle label="Let Mobius use local addresses" checked={preferences.agentPrivateUrls} onChange={(agentPrivateUrls) => void onPreferences({ agentPrivateUrls })} />
+        <p className="srow-text">This only limits Mobius. You can open any address yourself.</p>
       </Row>
     );
   }
   if (subpage === 'bookmarks') return <BookmarkSettings highlight={highlight} />;
   if (subpage === 'history') return <HistorySettings highlight={highlight} />;
   return (
-    <Row path={rowPath('browser', subpage, 'allowed-sites')} title="Allowed sites" description="Sites the agent may open without asking. Remove one to be asked again." highlight={highlight === 'allowed-sites'}>
-      <GrantList label="Allowed sites" grants={grants.filter((g) => g.capability === 'browser.navigate')} onRemove={remove} empty="No sites are always allowed. You are asked the first time the agent opens one." />
+    <Row path={rowPath('browser', subpage, 'allowed-sites')} title="Allowed sites" description="Sites Mobius may open without asking. Remove one to be asked again." highlight={highlight === 'allowed-sites'}>
+      <GrantList label="Allowed sites" grants={grants.filter((g) => g.capability === 'browser.navigate')} onRemove={remove} empty="No sites are always allowed. You are asked the first time Mobius opens one." />
     </Row>
   );
 }
@@ -865,10 +865,10 @@ export function NotificationsSection({ subpage, highlight, preferences, onPrefer
   return (
     <>
       <p className="srow-text">Mobius only tells you when it is in the background. The notice says what kind of thing happened, never what was asked or answered.</p>
-      <Row path={path('notify-needs-you')} title="When it needs you" description="Tell me when the agent is waiting for my answer." highlight={highlight === 'notify-needs-you'}>
+      <Row path={path('notify-needs-you')} title="When it needs you" description="Tell me when Mobius is waiting for my answer." highlight={highlight === 'notify-needs-you'}>
         <Toggle label="When it needs you" checked={preferences.notifyNeedsYou} onChange={(notifyNeedsYou) => set({ notifyNeedsYou })} />
       </Row>
-      <Row path={path('notify-finished')} title="When a request finishes" description="Tell me when the agent has finished or has stopped because of a problem." highlight={highlight === 'notify-finished'}>
+      <Row path={path('notify-finished')} title="When a request finishes" description="Tell me when Mobius has finished or has stopped because of a problem." highlight={highlight === 'notify-finished'}>
         <Toggle label="When a request finishes" checked={preferences.notifyFinished} onChange={(notifyFinished) => set({ notifyFinished })} />
       </Row>
       <Row path={path('notify-downloads')} title="When a download finishes" description="Tell me when a file has finished downloading." highlight={highlight === 'notify-downloads'}>
@@ -957,7 +957,7 @@ export function AdvancedSection({ subpage, highlight, settings, onSaveSettings, 
         <Row path={rowPath('advanced', subpage, 'language')} title={t('settings.language.title')} description={t('settings.language.description')} highlight={highlight === 'language'}>
           <Select label={t('settings.language.title')} hideLabel value={preferences.language} onChange={(language: string) => { if (isLanguage(language)) void onPreferences({ language }); }} choices={LANGUAGES.map((l) => ({ value: l.id as string, label: l.label }))} />
         </Row>
-        <Row path={rowPath('advanced', subpage, 'keep-awake')} title="Keep the computer awake while working" description="Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you." highlight={highlight === 'keep-awake'}>
+        <Row path={rowPath('advanced', subpage, 'keep-awake')} title="Keep the computer awake while working" description="Stop the computer sleeping while Mobius is working on a request. It may sleep while Mobius is only waiting for you." highlight={highlight === 'keep-awake'}>
           <Toggle label="Keep the computer awake while working" checked={preferences.keepAwake} onChange={(keepAwake) => void onPreferences({ keepAwake })} />
         </Row>
       </>

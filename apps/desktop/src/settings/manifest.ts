@@ -82,9 +82,9 @@ const SECTIONS: readonly SettingsSection[] = [
         row('quick-setup', 'Set up a local model', 'Install the engine, pick a model that fits, download it and start it, in one step.', 'quick', 'setup', 'easy', 'automatic', 'guided', 'wizard', 'local', 'offline', 'private'),
         row('hardware', 'Your computer', 'The graphics card and memory models have to fit in.', 'gpu', 'vram', 'graphics', 'memory', 'ram', 'nvidia'),
         row('engine', 'Engine', 'The program that runs models: llama.cpp, in the build for your graphics card.', 'llama.cpp', 'llama-server', 'cuda', 'vulkan', 'install', 'update', 'gpu', 'runtime'),
-        row('running', 'Running now', 'The model Mobius is running for the agent.', 'llama', 'llama.cpp', 'stop', 'server', 'local', 'runtime'),
+        row('running', 'Running now', 'The model Mobius is running for Mobius.', 'llama', 'llama.cpp', 'stop', 'server', 'local', 'runtime'),
         row('context-size', 'Context size', 'How much text a local model keeps in view. More uses more graphics memory.', 'context length', 'context window', 'tokens', 'ctx', 'memory', 'vram'),
-        row('local-models', 'On this computer', 'Models you have downloaded. Run one to use it for the agent.', 'gguf', 'run', 'files', 'offline', 'private'),
+        row('local-models', 'On this computer', 'Models you have downloaded. Run one to use it for Mobius.', 'gguf', 'run', 'files', 'offline', 'private'),
         row('find-models', 'Find models', 'Search Hugging Face, or let Mobius suggest what will run well here, and download one.', 'download', 'search', 'recommend', 'suggest', 'huggingface', 'hugging face', 'gguf'),
       ] },
     ],
@@ -96,21 +96,21 @@ const SECTIONS: readonly SettingsSection[] = [
     keywords: ['providers', 'provider', 'gateway', 'connect', 'elevenlabs'],
     subpages: [
       { id: 'keys', label: 'API keys', rows: [
-        row('provider-keys', 'Your gateways', 'One key per service, kept in the system\'s secret store and never shown again. A key is only ever sent to its own service. Use a provider to switch the agent to it.', 'keys', 'credentials', 'accounts', 'sign in', 'oauth', 'switch provider', 'services', 'claude', 'gpt', 'grok', 'openrouter', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'hugging face', 'gemini', 'cerebras', 'perplexity', 'cohere', 'kimi', 'moonshot', 'qwen', 'glm', 'nvidia'),
+        row('provider-keys', 'Your gateways', 'One key per service, kept in the system\'s secret store and never shown again. A key is only ever sent to its own service. Use a provider to switch Mobius to it.', 'keys', 'credentials', 'accounts', 'sign in', 'oauth', 'switch provider', 'services', 'claude', 'gpt', 'grok', 'openrouter', 'groq', 'mistral', 'deepseek', 'together', 'fireworks', 'hugging face', 'gemini', 'cerebras', 'perplexity', 'cohere', 'kimi', 'moonshot', 'qwen', 'glm', 'nvidia'),
         row('custom-server', 'Custom server', 'Any server that speaks the OpenAI chat format, at an address you give.', 'custom', 'server', 'address', 'url', 'endpoint', 'self hosted', 'openai compatible'),
         row('provider', 'Service', 'Pick a service to fill in its server address.', 'openai', 'openrouter', 'anthropic', 'claude', 'gemini', 'google', 'groq', 'deepseek', 'mistral', 'ollama', 'lm studio', 'cloud', 'service', 'preset'),
         row('endpoint', 'Server address', 'Where the model is. Any server that speaks the OpenAI chat format works, including local ones.', 'url', 'endpoint', 'local', 'host'),
         row('model-name', 'Model', 'The model name to ask for.', 'name', 'qwen', 'gpt'),
         row('api-key', 'API key', 'Stored encrypted by your system when it can. It is never shown again.', 'key', 'secret', 'token', 'password', 'credential'),
         row('fallback', 'Second model', 'A model to use when the first is busy, down or cannot be reached.', 'fallback', 'backup', 'failover', 'retry', 'second model', 'outage', 'rate limit'),
-        row('instructions', 'Instructions', 'Extra instructions the agent always follows.', 'system prompt', 'persona', 'personality'),
+        row('instructions', 'Instructions', 'Extra instructions Mobius always follows.', 'system prompt', 'persona', 'personality'),
       ] },
     ],
   },
   {
     id: 'safety',
     label: 'Approvals and safety',
-    description: 'What the agent may do, and a record of what it did.',
+    description: 'What Mobius may do, and a record of what it did.',
     subpages: [
       { id: 'approvals', label: 'Approvals', rows: [
         row('approval-mode', 'Permission', 'How much Mobius does without asking: Ask each time, Review changes, Apply changes or Auto.', 'permission', 'ask each time', 'review changes', 'apply changes', 'auto', 'approval mode', 'smart approvals', 'manual', 'smart', 'off', 'yolo', 'permissions', 'prompts', 'confirm', 'ask', 'guardian', 'reviewer'),
@@ -124,10 +124,10 @@ const SECTIONS: readonly SettingsSection[] = [
   {
     id: 'browser',
     label: 'Browser',
-    description: 'What the agent may do in the browser.',
+    description: 'What Mobius may do in the browser.',
     subpages: [
-      { id: 'sites', label: 'Sites', rows: [row('allowed-sites', 'Allowed sites', 'Sites the agent may open without asking. Remove one to be asked again.', 'websites', 'domains', 'origins', 'navigate', 'revoke')] },
-      { id: 'network', label: 'Network', rows: [row('private-addresses', 'Local addresses', 'Let the agent use addresses on this computer or your local network. Off by default, so a web page cannot steer it at your router or a local service.', 'local network', 'localhost', 'private', 'lan', 'intranet', '127.0.0.1', '192.168', 'router', 'ssrf', 'security')] },
+      { id: 'sites', label: 'Sites', rows: [row('allowed-sites', 'Allowed sites', 'Sites Mobius may open without asking. Remove one to be asked again.', 'websites', 'domains', 'origins', 'navigate', 'revoke')] },
+      { id: 'network', label: 'Network', rows: [row('private-addresses', 'Local addresses', 'Let Mobius use addresses on this computer or your local network. Off by default, so a web page cannot steer it at your router or a local service.', 'local network', 'localhost', 'private', 'lan', 'intranet', '127.0.0.1', '192.168', 'router', 'ssrf', 'security')] },
       { id: 'bookmarks', label: 'Bookmarks', rows: [row('saved-pages', 'Bookmarks', 'Pages you saved with the star next to the address.', 'bookmarks', 'favourites', 'favorites', 'saved pages', 'star', 'remove bookmark')] },
       { id: 'history', label: 'History', rows: [
         row('keep-history', 'Keep browsing history', 'Remember the pages you visit, on this computer only.', 'browsing history', 'remember', 'pages visited', 'privacy', 'off'),
@@ -178,8 +178,8 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'When Mobius may tell you something while you are in another window.',
     subpages: [
       { id: 'alerts', label: 'Alerts', rows: [
-        row('notify-needs-you', 'When it needs you', 'Tell me when the agent is waiting for my answer.', 'notify me', 'alerts', 'approval', 'waiting', 'banner', 'do not disturb'),
-        row('notify-finished', 'When a request finishes', 'Tell me when the agent has finished or has stopped because of a problem.', 'notify me', 'alerts', 'done', 'complete', 'failed', 'do not disturb'),
+        row('notify-needs-you', 'When it needs you', 'Tell me when Mobius is waiting for my answer.', 'notify me', 'alerts', 'approval', 'waiting', 'banner', 'do not disturb'),
+        row('notify-finished', 'When a request finishes', 'Tell me when Mobius has finished or has stopped because of a problem.', 'notify me', 'alerts', 'done', 'complete', 'failed', 'do not disturb'),
         row('notify-downloads', 'When a download finishes', 'Tell me when a file has finished downloading.', 'notify me', 'alerts', 'downloads', 'file', 'do not disturb'),
       ] },
       { id: 'sounds', label: 'Sounds', rows: [
@@ -190,7 +190,7 @@ const SECTIONS: readonly SettingsSection[] = [
   {
     id: 'sessions',
     // Not "Conversations": Messages' panel is Conversations, so this says whose they are.
-    label: 'Chats with Mobius',
+    label: 'Conversations',
     description: 'Your saved conversations.',
     subpages: [
       { id: 'saved', label: 'Saved', rows: [
@@ -214,7 +214,7 @@ const SECTIONS: readonly SettingsSection[] = [
     label: 'Advanced',
     description: 'For when the defaults are not right.',
     subpages: [
-      { id: 'agent', label: 'Agent', rows: [row('max-steps', 'Steps per request', 'The most model calls one request may use before it is stopped.', 'limit', 'loop', 'iterations', 'runaway')] },
+      { id: 'agent', label: 'Requests', rows: [row('max-steps', 'Steps per request', 'The most model calls one request may use before it is stopped.', 'limit', 'loop', 'iterations', 'runaway')] },
       { id: 'other-apps', label: 'Other apps', rows: [
         row('share-mcp', 'Let other apps use Mobius', 'Agents such as Claude Code or Hermes can read the files in your workspace over MCP, on this computer only. Off until you turn it on.', 'mcp', 'server', 'claude code', 'hermes', 'share', 'expose', 'integration', 'agents', 'connect'),
         row('share-changes', 'Let them change files', 'Other apps may also create and edit files. Each change is checkpointed, so it can be undone.', 'write', 'edit', 'mcp', 'permission'),
@@ -242,7 +242,7 @@ const SECTIONS: readonly SettingsSection[] = [
         row('resume-last', 'Reopen the last conversation', 'When Mobius starts, open the conversation you were in instead of a blank one.', 'resume', 'reopen', 'startup', 'launch', 'last chat', 'last conversation'),
         row('minimize-to-tray', 'Minimise to the tray', 'When you minimise Mobius, it leaves the taskbar and waits in the tray. Click its icon there to bring it back.', 'minimize', 'minimise', 'tray', 'system tray', 'notification area', 'taskbar', 'hide', 'background'),
         row('language', 'Language', 'The language Mobius shows its own words in. More languages are coming.', 'language', 'translation', 'locale', 'english', 'translate'),
-        row('keep-awake', 'Keep the computer awake while working', 'Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you.', 'keep awake', 'prevent sleep', 'caffeinate', 'idle', 'power', 'overnight'),
+        row('keep-awake', 'Keep the computer awake while working', 'Stop the computer sleeping while Mobius is working on a request. It may sleep while Mobius is only waiting for you.', 'keep awake', 'prevent sleep', 'caffeinate', 'idle', 'power', 'overnight'),
       ] },
     ],
   },

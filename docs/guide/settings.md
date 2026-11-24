@@ -1,14 +1,21 @@
 # Settings
 
-Ctrl+, opens Settings. Its sections are grouped in the Sections panel on the left the way System Settings groups
-them. That panel is always there, as System Settings' is, so every section stays one click away. The search box at the top finds any setting by what it does ("dark", "fallback", "dictation"). This page says what each section holds
-and where it is explained.
+Ctrl+, opens Settings. Its sections are grouped in the Sections panel on the left the way System Settings groups them.
+That panel is always there, so every section stays one click away. The search box at the top finds any setting by what
+it does ("dark", "fallback", "dictation"). This page says what each section holds and where it is explained.
 
-The toolbar names the section, and the page opens on one grey line on what it is for. Then come its settings, one per
-row with a hairline between them: the name and a line of help on the left, the control on the right. Settings take effect as soon as you change them; there is no
-Save button.
+Each section opens with where it is, its name and one grey line on what it is for. Then each of its pages is a small
+grey heading over a card of rows: the name and a line of help on the left, the control on the right. Settings take
+effect as soon as you change them; there is no Save button.
 
 ![Settings in Mobius, on the Models section](../readme/apps/settings.png)
+
+## Connections
+
+| Section | What it holds | Explained in |
+| --- | --- | --- |
+| **Accounts** | Every account Mobius signs in to (mail, calendars, drives, chat, model gateways): which are connected, which need you to sign in again, and Disconnect | This page |
+| **Gateways** | Plans you sign in to, API keys, local and custom servers, instructions | [Models and gateways](models-and-gateways.md#gateways) |
 
 ## Mobius
 
@@ -18,12 +25,13 @@ Save button.
 | **Appearance** | Theme, typography, layout, how conversations are shown | This page |
 | **Notifications** | When Mobius may tell you something while you're in another window, and sounds | [Privacy, safety and profiles](privacy-and-profiles.md#notifications) |
 | **Keyboard** | Shortcuts, and quick entry from anywhere | [Keyboard shortcuts](keyboard-shortcuts.md) |
+| **Conversations** | Saved conversations, and where they are kept | [Agent](../apps/assistant.md#agent) |
+| **Schedules** | Requests to Mobius at a time of day | [Working with Mobius](working-with-mobius.md#schedules) |
 
 ## Models
 
 | Section | What it holds | Explained in |
 | --- | --- | --- |
-| **Gateways** | Plans you sign in to, API keys, local and custom servers, instructions | [Models and gateways](models-and-gateways.md#gateways) |
 | **Models** | Which model does each job; models on this computer | [Models and gateways](models-and-gateways.md#a-model-for-each-job) |
 | **Voice** | Who listens when you dictate, and who reads replies aloud | [Voice](voice.md) |
 | **Usage** | Tokens used and estimated cost by day, by model, service or app; CSV export | [Usage](#usage) below |
@@ -43,9 +51,7 @@ Save button.
 | **Browser** | Allowed sites, local addresses, bookmarks, history | [Browser](../apps/browse-and-find.md#browser) |
 | **Mail** | Mail accounts: add one with an app password, or remove one | [Mail](../apps/browse-and-find.md#mail) |
 | **Calendar** | Calendar accounts: subscribe to a link, connect iCloud, Fastmail or Nextcloud, or sign in to Google or Outlook | [Calendar](../apps/write-and-plan.md#calendar) |
-| **Conversations** | Saved conversations, and where they are kept | [Agent](../apps/assistant.md#agent) |
-| **Schedules** | Requests to Mobius at a time of day | [Working with Mobius](working-with-mobius.md#schedules) |
-| **Abilities** | Opens the Abilities app | [Abilities](abilities.md) |
+| **Messages** | Chat accounts: sign in to Slack, or remove a workspace | [Messages](../apps/browse-and-find.md#messages) |
 
 ## System
 

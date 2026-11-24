@@ -297,7 +297,7 @@ export function LocalModelsSection({ subpage, highlight }: { subpage: string; hi
   return (
     <>
       {(!running || setup.step !== null) && (
-        <Row path={path('quick-setup')} title="Set up a local model" description="Mobius installs the engine if needed, picks a model that runs well on your graphics card, downloads it and starts it for the agent. Nothing you type leaves this computer once it runs." highlight={highlight === 'quick-setup'}>
+        <Row path={path('quick-setup')} title="Set up a local model" description="Mobius installs the engine if needed, picks a model that runs well on your graphics card, downloads it and starts it for Mobius. Nothing you type leaves this computer once it runs." highlight={highlight === 'quick-setup'}>
           <div className="quick-setup">
             {setup.step === null ? (
               <button type="button" className="btn primary" disabled={engine.status === null || models.download?.running === true} onClick={() => void setup.run()}>Set it up for me</button>
@@ -320,7 +320,7 @@ export function LocalModelsSection({ subpage, highlight }: { subpage: string; hi
         <EngineRow engine={engine} />
       </Row>
 
-      <Row path={path('running')} title="Running now" description="The model Mobius is running for the agent." highlight={highlight === 'running'}>
+      <Row path={path('running')} title="Running now" description="The model Mobius is running for Mobius." highlight={highlight === 'running'}>
         {snapshot.binary === null && runtime === null ? (
           <Empty>No engine yet, so models cannot be run here. Install llama.cpp under Engine above.</Empty>
         ) : runtime === null ? (
@@ -356,7 +356,7 @@ export function LocalModelsSection({ subpage, highlight }: { subpage: string; hi
           choices={CONTEXT_SIZES.map((size) => ({ value: String(size), label: `${size.toLocaleString('en-US')} tokens` }))} />
       </Row>
 
-      <Row path={path('local-models')} title="On this computer" description="Models you have downloaded. Run one to use it for the agent." highlight={highlight === 'local-models'}>
+      <Row path={path('local-models')} title="On this computer" description="Models you have downloaded. Run one to use it for Mobius." highlight={highlight === 'local-models'}>
         {models.local.length === 0 ? (
           <Empty>No models yet. Find one below and download it.</Empty>
         ) : (

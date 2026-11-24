@@ -53,7 +53,7 @@ test('the switch in settings turns the rule off and on', async () => {
   await expect(page()).toBeVisible();
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
   await page().locator('.settings-group[aria-label="Network"]').scrollIntoViewIfNeeded();
-  const toggle = page().getByRole('switch', { name: 'Let the agent use local addresses' });
+  const toggle = page().getByRole('switch', { name: 'Let Mobius use local addresses' });
   await expect(toggle).not.toBeChecked();
   await toggle.check();
   await expect.poll(allowed).toBe(true);

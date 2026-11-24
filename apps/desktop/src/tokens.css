@@ -21,6 +21,10 @@
   --fs-floor: 11px;
   /* A reading page (Home, a note, a doc): one centred column. */
   --reading-w: 680px;
+  /* A settings page and search results (docs/design/guide.md, Column widths). */
+  --settings-w: 720px;
+  /* A row in a side panel (Mailboxes, Sections, Library): 28px in both densities (the guide, Type and density). */
+  --row-side-panel: 28px;
   --lh-tight: 1.25;
   --lh-body: 1.5;
   --fw-regular: 400;
