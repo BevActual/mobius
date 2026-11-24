@@ -1,5 +1,5 @@
 /*
- * Notes' own styles, on the Instrument tokens only (docs/design/instrument.md): no hand-set size, row height or colour.
+ * Notes' own styles, on the design guide's tokens only (docs/design/guide.md): no hand-set size, row height or colour.
  * A note is a reading page: a --fs-display title over --fs-reading body text, in a column --reading-w wide.
  */
 
@@ -27,7 +27,7 @@
 .note-page { padding: calc(var(--sp-8) + var(--sp-6)) var(--sp-8) var(--sp-6); outline: none; color: var(--ink); font-size: var(--fs-reading); line-height: var(--lh-body); -webkit-font-smoothing: antialiased; }
 .note-page:focus-visible { outline: none; }
 /* The title is the page heading: large, bold, tight. Headings under it step down the type scale. */
-.note-page h1 { margin: 0 0 var(--sp-3); font-size: var(--fs-display); font-weight: 700; line-height: var(--lh-tight); letter-spacing: -0.02em; }
+.note-page h1 { margin: 0 0 var(--sp-3); font-size: var(--fs-display); font-weight: var(--fw-semibold); line-height: var(--lh-tight); letter-spacing: -0.02em; }
 .note-page h2 { margin: var(--sp-6) 0 var(--sp-2); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: var(--lh-tight); letter-spacing: -0.01em; }
 .note-page h3 { margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-xl); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
 .note-page p { margin: 0 0 var(--sp-3); }
@@ -152,7 +152,7 @@
 
 /* A commented passage: one soft warm tint and no underline, the same in Docs (--comment, with its own dark step). */
 .note-page .note-commented { background: var(--comment, color-mix(in srgb, var(--c-yellow) 28%, transparent)); border-radius: var(--radius-small); }
-.note-comment-composer { position: absolute; z-index: var(--z-menu); width: var(--panel-w); display: grid; gap: var(--sp-2); padding: var(--sp-3); border-radius: var(--radius-sheet); background: var(--raised); box-shadow: var(--shadow-3); animation: note-sheet-in var(--dur-med) var(--ease); }
+.note-comment-composer { position: absolute; z-index: var(--z-menu); width: var(--panel-w); display: grid; gap: var(--sp-2); padding: var(--sp-3); border-radius: var(--radius-sheet); background: var(--raised); box-shadow: var(--shadow-menu); animation: note-sheet-in var(--dur-med) var(--ease); }
 .note-comment-composer textarea { min-height: 60px; resize: vertical; padding: var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font: inherit; }
 .note-comment-composer textarea:focus { outline: none; border-color: var(--ink); }
 .note-comment-actions { display: flex; align-items: center; gap: var(--sp-2); }
@@ -210,7 +210,7 @@
 .note-restored { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--field); font-size: var(--fs-sm); }
 .note-restored > span { flex: 1; }
 
-/* ── The note list (sidebar) ──────────────────────────────────────────────────────────────────────── */
+/* ── Notebooks: the panel of notebooks and their notes ──────────────────────────────────────────────────────────────────────── */
 /* One row height for every page, the two-line master-list height (56px comfortable, 48px compact): the title with its date at the end, and one grey line under it. Pin and
    the delete confirm take the date's place on hover, so the row never changes height or shifts. */
 .notes-side[data-app="notes"] { --note-row: calc(var(--row-list) + var(--sp-4)); }
@@ -225,7 +225,7 @@
 .notes-side[data-app="notes"] .ui-side-row-trail:is(:hover, :has(:focus-visible), :has(> .confirm)) > .note-side-when { visibility: hidden; }
 .notes-side[data-app="notes"] .ui-side-row-trail:has(> .confirm) > .note-pin { display: none; }
 .notes-side .ui-side-section + .ui-side-section, .notes-side .notes-new-group { margin-top: var(--sp-2); }
-.notes-new-group, .notes-side .notes-new-group { color: var(--muted); font-weight: var(--fw-regular, 400); }
+.notes-new-group, .notes-side .notes-new-group { color: var(--muted); font-weight: var(--fw-regular); }
 .notes-new-group:hover, .notes-side .notes-new-group:hover { color: var(--ink); }
 /* While the list is read: grey placeholder bars the shape of the rows, not a spinner. */
 .notes-loading { display: grid; gap: var(--sp-2); margin: 0; padding: var(--sp-2) var(--sp-3); list-style: none; }
@@ -250,7 +250,7 @@
 /* Design, Canvas and Research: the date trails a one-line row. */
 .notes-side:not([data-app="notes"]) .note-side-when { align-self: center; padding-right: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* The Text style menu (panel look review): each style's name in its own size and weight, as Apple Notes shows them. */
-.ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(1) .ui-menu-label { font-size: var(--fs-xl); font-weight: 700; }
+.ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(1) .ui-menu-label { font-size: var(--fs-xl); font-weight: var(--fw-semibold); }
 .ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(2) .ui-menu-label { font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
 .ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(3) .ui-menu-label { font-weight: var(--fw-semibold); }
 .ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(5) .ui-menu-label { font-family: var(--font-mono, ui-monospace), monospace; }

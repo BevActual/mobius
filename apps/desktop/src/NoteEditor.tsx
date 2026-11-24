@@ -53,9 +53,9 @@ const NOTE_RECORDING_SECONDS = 600;
 /** What you can do with text selected in a note, right where it is. */
 export type SelectionAction = 'ask' | 'rewrite' | 'summarise' | 'task';
 const ACTIONS: { id: SelectionAction; label: string; title: string }[] = [
-  { id: 'ask', label: 'Ask', title: 'Ask the agent about this' },
-  { id: 'rewrite', label: 'Rewrite', title: 'Have the agent rewrite this in the note' },
-  { id: 'summarise', label: 'Summarise', title: 'Have the agent summarise this' },
+  { id: 'ask', label: 'Ask', title: 'Ask Mobius about this' },
+  { id: 'rewrite', label: 'Rewrite', title: 'Have Mobius rewrite this in the note' },
+  { id: 'summarise', label: 'Summarise', title: 'Have Mobius summarise this' },
   { id: 'task', label: 'Make a task', title: 'Add this as a task' },
 ];
 
@@ -471,8 +471,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   const share = async (how: 'markdown' | 'formatted' | 'html' | 'md' | 'print') => {
     const page = pathNow.current;
     if (!page) return;
-    if (how === 'markdown') { setShared((await copyText(notes.text)) ? 'Copied as Markdown.' : 'The page could not be copied.'); return; }
-    if (how === 'formatted') { setShared((await copyFormatted(editor?.getHTML() ?? notes.text, notes.text)) ? 'Copied as formatted text.' : 'The page could not be copied.'); return; }
+    if (how === 'markdown') { setShared((await copyText(notes.text)) ? 'Copied as Markdown.' : 'The note couldn’t be copied.'); return; }
+    if (how === 'formatted') { setShared((await copyFormatted(editor?.getHTML() ?? notes.text, notes.text)) ? 'Copied as formatted text.' : 'The note couldn’t be copied.'); return; }
     if (how === 'print') { afterPaint(() => window.print()); return; }
     const exportIt = window.mobius.notes?.export;
     if (!exportIt) return;
@@ -558,7 +558,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     const block = meetingBlock(said, seconds, started);
     if (!page || pathNow.current !== page) {
       void navigator.clipboard?.writeText(block).catch(() => undefined);
-      setInsertProblem('Another page was open when the meeting ended, so its words were copied instead. Paste them where they belong.');
+      setInsertProblem('Another note was open when the meeting ended, so its words were copied instead. Paste them where they belong.');
       return;
     }
     if (sourceNow.current || !editor || editor.isDestroyed) notes.edit(insertBlock(notes.text, notes.text.length, block).page);
@@ -810,7 +810,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     // The editor stays mounted (hidden), so it is ready the moment a page opens.
     return (
       <section className="note-editor empty" aria-label="Note">
-        <EmptyState app="notes" label="No page open" title={notes.notebooks.some((n) => n.pages.length) ? 'No page open' : 'No pages yet'} line="Choose a page on the left, or start a new one." action={{ label: 'New note', run: () => newItemIn(notes, null, 'Notes') }} />
+        <EmptyState app="notes" label="No note open" title={notes.notebooks.some((n) => n.pages.length) ? 'No note open' : 'No notes yet'} line="Choose one on the left, or start a new one." action={{ label: 'New note', run: () => newItemIn(notes, null, 'Notes') }} />
         <EditorContent editor={editor} hidden />
       </section>
     );
@@ -859,7 +859,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       )}
       {notes.status === 'conflict' && (
         <div className="note-conflict" role="alert">
-          <span>The assistant changed this page while you were editing it.</span>
+          <span>Mobius changed this note while you were editing it.</span>
           <button type="button" className="btn" onClick={() => void notes.resolve(false)}>Use their version</button>
           <button type="button" className="btn primary" onClick={() => void notes.resolve(true)}>Keep mine</button>
         </div>
@@ -912,7 +912,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
           {linking !== null && !linkAt && linkForm}
           {meetingDone && (
             <div className="note-clip note-meeting" role="status">
-              <span>The meeting is in this page.</span>
+              <span>The meeting is in this note.</span>
               {onAsk && <button type="button" className="btn primary" onClick={() => { onAsk(meetingAsk(meetingDone.title, meetingDone.path)); setMeetingDone(null); }}>Summarise and make tasks</button>}
               <button type="button" className="btn" onClick={() => setMeetingDone(null)}>Done</button>
             </div>
@@ -925,9 +925,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       {review && !kept && !history && !showingChanges && !working && (
         <div ref={reviewBar} className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />
-          <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this page in its last turn."}<WhyThis conversation={review.conversation} /></span>
+          <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this note in its last turn."}<WhyThis conversation={review.conversation} /></span>
           <button type="button" className="review-btn" aria-pressed={diff !== null} onClick={() => (diff ? setDiff(null) : void showChanges())}>{diff ? 'Back to editing' : 'Show changes'}</button>
-          <ReviewActions onKeep={async () => { await settleKept(reviewBar.current); await keepChanges(); }} onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.note-paper'); await settleGone(paper); await undoChanges(); settleIn(paper); }} discardTitle="Put this page back as it was before that turn" keepTitle="Keep what Mobius changed on this page in that turn" />
+          <ReviewActions onKeep={async () => { await settleKept(reviewBar.current); await keepChanges(); }} onDiscard={async () => { const paper = reviewBar.current?.parentElement?.querySelector('.note-paper'); await settleGone(paper); await undoChanges(); settleIn(paper); }} discardTitle="Put this note back as it was before that turn" keepTitle="Keep what Mobius changed in this note in that turn" />
           {reviewProblem && <span className="review-problem" role="alert">{reviewProblem}</span>}
         </div>
       )}

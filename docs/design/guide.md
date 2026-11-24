@@ -46,10 +46,10 @@ Checked 24 November 2026; pull requests not merged yet are marked (open).
 | Mail | Yes | #772 | Threads, attachment chips, Done and Later on hover (review B4 to B8) |
 | Music | Yes | #782 | Engine parity work, not look |
 | Browser | Yes | #783 | Nothing for the look |
-| Settings | Yes | #786, #863, #873, #872 | The five additions Andrew picked; the Accounts page and Back and Forward follow [their spec](settings-accounts.md) |
+| Settings | Yes | #786, #863, #873, #872, #875, #877 | Nothing for the look; the Accounts page and Back and Forward follow [their spec](settings-accounts.md) |
 | Calendar | Yes | #798, #800, #862 | Autosave on the docked event page |
 | Tasks | Yes | #801 | Part B: When and Deadline, Things-style views |
-| Notes | Yes | #804, #862 | Nothing for the look |
+| Notes | Yes | #804, #862, this pull request | The additions Andrew picks (History and Outline as panels, Undo for Restored) |
 | Docs | Yes | #809, #862 | Part B: Editing, Suggesting and Viewing; comment on a selection; Page setup |
 | Files | Yes | #865 | Screens from a PC check |
 | Messages | Spec written | [Its spec](messages.md) | The app work |
