@@ -89,10 +89,10 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 
 | Live does | Music today | Gap | Size |
 | --- | --- | --- | --- |
-| About 40 audio effects | 11 built-in in the engine (EQ, compressor, delay, reverb, gate, limiter, saturator, auto filter, chorus, phaser, stack), plus Workbench; the chorus as Live 12's Chorus-Ensemble (29.8) in Chorus and Vibrato `mode`, with `highpass` (Hz), `feedback` (0..0.95) and `invert`; the window lists the first five | The window's six new effects and the chorus's new settings; Chorus-Ensemble's Ensemble mode, width and warmth; flanger, multiband, utility, beat repeat, vocoder, shifter | M each |
+| About 40 audio effects | 12 built-in in the engine (EQ, compressor, delay, reverb, gate, limiter, saturator, auto filter, chorus, phaser, stack, Beat Repeat), plus Workbench; the chorus as Live 12's Chorus-Ensemble (29.8) in Chorus and Vibrato `mode`, with `highpass` (Hz), `feedback` (0..0.95) and `invert`; the window lists the first five. Beat Repeat (29.5 "Beat Repeat"): `{ kind: "beatrepeat", interval, offset, gate, grid (sixteenths), chance, decay (0..1), volume (dB), mix: "mix" \| "insert" \| "gate" }`, on the song's beat; chance, decay and volume automate | The window's seven new effects and the chorus's new settings; Chorus-Ensemble's Ensemble mode, width and warmth; Beat Repeat's variation, pitch and filter; flanger, multiband, utility, vocoder, shifter | M each |
 | Sidechain on compressor and gate | Compressor and gate: in the engine, an effect's `sidechain: { track, gain?, mix? }` (dB, 0..1) keys it by that track after its volume and effects; `sidechain.eq: { type, freq, q?, gain?, on? }` has only that band trigger it, with or without a track | Sidechain input and EQ in the window | M |
 | LFO, envelope follower, shaper on any parameter | LFOs inside Workbench devices; in the engine, a track's `mods` (LFO, shaper and envelope follower) on its volume, pan, sends and effect settings; a shaper draws one round as `points: [{ beat (0..1), value (-1..1), curve? }]`, up to 64, going round from the last to the first | Modulators on any setting | L |
-| Automation of every parameter, clip envelopes | In the engine: Arrangement automation of volume, pan, sends, Main and effect settings (curves, overrides); clip envelopes of volume, pan, sends and effect settings (`fx:<effect id>:<setting>`, the setting itself while the clip plays, over its automation); unlinked envelopes (`unlinked: { <name>: { start, end } }`, each round its own loop from the clip's start) | Transposition (needs an audio clip's own transpose first) | M |
+| Automation of every parameter, clip envelopes | In the engine: Arrangement automation of volume, pan, sends, Main and effect settings (curves, overrides); clip envelopes of volume, pan, sends, effect settings (`fx:<effect id>:<setting>`, the setting itself while the clip plays, over its automation) and an audio clip's transposition (`transpose`, added to its own transpose, 27.2.2); unlinked envelopes (`unlinked: { <name>: { start, end } }`, each round its own loop from the clip's start) | The window: the Pitch control and the transposition envelope | M |
 | Effect racks, parallel chains, macros | In the engine: an effect `{ kind: "stack", chains: [{ fx, volume?, pan?, muted? }], macros: [{ value, maps: [{ target: "fx:<id>:<setting>", min, max }] }] }`, up to 16 chains and macros, automated as `fx:<stack id>:macro<N>`; no stack in a stack | The window | M |
 
 ### Mixing
@@ -112,7 +112,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | --- | --- | --- | --- |
 | Audio tracks and clips | The engine plays audio clips in Arrange and Session from WAV files in the song's folder, with a 4 ms declick fade | The window: audio tracks, clips and their waveforms | XL |
 | Recording audio from an input | The engine records the armed audio track's input while the song plays, to `Samples/Recorded/<track> <n>.wav` (32-bit float), taking off the round-trip latency; an armed audio track hears its input (Auto monitoring, straight out at the track's volume and pan) | Monitoring through the track's effects; the window's record button and take clips | XL (engine) |
-| Warping: stretch to tempo, warp markers, modes | The engine warps clips by the file's tempo or its warp markers: Re-Pitch like a turntable, the other modes keeping pitch with a granular stretcher (Beats on a sixteenth-note grid, Tones short grains, Texture long ones) | Beats' transient detection, Texture's Flux, and a phase-vocoder Complex and Complex Pro for full mixes | L |
+| Warping: stretch to tempo, warp markers, modes | The engine warps clips by the file's tempo or its warp markers: Re-Pitch like a turntable, the other modes keeping pitch with a granular stretcher (Beats on a sixteenth-note grid, Tones short grains, Texture long ones), transposed by the clip's own transpose in semitones and cents (8.4.7) | Beats' transient detection, Texture's Flux, and a phase-vocoder Complex and Complex Pro for full mixes | L |
 | Stem separation, audio to MIDI | None | Later, local models | L |
 | Export stems, MP3 and FLAC | WAV of the whole song; stems in the engine: each heard track, return and Main post-fader, the same length, silent tracks left out (Live 12 manual, 5.1.3.1 "Selection Options") | The window's stems option; MP3 and FLAC; "Include Return and Main Effects" | S |
 
@@ -341,9 +341,10 @@ interface Return { id: string; name: string; volume: number; fx: Effect[] }
 - Session's `Clip` keeps its shape (`name`, `bars`, `notes`). Dragging a Session clip into Arrange makes an
   `ArrangeClip` with the same notes.
 - Audio (phase 3): a track with `kind: "audio"` (and `input?`, the input channel it records) has clips with
-  `audio?: { file; gainDb?; offset?; warp?; mode?; bpm?; markers?: { sample, beat }[] }` in place of `notes`. `file`
+  `audio?: { file; gainDb?; transpose?; offset?; warp?; mode?; bpm?; markers?: { sample, beat }[] }` in place of `notes`. `file`
   is relative to the song's folder (recordings go in `Samples/Recorded`); `offset` is seconds into the file at the
   clip's first beat. Unwarped, a clip plays at its file's own speed; warped, `markers` (or else `bpm`) pin its beats.
+  `transpose` is semitones (hundredths as cents, -48 to 48, 8.4.7), heard only when warped in a mode that keeps pitch.
   The window sends the song's page with `music.load` so the engine reads the files.
 - Mobius writes clips too: its guide (`docs/agent/music.md`) changes in the same pull request as the format, with one
   Launch run on the PC before it merges.

@@ -395,8 +395,9 @@ pub struct SlotClip {
     #[serde(default)]
     pub audio: Option<Audio>,
     /// Its clip envelopes (Live 12 manual, 27), in the clip's own beats: `"volume"` (0 to 1, a share of the track's
-    /// volume), `"pan"` (-1 to 1, added to the track's pan), `"send:<return id>"` (0 to 1, a share of the send) and
-    /// `"fx:<effect id>:<setting>"` (the setting itself, in its own units, while the clip plays).
+    /// volume), `"pan"` (-1 to 1, added to the track's pan), `"send:<return id>"` (0 to 1, a share of the send),
+    /// `"fx:<effect id>:<setting>"` (the setting itself, in its own units, while the clip plays) and, for an audio clip,
+    /// `"transpose"` (semitones added to its transpose, 27.2.2).
     #[serde(default)]
     pub envelopes: std::collections::BTreeMap<String, Vec<AutoPoint>>,
     /// Envelopes unlinked from the clip (27): each goes round its own loop, in beats from when the clip starts, and
@@ -423,8 +424,9 @@ pub struct Clip {
     #[serde(default)]
     pub audio: Option<Audio>,
     /// Its clip envelopes (Live 12 manual, 27), in the clip's own beats: `"volume"` (0 to 1, a share of the track's
-    /// volume), `"pan"` (-1 to 1, added to the track's pan), `"send:<return id>"` (0 to 1, a share of the send) and
-    /// `"fx:<effect id>:<setting>"` (the setting itself, in its own units, while the clip plays).
+    /// volume), `"pan"` (-1 to 1, added to the track's pan), `"send:<return id>"` (0 to 1, a share of the send),
+    /// `"fx:<effect id>:<setting>"` (the setting itself, in its own units, while the clip plays) and, for an audio clip,
+    /// `"transpose"` (semitones added to its transpose, 27.2.2).
     #[serde(default)]
     pub envelopes: std::collections::BTreeMap<String, Vec<AutoPoint>>,
     /// Envelopes unlinked from the clip (27): each goes round its own loop, in beats from when the clip starts, and
@@ -458,6 +460,10 @@ pub struct Audio {
     /// Warp markers: a sample frame of the file at a beat of the clip, in order.
     #[serde(default)]
     pub markers: Vec<WarpMarker>,
+    /// Its pitch in semitones, hundredths as cents (Live 12 manual, 8.4.7 "Clip Gain and Pitch"), -48 to 48. Only a
+    /// warped clip in a mode that keeps pitch is transposed: Re-Pitch deactivates it (9.3.4).
+    #[serde(default)]
+    pub transpose: f64,
 }
 
 /// A warp marker (ui/Waveform.tsx `WarpMarker`): the file's `sample` frame lands on the clip's `beat`.

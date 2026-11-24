@@ -284,6 +284,8 @@ fn run_mods(mods: &mut [Mod], sound: (&[f32], &[f32]), moving: Moving<'_>, clock
 /// settings themselves (by their place in the track's automated settings).
 #[derive(Default)]
 struct Envelopes {
+    /// An audio clip's transposition, in semitones added to its own (27.2.2).
+    transpose: Env,
     volume: Env,
     pan: Env,
     sends: Vec<Env>,
@@ -298,6 +300,14 @@ struct Env {
 }
 
 impl Env {
+    /// The envelope `name` of a clip's `env`, unlinked if `unlinked` names it.
+    fn of(env: &BTreeMap<String, Vec<AutoPoint>>, unlinked: &BTreeMap<String, crate::song::Span>, name: &str) -> Env {
+        Env {
+            points: crate::song::points_of(env, &[], name, &[]),
+            unlinked: unlinked.get(name).filter(|l| l.start.is_finite() && l.end.is_finite() && l.end > l.start).map(|l| (l.start, l.end)),
+        }
+    }
+
     fn is_empty(&self) -> bool {
         self.points.is_empty()
     }
@@ -316,12 +326,9 @@ impl Envelopes {
     /// The envelopes of a clip (`env`, and those of them `unlinked`) that move a track with these `sends` and these
     /// automated effect `settings`; None when there are none.
     fn of(env: &BTreeMap<String, Vec<AutoPoint>>, unlinked: &BTreeMap<String, crate::song::Span>, sends: &[Send], settings: &[Move]) -> Option<Envelopes> {
-        let one = |name: &str| Env {
-            points: crate::song::points_of(env, &[], name, &[]),
-            unlinked: unlinked.get(name).filter(|l| l.start.is_finite() && l.end.is_finite() && l.end > l.start).map(|l| (l.start, l.end)),
-        };
-        let e = Envelopes { volume: one("volume"), pan: one("pan"), sends: sends.iter().map(|s| one(&s.name)).collect(), settings: settings.iter().map(|m| one(&m.name)).collect() };
-        (!e.volume.is_empty() || !e.pan.is_empty() || e.sends.iter().any(|p| !p.is_empty()) || e.settings.iter().any(|p| !p.is_empty())).then_some(e)
+        let one = |name: &str| Env::of(env, unlinked, name);
+        let e = Envelopes { transpose: one("transpose"), volume: one("volume"), pan: one("pan"), sends: sends.iter().map(|s| one(&s.name)).collect(), settings: settings.iter().map(|m| one(&m.name)).collect() };
+        (!e.transpose.is_empty() || !e.volume.is_empty() || !e.pan.is_empty() || e.sends.iter().any(|p| !p.is_empty()) || e.settings.iter().any(|p| !p.is_empty())).then_some(e)
     }
 }
 
@@ -393,6 +400,8 @@ struct AudioClip {
     stretch: Stretch,
     /// Whether it fades in and out (a clip does; a frozen track's file, which starts and ends with the song, does not).
     fades: bool,
+    /// Its transposition envelope (27.2.2), in semitones added to its own.
+    transpose: Env,
 }
 
 impl AudioClip {
@@ -948,9 +957,10 @@ impl Renderer {
                     length: f64::INFINITY,
                     offset: 0.0,
                     cycle: None,
-                    placed: Placed::new(&crate::song::Audio { file: String::new(), gain_db: 0.0, offset: 0.0, warp: false, mode: None, bpm: None, markers: Vec::new() }, sound.clone(), song.tempo),
+                    placed: Placed::new(&crate::song::Audio { file: String::new(), gain_db: 0.0, offset: 0.0, warp: false, mode: None, bpm: None, transpose: 0.0, markers: Vec::new() }, sound.clone(), song.tempo),
                     stretch: Stretch::default(),
                     fades: false,
+                    transpose: Env::default(),
                 });
                 let is_frozen = frozen.is_some();
                 if is_frozen {
@@ -975,6 +985,7 @@ impl Renderer {
                                 placed: placed(song, Song::is_audio(t), c.audio.as_ref())?,
                                 stretch: Stretch::default(),
                                 fades: true,
+                                transpose: Env::of(&c.envelopes, &c.unlinked, "transpose"),
                             })
                         })
                         .collect()
@@ -1410,20 +1421,25 @@ impl Renderer {
             }
             lane.stacked.retain(|(v, _, _)| !v.done());
             // Audio clips, sample by sample at the file's frame for each beat.
-            let slot_audio = clip.and_then(|(length, _, start, audio, _)| Some((length, start, audio?)));
+            let slot_audio = clip.and_then(|(length, _, start, audio, slot)| Some((length, start, audio?, slot)));
             if !lane.audio.is_empty() || slot_audio.is_some() {
+                // A Session clip's transposition envelope, as it goes round.
+                let slot_transpose = slot_audio.and_then(|(_, _, _, slot)| lane.slot_envs.get(slot)?.as_ref()).map(|e| &e.transpose).filter(|e| !e.is_empty());
                 for i in 0..frames {
                     let beat = clock.beat(from + i as u64);
                     for c in &mut lane.audio {
                         if let Some((own, fade)) = c.own_beat(beat, spb) {
-                            let (l, r) = c.placed.at(own, &mut c.stretch);
+                            let more = if c.transpose.is_empty() { 0.0 } else { c.transpose.at(own, beat - c.start) };
+                            let (l, r) = c.placed.at_transposed(own, &mut c.stretch, more);
                             scratch[i] += l * fade;
                             right_scratch[i] += r * fade;
                         }
                     }
-                    if let Some((length, start, placed)) = slot_audio {
+                    if let Some((length, start, placed, _)) = slot_audio {
                         if beat >= start {
-                            let (l, r) = placed.at((beat - start).rem_euclid(length), &mut lane.slot_stretch);
+                            let own = (beat - start).rem_euclid(length);
+                            let more = slot_transpose.map_or(0.0, |e| e.at(own, beat - start));
+                            let (l, r) = placed.at_transposed(own, &mut lane.slot_stretch, more);
                             scratch[i] += l;
                             right_scratch[i] += r;
                         }
@@ -1479,6 +1495,7 @@ impl Renderer {
         for ret in returns.iter_mut() {
             let (rl, rr) = (&mut ret.left[..frames], &mut ret.right[..frames]);
             if let Some(chain) = &mut ret.chain {
+                chain.set_clock(clock.beat(from), clock.beat(from + 1) - clock.beat(from));
                 chain.process_keyed(rl, rr, rate, &key_slices(&self.keys, &ret.key_from, frames));
             }
             for i in 0..frames {
@@ -1582,11 +1599,13 @@ fn fx_moves<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Ite
 /// devices take their settings, as Web Audio's do).
 #[allow(clippy::too_many_arguments)]
 fn run_chain(chain: &mut Chain, autos: &[Move], mods: &[Mod], left: &mut [f32], right: &mut [f32], rate: f64, beat_of: impl Fn(usize) -> f64, keys: &Keys<'_>, clip: impl Fn(usize, f64) -> Option<f64>) {
+    let n = left.len().min(right.len());
+    let per = if n > 1 { beat_of(1) - beat_of(0) } else { 0.0 };
     if autos.is_empty() {
+        chain.set_clock(beat_of(0), per);
         chain.process_keyed(left, right, rate, &keys.0[..keys.1]);
         return;
     }
-    let n = left.len().min(right.len());
     let mut done = 0;
     while done < n {
         let m = (n - done).min(QUANTUM);
@@ -1601,6 +1620,7 @@ fn run_chain(chain: &mut Chain, autos: &[Move], mods: &[Mod], left: &mut [f32], 
         for (to, key) in piece.iter_mut().zip(&keys.0[..keys.1]) {
             *to = key.get(done..done + m).unwrap_or(&[]);
         }
+        chain.set_clock(beat_of(done), per);
         chain.process_keyed(&mut left[done..done + m], &mut right[done..done + m], rate, &piece[..keys.1]);
         done += m;
     }
@@ -2269,6 +2289,63 @@ mod tests {
         let (mut left, mut right) = (vec![0f32; 512], vec![0f32; 512]);
         r.render(&mut left, &mut right);
         assert!((left[0] - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn beat_repeat_repeats_a_grid_on_the_beat_for_its_gate_by_chance() {
+        // A rising line, a second long, from beat 0; at 120 a sixteenth is 6000 samples.
+        let line: Vec<f32> = (0..48_000).map(|i| i as f32 / 48_000.0).collect();
+        let play = |fx: &str| {
+            let mut song = Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":1,"main":{{"volume":1}},"tracks":[{{"id":"v","kind":"audio","fx":[{{"id":"r","kind":"beatrepeat",{fx}}}],"clips":[{{"start":0,"length":2,"audio":{{"file":"line.wav"}}}}]}}]}}"#)).unwrap();
+            song.sounds.insert("line.wav".into(), std::sync::Arc::new(crate::wav::Sound { rate: 48_000.0, left: line.clone(), right: line.clone() }));
+            render_song(&song, 48_000).0
+        };
+        // Every beat, the first sixteenth over and over for the beat, in place of what comes in.
+        let out = play(r#""interval":4,"grid":1,"gate":4,"mix":"insert""#);
+        assert!((out[3_000] - 0.0625).abs() < 1e-3, "{}", out[3_000]);
+        for repeat in 1..4 {
+            assert!((out[repeat * 6_000 + 3_000] - 0.0625).abs() < 1e-3, "repeat {repeat}: {}", out[repeat * 6_000 + 3_000]);
+        }
+        // The next beat takes its own first sixteenth.
+        assert!((out[24_000 + 6_000 + 3_000] - 0.5625).abs() < 1e-3, "{}", out[33_000]);
+        // Decay makes each repeat quieter than the one before; volume sets them all (dB).
+        let out = play(r#""interval":4,"grid":1,"gate":4,"mix":"insert","decay":0.5,"volume":-6.0206"#);
+        assert!((out[6_000 + 3_000] - 0.03125).abs() < 1e-3 && (out[12_000 + 3_000] - 0.015_625).abs() < 1e-3, "{} {}", out[9_000], out[15_000]);
+        // Mix adds the repeats to what comes in; Gate plays only the repeats.
+        let out = play(r#""interval":4,"grid":1,"gate":2,"mix":"mix""#);
+        assert!((out[9_000] - (0.1875 + 0.0625)).abs() < 1e-3, "{}", out[9_000]);
+        assert!((out[15_000] - 0.3125).abs() < 1e-3, "after the gate, only what comes in: {}", out[15_000]);
+        let out = play(r#""interval":4,"grid":1,"gate":2,"mix":"gate""#);
+        assert!(out[3_000].abs() < 1e-6 && (out[9_000] - 0.0625).abs() < 1e-3 && out[15_000].abs() < 1e-6);
+        // With no chance it never repeats; an offset starts it that many sixteenths into the interval.
+        let out = play(r#""interval":4,"grid":1,"gate":4,"mix":"insert","chance":0"#);
+        assert!((out[9_000] - 0.1875).abs() < 1e-3);
+        let out = play(r#""interval":4,"offset":2,"grid":1,"gate":2,"mix":"insert""#);
+        assert!((out[9_000] - 0.1875).abs() < 1e-3 && (out[12_000 + 6_000 + 3_000] - 0.3125).abs() < 1e-3, "{} {}", out[9_000], out[21_000]);
+    }
+
+    #[test]
+    fn an_audio_clips_transpose_and_its_transposition_envelope_add_up_and_keep_its_timing() {
+        // Two seconds of a 220 Hz sine, warped at the song's tempo in Complex, from beat 0 for four beats.
+        let tone: Vec<f32> = (0..96_000).map(|i| (std::f64::consts::TAU * 220.0 * f64::from(i) / 48_000.0).sin() as f32 * 0.5).collect();
+        let pitch = |clip: &str| {
+            let mut song = audio_song(clip, "");
+            song.sounds.insert("tone.wav".into(), std::sync::Arc::new(crate::wav::Sound { rate: 48_000.0, left: tone.clone(), right: tone.clone() }));
+            let (left, _) = render_song(&song, 48_000);
+            // Rising zero crossings over half a second in the middle of the clip.
+            let rising = left[36_000..60_000].windows(2).filter(|w| w[0] < 0.0 && w[1] >= 0.0).count();
+            (rising as f64 * 2.0, left[95_000].abs() > 0.0 || left[90_000].abs() > 0.0)
+        };
+        let clip = |transpose: f64, envelope: &str| format!(r#"{{"start":0,"length":4,"audio":{{"file":"tone.wav","warp":true,"mode":"complex","bpm":120,"transpose":{transpose}}}{envelope}}}"#);
+        let (plain, _) = pitch(&clip(0.0, ""));
+        assert!((plain - 220.0).abs() < 6.0, "{plain}");
+        // Its own transpose: a fifth down.
+        let (fifth, still_playing) = pitch(&clip(-7.0, ""));
+        assert!((fifth - 220.0 * 2f64.powf(-7.0 / 12.0)).abs() < 6.0, "{fifth}");
+        assert!(still_playing, "the clip still plays to its end");
+        // The envelope adds to it: -7 and +19 is an octave up.
+        let (octave, _) = pitch(&clip(-7.0, r#","envelopes":{"transpose":[{"beat":0,"value":19}]}"#));
+        assert!((octave - 440.0).abs() < 8.0, "{octave}");
     }
 
     #[test]

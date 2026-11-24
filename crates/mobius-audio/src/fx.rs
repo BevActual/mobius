@@ -15,6 +15,8 @@ use std::f64::consts::{PI, TAU};
 pub const QUANTUM: usize = 128;
 /// The longest a delay holds sound back, in seconds (as `createDelay(4)`).
 const MAX_DELAY: f64 = 4.0;
+/// The longest grid Beat Repeat keeps, in samples (16 s at 48 kHz).
+const MAX_REPEAT: usize = 768_000;
 /// A device's sound passes this ceiling on its way out (studio-audio.ts `softLimit`): unchanged up to 0.8, then
 /// bending toward 0.95. Louder than 1 takes the curve's end, as a wave shaper does.
 fn soft_limit(v: f64) -> f64 {
@@ -458,6 +460,8 @@ enum Kind {
     Reverb(Box<[Convolver; 2]>),
     Pan { stereo_in: bool },
     Mix { amount: f64 },
+    /// Beat Repeat (Live 12 manual, 29.5); its chance, decay and volume rest in `rest`.
+    Repeat(Box<Repeat>),
 }
 
 /// Where a cable goes: a part's sound in (its first or second input), or one of its settings.
@@ -465,6 +469,83 @@ enum Kind {
 enum End {
     Port(usize),
     Param(usize),
+}
+
+/// How Beat Repeat's repeats meet what comes in (29.5 "Mix"): added to it, in its place while they play, or alone.
+#[derive(Clone, Copy, PartialEq)]
+enum RepeatMix {
+    Mix,
+    Insert,
+    Gate,
+}
+
+/// Beat Repeat (Live 12 manual, 29.5): every `interval` sixteenths, `offset` sixteenths in, with a chance, it takes a
+/// `grid` of what comes in and plays it over and over for `gate` sixteenths, each time a little quieter by its decay.
+struct Repeat {
+    interval: f64,
+    offset: f64,
+    gate: f64,
+    grid: f64,
+    mix: RepeatMix,
+    seed: u32,
+    /// The grid it took, left and right.
+    buffer: Vec<(f32, f32)>,
+    /// The interval it last heard, so it starts at most once in each.
+    round: i64,
+    /// While it repeats: samples since it started, the grid's and the gate's length in samples.
+    playing: Option<(usize, usize, usize)>,
+}
+
+/// Beat Repeat's fade at each repeat's ends and its gate's end, in samples (2 ms at 48 kHz), so it never clicks.
+const REPEAT_FADE: usize = 96;
+
+impl Repeat {
+    /// What it sends on for one sample, `x` coming in at sixteenth `at` (None when the song isn't playing), with
+    /// `per` sixteenths a sample, and its chance, decay and volume.
+    fn process(&mut self, x: (f32, f32), at: Option<(f64, f64)>, settings: [f64; 3]) -> (f32, f32) {
+        let [chance, decay, volume] = settings;
+        let Some((at, per)) = at.filter(|(a, p)| a.is_finite() && *p > 0.0) else {
+            self.playing = None;
+            self.round = i64::MIN;
+            return if self.mix == RepeatMix::Gate { (0.0, 0.0) } else { x };
+        };
+        let since = at - self.offset;
+        let round = (since / self.interval).floor() as i64;
+        if round != self.round {
+            self.round = round;
+            // Only at the start of an interval (not when the song is started or moved to the middle of one).
+            let into = since - round as f64 * self.interval;
+            self.seed ^= self.seed << 13;
+            self.seed ^= self.seed >> 17;
+            self.seed ^= self.seed << 5;
+            let roll = f64::from(self.seed) / f64::from(u32::MAX);
+            if into < 2.0 * per && roll < chance {
+                let grid = ((self.grid / per).round() as usize).clamp(1, self.buffer.len());
+                let gate = ((self.gate / per).round() as usize).max(1);
+                self.playing = Some((0, grid, gate));
+            }
+        }
+        let Some((e, grid, gate)) = self.playing else {
+            return if self.mix == RepeatMix::Gate { (0.0, 0.0) } else { x };
+        };
+        let (r, i) = (e / grid, e % grid);
+        if r == 0 {
+            self.buffer[i] = x;
+        }
+        self.playing = (e + 1 < gate).then_some((e + 1, grid, gate));
+        if r == 0 {
+            return if self.mix == RepeatMix::Gate { (0.0, 0.0) } else { x };
+        }
+        let fade = REPEAT_FADE.min(grid / 4).max(1) as f64;
+        let edge = (i as f64 / fade).min((grid - i) as f64 / fade).min((gate - e) as f64 / fade).min(1.0);
+        let level = (volume * (1.0 - decay.clamp(0.0, 1.0)).powi(r as i32 - 1) * edge) as f32;
+        let (a, b) = self.buffer[i];
+        let (a, b) = (a * level, b * level);
+        match self.mix {
+            RepeatMix::Mix => (x.0 + a, x.1 + b),
+            RepeatMix::Insert | RepeatMix::Gate => (a, b),
+        }
+    }
 }
 
 struct Part {
@@ -605,6 +686,20 @@ impl Device {
                     Kind::Pan { stereo_in: false }
                 }
                 "mix" => Kind::Mix { amount: num(p, "amount", 0.25) },
+                "repeat" => {
+                    rest = [num(p, "chance", 1.0).clamp(0.0, 1.0), num(p, "decay", 0.0).clamp(0.0, 1.0), num(p, "volume", 1.0).clamp(0.0, 4.0)];
+                    let mix = match p.get("mix").and_then(Value::as_str) {
+                        Some("insert") => RepeatMix::Insert,
+                        Some("gate") => RepeatMix::Gate,
+                        _ => RepeatMix::Mix,
+                    };
+                    let interval = num(p, "interval", 16.0).clamp(0.5, 64.0);
+                    let grid = num(p, "grid", 2.0).clamp(0.5, 16.0);
+                    // Room for its longest grid at half the song's tempo.
+                    let room = (grid / 4.0 * seconds_per_beat * rate * 2.0).ceil() as usize + 1;
+                    *seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    Kind::Repeat(Box::new(Repeat { interval, offset: num(p, "offset", 0.0).clamp(0.0, interval), gate: num(p, "gate", 8.0).clamp(0.5, 64.0), grid, mix, seed: *seed | 1, buffer: vec![(0.0, 0.0); room.min(MAX_REPEAT)], round: i64::MIN, playing: None }))
+                }
                 _ => return None,
             };
             ids.push(id);
@@ -709,7 +804,8 @@ impl Device {
 
     /// Runs `l` and `r` (at most `QUANTUM` long) through the device, in place.
     /// `key` is the keying track's level, sample by sample (empty when it isn't keyed).
-    fn process(&mut self, l: &mut [f32], r: &mut [f32], rate: f64, key: &[f32]) {
+    /// `clock` is the beat at its first sample and the beats a sample, while the song plays.
+    fn process(&mut self, l: &mut [f32], r: &mut [f32], rate: f64, key: &[f32], clock: Option<(f64, f64)>) {
         let n = l.len().min(r.len()).min(QUANTUM);
         let input = self.input;
         self.parts[input].out[0][..n].copy_from_slice(&l[..n]);
@@ -726,7 +822,7 @@ impl Device {
             } else {
                 self.gather(p, n);
             }
-            self.run(p, n, rate, feedback_delay, key);
+            self.run(p, n, rate, feedback_delay, key, clock);
         }
         // Feedback delays take what has come in now that the piece is made.
         for step in 0..self.order.len() {
@@ -827,7 +923,7 @@ impl Device {
         }
     }
 
-    fn run(&mut self, p: usize, n: usize, rate: f64, feedback_delay: bool, key: &[f32]) {
+    fn run(&mut self, p: usize, n: usize, rate: f64, feedback_delay: bool, key: &[f32], clock: Option<(f64, f64)>) {
         let part = &mut self.parts[p];
         let Part { kind, ins, out, moved, has_cable, rest, .. } = part;
         let param = |k: usize, i: usize| if has_cable[k] { f64::from(moved[k][i]) } else { rest[k] };
@@ -942,6 +1038,15 @@ impl Device {
                     let (a, b) = pan(f64::from(ins[0][0][i]), f64::from(ins[0][1][i]), param(0, i), *stereo_in);
                     out[0][i] = a as f32;
                     out[1][i] = b as f32;
+                }
+            }
+            Kind::Repeat(repeat) => {
+                for i in 0..n {
+                    // In sixteenths.
+                    let at = clock.map(|(beat, per)| ((beat + i as f64 * per) * 4.0, per * 4.0));
+                    let (a, b) = repeat.process((ins[0][0][i], ins[0][1][i]), at, [param(0, i), param(1, i), param(2, i)]);
+                    out[0][i] = a;
+                    out[1][i] = b;
                 }
             }
             Kind::Mix { amount } => {
@@ -1088,6 +1193,15 @@ fn builtin(e: &Value) -> Option<Value> {
                 vec![["in", "mix.dry"], ["in", "a1"], ["a1", "a2"], ["a2", "a3"], ["a3", "a4"], ["a4", "mix.wet"], ["lfo", "a1.cutoff"], ["lfo", "a2.cutoff"], ["lfo", "a3.cutoff"], ["lfo", "a4.cutoff"], ["mix", "out"]],
             )
         }
+        // Live 12's Beat Repeat (29.5): interval, offset, gate and grid in sixteenths; chance and decay 0 to 1; volume in dB.
+        "beatrepeat" => (
+            vec![
+                part("in", "input", serde_json::json!({})),
+                part("repeat", "repeat", serde_json::json!({ "interval": n("interval", 16.0), "offset": n("offset", 0.0), "chance": n("chance", 1.0), "gate": n("gate", 8.0), "grid": n("grid", 2.0), "decay": n("decay", 0.0), "volume": 10f64.powf(n("volume", 0.0) / 20.0), "mix": e.get("mix").and_then(Value::as_str).unwrap_or("mix") })),
+                part("out", "output", serde_json::json!({})),
+            ],
+            vec![["in", "repeat"], ["repeat", "out"]],
+        ),
         _ => return None,
     };
     Some(serde_json::json!({ "parts": parts, "cables": cables }))
@@ -1102,6 +1216,8 @@ pub struct Chain {
     /// Its stacks, and the order its devices and stacks run in.
     stacks: Vec<Stack>,
     order: Vec<Unit>,
+    /// While the song plays, the beat at the next block's first sample and the beats a sample ([`Chain::set_clock`]).
+    clock: Option<(f64, f64)>,
 }
 
 /// A device or a stack of a chain, by its place in the chain's list of them.
@@ -1199,7 +1315,7 @@ impl Stack {
     }
 
     /// Runs `l` and `r` (at most `QUANTUM` long) through each chain and adds them up, in place.
-    fn process(&mut self, l: &mut [f32], r: &mut [f32], rate: f64) {
+    fn process(&mut self, l: &mut [f32], r: &mut [f32], rate: f64, clock: Option<(f64, f64)>) {
         let n = l.len().min(r.len()).min(QUANTUM);
         let Stack { chains, dry, wet, sum, .. } = self;
         dry[0][..n].copy_from_slice(&l[..n]);
@@ -1211,6 +1327,7 @@ impl Stack {
             wl[..n].copy_from_slice(&dry[0][..n]);
             wr[..n].copy_from_slice(&dry[1][..n]);
             if let Some(chain) = &mut c.chain {
+                chain.clock = clock;
                 chain.process(&mut wl[..n], &mut wr[..n], rate);
             }
             for i in 0..n {
@@ -1301,7 +1418,7 @@ impl Chain {
                 devices.push(d);
             }
         }
-        (!order.is_empty()).then_some(Chain { devices, stereo_out: stereo, sources, stacks, order })
+        (!order.is_empty()).then_some(Chain { devices, stereo_out: stereo, sources, stacks, order, clock: None })
     }
 
     /// Whether what comes out has two channels (so the track's pan moves it as a stereo sound).
@@ -1343,6 +1460,13 @@ impl Chain {
         &self.sources
     }
 
+    /// Tells it, before the next block, the beat at that block's first sample and how many beats a sample moves, so
+    /// effects that follow the beat (Beat Repeat) do. Only for that block: one with no clock is one where the song
+    /// isn't playing.
+    pub fn set_clock(&mut self, beat: f64, beats_per_sample: f64) {
+        self.clock = (beat.is_finite() && beats_per_sample.is_finite() && beats_per_sample > 0.0).then_some((beat, beats_per_sample));
+    }
+
     /// Runs a block through every effect, in place.
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32], rate: f64) {
         self.process_keyed(left, right, rate, &[]);
@@ -1353,9 +1477,11 @@ impl Chain {
     pub fn process_keyed(&mut self, left: &mut [f32], right: &mut [f32], rate: f64, keys: &[&[f32]]) {
         const SILENT: [f32; QUANTUM] = [0.0; QUANTUM];
         let n = left.len().min(right.len());
+        let clock = self.clock.take();
         let mut done = 0;
         while done < n {
             let m = (n - done).min(QUANTUM);
+            let at = clock.map(|(beat, per)| (beat + done as f64 * per, per));
             for &unit in &self.order {
                 let (l, r) = (&mut left[done..done + m], &mut right[done..done + m]);
                 match unit {
@@ -1365,9 +1491,9 @@ impl Chain {
                             Some(k) => keys.get(k).and_then(|k| k.get(done..done + m)).unwrap_or(&SILENT[..m]),
                             None => &[],
                         };
-                        d.process(l, r, rate, key);
+                        d.process(l, r, rate, key, at);
                     }
-                    Unit::Stack(i) => self.stacks[i].process(l, r, rate),
+                    Unit::Stack(i) => self.stacks[i].process(l, r, rate, at),
                 }
             }
             done += m;
@@ -1449,6 +1575,8 @@ impl Chain {
                 ("autofilter", "resonance") => ("f", "resonance", Scale::Same),
                 ("autofilter" | "chorus" | "phaser", "rate") => ("lfo", "rate", Scale::Same),
                 ("autofilter" | "chorus" | "phaser", "depth") => ("lfo", "depth", Scale::Same),
+                ("beatrepeat", "chance" | "decay") => ("repeat", setting, Scale::Same),
+                ("beatrepeat", "volume") => ("repeat", "volume", Scale::Db),
                 _ => return None,
             },
         };
@@ -1459,6 +1587,9 @@ impl Chain {
             (Kind::Filter { .. }, "gain") => Slot::Rest(2),
             (Kind::Drive { .. } | Kind::Mix { .. }, "amount") => Slot::Amount,
             (Kind::Lfo { .. }, "rate") => Slot::Rate,
+            (Kind::Repeat(_), "chance") => Slot::Rest(0),
+            (Kind::Repeat(_), "decay") => Slot::Rest(1),
+            (Kind::Repeat(_), "volume") => Slot::Rest(2),
             _ => return None,
         };
         let scale = if matches!(self.devices[device].parts[part].kind, Kind::Delay { .. }) { Scale::Beats(seconds_per_beat) } else { scale };
@@ -1581,6 +1712,25 @@ mod tests {
         let out = run_fx(&hp, &steady);
         assert!(out[40_000].abs() < 1e-3, "{}", out[40_000]);
         assert!((run_fx(&still("vibrato"), &steady)[40_000] - 0.5).abs() < 1e-3);
+    }
+
+    #[test]
+    fn beat_repeat_passes_its_input_while_the_song_is_stopped_and_moves_its_chance_decay_and_volume() {
+        let fx = [json!({ "id": "r", "kind": "beatrepeat", "interval": 4, "grid": 1, "gate": 4 })];
+        let mut chain = Chain::new(&fx, RATE, 0.5, false).unwrap();
+        let (mut l, mut r) = (vec![0.25f32; 512], vec![0.5f32; 512]);
+        chain.process(&mut l, &mut r, f64::from(RATE));
+        assert!(l.iter().all(|x| *x == 0.25) && r.iter().all(|x| *x == 0.5));
+        let gated = [json!({ "id": "r", "kind": "beatrepeat", "mix": "gate" })];
+        let mut chain = Chain::new(&gated, RATE, 0.5, false).unwrap();
+        chain.process(&mut l, &mut r, f64::from(RATE));
+        assert!(l.iter().chain(&r).all(|x| *x == 0.0));
+        for (setting, value) in [("chance", 0.25), ("decay", 0.5), ("volume", -6.0)] {
+            let aim = chain.aim(&gated, "r", setting, 0.5).unwrap();
+            chain.set(aim, value);
+            assert!((chain.get(aim) - value).abs() < 1e-9, "{setting}");
+        }
+        assert!(chain.aim(&gated, "r", "grid", 0.5).is_none());
     }
 
     /// A setting moved to `value` on a chain made with it at `base` sounds as a chain made with it at `value` does.
