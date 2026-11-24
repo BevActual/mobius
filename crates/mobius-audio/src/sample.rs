@@ -223,12 +223,17 @@ impl Placed {
         let half = grain / 2.0;
         let k = (beat / half).floor() as i64;
         if k != stretch.grain {
-            let at = |k: i64| self.frame(k as f64 * half);
+            // Where a grain starts reading: transposed, it reads faster or slower than the warp moves, so it starts
+            // that much earlier or later for its middle (where its window is loudest) to land where the warp puts it,
+            // and the clip's timing stays where it was.
+            let at = |k: i64, speed: f64| self.frame(k as f64 * half) - (speed - 1.0) * half * self.frames_per_beat;
             (stretch.starts, stretch.speeds) = if stretch.grain != i64::MIN && k == stretch.grain + 1 {
                 let (before, was) = (stretch.starts[1], stretch.speeds[1]);
-                ([before, self.line_up(before + half * self.frames_per_beat * was, at(k))], [was, speed])
+                // Transposed, it looks only 5 ms either way: further, a burst lines up with the wrong part of itself and moves.
+                let within = if (speed - 1.0).abs() > 1e-6 { 0.005 } else { 0.012 };
+                ([before, self.line_up(before + half * self.frames_per_beat * was, at(k, speed), within)], [was, speed])
             } else {
-                ([at(k - 1), at(k)], [speed; 2])
+                ([at(k - 1, speed), at(k, speed)], [speed; 2])
             };
             stretch.grain = k;
         }
@@ -244,12 +249,12 @@ impl Placed {
         (l, r)
     }
 
-    /// Where near `target` (within 12 ms) the file sounds most like it does at `carry_on`, where the grain before
+    /// Where near `target` (`within` seconds either way) the file sounds most like it does at `carry_on`, where the grain before
     /// would have gone on to: the best normalised match over 10 ms, compared every few frames.
-    fn line_up(&self, carry_on: f64, target: f64) -> f64 {
+    fn line_up(&self, carry_on: f64, target: f64, within: f64) -> f64 {
         let x = &self.sound.left;
         let rate = self.sound.rate;
-        let (reach, span) = ((0.012 * rate) as i64, (0.01 * rate) as usize);
+        let (reach, span) = ((within * rate) as i64, (0.01 * rate) as usize);
         let from = carry_on.floor();
         if from < 0.0 || from as usize + span >= x.len() {
             return target;
@@ -257,11 +262,12 @@ impl Placed {
         let from = from as usize;
         let mono = |i: usize| x[i] + self.sound.right[i];
         let centre = target.floor() as i64;
+        // Nearest the warp first, so a tie (silence, or a steady sound) stays where the warp puts it, and only a sound
+        // that carries on (a positive match) moves it.
         let (mut best, mut best_score) = (target, f32::NEG_INFINITY);
-        let mut lag = -reach;
-        while lag <= reach {
+        let lags = (0..=reach / 2).flat_map(|step| if step == 0 { vec![0] } else { vec![-2 * step, 2 * step] });
+        for lag in lags {
             let p = centre + lag;
-            lag += 2;
             if p < 0 || p as usize + span >= x.len() {
                 continue;
             }
@@ -423,6 +429,34 @@ mod tests {
         let s: Vec<f32> = (0..24_000).map(|i| p.at_transposed(i as f64 / 24_000.0, &mut st, 7.0).0).collect();
         assert!(cents(pitch(&s), 880.0) < 8.0, "{}", pitch(&s));
         assert!(Placed::new(&audio(r#"{"file":"a.wav","warp":true,"mode":"complex","transpose":90}"#), tone(), 120.0).transpose == MAX_TRANSPOSE);
+    }
+
+    #[test]
+    fn transposing_keeps_each_sound_where_it_was() {
+        // A 20 ms burst of 440 Hz every quarter second, at the song's tempo.
+        let rate = 48_000.0;
+        let left: Vec<f32> = (0..96_000).map(|n| if n % 12_000 < 960 { (0.5 * (std::f64::consts::TAU * 440.0 * f64::from(n) / rate).sin()) as f32 } else { 0.0 }).collect();
+        let bursts = Arc::new(Sound { rate, right: left.clone(), left });
+        // Where each burst's sound is centred, in ms from where it starts, from its energy.
+        let centres = |s: &[f32]| -> Vec<f64> {
+            // From 60 ms before each burst to 80 ms after it, so the next burst's sound never counts.
+            (1..7).map(|k| {
+                let from = k * 12_000 - 2_880;
+                let (sum, at) = s[from..from + 6_720].iter().enumerate().fold((0.0, 0.0), |(e, t), (i, x)| (e + f64::from(x * x), t + i as f64 * f64::from(x * x)));
+                at / sum / 48.0 - 60.0
+            }).collect()
+        };
+        for mode in ["beats", "tones", "texture", "complex"] {
+            let at = |transpose: f64| Placed::new(&audio(&format!(r#"{{"file":"a.wav","warp":true,"mode":"{mode}","bpm":120,"transpose":{transpose}}}"#)), bursts.clone(), 120.0);
+            let plain = centres(&play(&at(0.0), 1.75));
+            for transpose in [7.0, -7.0, 12.0] {
+                let moved = centres(&play(&at(transpose), 1.75));
+                // Each burst's 20 ms centred 10 ms in, as the file has it: within 5 ms when transposed (grains repeat or skip a little of it).
+                for (a, b) in plain.iter().zip(&moved) {
+                    assert!((a - 10.0).abs() < 0.5 && (b - 10.0).abs() < 5.0, "{mode} {transpose}: {plain:?} {moved:?}");
+                }
+            }
+        }
     }
 
     #[test]

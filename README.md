@@ -99,7 +99,7 @@ Mobius's own apps, always there.
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/agents-dark.png"><img src="docs/readme/apps/agents.png" alt="The Agents page in Mobius"></picture><br><b>Agents</b> · Named helpers with their own instructions, model and schedule.<br><sub>Hand off jobs you repeat, like a weekly summary, and see each run: finished, waiting for you, or failed.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/abilities-dark.png"><img src="docs/readme/apps/abilities.png" alt="Store in Mobius"></picture><br><b>Abilities</b> · The app library, plus connectors, skills and plugins.<br><sub>Start small and add apps and tools when you need them. Removing an app keeps its files.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/abilities-dark.png"><img src="docs/readme/apps/abilities.png" alt="Store in Mobius"></picture><br><b>Store</b> · The app library, plus connectors, skills and plugins.<br><sub>Start small and add apps and tools when you need them. Removing an app keeps its files.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/settings-dark.png"><img src="docs/readme/apps/settings.png" alt="The Settings app in Mobius"></picture><br><b>Settings</b> · Gateways, models, voice, approvals, privacy and more.<br><sub>Choose which AI does which job and how far Mobius may go on its own.</sub></td>
 </tr>
 </table>
@@ -214,8 +214,8 @@ missing features and changes between versions. It is not yet ready to be the onl
 - **Windows** is the first platform. A macOS build compiles in CI but isn't released yet.
 - **Releases** will appear on the [Releases page](https://github.com/BevActual/mobius/releases) as a Windows installer.
   The first, 0.1.0, is being prepared.
-- **Coming next:** making the current apps hold up in daily use before adding new ones, then a guided first run and
-  signed installers. See the [roadmap](docs/roadmap.md).
+- **Coming next:** the panel look across every app, Music at parity with Ableton Live on its own audio engine, and
+  fewer, fuller apps. See the [roadmap](docs/roadmap.md).
 
 Found a bug or have an idea? [Open an issue](https://github.com/BevActual/mobius/issues/new/choose).
 

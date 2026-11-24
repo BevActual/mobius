@@ -51,9 +51,9 @@ Mobius never sends mail itself. It writes drafts; you press Send.
 
 ## Messages
 
-Slack, Discord and Telegram in one place, with a catch-up when you come back. Add it from **Store**.
+Slack, Matrix, Teams chats and Telegram in one place, with a catch-up when you come back. Add it from **Store**.
 
-- **Accounts** use each service's official API. They are on their way: until one is added, Messages says so.
+- **Accounts** use each service's official API: Slack, Matrix (encrypted rooms and bridges included), Teams chats and Telegram. Until one is added, Messages says so. Signing in to some of them waits on Mobius being registered with the service ([what it needs](../reference/messages-sign-in.md)).
 - **Conversations** has a rail down its left: **All conversations**, then **Mobius space**, then one mark for each account. The list beside it shows the chosen one's channels, then group and direct messages, most recent first. A number shows mentions, or else unread messages. **Find a conversation** narrows the list.
 - **Mobius space** is your own space, run on this computer. The first time you choose it, Mobius downloads its server (about 44 MB, checked against a pinned hash) and shows the progress. After that it opens straight to its first channel.
 - **A channel** shows each person's messages together under their name, with reactions. **N replies** opens the thread in place, and **Back to #channel** returns.
