@@ -482,6 +482,10 @@ test('Accounts lists one row per account, opens its own page, and Add Account of
   const list = page().getByRole('list', { name: 'Accounts' });
   const ana = list.getByRole('button', { name: /ana@gmail\.com/ });
   await expect(ana).toContainText('Not on for any app');
+  // Model plans and connectors each have their own card below.
+  await expect(page().getByRole('heading', { name: 'Model Plans' })).toBeVisible();
+  await expect(page().getByRole('list', { name: 'Model plans' })).toBeVisible();
+  await expect(page().getByRole('list', { name: 'Connectors' })).toBeVisible();
   await expect(page().getByRole('button', { name: 'Find more in Store' })).toBeVisible();
 
   await ana.click();
@@ -507,7 +511,12 @@ test('Accounts lists one row per account, opens its own page, and Add Account of
 
   await list.getByRole('button', { name: 'Add Account…' }).click();
   const add = shell().getByRole('dialog', { name: 'Add Account' });
-  await expect(add.getByRole('list', { name: 'Providers' }).getByRole('button')).toHaveText(['Google', 'Microsoft', 'iCloud mail', 'Another mail account', 'Contacts server', 'Slack or another chat', 'Dropbox or another drive', 'Model plan or gateway']);
-  await add.getByRole('button', { name: 'Model plan or gateway' }).click();
-  await expect(shell().locator('.toolbar-sub')).toHaveText('Gateways');
+  await expect(add.getByRole('list', { name: 'Providers' }).getByRole('button')).toHaveText(['Google', 'Microsoft', 'iCloud', 'Fastmail', 'Slack', 'Dropbox', 'Other Account…']);
+  await add.getByRole('button', { name: 'Other Account…' }).click();
+  await expect(add.getByRole('list', { name: 'Kinds of account' }).getByRole('button')).toHaveText(['Mail account', 'CalDAV calendar', 'Calendar subscription', 'CardDAV contacts', 'WebDAV or S3 drive', 'Matrix', 'Telegram']);
+  await add.getByRole('button', { name: 'Back' }).click();
+  await expect(add.getByRole('list', { name: 'Providers' })).toBeVisible();
+  await add.getByRole('button', { name: 'Other Account…' }).click();
+  await add.getByRole('button', { name: 'CardDAV contacts' }).click();
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Contacts');
 });

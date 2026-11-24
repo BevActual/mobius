@@ -38,7 +38,7 @@ export function typingIn(target: EventTarget | null): boolean {
 interface Place { section: SectionId; subpage: string; detail?: string }
 
 const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
-  connections: ({ onGo, onOpenApp, detail, onOpen }) => <ConnectionsList onGo={onGo ?? (() => {})} detail={detail ?? null} onOpen={onOpen ?? (() => {})} {...(onOpenApp ? { onOpenApp } : {})} />,
+  connections: ({ subpage, onGo, onOpenApp, detail, onOpen }) => <ConnectionsList card={subpage === 'plans' || subpage === 'connectors' ? subpage : 'accounts'} onGo={onGo ?? (() => {})} detail={detail ?? null} onOpen={onOpen ?? (() => {})} {...(onOpenApp ? { onOpenApp } : {})} />,
   general: GeneralSection,
   voice: VoiceSection,
   memory: MemorySection,
@@ -147,12 +147,19 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   // Each move lands where it was going: the setting a search found, the page asked for (Appearance's Layout from the
   // View menu), or the top of the section, not wherever the last section had been scrolled to.
   useEffect(() => {
-    const row = highlight && root.current?.querySelector(`[data-setting$=".${highlight}"]`);
+    const find = () => (highlight ? root.current?.querySelector(`[data-setting$=".${highlight}"]`) : null);
+    const row = find();
     const first = findSection(section)?.subpages[0]?.id;
     const page = subpage && subpage !== first && root.current?.querySelector(`[data-subpage="${subpage}"]`);
     if (row) row.scrollIntoView({ block: 'center' });
     else if (page) page.scrollIntoView({ block: 'start' });
     else content.current?.scrollTo?.({ top: 0 });
+    // A row that loads after the page (a gateway Accounts opened) is scrolled to when it comes, for a moment.
+    if (row || !highlight || !root.current || typeof MutationObserver === 'undefined') return;
+    const watch = new MutationObserver(() => { const late = find(); if (late) { watch.disconnect(); late.scrollIntoView({ block: 'center' }); } });
+    watch.observe(root.current, { childList: true, subtree: true });
+    const stop = window.setTimeout(() => watch.disconnect(), 3000);
+    return () => { watch.disconnect(); window.clearTimeout(stop); };
   }, [moved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Shows a place without adding it to Back and Forward. */
@@ -233,7 +240,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
           ) : (
             current && detail && section === 'connections' ? (
               // An account's page draws its own crumb and heading: they name the account.
-              <PageBoundary key={`account.${detail}`}><View subpage={subpage} highlight={highlight} detail={detail} onOpen={(next) => (next ? go(section, subpage, undefined, next) : step(-1))} onGo={(id, sub) => go(id, sub)} {...rest} /></PageBoundary>
+              <PageBoundary key={`account.${detail}`}><View subpage={subpage} highlight={highlight} detail={detail} onOpen={(next) => (next ? go(section, subpage, undefined, next) : step(-1))} onGo={(id, sub, row) => go(id, sub, row)} {...rest} /></PageBoundary>
             ) : current && (
               <>
                 {/* Where it is (its group › its name), the name, one quiet line on what it is for, then each of its pages
@@ -244,7 +251,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
                 {current.subpages.map((page) => (
                   <section key={page.id} className="settings-group" aria-label={page.label} data-subpage={page.id}>
                     {(current.subpages.length > 1 || page.label !== current.label) && !(page.rows.length === 1 && page.rows[0]!.label === page.label) && <h3 className="settings-group-title">{page.label}</h3>}
-                    <div className="settings-card"><PageBoundary key={`${section}.${page.id}`}><View subpage={page.id} highlight={highlight} onGo={(id, sub) => go(id, sub)} onOpen={(next) => { if (next) go(section, page.id, undefined, next); }} {...rest} /></PageBoundary></div>
+                    <div className="settings-card"><PageBoundary key={`${section}.${page.id}`}><View subpage={page.id} highlight={highlight} onGo={(id, sub, row) => go(id, sub, row)} onOpen={(next) => { if (next) go(section, page.id, undefined, next); }} {...rest} /></PageBoundary></div>
                   </section>
                 ))}
               </>

@@ -115,8 +115,27 @@ export function gatherAccounts(s: AccountSources): Account[] {
   return all.sort((a, b) => a.provider.localeCompare(b.provider) || a.address.toLowerCase().localeCompare(b.address.toLowerCase()));
 }
 
-/** The grey line under an account: what it is on for, or what's wrong. */
-export const accountLine = (a: Account): string => a.problem ?? (a.apps.length ? a.apps.join(', ') : 'Not on for any app');
+/** Which card on Settings › Accounts a row sits on: model plans and keys, and connectors, each have their own. */
+export function cardOf(a: Account): 'accounts' | 'plans' | 'connectors' {
+  if (a.parts.length && a.parts.every((p) => p.app === 'Models')) return 'plans';
+  if (a.parts.length && a.parts.every((p) => p.app === 'Connectors')) return 'connectors';
+  return 'accounts';
+}
+
+/** The one state that gets the red dot. Anything else wrong is said in grey. */
+export const needsSignIn = (a: Account): boolean => a.problem === 'Sign in again';
+
+/** The grey line under an account: what it is on for, or what's wrong. A plan or a connector says how it stands. */
+export function accountLine(a: Account): string {
+  if (a.problem) return a.problem;
+  const card = cardOf(a);
+  if (card === 'plans') return a.parts.some((p) => p.kind === 'plan') ? (a.address !== a.provider ? `Signed in as ${a.address}` : 'Signed in') : 'Key saved';
+  if (card === 'connectors') return 'Running';
+  return a.apps.length ? a.apps.join(', ') : 'Not on for any app';
+}
+
+/** The name a row shows: an account's address; a plan's service; a connector's name. */
+export const accountName = (a: Account): string => (cardOf(a) === 'plans' ? a.provider : a.address);
 
 /** The apps a provider can serve, for its page's switches, besides those it is on for already. */
 export function appsFor(a: Account): AccountApp[] {

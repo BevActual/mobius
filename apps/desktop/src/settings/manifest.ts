@@ -35,7 +35,13 @@ const SECTIONS: readonly SettingsSection[] = [
     keywords: ['connections', 'accounts', 'sign in', 'signed in', 'log in'],
     subpages: [
       { id: 'accounts', label: 'Accounts', rows: [
-        row('connections', 'Accounts', 'Every account, one row each: Google and Microsoft signed in to once for Calendar and Files, mail, contacts, drives, chat, model plans and connectors. Which apps each is on for, which need you to sign in again, and Remove.', 'connections', 'accounts', 'google', 'microsoft', 'contacts', 'plans', 'connectors', 'internet accounts', 'gmail', 'outlook', 'icloud', 'fastmail', 'slack', 'teams', 'matrix', 'telegram', 'dropbox', 'onedrive', 'webdav', 's3', 'drive', 'disconnect', 'sign in again', 'connected'),
+        row('connections', 'Accounts', 'Every account, one row each: Google and Microsoft signed in to once for Calendar and Files, mail, contacts, drives and chat. Which apps each is on for, which need you to sign in again, and Remove.', 'connections', 'accounts', 'google', 'microsoft', 'contacts', 'plans', 'connectors', 'internet accounts', 'gmail', 'outlook', 'icloud', 'fastmail', 'slack', 'teams', 'matrix', 'telegram', 'dropbox', 'onedrive', 'webdav', 's3', 'drive', 'disconnect', 'sign in again', 'connected'),
+      ] },
+      { id: 'plans', label: 'Model Plans', rows: [
+        row('plans', 'Plans and keys', 'The model plans you are signed in to and the services you keep a key for. Each opens in Gateways.', 'plans', 'model plans', 'subscription', 'claude', 'chatgpt', 'copilot', 'keys', 'api keys', 'gateways'),
+      ] },
+      { id: 'connectors', label: 'Connectors', rows: [
+        row('connectors', 'Your connectors', 'The connectors Mobius runs, and which need you to sign in again. Each opens in Store.', 'connectors', 'mcp', 'servers', 'store', 'extensions', 'sign in again'),
       ] },
     ],
   },

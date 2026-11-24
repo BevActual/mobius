@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarAccount, ChatAccount, DriveAccount, MailAccount, ProviderInfo } from '@mobius/shared';
-import { NO_SOURCES, accountLine, appsFor, gatherAccounts, mailService, providerOf } from './connections';
+import { NO_SOURCES, accountLine, accountName, appsFor, cardOf, gatherAccounts, mailService, needsSignIn, providerOf } from './connections';
 
 const mail = (email: string, problem: string | null = null): MailAccount => ({ id: email, name: email, email, lastSyncMs: 0, problem });
 const calendar = (id: string, kind: CalendarAccount['kind'], username: string, problem: string | null = null): CalendarAccount => ({ id, kind, name: id, url: '', username, calendars: [], taskLists: [], lastSyncMs: 0, problem });
@@ -23,18 +23,31 @@ describe('accounts', () => {
       identities: [{ provider: 'google', email: 'ana@gmail.com' }, { provider: 'microsoft', email: 'zoe@outlook.com' }],
     });
     expect(rows.map((r) => [r.provider, r.address, accountLine(r)])).toEqual([
-      ['Connector', 'github', 'Connectors'],
+      ['Connector', 'github', 'Running'],
       ['Connector', 'linear', 'Sign in again'],
       ['Google', 'ana@gmail.com', 'Mail, Calendar, Files'],
       ['iCloud', 'me@icloud.com', 'Mail, Contacts'],
       ['Microsoft', 'bo@outlook.com', 'Calendar, Files'],
       ['Microsoft', 'zoe@outlook.com', 'Not on for any app'],
-      ['OPENAI', 'OPENAI', 'Models'],
+      ['OPENAI', 'OPENAI', 'Key saved'],
       ['Slack', 'Acme', 'Messages'],
       ['Subscription', 'h', 'Calendar'],
       ['WebDAV', 'ana', 'Files'],
     ]);
     expect(rows[2]!.key).toBe('google:ana@gmail.com');
+    expect(rows.map(cardOf)).toEqual(['connectors', 'connectors', 'accounts', 'accounts', 'accounts', 'accounts', 'plans', 'accounts', 'accounts', 'accounts']);
+  });
+
+  it('names a plan by its service and gives the red dot only to Sign in again', () => {
+    const rows = gatherAccounts({
+      ...NO_SOURCES,
+      plans: [{ info: { id: 'claude', name: 'Claude subscription' } as never, status: { installed: true, signedIn: true, account: 'ana@gmail.com' } as never }],
+      connectors: { running: [], failed: [{ server: 'linear', error: 'no', signIn: true }, { server: 'files', error: 'crashed', signIn: false }], problem: null },
+    });
+    const plan = rows.find((r) => cardOf(r) === 'plans')!;
+    expect([accountName(plan), accountLine(plan)]).toEqual(['Claude subscription', 'Signed in as ana@gmail.com']);
+    expect(rows.filter(needsSignIn).map((r) => r.address)).toEqual(['linear']);
+    expect(accountLine(rows.find((r) => r.address === 'files')!)).toBe('Didn’t start');
   });
 
   it('says Sign in again when any part of an account needs it', () => {

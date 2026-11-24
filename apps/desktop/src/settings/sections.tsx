@@ -84,8 +84,8 @@ export interface SectionProps {
   coreStatus: CoreStatus;
   /** Open an app (Extensions) and leave Settings. */
   onOpenApp?: (id: 'skills' | 'files') => void;
-  /** Go to another section of Settings (and one of its pages). */
-  onGo?: (section: SectionId, subpage?: string) => void;
+  /** Go to another section of Settings (and one of its pages, and one of its settings). */
+  onGo?: (section: SectionId, subpage?: string, row?: string) => void;
 }
 
 const rowPath = (section: SectionId, subpage: string, row: string) => settingPath(section, subpage, row);

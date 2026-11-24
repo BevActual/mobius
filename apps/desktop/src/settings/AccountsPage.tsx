@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { isNotesFailure, type AccountInfo, type AccountStatus, type CalendarAccount, type ChatAccount, type ContactAccount, type DriveAccount, type IdentityApp, type MailAccount, type ProviderInfo } from '@mobius/shared';
-import { APP_SECTION, NO_SOURCES, SIGN_IN_APPS, accountLine, appsFor, gatherAccounts, type Account, type AccountApp, type AccountSources, type Part } from './connections';
+import { isNotesFailure, type AccountInfo, type AccountStatus, type CalendarAccount, type ChatAccount, type ConnectorStatus, type ContactAccount, type DriveAccount, type GoogleDriveStatus, type IdentityApp, type MailAccount, type ProviderInfo } from '@mobius/shared';
+import { APP_SECTION, NO_SOURCES, SIGN_IN_APPS, accountLine, appsFor, accountName, cardOf, gatherAccounts, needsSignIn, type Account, type AccountApp, type AccountSources, type Part } from './connections';
 import type { SectionId } from './manifest';
 import { Toggle } from './sections';
 import { siteHue } from '../browser-spaces';
@@ -10,45 +10,51 @@ import './accounts.css';
 const list = <T,>(r: unknown): T[] => (Array.isArray(r) ? (r as T[]) : []);
 const listed = <T,>(r: unknown): T[] => (r && !isNotesFailure(r as never) ? list<T>(r) : []);
 
-/** Every account, read from each app's own store, and read again when one of them changes. */
-function useAccounts(): { sources: AccountSources; loaded: boolean; reload: () => void } {
+/** Which card a list is: the accounts, the model plans and keys, or the connectors. Each reads only its own stores. */
+export type AccountsCard = 'accounts' | 'plans' | 'connectors';
+
+/** The accounts a card shows, read from each app's own store, and read again when one of them changes. */
+function useAccounts(card: AccountsCard): { sources: AccountSources; loaded: boolean; reload: () => void } {
   const m = window.mobius;
   const [sources, setSources] = useState<AccountSources>(NO_SOURCES);
   const [loaded, setLoaded] = useState(false);
   const load = useCallback(() => {
-    const plans = m.providers?.accounts().then((all) => Promise.all(all.map((info) => m.providers!.accountStatus(info.id).then((status) => ({ info, status })).catch(() => null)))).catch(() => []);
+    const mine = (on: AccountsCard, read: () => Promise<unknown> | undefined) => (card === on ? (read() ?? Promise.resolve(null)).catch(() => null) : Promise.resolve(null));
+    const plans = () => m.providers?.accounts().then((all) => Promise.all(all.map((info) => m.providers!.accountStatus(info.id).then((status) => ({ info, status })).catch(() => null))));
     void Promise.all([
-      m.mail?.accounts().catch(() => null),
-      m.calendar?.accounts().catch(() => null),
-      m.contacts?.accounts().catch(() => null),
-      m.drives?.list().catch(() => null),
-      m.googleDrive?.status().catch(() => null),
-      m.messages?.accounts().catch(() => null),
-      plans,
-      m.providers?.list().catch(() => null),
-      m.extensions?.connectors().catch(() => null),
-      m.accounts?.list().catch(() => null),
+      mine('accounts', () => m.mail?.accounts()),
+      mine('accounts', () => m.calendar?.accounts()),
+      mine('accounts', () => m.contacts?.accounts()),
+      mine('accounts', () => m.drives?.list()),
+      mine('accounts', () => m.googleDrive?.status()),
+      mine('accounts', () => m.messages?.accounts()),
+      mine('plans', plans),
+      mine('plans', () => m.providers?.list()),
+      mine('connectors', () => m.extensions?.connectors()),
+      mine('accounts', () => m.accounts?.list()),
     ]).then(([mail, calendar, contacts, drives, googleDrive, chat, planned, providers, connectors, identities]) => {
       setSources({
         mail: listed<MailAccount>(mail),
         calendar: listed<CalendarAccount>(calendar),
         contacts: listed<ContactAccount>(contacts),
         drives: list<DriveAccount>(drives),
-        googleDrive: googleDrive ?? null,
+        googleDrive: (googleDrive as GoogleDriveStatus | null) ?? null,
         chat: listed<ChatAccount>(chat),
         plans: list<{ info: AccountInfo; status: AccountStatus } | null>(planned).filter((p): p is { info: AccountInfo; status: AccountStatus } => p !== null),
         providers: list<ProviderInfo>(providers),
-        connectors: connectors ?? null,
+        connectors: (connectors as ConnectorStatus | null) ?? null,
         identities: list(identities),
       });
       setLoaded(true);
     });
-  }, [m]);
+  }, [m, card]);
   useEffect(() => {
     load();
-    const offs = [m.mail?.onChanged(load), m.calendar?.onChanged(load), m.messages?.onChanged(load), m.contacts?.onChanged(load), m.drives?.onChanged(load), m.googleDrive?.onChanged(load), m.providers?.onChanged(load), m.accounts?.onSignIn(load)];
+    const offs = card === 'accounts'
+      ? [m.mail?.onChanged(load), m.calendar?.onChanged(load), m.messages?.onChanged(load), m.contacts?.onChanged(load), m.drives?.onChanged(load), m.googleDrive?.onChanged(load), m.accounts?.onSignIn(load)]
+      : card === 'plans' ? [m.providers?.onChanged(load)] : [];
     return () => offs.forEach((off) => off?.());
-  }, [m, load]);
+  }, [m, load, card]);
   return { sources, loaded, reload: load };
 }
 
@@ -87,20 +93,30 @@ function Chevron() {
   return <svg className="acct-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M8 5l5 5-5 5" /></svg>;
 }
 
-const ADD: Array<{ provider: string; label: string; go: SectionId | 'google' | 'microsoft' | 'files' }> = [
-  { provider: 'Google', label: 'Google', go: 'google' },
-  { provider: 'Microsoft', label: 'Microsoft', go: 'microsoft' },
-  { provider: 'iCloud', label: 'iCloud mail', go: 'mail' },
-  { provider: 'Mail', label: 'Another mail account', go: 'mail' },
-  { provider: 'Contacts', label: 'Contacts server', go: 'contacts' },
-  { provider: 'Slack', label: 'Slack or another chat', go: 'messages' },
-  { provider: 'Drive', label: 'Dropbox or another drive', go: 'files' },
-  { provider: 'Models', label: 'Model plan or gateway', go: 'providers' },
+type AddTo = SectionId | 'google' | 'microsoft' | 'files' | 'other';
+/** Add Account…'s rows: providers, as macOS lists them, then Other Account… for the kinds of account. */
+const ADD: Array<{ name: string; go: AddTo }> = [
+  { name: 'Google', go: 'google' },
+  { name: 'Microsoft', go: 'microsoft' },
+  { name: 'iCloud', go: 'mail' },
+  { name: 'Fastmail', go: 'mail' },
+  { name: 'Slack', go: 'messages' },
+  { name: 'Dropbox', go: 'files' },
+];
+const OTHER: Array<{ name: string; go: AddTo }> = [
+  { name: 'Mail account', go: 'mail' },
+  { name: 'CalDAV calendar', go: 'calendar' },
+  { name: 'Calendar subscription', go: 'calendar' },
+  { name: 'CardDAV contacts', go: 'contacts' },
+  { name: 'WebDAV or S3 drive', go: 'files' },
+  { name: 'Matrix', go: 'messages' },
+  { name: 'Telegram', go: 'messages' },
 ];
 
-/** Add Account…: one row per provider. Google and Microsoft sign in here, for Calendar and Files at once. */
+/** Add Account…: one row per provider, then Other Account…. Google and Microsoft sign in here, for Calendar and Files at once. */
 function AddSheet({ onClose, onGo, onOpenApp, onAdded }: { onClose: () => void; onGo: (section: SectionId) => void; onOpenApp: ((id: 'skills' | 'files') => void) | undefined; onAdded: (key: string) => void }) {
   const [waiting, setWaiting] = useState<'Google' | 'Microsoft' | null>(null);
+  const [other, setOther] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const added = useRef(onAdded);
   added.current = onAdded;
@@ -109,9 +125,10 @@ function AddSheet({ onClose, onGo, onOpenApp, onAdded }: { onClose: () => void; 
     if (!done.ok) { setProblem(done.message); return; }
     added.current(`${done.account.provider}:${done.account.email.toLowerCase()}`);
   }), []);
-  const choose = async (go: (typeof ADD)[number]['go']) => {
+  const choose = async (go: AddTo) => {
     setProblem(null);
-    if (go === 'google' || go === 'microsoft') {
+    if (go === 'other') setOther(true);
+    else if (go === 'google' || go === 'microsoft') {
       const provider = go === 'google' ? 'Google' : 'Microsoft';
       const failed = await signIn(provider, ['calendar', 'files']);
       if (failed) setProblem(failed); else setWaiting(provider);
@@ -119,28 +136,29 @@ function AddSheet({ onClose, onGo, onOpenApp, onAdded }: { onClose: () => void; 
     else { onClose(); onGo(go); }
   };
   const cancel = () => { if (waiting) void window.mobius.accounts?.cancel(); onClose(); };
+  const rows = other ? OTHER : [...ADD, { name: 'Other Account…', go: 'other' as const }];
   return createPortal(
     <div className="cal-modal-layer">
       <div className="cal-editor-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) cancel(); }}>
-        <div className="cal-editor acct-sheet" role="dialog" aria-modal="true" aria-label="Add Account" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); cancel(); } }}>
-          <h2 className="cal-editor-heading">Add Account</h2>
+        <div className="cal-editor acct-sheet" role="dialog" aria-modal="true" aria-label="Add Account" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); if (other) setOther(false); else cancel(); } }}>
+          <h2 className="cal-editor-heading">{other ? 'Other Account' : 'Add Account'}</h2>
           {waiting ? (
             <p className="cal-editor-note">Finish signing in on {waiting}’s page. Mobius turns the account on for Calendar and Files when you’re done.</p>
           ) : (
-            <ul className="conn-list" aria-label="Providers">
-              {ADD.map((a) => (
-                <li key={a.label} className="conn-row acct-row">
-                  <button type="button" className="acct-row-button" autoFocus={a.go === 'google'} disabled={a.go === 'files' && !onOpenApp} onClick={() => void choose(a.go)}>
-                    <Mark provider={a.provider} />
-                    <span className="conn-account">{a.label}</span>
+            <ul className="conn-list" aria-label={other ? 'Kinds of account' : 'Providers'}>
+              {rows.map((a, i) => (
+                <li key={a.name} className="conn-row acct-row">
+                  <button type="button" className="acct-row-button" autoFocus={i === 0} disabled={a.go === 'files' && !onOpenApp} onClick={() => void choose(a.go)}>
+                    {a.go === 'other' ? <span className="conn-mark acct-plus" aria-hidden="true">…</span> : <Mark provider={a.name} />}
+                    <span className="conn-account">{a.name}</span>
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          {!waiting && <p className="cal-editor-note">Google and Microsoft sign in once for Calendar and Files. Mail uses an app password, added in Mail.</p>}
           {problem && <p className="tasks-message" role="alert">{problem}</p>}
           <div className="cal-editor-actions">
+            {other && !waiting && <button type="button" className="btn" onClick={() => setOther(false)}>Back</button>}
             <span className="spacer" />
             <button type="button" className="btn" onClick={cancel}>Cancel</button>
           </div>
@@ -238,7 +256,7 @@ function AccountPage({ account, onGo, onOpenApp, onBack, reload }: { account: Ac
         <Mark provider={account.provider} size="large" />
         <div className="acct-head-text">
           <h2 className="settings-heading">{account.address}</h2>
-          <p className="acct-state">{account.problem && <span className="conn-dot" aria-hidden="true" />}{account.provider} · {account.problem ? 'Sign in again' : 'Connected'}</p>
+          <p className="acct-state">{needsSignIn(account) && <span className="conn-dot" aria-hidden="true" />}{account.provider} · {account.problem ? 'Sign in again' : 'Connected'}</p>
         </div>
       </div>
       {apps.length > 0 && (
@@ -271,45 +289,62 @@ function AccountPage({ account, onGo, onOpenApp, onBack, reload }: { account: Ac
   );
 }
 
+/** One row: its mark, its name, a grey line (with a red dot only when it needs a sign-in) and a chevron. */
+function AccountRow({ account, onOpen }: { account: Account; onOpen: () => void }) {
+  return (
+    <li className="conn-row acct-row" data-problem={account.problem ? 'true' : undefined}>
+      <button type="button" className="acct-row-button" onClick={onOpen}>
+        <Mark provider={cardOf(account) === 'connectors' ? account.address : account.provider} />
+        <span className="conn-main">
+          <span className="conn-account">{accountName(account)}</span>
+          <span className="conn-service">{needsSignIn(account) && <span className="conn-dot" aria-hidden="true" />}{accountLine(account)}</span>
+        </span>
+        <Chevron />
+      </button>
+    </li>
+  );
+}
+
+const EMPTY: Record<AccountsCard, string> = { accounts: 'No accounts yet.', plans: 'No model plans or keys yet.', connectors: 'No connectors yet.' };
+const LISTS: Record<AccountsCard, string> = { accounts: 'Accounts', plans: 'Model plans', connectors: 'Connectors' };
+
 /**
- * Settings › Connections › Accounts: one card, one row per account (its mark, its address, and the apps it is on for,
- * or a red dot and "Sign in again"), Add Account… last. A row opens the account's own page.
+ * Settings › Connections › Accounts. Three cards, one per page: Accounts (one row per account, Add Account… last; a row
+ * opens the account's own page), Model Plans (a row opens Gateways at that service) and Connectors (a row opens Store).
  */
-export function ConnectionsList({ onGo, onOpenApp, detail = null, onOpen = () => {} }: { onGo: (section: SectionId, subpage?: string) => void; onOpenApp?: (id: 'skills' | 'files') => void; detail?: string | null; onOpen?: (key: string | null) => void }) {
-  const { sources, loaded, reload } = useAccounts();
+export function ConnectionsList({ card = 'accounts', onGo, onOpenApp, detail = null, onOpen = () => {} }: { card?: AccountsCard; onGo: (section: SectionId, subpage?: string, row?: string) => void; onOpenApp?: (id: 'skills' | 'files') => void; detail?: string | null; onOpen?: (key: string | null) => void }) {
+  const { sources, loaded, reload } = useAccounts(detail ? 'accounts' : card);
   const [adding, setAdding] = useState(false);
-  const accounts = gatherAccounts(sources);
+  const rows = gatherAccounts(sources).filter((a) => cardOf(a) === (detail ? 'accounts' : card));
   if (detail) {
-    const account = accounts.find((a) => a.key === detail);
+    const account = rows.find((a) => a.key === detail);
     if (account) return <AccountPage account={account} onGo={onGo} onOpenApp={onOpenApp} onBack={() => onOpen(null)} reload={reload} />;
     return loaded ? <p className="srow-empty">That account isn’t here any more.</p> : null;
   }
+  const open = (a: Account) => {
+    if (card === 'accounts') onOpen(a.key);
+    else if (card === 'plans') onGo('providers', 'keys', `service-${a.parts[0]?.id ?? ''}`);
+    else onOpenApp?.('skills');
+  };
   return (
-    <div className="conn" data-setting="connections.accounts.connections">
-      <ul className="conn-list" aria-label="Accounts">
-        {loaded && accounts.length === 0 && <li className="conn-row conn-empty"><span className="conn-service">No accounts yet.</span></li>}
-        {accounts.map((a) => (
-          <li key={a.key} className="conn-row acct-row" data-problem={a.problem ? 'true' : undefined}>
-            <button type="button" className="acct-row-button" onClick={() => onOpen(a.key)}>
-              <Mark provider={a.provider} />
-              <span className="conn-main">
-                <span className="conn-account">{a.address}</span>
-                <span className="conn-service">{a.problem && <span className="conn-dot" aria-hidden="true" />}{accountLine(a)}</span>
-              </span>
-              <Chevron />
+    <div className="conn" data-setting={`connections.${card}.${card === 'accounts' ? 'connections' : card}`}>
+      <ul className="conn-list" aria-label={LISTS[card]}>
+        {loaded && rows.length === 0 && <li className="conn-row conn-empty"><span className="conn-service">{EMPTY[card]}</span></li>}
+        {rows.map((a) => <AccountRow key={a.key} account={a} onOpen={() => open(a)} />)}
+        {card === 'accounts' && (
+          <li className="conn-row acct-row">
+            <button type="button" className="acct-row-button" onClick={() => setAdding(true)}>
+              <span className="conn-mark acct-plus" aria-hidden="true">+</span>
+              <span className="conn-account">Add Account…</span>
             </button>
           </li>
-        ))}
-        <li className="conn-row acct-row">
-          <button type="button" className="acct-row-button" onClick={() => setAdding(true)}>
-            <span className="conn-mark acct-plus" aria-hidden="true">+</span>
-            <span className="conn-account">Add Account…</span>
-          </button>
-        </li>
+        )}
       </ul>
-      <p className="conn-foot">
-        <button type="button" className="conn-find" disabled={!onOpenApp} onClick={() => onOpenApp?.('skills')}>Find more in Store <span aria-hidden="true">→</span></button>
-      </p>
+      {card === 'connectors' && (
+        <p className="conn-foot">
+          <button type="button" className="conn-find" disabled={!onOpenApp} onClick={() => onOpenApp?.('skills')}>Find more in Store <span aria-hidden="true">→</span></button>
+        </p>
+      )}
       {adding && <AddSheet onClose={() => setAdding(false)} onGo={(s) => onGo(s)} onOpenApp={onOpenApp} onAdded={(key) => { setAdding(false); reload(); onOpen(key); }} />}
     </div>
   );
