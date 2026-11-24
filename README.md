@@ -87,7 +87,7 @@ own models, and are happy to try something unfinished and tell us what breaks.
 
 A new install starts with **Notes, Tasks, Calendar, Mail, Docs and Browser**, beside Mobius's own Home, Agents, Activity,
 Store, Settings, Projects, Files, Review and Views. Add the rest from **Store** whenever you want them; apps load the first time you open them, so the ones you don't use cost nothing. Every app shares one
-window layout, one look and one way of reviewing what Mobius changed. Pictures follow your light or dark setting. More in the [app guide](docs/apps/README.md).
+window layout, one look and one way of reviewing what Mobius changed: rounded panels on a darker frame, with Mobius in its own panel that you open when you want it. Pictures follow your light or dark setting. More in the [app guide](docs/apps/README.md), and how the look is coming along app by app in the [design guide](docs/design/panel-look.md).
 
 ### Assistant
 
@@ -137,7 +137,7 @@ Mobius's own apps, always there.
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/research-dark.png"><img src="docs/readme/apps/research.png" alt="The Research app in Mobius"></picture><br><b>Research</b> · Ask a question; Mobius searches, reads and writes a report.<br><sub>Get a sourced answer to a real question; follow-ups add to the same report.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/reader-dark.png"><img src="docs/readme/apps/reader.png" alt="The Reader app in Mobius"></picture><br><b>Reader</b> · Pages saved to read later, as clean readable text.<br><sub>Read without clutter, and ask Mobius about the article you're reading.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/reader-dark.png"><img src="docs/readme/apps/reader.png" alt="The Reader app in Mobius"></picture><br><b>Reader</b> · The Browser's reader mode: pages kept in Read later, as clean readable text.<br><sub>Read without clutter, and ask Mobius about the article you're reading.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/files-dark.png"><img src="docs/readme/apps/files.png" alt="The Files app in Mobius"></picture><br><b>Files</b> · Your whole workspace as a drive, with Made by Mobius.<br><sub>Every note, sheet and doc is a real file you own, in one place.</sub></td>
 </tr>
 </table>

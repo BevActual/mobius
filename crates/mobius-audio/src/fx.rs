@@ -462,6 +462,8 @@ enum Kind {
     Mix { amount: f64 },
     /// Beat Repeat (Live 12 manual, 29.5); its chance, decay and volume rest in `rest`.
     Repeat(Box<Repeat>),
+    /// Auto Pan-Tremolo (29.3); its amount, rate and shape rest in `rest`.
+    AutoPan(Box<AutoPan>),
 }
 
 /// Where a cable goes: a part's sound in (its first or second input), or one of its settings.
@@ -537,14 +539,234 @@ impl Repeat {
             return if self.mix == RepeatMix::Gate { (0.0, 0.0) } else { x };
         }
         let fade = REPEAT_FADE.min(grid / 4).max(1) as f64;
-        let edge = (i as f64 / fade).min((grid - i) as f64 / fade).min((gate - e) as f64 / fade).min(1.0);
-        let level = (volume * (1.0 - decay.clamp(0.0, 1.0)).powi(r as i32 - 1) * edge) as f32;
+        // Each repeat fades in and out at the grid's ends, so it never clicks against the next one.
+        let edge = (i as f64 / fade).min((grid - i) as f64 / fade).min(1.0);
+        let level = volume * (1.0 - decay.clamp(0.0, 1.0)).powi(r as i32 - 1) * edge;
         let (a, b) = self.buffer[i];
-        let (a, b) = (a * level, b * level);
         match self.mix {
-            RepeatMix::Mix => (x.0 + a, x.1 + b),
-            RepeatMix::Insert | RepeatMix::Gate => (a, b),
+            // Mix and Gate fade the repeats out by the gate's end; what comes in goes on underneath (Mix) or not (Gate).
+            RepeatMix::Mix | RepeatMix::Gate => {
+                let level = (level * ((gate - e) as f64 / fade).min(1.0)) as f32;
+                let (a, b) = (a * level, b * level);
+                if self.mix == RepeatMix::Mix { (x.0 + a, x.1 + b) } else { (a, b) }
+            }
+            // Insert cuts the live sound for the repeats and back: a crossfade at both ends, not a cut, or a tone that
+            // isn't at a zero crossing jumps (the grid's own fade only hid that when it was). The first repeat's start
+            // needs no fade of its own, since it carries on from the same sound the grid took.
+            RepeatMix::Insert => {
+                let into = (e + 1 - grid) as f64 / fade;
+                let level = if r == 1 { volume * ((grid - i) as f64 / fade).min(1.0) } else { level };
+                let wet = into.min((gate - e - 1) as f64 / fade).clamp(0.0, 1.0);
+                let (a, b) = (a * level as f32, b * level as f32);
+                let wet = wet as f32;
+                (x.0 * (1.0 - wet) + a * wet, x.1 * (1.0 - wet) + b * wet)
+            }
         }
+    }
+}
+
+/// Auto Pan-Tremolo's waveforms (Live 12 manual, 29.3): Sine, Triangle, Shark Tooth, Saw Up, Saw Down, Square, and the
+/// three random ones, Random, Wander and S&H.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum PanWave {
+    Sine,
+    Triangle,
+    Shark,
+    SawUp,
+    SawDown,
+    Square,
+    Random,
+    Wander,
+    Hold,
+}
+
+impl PanWave {
+    fn random(self) -> bool {
+        matches!(self, PanWave::Random | PanWave::Wander | PanWave::Hold)
+    }
+
+    /// Where a cycle-based wave is at `p` (0..1 of a cycle), from -1 to 1.
+    fn at(self, p: f64) -> f64 {
+        match self {
+            PanWave::Sine => (TAU * p).sin(),
+            PanWave::Triangle => if p < 0.25 { 4.0 * p } else if p < 0.75 { 2.0 - 4.0 * p } else { 4.0 * p - 4.0 },
+            // A rise that slows into its top, then a fall that slows into its bottom: a fin each way.
+            PanWave::Shark => {
+                let charge = |t: f64| 1.0 - (1.0 - t).powi(2);
+                if p < 0.5 { 2.0 * charge(2.0 * p) - 1.0 } else { 1.0 - 2.0 * charge(2.0 * p - 1.0) }
+            }
+            PanWave::SawUp => 2.0 * p - 1.0,
+            PanWave::SawDown => 1.0 - 2.0 * p,
+            PanWave::Square => if p < 0.5 { 1.0 } else { -1.0 },
+            PanWave::Random | PanWave::Wander | PanWave::Hold => 0.0,
+        }
+    }
+}
+
+/// Auto Pan-Tremolo (Live 12 manual, 29.3): LFOs that move a sound's level. Panning moves it between left and right
+/// with an LFO for each side, the right one a Phase behind or running a Spin faster; Tremolo moves both sides with one
+/// LFO, its highs and lows against each other in Harmonic, on a curve in Vintage. Amount, rate (Hz) and Shape rest in
+/// the part's `rest`.
+struct AutoPan {
+    tremolo: bool,
+    wave: PanWave,
+    /// The cycle in sixteenths when synced to the song, and where it starts against the beat (a share of a cycle).
+    sync: Option<f64>,
+    offset: f64,
+    /// The right LFO's lead, a share of a cycle (Phase), or how much faster it runs (Spin, a share; 0 for Phase).
+    phase: f64,
+    spin: f64,
+    invert: bool,
+    harmonic: bool,
+    vintage: bool,
+    seconds_per_beat: f64,
+    /// Each LFO's place in its cycle when it runs free (0..1), and the cycles each has finished.
+    at: [f64; 2],
+    cycles: [i64; 2],
+    /// The cycle the random waves last drew a value for.
+    drawn: i64,
+    /// The random waves, per side: the value it left and the one it is heading for.
+    random: [[f64; 2]; 2],
+    seed: u32,
+    /// Harmonic's crossover at 600 Hz: a one-pole low-pass per side, and its coefficient.
+    low: [f64; 2],
+    k: f64,
+}
+
+/// Harmonic's crossover (29.3): "fixed 600 Hz".
+const HARMONIC_HZ: f64 = 600.0;
+
+impl AutoPan {
+    fn new(p: &Value, seconds_per_beat: f64, rate: f64, seed: u32) -> AutoPan {
+        let wave = match p.get("wave").and_then(Value::as_str).unwrap_or("sine") {
+            "triangle" => PanWave::Triangle,
+            "sharktooth" => PanWave::Shark,
+            "sawup" => PanWave::SawUp,
+            "sawdown" => PanWave::SawDown,
+            "square" => PanWave::Square,
+            "random" => PanWave::Random,
+            "wander" => PanWave::Wander,
+            "sh" => PanWave::Hold,
+            _ => PanWave::Sine,
+        };
+        let tremolo = p.get("mode").and_then(Value::as_str) == Some("tremolo");
+        let sync = p.get("sync").and_then(Value::as_f64).filter(|s| s.is_finite() && *s > 0.0).map(|s| s.clamp(0.25, 512.0));
+        // Spin isn't there for the random waves (29.3), so they keep Phase.
+        let spin = if wave.random() { 0.0 } else { num(p, "spin", 0.0).clamp(0.0, 1.0) };
+        AutoPan {
+            tremolo,
+            wave,
+            sync,
+            offset: (num(p, "offset", 0.0) / 360.0).rem_euclid(1.0),
+            phase: (num(p, "phase", 180.0).clamp(0.0, 360.0) / 360.0).rem_euclid(1.0),
+            spin,
+            invert: p.get("invert").and_then(Value::as_bool).unwrap_or(false),
+            harmonic: tremolo && p.get("harmonic").and_then(Value::as_bool).unwrap_or(false),
+            vintage: tremolo && p.get("vintage").and_then(Value::as_bool).unwrap_or(false),
+            seconds_per_beat,
+            at: [0.0; 2],
+            cycles: [0; 2],
+            drawn: i64::MIN,
+            random: [[0.0; 2]; 2],
+            seed: seed | 1,
+            low: [0.0; 2],
+            k: 1.0 - (-TAU * HARMONIC_HZ / rate).exp(),
+        }
+    }
+
+    fn roll(&mut self) -> f64 {
+        self.seed ^= self.seed << 13;
+        self.seed ^= self.seed >> 17;
+        self.seed ^= self.seed << 5;
+        f64::from(self.seed) / f64::from(u32::MAX) * 2.0 - 1.0
+    }
+
+    /// The next value of a random wave on side `s`, for one more cycle.
+    fn draw(&mut self, s: usize) {
+        let was = self.random[s][1];
+        let next = match self.wave {
+            // Wander walks a little from where it is, rather than jumping anywhere.
+            PanWave::Wander => (was + self.roll() * 0.5).clamp(-1.0, 1.0),
+            _ => self.roll(),
+        };
+        self.random[s] = [was, next];
+    }
+
+    /// The left LFO's place, as cycles since the song's start when synced to a playing song, or its own count.
+    fn place(&mut self, clock: Option<(f64, f64)>, hz: f64, rate: f64) -> [f64; 2] {
+        let speeds = [1.0, 1.0 + self.spin];
+        if let (Some(sync), Some((beat, _))) = (self.sync, clock) {
+            let cycles = beat * 4.0 / sync + self.offset;
+            return [cycles, cycles * speeds[1]];
+        }
+        let hz = self.sync.map_or(hz, |s| 1.0 / (s / 4.0 * self.seconds_per_beat));
+        for (s, speed) in speeds.iter().enumerate() {
+            self.at[s] += hz * speed / rate;
+            if self.at[s] >= 1.0 {
+                let whole = self.at[s].floor();
+                self.at[s] -= whole;
+                self.cycles[s] += whole as i64;
+            }
+        }
+        [self.cycles[0] as f64 + self.at[0], self.cycles[1] as f64 + self.at[1]]
+    }
+
+    /// What it sends on for one sample: `x` coming in, `clock` the beat now and the beats a sample (None when the song
+    /// isn't playing), and its amount (0 to 1), rate (Hz) and shape (-1 to 1).
+    fn process(&mut self, x: (f32, f32), clock: Option<(f64, f64)>, settings: [f64; 3], rate: f64) -> (f32, f32) {
+        let [amount, hz, bend] = settings;
+        let (amount, hz, bend) = (amount.clamp(0.0, 1.0), hz.clamp(0.005, 40.0), bend.clamp(-1.0, 1.0));
+        let place = self.place(clock, hz, rate);
+        let mut y = [0.0; 2];
+        if self.wave.random() {
+            // A new value each cycle. Phase is how far the right side's values stray from the left's (29.3: with the
+            // random waves Phase "acts as a stereo width control").
+            let round = place[0].floor() as i64;
+            if round != self.drawn {
+                self.drawn = round;
+                self.draw(0);
+                self.draw(1);
+            }
+            let p = place[0] - place[0].floor();
+            for (s, out) in y.iter_mut().enumerate() {
+                let [from, to] = self.random[s];
+                *out = match self.wave {
+                    PanWave::Hold => to,
+                    _ => from + (to - from) * (1.0 - (PI * p).cos()) / 2.0,
+                };
+            }
+            let width = self.phase.min(1.0 - self.phase) * 2.0;
+            y[1] = y[0] + (y[1] - y[0]) * width;
+        } else {
+            let lead = if self.spin > 0.0 { 0.0 } else { self.phase };
+            y = [self.wave.at(place[0].rem_euclid(1.0)), self.wave.at((place[1] + lead).rem_euclid(1.0))];
+        }
+        // Shape: above 0 pushes the wave toward its limits, below 0 sharpens its peaks. Invert turns it over.
+        let e = 4f64.powf(-bend);
+        let y = y.map(|v| {
+            let v = v.signum() * v.abs().powf(e);
+            if self.invert { -v } else { v }
+        });
+        // A side's level: whole at the wave's top, down by the amount at its bottom (squared in Vintage).
+        let level = |v: f64| {
+            let g = 1.0 - amount * (1.0 - v) / 2.0;
+            if self.vintage { g * g } else { g }
+        };
+        let ins = [f64::from(x.0), f64::from(x.1)];
+        let mut out = [0.0; 2];
+        for s in 0..2 {
+            out[s] = if self.harmonic {
+                // Lows and highs move against each other.
+                self.low[s] += self.k * (ins[s] - self.low[s]);
+                self.low[s] * level(y[0]) + (ins[s] - self.low[s]) * level(-y[0])
+            } else {
+                ins[s] * level(if self.tremolo { y[0] } else { y[s] })
+            };
+            if self.vintage {
+                out[s] = shape(out[s], 0.15 * amount);
+            }
+        }
+        (out[0] as f32, out[1] as f32)
     }
 }
 
@@ -700,6 +922,11 @@ impl Device {
                     *seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
                     Kind::Repeat(Box::new(Repeat { interval, offset: num(p, "offset", 0.0).clamp(0.0, interval), gate: num(p, "gate", 8.0).clamp(0.5, 64.0), grid, mix, seed: *seed | 1, buffer: vec![(0.0, 0.0); room.min(MAX_REPEAT)], round: i64::MIN, playing: None }))
                 }
+                "autopan" => {
+                    rest = [num(p, "amount", 0.5).clamp(0.0, 1.0), num(p, "rate", 1.0).clamp(0.005, 40.0), num(p, "shape", 0.0).clamp(-1.0, 1.0)];
+                    *seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    Kind::AutoPan(Box::new(AutoPan::new(p, seconds_per_beat, rate, *seed)))
+                }
                 _ => return None,
             };
             ids.push(id);
@@ -762,7 +989,7 @@ impl Device {
             }
             for p in &mut parts {
                 // A compressor always sends two channels on, as browsers make it.
-                if matches!(p.kind, Kind::Reverb(_) | Kind::Pan { .. } | Kind::Compressor(_) | Kind::Gate(_) | Kind::Limiter(_)) {
+                if matches!(p.kind, Kind::Reverb(_) | Kind::Pan { .. } | Kind::Compressor(_) | Kind::Gate(_) | Kind::Limiter(_) | Kind::AutoPan(_)) {
                     p.stereo = true;
                 }
             }
@@ -1049,6 +1276,14 @@ impl Device {
                     out[1][i] = b;
                 }
             }
+            Kind::AutoPan(auto) => {
+                for i in 0..n {
+                    let at = clock.map(|(beat, per)| (beat + i as f64 * per, per));
+                    let (a, b) = auto.process((ins[0][0][i], ins[0][1][i]), at, [param(0, i), param(1, i), param(2, i)], rate);
+                    out[0][i] = a;
+                    out[1][i] = b;
+                }
+            }
             Kind::Mix { amount } => {
                 // A crossfade: all dry at 0, all wet at 1 (as Live's Dry/Wet).
                 let (dry, wet) = ((1.0 - *amount) as f32, *amount as f32);
@@ -1202,6 +1437,16 @@ fn builtin(e: &Value) -> Option<Value> {
             ],
             vec![["in", "repeat"], ["repeat", "out"]],
         ),
+        // Live 12's Auto Pan-Tremolo (29.3): mode, wave, rate (Hz) or sync (a cycle in sixteenths) with its offset
+        // (degrees), phase (degrees) or spin (0 to 1), invert, harmonic and vintage; amount 0 to 1 and shape -1 to 1.
+        // The part takes the effect's settings as they are.
+        "autopan" => {
+            let settings = e.clone();
+            (
+                vec![part("in", "input", serde_json::json!({})), part("pan", "autopan", settings), part("out", "output", serde_json::json!({}))],
+                vec![["in", "pan"], ["pan", "out"]],
+            )
+        }
         _ => return None,
     };
     Some(serde_json::json!({ "parts": parts, "cables": cables }))
@@ -1577,6 +1822,7 @@ impl Chain {
                 ("autofilter" | "chorus" | "phaser", "depth") => ("lfo", "depth", Scale::Same),
                 ("beatrepeat", "chance" | "decay") => ("repeat", setting, Scale::Same),
                 ("beatrepeat", "volume") => ("repeat", "volume", Scale::Db),
+                ("autopan", "amount" | "rate" | "shape") => ("pan", setting, Scale::Same),
                 _ => return None,
             },
         };
@@ -1590,6 +1836,9 @@ impl Chain {
             (Kind::Repeat(_), "chance") => Slot::Rest(0),
             (Kind::Repeat(_), "decay") => Slot::Rest(1),
             (Kind::Repeat(_), "volume") => Slot::Rest(2),
+            (Kind::AutoPan(_), "amount") => Slot::Rest(0),
+            (Kind::AutoPan(_), "rate") => Slot::Rest(1),
+            (Kind::AutoPan(_), "shape") => Slot::Rest(2),
             _ => return None,
         };
         let scale = if matches!(self.devices[device].parts[part].kind, Kind::Delay { .. }) { Scale::Beats(seconds_per_beat) } else { scale };
@@ -1733,6 +1982,109 @@ mod tests {
         assert!(chain.aim(&gated, "r", "grid", 0.5).is_none());
     }
 
+    #[test]
+    fn beat_repeat_insert_crossfades_from_and_back_to_what_comes_in() {
+        // Tones whose sixteenths don't end on a zero crossing (a 220 Hz one does at 120, which hid the step): a repeat
+        // that starts or stops at full level against the live sound clicks.
+        for hz in [333.0, 441.0] {
+            for fx in [json!({ "id": "r", "kind": "beatrepeat", "interval": 4, "grid": 1, "gate": 2, "mix": "insert" }),
+                json!({ "id": "r", "kind": "beatrepeat", "interval": 8, "grid": 1, "gate": 3, "mix": "insert", "decay": 0.3 })] {
+                let tone: Vec<f32> = (0..96_000).map(|i| ((TAU * hz * f64::from(i) / f64::from(RATE)).sin() * 0.5) as f32).collect();
+                let mut chain = Chain::new(std::slice::from_ref(&fx), RATE, 0.5, false).unwrap();
+                // At 120 a beat is 24 000 samples and a sixteenth 6 000.
+                chain.set_clock(0.0, 1.0 / (0.5 * f64::from(RATE)));
+                let (mut l, mut r) = (tone.clone(), tone.clone());
+                chain.process(&mut l, &mut r, f64::from(RATE));
+                // The tone itself moves at most 2π·f·0.5/48 000 a sample (0.029 at 441 Hz); the fix keeps every step
+                // near that, where the cut jumped 0.35 to 0.5.
+                let step = l.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0.0f32, f32::max);
+                let most = (TAU * hz * 0.5 / f64::from(RATE)) as f32 * 1.5;
+                assert!(step < most, "{hz} Hz, {fx}: a step of {step}");
+                // It did repeat: in the middle of the first repeat the output is the first sixteenth, not the tone.
+                assert!((l[9_000] - tone[3_000]).abs() < 1e-3 && (l[9_000] - tone[9_000]).abs() > 1e-2, "{hz} Hz, {fx}");
+            }
+        }
+    }
+
+    /// A second of a steady 1.0 on both sides through `fx`, with the song stopped.
+    fn steady(fx: &Value) -> (Vec<f32>, Vec<f32>) {
+        let mut chain = Chain::new(std::slice::from_ref(fx), RATE, 0.5, true).unwrap();
+        let (mut l, mut r) = (vec![1.0f32; RATE as usize], vec![1.0f32; RATE as usize]);
+        chain.process(&mut l, &mut r, f64::from(RATE));
+        (l, r)
+    }
+
+    #[test]
+    fn auto_pan_moves_the_sides_against_each_other_and_tremolo_moves_them_together() {
+        let near = |a: f32, b: f64| (f64::from(a) - b).abs() < 1e-3;
+        // Panning, Phase 180: at a quarter of the cycle the left is whole and the right gone, at three quarters the
+        // other way round (29.3).
+        let (l, r) = steady(&json!({ "id": "a", "kind": "autopan", "rate": 1, "amount": 1 }));
+        assert!(near(l[12_000], 1.0) && near(r[12_000], 0.0), "{} {}", l[12_000], r[12_000]);
+        assert!(near(l[36_000], 0.0) && near(r[36_000], 1.0));
+        // Phase 0 moves both sides together.
+        let (l, r) = steady(&json!({ "id": "a", "kind": "autopan", "rate": 1, "amount": 1, "phase": 0 }));
+        assert!(l.iter().zip(&r).all(|(a, b)| a == b));
+        // Tremolo: one LFO for both, down by the amount at its bottom.
+        let (l, r) = steady(&json!({ "id": "a", "kind": "autopan", "mode": "tremolo", "rate": 1, "amount": 0.5 }));
+        assert!(l.iter().zip(&r).all(|(a, b)| a == b));
+        assert!(near(l[12_000], 1.0) && near(l[36_000], 0.5));
+        // Invert turns the wave over; Saw Up climbs through the cycle.
+        let (l, _) = steady(&json!({ "id": "a", "kind": "autopan", "mode": "tremolo", "rate": 1, "amount": 1, "invert": true }));
+        assert!(near(l[12_000], 0.0) && near(l[36_000], 1.0));
+        let (l, _) = steady(&json!({ "id": "a", "kind": "autopan", "mode": "tremolo", "wave": "sawup", "rate": 1, "amount": 1 }));
+        assert!(l[6_000] < l[24_000] && l[24_000] < l[42_000]);
+        // Shape above 0 holds the wave nearer its limits.
+        let (soft, _) = steady(&json!({ "id": "a", "kind": "autopan", "mode": "tremolo", "rate": 1, "amount": 1 }));
+        let (hard, _) = steady(&json!({ "id": "a", "kind": "autopan", "mode": "tremolo", "rate": 1, "amount": 1, "shape": 1 }));
+        assert!(hard[4_000] > soft[4_000] + 0.05);
+    }
+
+    #[test]
+    fn auto_pan_synced_follows_the_beat_and_its_offset() {
+        let at = |fx: Value, beat: f64| {
+            let mut chain = Chain::new(&[fx], RATE, 0.5, true).unwrap();
+            chain.set_clock(beat, 1.0 / (0.5 * f64::from(RATE)));
+            let (mut l, mut r) = (vec![1.0f32; 1], vec![1.0f32; 1]);
+            chain.process(&mut l, &mut r, f64::from(RATE));
+            (f64::from(l[0]), f64::from(r[0]))
+        };
+        // A beat a cycle: a quarter beat in, the left is at its top whatever the free-running LFO did.
+        let (l, r) = at(json!({ "id": "a", "kind": "autopan", "sync": 4, "amount": 1 }), 8.25);
+        assert!((l - 1.0).abs() < 1e-3 && r.abs() < 1e-3, "{l} {r}");
+        // 90 degrees of offset moves it on a quarter cycle, to the middle.
+        let (l, _) = at(json!({ "id": "a", "kind": "autopan", "sync": 4, "offset": 90, "amount": 1 }), 8.25);
+        assert!((l - 0.5).abs() < 1e-3, "{l}");
+    }
+
+    #[test]
+    fn auto_pan_random_waves_stay_in_range_and_sample_and_hold_holds_through_a_cycle() {
+        for wave in ["random", "wander", "sh"] {
+            let (l, r) = steady(&json!({ "id": "a", "kind": "autopan", "wave": wave, "rate": 4, "amount": 1 }));
+            assert!(l.iter().chain(&r).all(|x| (0.0..=1.0).contains(x)), "{wave}");
+            assert!(l.iter().zip(&r).any(|(a, b)| (a - b).abs() > 1e-3), "{wave}: Phase 180 spreads the sides");
+            let (l, r) = steady(&json!({ "id": "a", "kind": "autopan", "wave": wave, "rate": 4, "amount": 1, "phase": 0 }));
+            assert!(l.iter().zip(&r).all(|(a, b)| a == b), "{wave}: Phase 0 is one stream");
+        }
+        let (l, _) = steady(&json!({ "id": "a", "kind": "autopan", "wave": "sh", "rate": 4, "amount": 1 }));
+        assert!(l[1..11_999].iter().all(|x| *x == l[1]) && l[12_001] != l[1]);
+    }
+
+    #[test]
+    fn auto_pan_harmonic_moves_lows_and_highs_against_each_other() {
+        let level = |fx: Value, hz: f64, from: usize| {
+            let mut chain = Chain::new(&[fx], RATE, 0.5, false).unwrap();
+            let mut l: Vec<f32> = (0..RATE as usize).map(|i| (TAU * hz * i as f64 / f64::from(RATE)).sin() as f32).collect();
+            let mut r = l.clone();
+            chain.process(&mut l, &mut r, f64::from(RATE));
+            (l[from..from + 2_400].iter().map(|x| x * x).sum::<f32>() / 2_400.0).sqrt()
+        };
+        let fx = json!({ "id": "a", "kind": "autopan", "mode": "tremolo", "harmonic": true, "rate": 1, "amount": 1 });
+        // At the LFO's top (a quarter second in) the lows pass and the highs drop; at its bottom the other way.
+        assert!(level(fx.clone(), 80.0, 10_800) > 3.0 * level(fx.clone(), 6_000.0, 10_800));
+        assert!(level(fx.clone(), 6_000.0, 34_800) > 3.0 * level(fx, 80.0, 34_800));
+    }
+
     /// A setting moved to `value` on a chain made with it at `base` sounds as a chain made with it at `value` does.
     fn moves_like_set(base: Value, setting: &str, value: f64, json_value: f64) {
         let input: Vec<f32> = (0..9_600).map(|i| ((i as f32) * 0.05).sin() * if i % 2_400 < 300 { 0.9 } else { 0.1 }).collect();
@@ -1771,6 +2123,10 @@ mod tests {
             moves_like_set(delay.clone(), setting, value, value);
         }
         moves_like_set(json!({ "id": "c", "kind": "compressor", "threshold": -20, "ratio": 4, "attack": 0.01, "release": 0.2, "makeup": 0 }), "makeup", 6.0, 6.0);
+        let auto = json!({ "id": "a", "kind": "autopan", "amount": 0.5, "rate": 1, "shape": 0 });
+        for (setting, value) in [("amount", 0.9), ("rate", 3.0), ("shape", -0.5)] {
+            moves_like_set(auto.clone(), setting, value, value);
+        }
         moves_like_set(json!({ "id": "r", "kind": "reverb", "size": 1, "damp": 0.4, "mix": 0.25 }), "mix", 0.6, 0.6);
         let device = json!({ "id": "w", "kind": "device", "device": { "parts": [
             { "id": "in", "kind": "input" }, { "id": "f", "kind": "filter", "type": "lowpass", "cutoff": 800, "resonance": 0.7, "gain": 0 },

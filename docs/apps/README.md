@@ -1,12 +1,16 @@
 # Apps
 
-Mobius holds the apps you use every day in one window, with one look, one sidebar and one way of reviewing what Mobius
-changed. The app hub groups them by what they are for, and so do these pages.
+Mobius holds the apps you use every day in one window, with one look and one way of reviewing what Mobius
+changed. **Go › All apps** groups them by what they are for, and so do these pages.
 
 **Always there** (Mobius's own apps): Home (the Agent app), Agents, Activity, Store, Settings, Projects, Files,
 Review, Views.
 **On a new install:** Notes, Tasks, Calendar, Mail, Docs, Browser.
 **Added from [Store](../guide/abilities.md):** everything else.
+
+Mobius is going from 30 apps to 23, so each app is easy to explain and found where you'd look. Reader is already the
+Browser's reader mode. Research, Search, Views, Review, Activity and Terminal fold into other apps next, each only once
+its new home works; until then they are here as before. See the [roadmap](../roadmap.md).
 
 | Group | Apps |
 | --- | --- |
@@ -20,8 +24,9 @@ Review, Views.
 
 - **Your files, in plain formats.** Notes and documents are Markdown, calendars are `.ics`, databases are SQLite, all in
   the workspace folder. They open in other programs too.
-- **The same frame.** A sidebar for the app's own list, a title row, and the work area. See the
-  [tour](../getting-started/tour.md).
+- **The same frame.** Rounded panels on a darker frame, each named for what it holds (Notes' Notebooks, Mail's
+  Mailboxes), a title row and a centred tool row. See the [tour](../getting-started/tour.md), and the
+  [design guide](../design/panel-look.md) for how the look is built and where each app stands.
 - **Mobius beside you.** The Mobius button opens the [Mobius panel](../guide/working-with-mobius.md#the-mobius-panel)
   on the right: a glance at what is open, what Mobius can do with it, and the conversation. Mobius sees what you have
   open.

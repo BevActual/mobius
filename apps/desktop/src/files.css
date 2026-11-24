@@ -12,14 +12,17 @@
 /* The list: a header row of sortable columns, then one row per entry. */
 .files-head, .files-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 196px 64px; align-items: center; column-gap: var(--sp-3); }
 .files-table[aria-label="Made by Mobius"] .files-row { grid-template-columns: minmax(0, 1fr) 90px minmax(0, 200px); }
-.files-head { padding: 0 var(--sp-3) var(--sp-1); border-bottom: 1px solid var(--line); }
+/* The panel look: rows float, with no lines between them or under the header. */
+.files-head { padding: 0 var(--sp-3) var(--sp-1); }
 .files-col { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; margin-left: -4px; border-radius: var(--radius-small, 4px); font-size: var(--fs-xs); font-weight: 400; color: var(--muted); }
 .files-col:hover { background: var(--wash); color: var(--ink); }
+/* The column the list is sorted by reads in ink, with its arrow. */
+.files-col[aria-sort="ascending"], .files-col[aria-sort="descending"] { color: var(--ink); }
 .files-col[data-col="size"] { justify-self: end; margin-left: 0; margin-right: -4px; }
 .files-sort { font-size: 9px; }
 
-.files-row { min-height: 36px; padding: 0 var(--sp-3); border-bottom: 1px solid var(--line); cursor: default; user-select: none; transition: background var(--dur-fast) var(--ease); }
-.files-row:hover { background: var(--line-soft, var(--soft)); }
+.files-row { min-height: 32px; padding: 0 var(--sp-3); border-radius: var(--radius-control); cursor: default; user-select: none; transition: background var(--dur-fast) var(--ease); }
+.files-row:hover:not([aria-selected="true"]) { background: var(--side-hover, var(--wash)); }
 .files-row:focus { outline: none; }
 .files-row[aria-selected="true"] { background: var(--sel, var(--wash)); }
 /* Moving: the folder a dragged item would land in is ringed in ink; what is being dragged or cut stays, faded. */
@@ -38,10 +41,13 @@
 /* A column's gap between the right-aligned date and Kind, so the two never read as one. */
 .files-head [data-col="kind"], .files-kind { margin-left: var(--sp-4); }
 .files-page .list-count { font-variant-numeric: tabular-nums; }
-.files-dot { flex: none; width: 6px; height: 6px; border-radius: 3px; background: var(--mobius, var(--accent)); }
+/* A folder holding what Mobius made and nobody kept: the Mobius mark in grey (indigo is for the unkept file itself,
+   dashed, when the folder is open). */
+.files-held { flex: none; display: inline-flex; margin-left: auto; padding-right: var(--sp-1); color: var(--muted); }
+.files-held .mobius-mark { width: 14px; height: 14px; }
 .files-none { padding: var(--sp-3); }
 
-/* Icons: the frame's neutral line glyphs; colour shows only as Mobius's dot. */
+/* Icons: the frame's neutral line glyphs; colour shows only on what Mobius made. */
 .files-icon { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 /* The sidebar's glyphs are one size, the shared 16px row glyph, for places and folders alike. */
 .files-icon[data-size="side"] { width: 16px; height: 16px; padding: 0; }
@@ -86,7 +92,7 @@
 
 /* Loading: placeholder bars in the list's place, never a spinner. */
 .files-loading { display: grid; width: var(--files-col); margin-inline: auto; }
-.files-loading span { height: var(--row-list, 40px); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 var(--sp-3); }
+.files-loading span { height: 32px; display: flex; align-items: center; padding: 0 var(--sp-3); }
 .files-loading span::before { content: ""; height: 10px; width: var(--w, 40%); border-radius: var(--radius-small, 4px); background: var(--sel, var(--wash)); }
 @media (prefers-reduced-motion: no-preference) { .files-loading span::before { animation: files-pulse var(--dur-loop) var(--ease) infinite alternate; } }
 @keyframes files-pulse { to { opacity: 0.45; } }
@@ -156,11 +162,19 @@
 .files-table[data-view="grid"] .files-row { border: 0; box-shadow: none; display: flex; flex-direction: column; align-items: stretch; height: auto; padding: var(--sp-2); border-radius: var(--radius-panel); }
 .files-table[data-view="grid"] .files-row > .files-cell:not(.files-name) { display: none; }
 .files-table[data-view="grid"] .files-name { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); min-width: 0; text-align: center; }
-.files-table[data-view="grid"] .files-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
-.files-tile { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius-control); background: var(--soft); overflow: hidden; }
+.files-table[data-view="grid"] .files-label { max-width: 100%; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal; overflow-wrap: anywhere; font-size: var(--fs-sm); line-height: 1.3; }
+.files-table[data-view="grid"] .files-held { position: absolute; top: var(--sp-2); right: var(--sp-2); margin: 0; padding: 0; }
+.files-table[data-view="grid"] .files-row { position: relative; }
+/* Tiles sit on the panel with no card edge: a picture keeps its rounded box, an icon stands on its own. */
+.files-tile { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius-control); overflow: hidden; }
+.files-tile:has(img) { background: var(--soft); }
 .files-tile img { width: 100%; height: 100%; object-fit: cover; }
-.files-tile svg, .files-table[data-view="grid"] .files-tile .files-icon { width: 48px; height: 48px; }
+.files-tile svg, .files-table[data-view="grid"] .files-tile .files-icon { width: 64px; height: 64px; }
 /* The glyph drawn about 32px across, its lines kept at the weight of every other icon. */
 .files-tile .files-icon * { vector-effect: non-scaling-stroke; stroke-width: 1.5; }
 /* In a tile, a folder's glyph is in ink like a file's, so a tile reads at a glance. */
 .files-table[data-view="grid"] .files-tile .files-icon { color: var(--ink) !important; stroke-width: 1.25; }
+
+/* Places: the Trash on its own at the foot; a group's + stays in sight while the group has no places yet. */
+.files-side-trash { margin-top: var(--sp-2); }
+.ui-dock[data-dock="left"] .ui-side-section:has(> .ui-side-list:empty) .side-head .side-actions { opacity: 1; }

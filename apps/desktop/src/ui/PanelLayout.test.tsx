@@ -23,6 +23,22 @@ describe('panels', () => {
     expect(html).not.toContain('data-dock="right"');
   });
 
+  it('always draw a fixed panel, even when a layout kept from before hid it, with no button to hide it', () => {
+    const was = (globalThis as { window?: unknown }).window;
+    (globalThis as { window?: unknown }).window = { localStorage: { getItem: () => JSON.stringify({ shown: { list: false } }) } };
+    try {
+      const html = renderToStaticMarkup(
+        <PanelLayout app="settings" panels={[{ id: 'list', name: 'Settings', dock: 'left', fixed: true, render: () => <nav>Sections</nav> }]}>
+          <p>Content</p>
+        </PanelLayout>,
+      );
+      expect(html).toContain('<nav>Sections</nav>');
+      expect(html).not.toContain('Hide Settings');
+    } finally {
+      (globalThis as { window?: unknown }).window = was;
+    }
+  });
+
   it('draw a left dock before the content, its edge after its panels', () => {
     const html = renderToStaticMarkup(
       <PanelLayout app="test" panels={[{ id: 'places', name: 'Places', dock: 'left', shown: true, render: () => <p>Inbox</p> }]}>

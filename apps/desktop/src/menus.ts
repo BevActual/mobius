@@ -106,8 +106,8 @@ export function buildMenus(c: MenuContext): Menu[] {
     item('find', 'Find on page…', d.find, { keys: keys.find, disabled: c.app !== 'browser' || !s.browser.hasPage }),
   ] };
   const view: Menu = { id: 'view', label: 'View', items: [
-    // No Sidebar or Agent panel here: the panels follow at the end of View by their own names (Mailboxes, Mobius),
-    // with ticks from their real state (on macOS, in the Panels button). docs/design/panel-look.md, Naming panels.
+    // The open app's own panels (Mailboxes, Sections, Tabs...) and Mobius are listed at the end by their own names, with
+    // their real state: never a generic "Sidebar" or "Agent panel" (docs/design/guide.md, Naming panels).
     item('comments', 'Comments', d.toggleComments, { keys: 'c', checked: s.commenting }),
     separator,
     item('zoom-in', 'Zoom in', () => d.zoom(nextZoom(s.zoom, 1)), { disabled: s.zoom >= ZOOM_STEPS.at(-1)! }),

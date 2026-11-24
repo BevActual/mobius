@@ -30,7 +30,7 @@ Frames on a canvas, as in Sketch and Figma.
 
 ![The Design app in Mobius](../readme/apps/design.png)
 
-- Design opens on the design you had open last (or the newest one). **New design** is at the top of the sidebar
+- Design opens on the design you had open last (or the newest one). **New design** is at the top of the Designs panel
   (Ctrl+N).
 - The tools and zoom sit in the window's toolbar. Draw with a tool (**V** move, **F** frame, **R** rectangle,
   **O** oval, **L** line, **T** text) or click one to add it. Hold Shift while drawing a line to keep it flat, upright
@@ -39,7 +39,7 @@ Frames on a canvas, as in Sketch and Figma.
 - **Images**: paste a picture, drop one on a frame, or use the toolbar's **Image** button (Ctrl+Shift+K). It fills its
   box and is cropped to it, and takes a corner radius like a rectangle. Pictures are kept beside the design, in
   `<design> files/`.
-- The **Inspector** is a panel on the right, beside Mobius. Hide or show it from the Panels menu or with Ctrl+Alt+I.
+- The **Inspector** is a panel on the right, beside Mobius. Hide or show it from the View menu or with Ctrl+Alt+I.
 - Pick with a click, Shift-click or a box. Move with smart guides, size from any edge, line layers up from the
   inspector, copy and duplicate. Double-click a text layer to type on the canvas.
 - Rename layers and frames in the layer list. Each layer row has **Lock** and **Hide** buttons (or Ctrl+Shift+L and
@@ -70,9 +70,9 @@ Your pictures, with edits you can always take back.
 
 - **Albums** are folders in `workspace/photos/`, shown as a grid. Your original files are never changed. The slider in
   the toolbar (or **−** and **+**) makes the pictures bigger or smaller. Right-click a picture to open, rename (**F2**),
-  export, move it to another album or delete it; you can also drag it onto an album in the sidebar. Right-click an
+  export, move it to another album or delete it; you can also drag it onto an album in the Albums panel. Right-click an
   album to rename or delete it.
-- The sidebar has a search for albums, **Library** (with Recently Deleted) and **Albums**. An open photo's controls sit
+- The **Albums** panel has a search for albums, **Library** (with Recently Deleted) and **Albums**. An open photo's controls sit
   in the window's toolbar: back to the album, **Adjust**, **Filters** and **Crop**, **Show original**, **Revert** and
   **Export**. The picture's name, size and edits show along the foot of the page.
 - **Recently Deleted** keeps deleted photos, with their edits, until you empty it; right-click one to put it back in
@@ -96,7 +96,7 @@ A small studio for writing songs as notes.
 
 ![The Music app in Mobius](../readme/apps/music.png)
 
-- **Songs** in the sidebar, newest first, with **Sounds** below them: pick Drums, Bass, Piano, Pad or Lead to add a
+- **Songs** in the Songs panel, newest first, with **Sounds** below them: pick Drums, Bass, Piano, Pad or Lead to add a
   track of it to the open song. **From Mobius** lists songs with a part Mobius wrote that you have not kept yet. The
   last song you had open opens when you come back. Right-click a song to delete it; Music asks first.
 - **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play (Space), Stop
@@ -145,8 +145,10 @@ A small studio for writing songs as notes.
   Damp, Mix) at the end of the track's chain. After Live 12's (26), there are also a Gate (Threshold, Return, Floor,
   Attack, Hold, Release), a Limiter (Gain, Ceiling, Release), a Saturator (Drive, Shape, Output, Dry/Wet), an Auto
   Filter (a filter type, Frequency and Resonance, swept by an LFO of a Shape, Rate and Amount), a Chorus (Delay, Rate,
-  Amount, Dry/Wet) and a Phaser (Frequency, Rate, Amount, Dry/Wet). The Workbench can't draw the Gate, Limiter or
-  Chorus yet. Each one has a switch to turn it off, a grip to drag it along the
+  Amount, Dry/Wet), a Phaser (Frequency, Rate, Amount, Dry/Wet) and a Beat Repeat (Live 12's, 29.5: every Interval,
+  Offset sixteenths in and by Chance, it takes a Grid of what comes in and repeats it for its Gate, each repeat
+  quieter by Decay, at its Volume, mixed with the input, in its place or alone; it follows the song's beat). The
+  Workbench can't draw the Gate, Limiter, Beat Repeat or Chorus yet. Each one has a switch to turn it off, a grip to drag it along the
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
 - **Sidechain**: a Compressor or Gate (and a song's own device with a compressor in it) has a Sidechain section, as in Live
   (29.9.1). **Audio From** picks another track whose level triggers it, so a kick can duck a bass or pad; **Gain** raises
@@ -212,7 +214,7 @@ Cut footage into a short film.
 
 ![The Video app in Mobius](../readme/apps/video.png)
 
-- **Projects** in the sidebar, each with its footage. Add footage with + beside Footage or by dropping files on the
+- **Projects** in the Videos panel, each with its footage. Add footage with + beside Footage or by dropping files on the
   window, then add a clip to the cut or drag it into the timeline.
 - **The timeline** shows each shot as a numbered filmstrip. Trim from either end, split, duplicate, move and remove shots.
   Right-click a shot for its menu, or a clip in Footage to add it or show its folder.
@@ -235,7 +237,7 @@ A code editor for projects in your workspace.
 
 ![The Code app in Mobius](../readme/apps/code.png)
 
-- **The sidebar** lists your **Projects** as rows, then **Changes** (the branch, each changed file, and quiet **Commit…** and **Push**), then the open project's **Files** as a tree.
+- **The Explorer panel** lists your **Projects** as rows, then **Changes** (the branch, each changed file, and quiet **Commit…** and **Push**), then the open project's **Files** as a tree.
 - **Projects** keep their files as a tree. Files Mobius changed in its last turn have the same dot as in every app.
 - **The editor** types like a text field and reads like code, as in Xcode: the current line is lit, brackets and quotes
   close themselves, Tab and Shift+Tab indent, Ctrl+/ comments lines, Ctrl+F finds and Ctrl+G goes to a line. Every
@@ -262,7 +264,7 @@ Run commands in a folder of your workspace.
 ![The Terminal app in Mobius](../readme/apps/terminal.png)
 
 - `cd` never goes past the workspace.
-- Long-running commands are listed in the sidebar so you can come back to them.
+- Long-running commands are listed in the Sessions panel so you can come back to them.
 - When Mobius wants to run a command, it asks every time.
 
 ## Canvas

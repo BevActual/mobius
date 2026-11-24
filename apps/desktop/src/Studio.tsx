@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { MAX_UNLINKED, builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
+import { AudioClipDetail } from './studio-audio-clip';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
 import { pressKey, soundInputs, chooseInput, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
@@ -225,13 +226,13 @@ function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { trac
             data-dragging={drag?.id === c.id || undefined}
             style={{ left: start * bw + 1, width: length * bw - 3 }}
             aria-label={`${c.name ?? (c.audio ? fileName(c.audio.file) : track.name)}, ${words}${c.audio ? ', audio' : ''}${c.loop ? ', looped' : ''}${c.muted ? ', muted' : ''}${proposed ? ', proposed by Mobius' : ''}`}
-            {...(clipTipWanted() ? { title: 'Double-click to edit the notes. Drag to move, or its right edge to stretch it', 'data-tip-at': 'pointer' } : {})}
+            {...(clipTipWanted() ? { title: `Double-click to ${c.audio ? 'open the clip' : 'edit the notes'}. Drag to move, or its right edge to stretch it`, 'data-tip-at': 'pointer' } : {})}
             onPointerDown={(e) => grab(e, c.id, false)}
             onPointerMove={follow}
             onPointerUp={drop}
             onPointerCancel={() => setDrag(null)}
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); actions.onMenu(c.id, e.clientX, e.clientY); }}
-            onDoubleClick={(e) => { e.stopPropagation(); if (c.audio) return; clipEdited(); onOpen(c.start, c.id); }}
+            onDoubleClick={(e) => { e.stopPropagation(); clipEdited(); onOpen(c.start, c.id); }}
             onKeyDown={(e) => {
               const mod = e.ctrlKey || e.metaKey;
               if (e.key === 'Enter') { e.preventDefault(); clipEdited(); onOpen(c.start, c.id); return; }
@@ -291,7 +292,9 @@ const EFFECT_CELLS: { [K in EffectKind]: readonly { k: string; name: string; ste
   limiter: [{ k: 'gain', name: 'Gain', step: 0.5, origin: 0 }, { k: 'ceiling', name: 'Ceiling', step: 0.1, origin: 0 }, { k: 'release', name: 'Release', step: 0.001, log: true }],
   saturator: [{ k: 'drive', name: 'Drive', step: 0.5, origin: 0 }, { k: 'shape', name: 'Shape', step: 0.01 }, { k: 'output', name: 'Output', step: 0.5, origin: 0 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
   autofilter: [{ k: 'cutoff', name: 'Frequency', step: 1, log: true }, { k: 'resonance', name: 'Resonance', step: 0.1, log: true }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 1 }],
-  chorus: [{ k: 'delay', name: 'Delay', step: 0.0005 }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 0.0001 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
+  // Live 12's Chorus-Ensemble (29.8): Rate, Amount, Feedback and Dry/Wet, with the delay the voice moves around. The
+  // high-pass is a switch and its frequency, drawn beside the mode.
+  chorus: [{ k: 'delay', name: 'Delay', step: 0.0005 }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 0.0001 }, { k: 'feedback', name: 'Feedback', step: 0.01 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
   phaser: [{ k: 'center', name: 'Frequency', step: 1, log: true }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 1 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
   // Interval and Grid are chosen from note values above the knobs, as Live 12's Beat Repeat (29.5) has them.
   beatrepeat: [{ k: 'offset', name: 'Offset', step: 1 }, { k: 'chance', name: 'Chance', step: 0.01 }, { k: 'gate', name: 'Gate', step: 1 }, { k: 'volume', name: 'Volume', step: 0.5, origin: 0 }, { k: 'decay', name: 'Decay', step: 0.01 }],
@@ -312,7 +315,7 @@ const EFFECT_DETAILS: { [K in EffectKind]: string } = {
   limiter: 'Keeps the loudest peaks under a ceiling',
   saturator: 'Warmth and grit from driving it hard',
   autofilter: 'A filter that sweeps up and down by itself',
-  chorus: 'Thickens with slightly detuned copies',
+  chorus: 'Thickens with a slightly detuned copy, or wobbles in pitch',
   phaser: 'A sweeping, swirling notch',
   beatrepeat: 'Stutters: repeats a slice of the beat',
 };
@@ -325,6 +328,19 @@ const sixteenthChoices = (choices: readonly { value: string; label: string }[], 
   const near = choices.find((c) => Math.abs(Number(c.value) - v) < 1e-3);
   return { value: near?.value ?? String(v), choices: near ? choices : [...choices, { value: String(v), label: `${Number(v.toFixed(2))}/16` }] };
 };
+const CHORUS_MODES_SHOWN = [{ value: 'chorus', label: 'Chorus' }, { value: 'vibrato', label: 'Vibrato' }] as const;
+/** The high-pass a Chorus-Ensemble's switch turns on at, and its frequency knob's range (Live 12, 29.8: 20 Hz to 2 kHz). */
+const CHORUS_HIGHPASS = { on: 200, lo: 20, hi: 2000 } as const;
+/** Settings that do nothing in a mode, drawn dimmed as Live draws them: Vibrato has no Feedback or Dry/Wet. */
+const idleIn = (e: Effect, k: string) => e.kind === 'chorus' && e.mode === 'vibrato' && (k === 'feedback' || k === 'mix');
+type Chorus = Extract<Effect, { kind: 'chorus' }>;
+/** A mode change; a Chorus still where it started moves to where a Vibrato starts, and back, as Live's modes do. */
+function setChorusMode(e: Chorus, mode: ChorusMode) {
+  const from = mode === 'vibrato' ? CHORUS_START : VIBRATO_START, to = mode === 'vibrato' ? VIBRATO_START : CHORUS_START;
+  if ((['delay', 'rate', 'depth'] as const).every((k) => Math.abs(e[k] - from[k]) < 1e-9)) Object.assign(e, to);
+  e.mode = mode;
+}
+const CHORUS_START = { delay: EFFECT_PARAMS.chorus.delay!.start, rate: EFFECT_PARAMS.chorus.rate!.start, depth: EFFECT_PARAMS.chorus.depth!.start } as const;
 const DELAY_TIMES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '0.75', label: '3/16' }, { value: '1', label: '1/4' }, { value: '1.5', label: '3/8' }, { value: '2', label: '1/2' }] as const;
 
 /** One effect on the track, as a shared device: on or off, dragged along the chain by its grip, taken off, and its settings. */
@@ -615,16 +631,30 @@ function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
           <Segmented label="Mix mode" value={effect.mix} choices={REPEAT_MIXES} onChange={(v) => onChange((e) => { (e as Repeat).mix = v; }, 'fx:mix')} />
         </>;
       })()}
-      {effect.kind !== 'beatrepeat' && Object.entries(EFFECT_WORDS[effect.kind] ?? {}).map(([k, w]) => (
+      {effect.kind === 'chorus' && (
+        <Segmented label="Mode" value={effect.mode} choices={CHORUS_MODES_SHOWN} onChange={(v) => onChange((e) => { setChorusMode(e as Chorus, v); }, 'fx:mode')} />
+      )}
+      {effect.kind !== 'beatrepeat' && effect.kind !== 'chorus' && Object.entries(EFFECT_WORDS[effect.kind] ?? {}).map(([k, w]) => (
         <Select key={k} label={WORD_NAMES[k] ?? k} value={(effect as unknown as Record<string, string>)[k] ?? w.start} choices={w.choices.map((c) => ({ value: c, label: WORD_NAMES[c] ?? c }))}
           onChange={(v) => onChange((e) => { (e as unknown as Record<string, string>)[k] = v; }, `fx:${k}`)} />
       ))}
       {EFFECT_CELLS[effect.kind].length > 0 && <ParamGrid label={`${name} settings`} columns={4}>
         {EFFECT_CELLS[effect.kind].map(({ k, name: cell, step, log, origin }) => {
           const r = EFFECT_PARAMS[effect.kind][k]!;
-          return <Knob key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} proposed={proposed?.has(`fx:${effect.id}:${k}`)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
+          return <Knob key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} disabled={idleIn(effect, k)} format={(v) => effectText(effect.kind, k, v)} proposed={proposed?.has(`fx:${effect.id}:${k}`)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
         })}
+        {effect.kind === 'chorus' && (
+          <Knob label="High-pass" value={Math.max(CHORUS_HIGHPASS.lo, effect.highpass)} min={CHORUS_HIGHPASS.lo} max={CHORUS_HIGHPASS.hi} step={1} scale="log" reset={CHORUS_HIGHPASS.on}
+            disabled={effect.highpass < CHORUS_HIGHPASS.lo} format={(v) => effectText('chorus', 'highpass', v)} proposed={proposed?.has(`fx:${effect.id}:highpass`)}
+            onChange={(v) => onChange((e) => { (e as Chorus).highpass = Math.round(v); }, 'fx:highpass')} />
+        )}
       </ParamGrid>}
+      {effect.kind === 'chorus' && (
+        <div className="studio-fx-switches">
+          <Switch label="High-pass filter" checked={effect.highpass >= CHORUS_HIGHPASS.lo} onChange={(on) => onChange((e) => { (e as Chorus).highpass = on ? CHORUS_HIGHPASS.on : 0; }, 'fx:highpass')} />
+          <Switch label="Invert feedback" checked={effect.invert} disabled={idleIn(effect, 'feedback')} onChange={(on) => onChange((e) => { (e as Chorus).invert = on; }, 'fx:invert')} />
+        </div>
+      )}
       {(effect.kind === 'compressor' || effect.kind === 'gate') && <SidechainSection effect={effect} name={name} sources={sources} onChange={onChange} />}
       </div>
     </DeviceFrame>
@@ -1921,7 +1951,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           </span>
         )}
         <Segmented label="Show" value={detail} choices={DETAIL_VIEWS} onChange={setDetail} />
-        {detail === 'notes' && (view === 'arrange' || clip) && <>
+        {detail === 'notes' && (view === 'arrange' || clip) && !arrClip?.audio && <>
         <Segmented label="View" value={drumView} choices={STEP_VIEWS} onChange={setDrumView} />
         {drumView === 'steps' ? (
           <Select inline hideLabel label="Bar" value={String(Math.min(stepBar, spanBars - 1))} choices={Array.from({ length: spanBars }, (_, b) => ({ value: String(b), label: `Bar ${b + 1}` }))} onChange={(b) => setStepBar(Number(b))} />
@@ -1949,6 +1979,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       levelOf={(part) => (session.current ?? player.current)?.level?.(track.id, benchFx.id, part) ?? null} onClose={() => setBench(null)} />
   ) : detail === 'device' ? (
     <StudioDevice track={track} returns={song.returns ?? []} sources={song.tracks.filter((x) => x.id !== track.id).map((x) => ({ id: x.id, name: x.name }))} songPath={songs.page?.path ?? ''} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
+  ) : arrClip?.audio ? (
+    <AudioClipDetail clip={arrClip as ArrangeClip & { audio: ClipAudio }} track={track} returns={song.returns ?? []} tempo={song.tempo} songPath={songs.page?.path ?? ''}
+      onClip={(fn, tag) => editClips(track.id, (cs) => cs.map((x) => { if (x.id !== arrClip.id) return x; const y = { ...x }; fn(y); return y; }), tag)} />
   ) : view === 'session' && !clip ? (
     <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
   ) : drumView === 'steps' ? (

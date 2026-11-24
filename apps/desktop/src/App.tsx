@@ -24,7 +24,7 @@ import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
 import { UpdateNotice } from './UpdateNotice';
 import { pressOf, takeEarlyKeys } from './early-keys';
-import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments } from './Comments';
+import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments, useSuggestions } from './Comments';
 import type { Side } from './resize';
 import { useAgentSettings } from './useAgentSettings';
 import { useBrowser } from './useBrowser';
@@ -836,6 +836,7 @@ export function App() {
   const commentDoc = inSheets && sheets.data ? `${sheets.data.workbook}/${sheets.data.sheet}` : inMail && mail.open ? mail.open.id : inNotes && notes.page ? notes.page.path : inDocs && docs.page ? docs.page.path : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id) : inCalendar ? 'calendar' : inBrowser ? (active?.url ?? null) : place || appName(app);
   const commentThreads = useCommentThreads(app, commentDoc);
   const openComments = useOpenComments(app);
+  const openSuggestions = useSuggestions(app);
   useEffect(() => { setCommenting(false); }, [app]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -1264,7 +1265,9 @@ export function App() {
   };
   ownListRef.current = ownListBody;
   const settingsPanels = useMemo<readonly PanelSpec[]>(() => [
-    { id: 'list', name: 'Settings', label: 'Sections', dock: 'left', shown: true, render: () => <div ref={setSettingsSlot} className="settings-side" /> },
+    // Settings' Sections panel: always there, as in System Settings. Hidden, it left only the page that was open and no
+    // way to another.
+    { id: 'list', name: 'Sections', dock: 'left', shown: true, fixed: true, render: () => <div ref={setSettingsSlot} className="settings-side" /> },
   ], []);
   const listFor = (id: AppId): readonly PanelSpec[] => (settingsOpen ? NO_PANELS : ownListPanels[id] ?? NO_PANELS);
   const withOwnList = (id: AppId, content: ReactNode): ReactNode => {
@@ -2024,7 +2027,7 @@ export function App() {
           />
         ),
         trail: (appMenu) => <>
-          <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
+          <CommentButton on={commenting} count={openComments.length} suggestions={openSuggestions} onToggle={() => setCommenting((on) => !on)} />
           {/* Agents app (marked): Run now, the one filled button, before the More menu. */}
           {shownAgent && agentView?.kind !== 'new' && !(agentView?.kind === 'show' && agentView.editing) && (shownAgent.id === MAIN_BOT_ID
             ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>

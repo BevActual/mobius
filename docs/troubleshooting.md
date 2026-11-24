@@ -36,11 +36,11 @@ app to go back further. The [Review](apps/review.md) app lists everything Mobius
 **A request failed.** It is marked **Failed** in red. In [Activity](apps/assistant.md#activity), under what needs
 you, **Try again** sends the same request once more.
 
-**A connector won't start.** **Abilities › Connectors** shows it with a red dot and says why in one sentence, including
+**A connector won't start.** **Store › Connectors** shows it with a red dot and says why in one sentence, including
 where to fix a missing command. Fix that, then choose **Start again** in its menu. See
 [Connectors](guide/abilities.md#connectors-mcp).
 
-**An app is missing.** It may not be added yet. Add it from [Abilities](guide/abilities.md#apps).
+**An app is missing.** It may not be added yet. Add it from [Store](guide/abilities.md#apps).
 
 ## Something isn't working
 

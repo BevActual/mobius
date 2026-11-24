@@ -101,11 +101,12 @@ export function reEnable(track: Track, name?: string): void {
 }
 
 /** The settings a clip's envelopes can move (Live 12, 27): volume and sends as a share of the track's, pan added to it,
- * and the track's effect settings themselves. */
-export function envelopeChoices(returns: readonly ReturnTrack[] = [], track?: Track): AutoChoice[] {
+ * an audio clip's transposition in semitones added to its own (27.2.2), and the track's effect settings themselves. */
+export function envelopeChoices(returns: readonly ReturnTrack[] = [], track?: Track, audio = false): AutoChoice[] {
   return [
     { name: 'volume', label: 'Volume', lo: 0, hi: 1, own: 1 },
     { name: 'pan', label: 'Pan', lo: -1, hi: 1, own: 0 },
+    ...(audio ? [{ name: 'transpose', label: 'Transposition', lo: -48, hi: 48, own: 0 }] : []),
     ...returns.map((r, i) => ({ name: `send:${r.id}`, label: `Send ${returnName(r, i)}`, lo: 0, hi: 1, own: 1 })),
     // The track's effect settings, in their own units: the setting itself while the clip plays.
     ...(track ? autoChoices(track, returns).filter((c) => c.name.startsWith('fx:')) : []),

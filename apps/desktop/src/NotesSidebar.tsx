@@ -130,6 +130,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
     return (
       <SidebarRow key={key} label={pg.title} sub={notesRow ? (second || '\u00a0') : second || undefined}
         title={when ? `Edited ${when}` : undefined}
+        tipAt={notesRow && pg.modified > 0 ? 'end' : undefined}
         current={notes.page?.path === pg.path} proposed={changed?.has(pg.path) === true}
         onSelect={() => void notes.open(pg.path, pg.title)}
         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }}
