@@ -1,6 +1,8 @@
 # Voice plan: free on-device default, two-track meetings
 
-Status: plan only (Nov 24, 2026). Nothing here is built yet.
+Status: building (Nov 25, 2026). PR A is in two parts: A1 adds `crates/mobius-voice`, a program of its own that
+writes down a recording with Whisper and Silero VAD, and `.github/workflows/voice.yml`, which builds, signs and
+publishes it. A2 pins what A1's workflow publishes and adds the `device` listener, the downloads and Settings.
 
 ## Goal
 
@@ -28,7 +30,9 @@ cloud service add their own key. Meetings hear both sides of a call and say who 
 Why: Apache-2.0, Windows/macOS/Linux, Rust and C APIs, offline speech-to-text (Whisper, Parakeet, SenseVoice and
 others), speaker diarization, and text-to-speech (Piper) in one library.
 
-- New module `crates/mobius-host/src/voice_local.rs` (or a small `mobius-voice` crate if the native build is heavy),
+- A small program, `crates/mobius-voice`, its own workspace (sherpa-onnx's Windows library uses the static C runtime,
+  and a crash in the speech code can't take Mobius down). Mobius downloads it like the homeserver: from its own
+  prerelease, checked against a pinned SHA-256. `crates/mobius-host/src/voice_local.rs` runs it,
   behind a new `listenWith` value `device`. Runs off the UI thread; one model loaded at a time, dropped after a few idle
   minutes so it doesn't hold memory.
 - Words: Whisper models run through sherpa-onnx (see "Whisper's part" below). Exact models are picked in PR A after
