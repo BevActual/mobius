@@ -53,6 +53,17 @@ a local profile, work the frame would otherwise do anyway. The one outlier (Cale
 100 to 190 ms) came alone. So the budget is now 180 ms: above the spread of runs without a change, and still below
 what twice the work gives (about 240 ms scaled).
 
+On 25 November 2026 the slowest-app budget failed four times in 38 CI runs (186 to 205 ms; median 118, slowest
+tenth 172), Notes the slowest app in all but one. A local A/B (the speed test twice before the Notes round, at
+f4ea62b6, and twice after) gave Notes 49 and 61 ms before and 58 and 63 ms after, the other apps 29 to 38 ms: the
+round made Notes no slower, and it is still about 1.7 times the rest. With Notes' page left out it came to 50 ms, so
+the editor made afresh on each visit costs about 15 ms and Notes' panels and state about as much again. Making the
+editor a frame later did not help (72 ms): the switch is timed to the frame after the panels show, and the page then
+lands in it. The budget stays at 180 ms.
+
+A later idea, not built: keep a heavy app (Notes, Docs) mounted but hidden after its first visit, so switching back
+makes nothing afresh. It is a shell change: a hidden app must ignore keys and shortcuts, and it holds its memory.
+
 On 23 November 2026 the DOM growth budget came down from 1,500 to 400 nodes. Every visit to Docs or Notes had kept its
 editor's Markdown reader in the shared `marked` instance (about 105 nodes a visit), which the old budget let through
 until a long run on calendar-look went over it. #846 gives each editor its own reader; main then grew 169 nodes over
