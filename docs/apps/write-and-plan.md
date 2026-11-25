@@ -33,23 +33,30 @@ Longer documents, with an outline and comments.
 ![The Docs app in Mobius](../readme/apps/docs.png)
 
 - **The Documents panel** lists each folder as a heading over its documents, with when each was last edited on the right.
-  Under the open document are its headings: click one to go there, and the one you are reading is marked as you
-  scroll. **From Mobius** lists documents Mobius changed that are waiting for you. Right-click a document to open or
-  delete it (Delete asks once more). New folder is in the app's menu.
+  **From Mobius** lists documents Mobius changed that are waiting for you. Right-click a document to open it, move it
+  to another folder, or **Move to Trash**, which asks nothing because the Undo pill brings it back. A folder's **⋯**
+  renames it or moves it to the Trash. The **Trash** section at the end keeps what went for 30 days: click a row to
+  Put back or Delete forever. New folder is in the app's menu.
 - **A page to write on**, straight on the window's white: headings, lists, checklists, tables, pictures and links to
   other documents, kept as Markdown. Under the title a quiet line says when it was edited and how many words it has;
   click the count for characters or reading time, or select some text to count just that.
 - **The toolbar** has the paragraph style (**Body ⌄**, or Ctrl+Alt+0 to 3 from the keyboard), **B**, **I** and **U**, then a bulleted list, a table and a
   link, then **Share**. While you are in a table, its button has the rows and columns. The window's **⋯** opens on
   the **Docs** menu with the rest: numbered lists, checklists, quotes, strikethrough and code; Insert (table, picture,
-  divider, code block); Mobius's writing tools; the margin's comments; earlier versions; and a serif font.
-- **Outline** is a panel in the [inspector](../getting-started/tour.md#the-inspector) (show it from the View menu): the document's headings, the one you are reading marked.
+  divider, code block); Mobius's writing tools; the margin's comments; the outline; earlier versions; and a serif font.
+- **Outline** is a panel in the [inspector](../getting-started/tour.md#the-inspector) (Show the outline in the Docs menu, or the View menu): the document's headings, the one you are reading marked.
   Click one to go there.
 - **Comments** in the Comments panel on the right, beside the outline (Document options, Show comments). **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
 - **Mobius's writing tools** work on the selection or the whole document. Each change Mobius makes is one dashed block
   in the page where it is, with the words it took out struck through, and its own **Discard**, **Try another** and
   **Keep**.
+- **Editing, Suggesting and Viewing**, from the mode's name in the toolbar. In **Suggesting**, what you type is
+  underlined and what you delete stays struck through, until you accept or reject it: right-click one, or use
+  **Accept all suggestions** or **Reject all suggestions** in the Docs menu. Suggestions are kept in the file as
+  CriticMarkup (`{++added++}`, `{--removed--}`), which other Markdown tools read. **Viewing** only reads.
+- **Page setup** (in the Docs menu): Letter or A4, portrait or landscape, and narrow, normal or wide margins. The
+  page is as wide as the paper's text, and printing uses the same paper. It applies to every document on this computer.
 - **Review** mode (in the composer's Mode menu while you are in Docs or Notes) has Mobius comment and suggest without
   editing the text.
 - **Earlier versions** (in ⋯) puts one back, and **Undo** in the note at the foot takes it back again. **Share** copies,

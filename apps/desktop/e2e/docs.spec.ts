@@ -59,8 +59,12 @@ test('a new document is written on the page with formatting and kept as Markdown
   await shell().keyboard.press('Control+b');
   await shell().keyboard.type(' early.');
   await expect.poll(() => fs.readFileSync(file('Documents/Untitled.md'), 'utf8'), { timeout: 5000 }).toContain('## Plan\n\nBook the **terrace** early.');
-  // The outline beside the page lists its headings (not the Documents list), and the line under the title counts its words.
-  await expect(shell().getByRole('navigation', { name: 'Outline' }).getByRole('button', { name: 'Plan', exact: true })).toHaveCount(1);
+  // The outline is the right dock's Outline panel (from the window's ⋯), never a column beside the page; it lists the
+  // headings (not the Documents list), and the line under the title counts its words.
+  await expect(editor().getByRole('navigation', { name: 'Outline' })).toHaveCount(0);
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Docs', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Show the outline' }).click();
+  await expect(shell().getByRole('complementary', { name: 'Inspector' }).getByRole('navigation', { name: 'Outline' }).getByRole('button', { name: 'Plan', exact: true })).toHaveCount(1);
   await expect(shell().getByRole('complementary', { name: 'Documents' }).getByRole('button', { name: 'Plan', exact: true })).toHaveCount(0);
   await expect(page().locator('.doc-meta')).toContainText(/\d+ words/);
   await expect(editor().locator('.doc-status')).toHaveCount(0);
@@ -247,4 +251,108 @@ test('Review this in the Mobius panel switches to Review mode and sends the docu
   expect(JSON.stringify(model!.requests.at(-1))).toContain('Review mode.');
   // Review comments and suggests; the file is as it was.
   expect(fs.readFileSync(file('Work/Offsite brief.md'), 'utf8')).toBe(BRIEF);
+});
+
+test('a document moves to another folder, goes to the Trash with Undo and comes back, and a folder is renamed', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  fs.mkdirSync(path.dirname(file('Home/Venues.md')), { recursive: true });
+  fs.writeFileSync(file('Home/Venues.md'), '# Venues\n\nThe lodge, or the farm.\n');
+  await start();
+  const side = () => shell().getByRole('complementary', { name: 'Documents' });
+  // A folder is renamed from its own ⋯, typed in place.
+  await side().getByRole('button', { name: 'Folder options for Home' }).click();
+  await shell().getByRole('menu', { name: 'Home' }).getByRole('menuitem', { name: 'Rename', exact: true }).click();
+  await side().getByRole('textbox', { name: 'New name for Home' }).fill('Places');
+  await side().getByRole('button', { name: 'Rename', exact: true }).click();
+  await expect(side().getByRole('region', { name: 'Places' })).toBeVisible();
+  await expect.poll(() => fs.existsSync(file('Places/Venues.md'))).toBe(true);
+  // A document moves to another folder from its menu.
+  await side().getByRole('button', { name: 'Venues', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Venues' }).getByRole('menuitem', { name: 'Move to Work' }).click();
+  await expect.poll(() => fs.existsSync(file('Work/Venues.md'))).toBe(true);
+  await expect(side().getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Venues', exact: true })).toBeVisible();
+  // Move to Trash asks nothing more: the Undo pill says what went and brings it back.
+  await side().getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await expect(page()).toContainText('We have been talking');
+  await side().getByRole('button', { name: 'Offsite brief', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Offsite brief' }).getByRole('menuitem', { name: 'Move to Trash' }).click();
+  await expect.poll(() => fs.existsSync(file('Work/Offsite brief.md'))).toBe(false);
+  await shell().getByRole('status').filter({ hasText: 'Moved “Offsite brief” to the Trash' }).getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => fs.existsSync(file('Work/Offsite brief.md'))).toBe(true);
+  expect(fs.readFileSync(file('Work/Offsite brief.md'), 'utf8')).toBe(BRIEF);
+  // Gone again, it waits in the Trash, where Put back returns it.
+  await side().getByRole('button', { name: 'Offsite brief', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Offsite brief' }).getByRole('menuitem', { name: 'Move to Trash' }).click();
+  await expect.poll(() => fs.existsSync(file('Work/Offsite brief.md'))).toBe(false);
+  const trash = side().getByRole('region', { name: 'Trash' });
+  await trash.getByRole('button', { name: 'Trash', exact: true }).click();
+  await expect(trash.getByRole('button', { name: 'Offsite brief', exact: true })).toHaveAccessibleDescription(/^From Work · \d+ days left$/);
+  await trash.getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Offsite brief' }).getByRole('menuitem', { name: 'Put back' }).click();
+  await expect.poll(() => fs.existsSync(file('Work/Offsite brief.md'))).toBe(true);
+  await expect(trash).toHaveCount(0);
+});
+
+test('Suggesting keeps typing and deleting as suggestions in the file, each accepted or rejected; Viewing only reads', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  await start();
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await expect(page()).toContainText('We have been talking');
+  const bar = () => shell().getByRole('toolbar', { name: 'Format' });
+  await bar().getByRole('button', { name: 'Document mode: Editing' }).click();
+  await shell().getByRole('menu', { name: 'Document mode' }).getByRole('menuitemcheckbox', { name: 'Suggesting' }).click();
+  await expect(bar().getByRole('button', { name: 'Document mode: Suggesting' })).toBeVisible();
+  // Typed words are an added suggestion, kept in the file as CriticMarkup.
+  await page().getByText('Plan on the 13th').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' or 14th');
+  await expect(page().locator('ins.doc-suggest-add')).toHaveText(/or 14th/);
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toMatch(/Plan on the 13th ?\{\+\+ ?or 14th\+\+\}/);
+  // Deleted words stay, struck through.
+  await page().getByText('Arrive on the 12th').click();
+  await shell().keyboard.press('End');
+  for (let i = 0; i < 4; i++) await shell().keyboard.press('Backspace');
+  await expect(page().locator('del.doc-suggest-del')).toHaveText('12th');
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toContain('Arrive on the {--12th--}');
+  // Rejecting the removal puts the words back as they were.
+  await page().locator('del.doc-suggest-del').click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Edit' }).getByRole('menuitem', { name: 'Reject the removal' }).click();
+  await expect(page().locator('del.doc-suggest-del')).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toContain('- Arrive on the 12th\n');
+  // Accept all keeps the addition as ordinary text.
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Docs', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Accept all suggestions (1)' }).click();
+  await expect(page().locator('ins.doc-suggest-add')).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toContain('- Plan on the 13th or 14th\n');
+  // Viewing: the page only reads, and the writing tools leave the tool row.
+  await bar().getByRole('button', { name: 'Document mode: Suggesting' }).click();
+  await shell().getByRole('menu', { name: 'Document mode' }).getByRole('menuitemcheckbox', { name: 'Viewing' }).click();
+  await expect(page()).toHaveAttribute('contenteditable', 'false');
+  await expect(bar().getByRole('button', { name: 'Bold' })).toHaveCount(0);
+  await expect(bar().getByRole('button', { name: 'Share' })).toBeVisible();
+});
+
+test('Page setup sets the paper and margins the page is as wide as and prints on, kept for the next document', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  await start();
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await expect(page()).toContainText('We have been talking');
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Docs', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Page setup…' }).click();
+  const sheet = shell().getByRole('dialog', { name: 'Page setup' });
+  await sheet.getByRole('radiogroup', { name: 'Paper' }).getByRole('radio', { name: 'A4' }).click();
+  await sheet.getByRole('radiogroup', { name: 'Orientation' }).getByRole('radio', { name: 'Portrait' }).click();
+  await sheet.getByRole('radiogroup', { name: 'Margins' }).getByRole('radio', { name: 'Narrow' }).click();
+  await sheet.getByRole('button', { name: 'Done' }).click();
+  await expect(sheet).toHaveCount(0);
+  // A4 is 794px wide; half an inch each side leaves 698px of text.
+  await expect(editor()).toHaveAttribute('style', /--doc-text-w: 698px/);
+  await expect.poll(() => editor().locator('style').evaluate((el) => el.textContent)).toBe('@page { size: A4 portrait; margin: 0.5in 0.5in; }');
+  // Kept on this device: a new document is set up the same way.
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('button', { name: 'New document', exact: true }).click();
+  await expect.poll(() => fs.existsSync(file('Work/Untitled.md'))).toBe(true);
+  await expect(editor()).toHaveAttribute('style', /--doc-text-w: 698px/);
 });

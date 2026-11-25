@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { Editor } from '@tiptap/core';
 
 /**
  * The open document's outline, shared from the page (DocEditor) to Docs' sidebar, which lists it under the document as
@@ -28,4 +29,11 @@ export function useDocOutline(): DocOutline | null {
     (listen) => { listeners.add(listen); return () => { listeners.delete(listen); }; },
     () => shown,
   );
+}
+
+/** Goes to a heading from the outline: the caret into it, and the heading at the top of the page, as Google Docs does
+ *  (scrolled only as far as needed, one further down would sit at the bottom edge). */
+export function toHeading(editor: Editor, pos: number): void {
+  editor.chain().focus(undefined, { scrollIntoView: false }).setTextSelection(pos + 1).run();
+  (editor.view.nodeDOM(pos) as HTMLElement | null)?.scrollIntoView?.({ block: 'start' });
 }

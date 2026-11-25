@@ -1,6 +1,7 @@
 {
   "enforce": true,
   "known": {
-    "Notes": { "label-content-name-mismatch": 1 }
+    "Notes": { "label-content-name-mismatch": 1 },
+    "Docs": { "label-content-name-mismatch": 1 }
   }
 }
