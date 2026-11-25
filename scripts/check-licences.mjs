@@ -53,6 +53,7 @@ export const DOWNLOADED = [
   { name: 'sherpa-onnx', version: '2.0.3', license: 'Apache-2.0', file: 'crates/mobius-voice/licences/LICENSE-sherpa-onnx.txt' },
   { name: 'whisper (OpenAI), base.en and small.en', version: 'int8', license: 'MIT', file: 'crates/mobius-voice/licences/LICENSE-whisper.txt' },
   { name: 'silero-vad', version: 'onnx', license: 'MIT', file: 'crates/mobius-voice/licences/LICENSE-silero-vad.txt' },
+  { name: 'onnxruntime (inside sherpa-onnx\'s library)', version: '1.32.0', license: 'MIT', file: 'crates/mobius-voice/licences/LICENSE-onnxruntime.txt' },
 ];
 
 function downloaded() {
