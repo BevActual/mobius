@@ -107,14 +107,18 @@ Version history… and the note's ⋯.
 
 ## Meeting notes
 
-- **The nudge** comes when a meeting on the calendar starts: the shared pill at the foot of the open app says
-  "{Meeting} is starting", with Record and ×. It never takes focus and goes by itself after a minute. With Mobius in
-  the background, it is a system notification with the same words and Record.
-- **Record** opens the meeting's note (from the Meeting template, or the one already linked to the event) and
-  starts recording. While it runs, the tool row shows the red Stop and the time, as now, and nothing else on screen
-  changes.
-- **What the person typed stays theirs.** When the meeting ends, Mobius fills in around their lines: under each line
-  it adds what was said about it, and it fills the template's Actions with checklists. Everything Mobius added is
-  dashed until kept, with the one Why · Discard · Keep bar. The person's own lines are never rewritten.
-- **After the meeting** the note's grey line under the title adds the meeting's length and who was there, and
-  Calendar's event links to the note.
+As built in #893, with what is still to come marked Later.
+
+- **The nudge** comes when a meeting on the calendar starts (a timed event with people invited or a place to be),
+  from a minute before its start to five minutes after: the shared pill at the foot of the open app says "{Meeting}
+  is starting", with Record and ×. It never takes focus, goes by itself after a minute, and comes once per meeting.
+  Later: a system notification with the same words and Record when Mobius is in the background.
+- **Record** opens the meeting's note, or the one already linked to the event, and starts recording. While it runs,
+  the tool row shows the red Stop and the time, as now, and nothing else on screen changes.
+- **What the person typed stays theirs.** When the meeting ends, the note's bar says "The meeting is in this note."
+  with Fill in my notes (the one primary button) and Done. Fill in my notes has Mobius add what was said under each
+  of their lines, then the decisions and a checklist of who does what. It is a change to keep, dashed until kept,
+  with the one Why · Discard · Keep bar, and the person's own lines are never reworded. The Meeting notes chip asks
+  for the same.
+- **Later:** after the meeting, the note's grey line under the title adds the meeting's length and who was there,
+  and Calendar's event links to the note.
