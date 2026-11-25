@@ -202,9 +202,13 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   /** What was just moved to the Trash, for the Undo pill ("Moved “Work” and 12 notes to the Trash"). */
   const [justTrashed, setJustTrashed] = useState<{ id: string; text: string } | null>(null);
   useEffect(() => { if (!justTrashed) return undefined; const t = window.setTimeout(() => setJustTrashed(null), 8000); return () => window.clearTimeout(t); }, [justTrashed]);
+  // Reads overlap (a change seen on disk reads it again while a delete still does), so only the latest read is kept:
+  // an older one ending last put back a Trash from before.
+  const trashReads = useRef(0);
   const readTrash = useCallback(async () => {
+    const n = ++trashReads.current;
     const got = await api?.deleted?.();
-    if (got && !isNotesFailure(got)) setTrashed(got);
+    if (n === trashReads.current && got && !isNotesFailure(got)) setTrashed(got);
   }, [api]);
   /** Closes the open page when `gone` says it is going, so nothing of it is saved or shown while it moves. */
   const closeIf = useCallback(async (gone: (path: string) => boolean): Promise<boolean> => {

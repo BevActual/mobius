@@ -344,7 +344,8 @@ impl Notes {
         self.root.join(DELETED)
     }
 
-    /// A new folder in the Trash for one deleted thing, named by when.
+    /// A new folder in the Trash for one deleted thing, named by when. It is filled under a dot name the Trash's list
+    /// skips, and takes its own name only once whole (`finish_entry`), so a list read meanwhile never sees half of it.
     fn new_entry(&self) -> Res<(String, PathBuf)> {
         let base = now_ms();
         for n in 0..1000 {
@@ -353,12 +354,26 @@ impl Notes {
             } else {
                 format!("{base}-{n}")
             };
-            let dir = self.deleted_root().join(&id);
-            if fs::create_dir_all(self.deleted_root()).is_ok() && fs::create_dir(&dir).is_ok() {
+            let dir = self.deleted_root().join(format!(".part-{id}"));
+            if fs::create_dir_all(self.deleted_root()).is_ok()
+                && !self.deleted_root().join(&id).exists()
+                && fs::create_dir(&dir).is_ok()
+            {
                 return Ok((id, dir));
             }
         }
         Err("the Trash cannot be used".into())
+    }
+
+    /// The filled folder given its own name, so the Trash lists it.
+    fn finish_entry(&self, id: &str, dir: &Path, entry: &Value) -> Res<()> {
+        let done = fs::write(dir.join(ENTRY), entry.to_string())
+            .map_err(|e| e.to_string())
+            .and_then(|()| move_soon(dir, &self.deleted_root().join(id)));
+        if done.is_err() {
+            let _ = fs::remove_dir_all(dir);
+        }
+        done
     }
 
     /// The page moved to the Trash with its files, comments and kept versions, for thirty days.
@@ -408,7 +423,7 @@ impl Notes {
             let _ = move_if_there(&side, &dir.join(name));
         }
         let entry = json!({ "kind": "page", "from": path, "title": title, "deletedMs": now_ms() });
-        fs::write(dir.join(ENTRY), entry.to_string()).map_err(|e| e.to_string())?;
+        self.finish_entry(&id, &dir, &entry)?;
         Ok(json!({ "id": id, "path": path }))
     }
 
@@ -442,7 +457,7 @@ impl Notes {
             let _ = move_if_there(&self.root.join(side).join(name), &dir.join(name_in));
         }
         let entry = json!({ "kind": "notebook", "from": name, "title": name, "pages": pages, "deletedMs": now_ms() });
-        fs::write(dir.join(ENTRY), entry.to_string()).map_err(|e| e.to_string())?;
+        self.finish_entry(&id, &dir, &entry)?;
         Ok(json!({ "id": id, "name": name }))
     }
 
@@ -460,6 +475,10 @@ impl Notes {
             .filter_map(Result::ok)
         {
             let id = e.file_name().to_string_lossy().into_owned();
+            // Still being filled (or left half done by a crash): not in the Trash yet.
+            if id.starts_with('.') {
+                continue;
+            }
             let Ok(mut entry) = fs::read_to_string(e.path().join(ENTRY))
                 .map_err(|_| ())
                 .and_then(|t| serde_json::from_str::<Value>(&t).map_err(|_| ()))
@@ -785,5 +804,20 @@ mod tests {
         fs::write(&file, entry.to_string()).unwrap();
         assert!(notes.deleted().unwrap().as_array().unwrap().is_empty());
         assert!(!notes.deleted_root().join(&id).exists());
+    }
+
+    #[test]
+    fn the_trash_lists_a_deleted_thing_only_once_it_is_whole() {
+        let (_d, notes) = setup();
+        // One still being filled: its folder is there, its entry not yet.
+        let (id, dir) = notes.new_entry().unwrap();
+        fs::write(dir.join("page.md"), "# Half\n").unwrap();
+        assert!(notes.deleted().unwrap().as_array().unwrap().is_empty());
+        assert!(!notes.deleted_root().join(&id).exists());
+        write(&notes, "Work/Done.md", "# Done\n");
+        notes.trash_page("Work/Done.md").unwrap();
+        let listed = notes.deleted().unwrap();
+        assert_eq!(listed.as_array().unwrap().len(), 1);
+        assert_eq!(listed[0]["title"], "Done");
     }
 }

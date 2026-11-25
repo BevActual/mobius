@@ -419,6 +419,8 @@ test('a notebook is renamed and a note moved with links following them, and a de
   await expect(shell().getByRole('status').filter({ hasText: 'Moved “Groceries” to the Trash' })).toBeVisible();
   const trash = side().getByRole('region', { name: 'Trash' });
   await trash.getByRole('button', { name: 'Trash', exact: true }).click();
+  await expect(trash.getByRole('button', { name: 'Trash', exact: true })).toHaveAttribute('aria-expanded', 'true');
+  await expect(trash.getByRole('button', { name: 'Groceries', exact: true })).toHaveAccessibleDescription(/^From Work · \d+ days left$/);
   await trash.getByRole('button', { name: 'Groceries', exact: true }).click();
   await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: 'Put back' }).click();
   await expect.poll(() => fs.existsSync(file('Work', 'Groceries.md'))).toBe(true);

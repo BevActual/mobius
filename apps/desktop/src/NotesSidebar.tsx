@@ -86,6 +86,8 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(t); }, []);
   useEffect(() => setNow(Date.now()), [notes.notebooks]);
+  // The Trash starts folded, and stays as the person left it while it empties and fills again.
+  const [trashOpen, setTrashOpen] = useState(false);
   const [closedSections, setClosedSections] = useState<Set<string>>(new Set());
   const toggleSection = (name: string) => setClosedSections((s) => { const n = new Set(s); if (n.has(name)) n.delete(name); else n.add(name); return n; });
   const [hits, setHits] = useState<NoteHit[] | null>(null);
@@ -258,7 +260,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
             </SidebarSection>
           )}
           {notes.trashed.length > 0 && (
-            <SidebarSection title="Trash" foldable defaultOpen={false} action={emptying ? (
+            <SidebarSection title="Trash" foldable open={trashOpen} onToggle={setTrashOpen} action={emptying ? (
               <button type="button" autoFocus className="note-delete confirm" aria-label="Confirm empty Trash" onClick={() => { setEmptying(false); void notes.forget(null); }} onBlur={() => setEmptying(false)} onKeyDown={(e) => { if (e.key === 'Escape') setEmptying(false); }}>Empty</button>
             ) : (
               <button type="button" className="strip-btn" aria-label="Empty Trash" title="Empty Trash" onClick={() => setEmptying(true)}>
@@ -267,7 +269,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
             )}>
               {notes.trashed.map((item) => (
                 <SidebarRow key={item.id} label={item.title}
-                  sub={`${item.kind === 'notebook' ? `${cap(words.group)}, ${item.pages === 1 ? `1 ${words.item}` : `${item.pages ?? 0} ${words.items}`}` : `From ${item.from}`} · ${trashLeft(item.deletedMs, now)}`}
+                  sub={`${item.kind === 'notebook' ? `${cap(words.group)}, ${item.pages === 1 ? `1 ${words.item}` : `${item.pages ?? 0} ${words.items}`}` : `From ${item.from.split('/')[0]}`} · ${trashLeft(item.deletedMs, now)}`}
                   onSelect={() => setTrashMenu({ ...atFocus(), item })}
                   onContextMenu={(e) => { e.preventDefault(); setTrashMenu({ x: e.clientX, y: e.clientY, item }); }} />
               ))}
