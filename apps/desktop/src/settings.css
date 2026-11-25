@@ -271,3 +271,9 @@
 .settings-page .settings-group .settings-card .srow-body:has(> .theme-tiles) { flex: 1 1 100%; margin-left: 0; align-items: flex-start; }
 /* Ticks and radios are ink, never the system's blue. */
 .settings-page input[type="checkbox"]:not([role="switch"]), .settings-page input[type="radio"] { accent-color: var(--ink); }
+
+/* Whisper on this computer (Voice): a short status, the download's bar while it runs, then Set up, Try again or Remove.
+   It wraps under its row's title when the row is narrow, rather than running past the card. */
+.settings-page .settings-card .srow-body > .inline-form.device-voice { flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2) var(--sp-3); }
+.settings-page .settings-card .srow-body > .inline-form.device-voice > .field-error { margin: 0; font-size: var(--fs-xs); }
+.settings-page .device-voice progress { flex: 0 1 140px; min-width: 80px; accent-color: var(--accent); }
