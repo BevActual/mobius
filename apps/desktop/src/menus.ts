@@ -1,3 +1,4 @@
+import { NOTE_SORTS, type NoteSort } from './note-sort';
 import type { AppId } from './apps';
 import { templateName } from './docs-view';
 
@@ -27,7 +28,7 @@ export interface MenuContext {
     miniOpen: boolean;
     zoom: number;
     browser: { hasPage: boolean; canBack: boolean; canForward: boolean; bookmarked: boolean; pinned: boolean };
-    notes: { hasPage: boolean; pinned: boolean; changed: boolean; checkedLast: boolean };
+    notes: { hasPage: boolean; pinned: boolean; changed: boolean; checkedLast: boolean; sort: NoteSort };
     docs: { hasPage: boolean; isTemplate: boolean; templates: readonly { path: string; title: string }[] };
     tasks: { inList: boolean; done: number };
     calendar: { mode: 'day' | 'week' | 'month' | 'year' };
@@ -51,7 +52,7 @@ export interface MenuContext {
     allApps: () => void;
     launcher: () => void;
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; nextSpace: () => void; previousSpace: () => void; selection: () => void; saveToReader: () => void };
-    notes: { open: () => void; newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void; checkedLast: () => void };
+    notes: { open: () => void; newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void; checkedLast: () => void; sortBy: (by: NoteSort) => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void; fromTemplate: (path: string, title: string) => void; saveAsTemplate: () => void };
     video: { newProject: () => void; showFolder: () => void };
@@ -175,6 +176,9 @@ function appMenu(c: MenuContext): Menu | null {
         separator,
         // A note option, not a text style (panel look review): Apple Notes' Sort checked items, kept for every note.
         item('checked-last', 'Move checked items to the bottom', d.notes.checkedLast, { checked: s.notes.checkedLast }),
+        separator,
+        // Sort Notes By, as Apple Notes: one of three, the chosen one ticked.
+        ...NOTE_SORTS.map((o) => item(`sort-${o.id}`, `Sort by ${o.label.toLowerCase()}`, () => d.notes.sortBy(o.id), { checked: s.notes.sort === o.id })),
       ] };
     case 'tasks':
       return { id: 'app', label: 'Tasks', items: [

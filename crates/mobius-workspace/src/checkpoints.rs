@@ -10,6 +10,8 @@ pub const DEFAULT_EXCLUDES: &[&str] = &[
     "node_modules/", "dist/", "build/", "target/", "out/", ".next/", ".nuxt/", "__pycache__/", "*.pyc", ".cache/", ".venv/", "venv/", ".git/", ".hg/", ".svn/",
     // An app's own record of the versions it kept (Docs, Research, Reading): theirs, not part of what a turn changed.
     ".versions/",
+    // Notes' record of when each page was made, kept as pages are listed: not a change anyone made.
+    ".created.json",
     "*.so", "*.dylib", "*.dll", "*.o", "*.a", "*.jar", "*.class", "*.exe", "*.obj", "*.mp4", "*.mov", "*.mkv", "*.webm", "*.zip", "*.tar", "*.gz", "*.7z", "*.rar",
 ];
 

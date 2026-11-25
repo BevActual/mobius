@@ -560,3 +560,26 @@ test("Today's note makes a dated page in Journal once, and opens that same page 
   await expect(text()).toContainText('Called Veltro.');
   expect(fs.readdirSync(file('Journal')).filter((f) => f.endsWith('.md'))).toEqual([`${day}.md`]);
 });
+
+test('a notebook lists its notes by last edit, by when they were made, or by title, pinned ones first', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  for (const [name, edited] of [['Beta', 3], ['Alpha', 1], ['Gamma', 2]] as const) {
+    fs.writeFileSync(file('Work', `${name}.md`), `# ${name}\n`);
+    const at = new Date(Date.UTC(2026, 10, edited));
+    fs.utimesSync(file('Work', `${name}.md`), at, at);
+  }
+  // When each was made, as Notes keeps it: Gamma first, Beta last.
+  fs.writeFileSync(file('.created.json'), JSON.stringify({ 'Work/Gamma.md': Date.UTC(2026, 9, 1), 'Work/Alpha.md': Date.UTC(2026, 9, 2), 'Work/Beta.md': Date.UTC(2026, 9, 3) }));
+  await start();
+  const work = side().getByRole('region', { name: 'Work' });
+  const order = () => work.locator('button.list-row').evaluateAll((rows) => rows.map((r) => r.getAttribute('aria-label')));
+  await expect.poll(order).toEqual(['Beta', 'Gamma', 'Alpha']);
+  await notesMenu('Sort by title');
+  await expect.poll(order).toEqual(['Alpha', 'Beta', 'Gamma']);
+  await notesMenu('Sort by date created');
+  await expect.poll(order).toEqual(['Beta', 'Alpha', 'Gamma']);
+  await work.getByRole('button', { name: 'Pin Gamma' }).click();
+  await expect.poll(order).toEqual(['Gamma', 'Beta', 'Alpha']);
+  // The choice is kept for the next visit.
+  expect(await shell().evaluate(() => window.localStorage.getItem('mobius.notes.sort'))).toBe('created');
+});

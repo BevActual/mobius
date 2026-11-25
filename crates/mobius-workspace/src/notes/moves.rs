@@ -255,6 +255,7 @@ impl Notes {
             },
             &|t| t.strip_prefix(&old).map(|rest| format!("{new}{rest}")),
         );
+        self.carry_created_times(&|p| p.strip_prefix(&old).map(|rest| format!("{new}{rest}")));
         Ok(json!({ "name": to, "relinked": relinked }))
     }
 
@@ -337,6 +338,7 @@ impl Notes {
             },
             &|t| (t == path).then(|| target.clone()),
         );
+        self.carry_created_times(&|p| (p == path).then(|| target.clone()));
         Ok(json!({ "path": target, "relinked": relinked }))
     }
 

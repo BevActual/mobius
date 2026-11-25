@@ -1,3 +1,4 @@
+import { createdOf, sortPages, type NoteSort } from './note-sort';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { DeletedNote, NoteHit, NotePage } from '@mobius/shared';
@@ -65,7 +66,7 @@ export function listDate(ms: number, now: number): string {
   return dayLabel(d, { now: new Date(now) });
 }
 
-export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES_WORDS, starts, onStart, tags: withTags = false, synced }: { synced?: (folder: string) => ReactNode; notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; words?: SidebarWords; starts?: readonly Start[]; onStart?: (prompt: string) => void; tags?: boolean }) {
+export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES_WORDS, starts, onStart, tags: withTags = false, synced, sort = 'edited' }: { sort?: NoteSort; synced?: (folder: string) => ReactNode; notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; words?: SidebarWords; starts?: readonly Start[]; onStart?: (prompt: string) => void; tags?: boolean }) {
   const [query, setQuery] = useState('');
   const [tag, setTag] = useState<string | null>(null);
   useEffect(() => (withTags ? onShowTag((t) => { setQuery(''); setTag(t); }) : undefined), [withTags]);
@@ -80,7 +81,10 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
     notes.openIfIdle(made.path, made.title);
   }, [changed, allPages]); // eslint-disable-line react-hooks/exhaustive-deps
   const tagList = useMemo(() => (withTags ? tagCounts(allPages) : []), [withTags, allPages]);
-  const pinnedPages = useMemo(() => allPages.filter((pg) => pinned?.has(pg.path)), [allPages, pinned]);
+  const pinnedPages = useMemo(() => sortPages(allPages.filter((pg) => pinned?.has(pg.path)), sort), [allPages, pinned, sort]);
+  // Each notebook's notes in the order chosen (Notes' Sort Notes By), pinned ones first.
+  const sorted = useMemo(() => new Map(notes.notebooks.map((nb) => [nb.name, sort === 'edited' && !pinned?.size ? nb.pages : sortPages(nb.pages, sort, pinned)])), [notes.notebooks, sort, pinned]);
+  const pagesOf = (nb: { name: string; pages: NotePage[] }) => sorted.get(nb.name) ?? nb.pages;
   const tagged = useMemo(() => (tag ? allPages.filter((pg) => hasTag(pg.tags, tag)).sort((a, b) => b.modified - a.modified) : []), [tag, allPages]);
   // "Edited 5 min ago" counts on, so the rows are read again each minute.
   const [now, setNow] = useState(() => Date.now());
@@ -141,7 +145,10 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
 
   /** One page in the list: its title, then when it was edited and how it starts; Pin on hover. `where` names its notebook. */
   const pageRow = (pg: NotePage, where?: string, key = pg.path) => {
-    const when = relativeTime(pg.modified, Math.max(now, pg.modified));
+    // Listed by when they were made, a row shows that date; otherwise its last edit.
+    const made = sort === 'created';
+    const date = made ? createdOf(pg) : pg.modified;
+    const when = relativeTime(date, Math.max(now, date));
     // The title with its date at the end (as Mail dates a message: "9:02" today, "Tue", "3 Nov"). Notes adds one grey
     // line of how it starts, so every note is one height; other apps (Design, Canvas, Research) are one line unless
     // there is a notebook or a start to show.
@@ -149,13 +156,13 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
     const second = [where, pg.preview].filter(Boolean).join(' · ');
     return (
       <SidebarRow key={key} label={pg.title} sub={notesRow ? (second || '\u00a0') : second || undefined}
-        title={when ? `Edited ${when}` : undefined}
-        tipAt={notesRow && pg.modified > 0 ? 'end' : undefined}
+        title={when ? `${made ? 'Created' : 'Edited'} ${when}` : undefined}
+        tipAt={notesRow && date > 0 ? 'end' : undefined}
         current={notes.page?.path === pg.path} proposed={changed?.has(pg.path) === true}
         onSelect={() => void notes.open(pg.path, pg.title)}
         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }}
         trail={<>
-          {pg.modified > 0 && <span className="note-side-when" aria-hidden="true">{listDate(pg.modified, now)}</span>}
+          {date > 0 && <span className="note-side-when" aria-hidden="true">{listDate(date, now)}</span>}
           {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title}`} title={pinned?.has(pg.path) ? 'Unpin' : 'Pin'} onClick={() => onPin(pg.path, pg.title)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
           </button>}
@@ -239,8 +246,8 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
                 </li>
               )}
               {nb.pages.length === 0 && <li className="side-empty">No {words.items} yet.</li>}
-              {drawn(nb.pages).map((pg) => pageRow(pg))}
-              {rows >= FIRST_ROWS && nb.pages.length > drawn(nb.pages).length && <MoreRows onMore={more} />}
+              {drawn(pagesOf(nb)).map((pg) => pageRow(pg))}
+              {rows >= FIRST_ROWS && nb.pages.length > drawn(pagesOf(nb)).length && <MoreRows onMore={more} />}
             </SidebarSection>
           ))}
           {/* Design, Canvas and Research: New folder waits until there is something to put in one. Notes keeps New

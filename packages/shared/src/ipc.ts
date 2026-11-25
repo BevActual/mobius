@@ -138,7 +138,8 @@ export type SpaceStatus =
   | { state: 'failed'; message: string; offline: boolean };
 
 /** `preview` is the first line under the title and `tags` its `#tags`, for Markdown pages (notes, docs, wiki). */
-export interface NotePage { path: string; title: string; modified: number; preview?: string; tags?: string[]; links?: string[] }
+/** `created`: when the page was made (Notes keeps it through saves and moves); missing from apps that do not. */
+export interface NotePage { path: string; title: string; modified: number; created?: number; preview?: string; tags?: string[]; links?: string[] }
 export interface Notebook { name: string; pages: NotePage[] }
 export interface NoteContent { path: string; content: string; modified: number }
 export interface NoteHit { path: string; title: string; notebook: string; line: string }
