@@ -395,7 +395,7 @@ test('a notebook is renamed and a note moved with links following them, and a de
   await start();
   // Rename, from the notebook's own menu: the name is typed in place, and the link to its page follows it.
   await side().getByRole('button', { name: 'Notebook options for Home' }).click();
-  await shell().getByRole('menu', { name: 'Home' }).getByRole('menuitem', { name: /^Rename notebook/ }).click();
+  await shell().getByRole('menu', { name: 'Home' }).getByRole('menuitem', { name: 'Rename', exact: true }).click();
   await side().getByRole('textbox', { name: 'New name for Home' }).fill('Kitchen');
   await side().getByRole('button', { name: 'Rename', exact: true }).click();
   await expect(side().getByRole('region', { name: 'Kitchen' })).toBeVisible();

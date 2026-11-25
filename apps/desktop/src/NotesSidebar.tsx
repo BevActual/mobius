@@ -232,7 +232,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
                 <li className="notes-rename">
                   <form className="notes-name" onSubmit={(e) => void rename(e)}>
                     <input autoFocus aria-label={`New name for ${nb.name}`} value={renaming.to} maxLength={80} onFocus={(e) => e.currentTarget.select()} onChange={(e) => setRenaming({ from: nb.name, to: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
-                    <button type="submit" className="btn primary">Rename</button>
+                    <button type="submit" className="btn">Rename</button>
                   </form>
                 </li>
               )}
@@ -288,7 +288,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
       )}
       {bookMenu && (
         <ContextMenu x={bookMenu.x} y={bookMenu.y} label={bookMenu.name} onClose={() => setBookMenu(null)} items={([
-          ...(notes.renameNotebook ? [{ action: 'rename', label: `Rename ${words.group}…`, run: () => setRenaming({ from: bookMenu.name, to: bookMenu.name }) }] : []),
+          ...(notes.renameNotebook ? [{ action: 'rename', label: 'Rename', run: () => setRenaming({ from: bookMenu.name, to: bookMenu.name }) }] : []),
           ...(notes.trashNotebook ? [{ action: 'delete', label: 'Move to Trash', danger: true, run: () => void notes.trashNotebook?.(bookMenu.name) }] : []),
         ] as ContextMenuItem[])} />
       )}
