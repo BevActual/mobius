@@ -158,11 +158,15 @@ jobs:
           ls -la
           sha256sum *
       # Each licence goes beside what it covers. Three are kept in the repository (crates/mobius-voice/licences);
-      # onnxruntime's, which sherpa-onnx's library links inside it, is fetched here and must be the MIT licence.
+      # onnxruntime's, which sherpa-onnx's library links inside it, is fetched here and must be the MIT licence. GitHub's
+      # licence API finds it wherever the repository keeps it (a fixed raw path went missing and failed the release).
       - name: Put the licences beside them
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           cp crates/mobius-voice/licences/LICENSE-*.txt out/
-          curl -sSfL -o out/LICENSE-onnxruntime.txt https://raw.githubusercontent.com/microsoft/onnxruntime/main/LICENSE
+          test "$(gh api repos/microsoft/onnxruntime/license --jq .license.spdx_id)" = MIT || { echo "onnxruntime's licence is not the MIT licence; not publishing."; exit 1; }
+          gh api repos/microsoft/onnxruntime/license --jq .content | base64 -d > out/LICENSE-onnxruntime.txt
           head -1 out/LICENSE-onnxruntime.txt | grep -qx 'MIT License' || { echo "onnxruntime's licence is not the MIT licence; not publishing."; exit 1; }
           grep -q 'Microsoft Corporation' out/LICENSE-onnxruntime.txt
           ls -la out/LICENSE-*
