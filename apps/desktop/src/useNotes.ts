@@ -199,6 +199,9 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   // The Trash (Notes only: the other apps keeping pages this way delete for good). Read when the list is, so its
   // section stays true after a delete, a restore, or a change made elsewhere.
   const [trashed, setTrashed] = useState<DeletedNote[]>([]);
+  /** What was just moved to the Trash, for the Undo pill ("Moved “Work” and 12 notes to the Trash"). */
+  const [justTrashed, setJustTrashed] = useState<{ id: string; text: string } | null>(null);
+  useEffect(() => { if (!justTrashed) return undefined; const t = window.setTimeout(() => setJustTrashed(null), 8000); return () => window.clearTimeout(t); }, [justTrashed]);
   const readTrash = useCallback(async () => {
     const got = await api?.deleted?.();
     if (got && !isNotesFailure(got)) setTrashed(got);
@@ -222,21 +225,25 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   const trash = useCallback(async (path: string) => {
     if (!api?.trash) return;
     if (await closeIf((p) => p === path)) return;
+    const title = notebooks.flatMap((nb) => nb.pages).find((pg) => pg.path === path)?.title ?? path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
     const done = await api.trash(path);
-    if (await failed(done)) return;
+    if (!done || await failed(done)) return;
+    setJustTrashed({ id: (done as { id: string }).id, text: `Moved “${title}” to the Trash` });
     if (remembered() === path) remember(null);
     await Promise.all([refresh(), readTrash()]);
-  }, [api, closeIf, failed, refresh, readTrash, remembered, remember]);
+  }, [api, notebooks, closeIf, failed, refresh, readTrash, remembered, remember]);
 
   /** The whole notebook into the Trash, its pages with it. */
   const trashNotebook = useCallback(async (name: string) => {
     if (!api?.trashNotebook) return;
     if (await closeIf((p) => p.startsWith(`${name}/`))) return;
+    const count = notebooks.find((nb) => nb.name === name)?.pages.length ?? 0;
     const done = await api.trashNotebook(name);
-    if (await failed(done)) return;
+    if (!done || await failed(done)) return;
+    setJustTrashed({ id: (done as { id: string }).id, text: count ? `Moved “${name}” and ${count === 1 ? '1 note' : `${count} notes`} to the Trash` : `Moved “${name}” to the Trash` });
     if (remembered()?.startsWith(`${name}/`)) remember(null);
     await Promise.all([refresh(), readTrash()]);
-  }, [api, closeIf, failed, refresh, readTrash, remembered, remember]);
+  }, [api, notebooks, closeIf, failed, refresh, readTrash, remembered, remember]);
 
   /** The open page, if it was under `was`, opened again where it now is. */
   const reopenAt = useCallback(async (was: string, now: string) => {
@@ -272,6 +279,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   /** Back where it was; a page put back is opened. */
   const restore = useCallback(async (id: string) => {
     if (!api?.restore) return;
+    setJustTrashed((j) => (j?.id === id ? null : j));
     const done = await api.restore(id);
     if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); await Promise.all([refresh(), readTrash()]); return; }
     await Promise.all([refresh(), readTrash()]);
@@ -333,7 +341,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
 
   return { kind, openIfIdle, available: api !== undefined, loaded, notebooks, page, text, status, message, reloads, open, edit, resolve, createNotebook, createPage, remove, search,
     // Notes' notebooks and Trash; absent (undefined) where the app's pages are not kept that way.
-    trashed, trash: api?.trash ? trash : undefined, trashNotebook: api?.trashNotebook ? trashNotebook : undefined,
+    trashed, justTrashed, clearJustTrashed: () => setJustTrashed(null), trash: api?.trash ? trash : undefined, trashNotebook: api?.trashNotebook ? trashNotebook : undefined,
     renameNotebook: api?.renameNotebook ? renameNotebook : undefined, move: api?.move ? move : undefined, restore, forget };
 }
 

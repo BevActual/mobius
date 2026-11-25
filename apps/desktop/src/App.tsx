@@ -19,7 +19,7 @@ import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
 import { useBots } from './useBots';
 import { useDownloads } from './useDownloads';
-import { GoButton, Launcher, pinnedApps } from './Launcher';
+import { GoButton, Launcher, pinnedApps, type FoundItem } from './Launcher';
 import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
 import { UpdateNotice } from './UpdateNotice';
@@ -117,7 +117,7 @@ import { contactSheet } from './picture';
 
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
-import { NoteSwitcher } from './NoteSwitcher';
+import { recentNotes, useNoteQuickOpen } from './note-quick-open';
 import { findTodayNote, JOURNAL, liveTitle, statusText, todayNoteTitle } from './notes-state';
 import { checkedLast, setCheckedLast } from './checked-last';
 import { Pane, SplitDivider } from './SplitView';
@@ -910,6 +910,15 @@ export function App() {
     setLauncherAbout(selectionNow());
     setLauncherOpen(true);
   }, []);
+  // Ctrl+O in Notes: the launcher, narrowed to Notes.
+  const [launcherScope, setLauncherScope] = useState<{ app: AppId; n: number } | undefined>(undefined);
+  const openLauncherIn = useCallback((scopeApp: AppId) => {
+    setLauncherScope((s) => ({ app: scopeApp, n: (s?.n ?? 0) + 1 }));
+    if (launcherShown.current) return;
+    opener.current = document.activeElement as HTMLElement | null;
+    setLauncherAbout(undefined);
+    setLauncherOpen(true);
+  }, []);
   const [hubOpen, setHubOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | 'safety' | 'mail' | 'calendar' | 'messages' | 'browser' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
@@ -1515,6 +1524,20 @@ export function App() {
   // And what each app registered with the launcher (launcher-sources.ts).
   const allCommands = sourceCommands(launcherCommands);
   // What the launcher does, the same from Ctrl+K and from the launcher's own window over other apps.
+  // Ctrl+O in Notes opens the launcher narrowed to Notes: the notes edited last, and New note “…” when nothing matches.
+  const openNotesLauncher = useCallback(() => openLauncherIn('notes'), [openLauncherIn]);
+  useNoteQuickOpen(app === 'notes' && !settingsOpen && !launcherOpen, openNotesLauncher);
+  const launcherRecentIn = (scopeApp: AppId): FoundItem[] => (scopeApp !== 'notes' ? [] : recentNotes(notes.notebooks, notes.page?.path).map((n) => ({
+    id: n.path, app: 'notes', label: n.title, detail: n.notebook, run: () => { opener.current = null; closeSettings(); openTarget({ app: 'notes', path: n.path, title: n.title }, n.title); },
+  })));
+  const launcherMakeIn = (scopeApp: AppId, text: string): FoundItem | null => {
+    if (scopeApp !== 'notes' || !text) return null;
+    const into = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name;
+    return {
+      id: 'new-note', app: 'notes', label: `New note “${text.length > 60 ? `${text.slice(0, 59)}…` : text}”`, detail: into ?? 'Notes',
+      run: () => { opener.current = null; closeSettings(); openApp('notes'); void (async () => { const nb = into ?? (await notes.createNotebook('Notes')); if (nb) await notes.createPage(nb, text); })(); },
+    };
+  };
   const launch = {
     // Everything found in your apps: what Mobius already holds, then what each app's own source finds.
     find: (query: string) => findInSources(query, launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? 'search', label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))),
@@ -1714,7 +1737,7 @@ export function App() {
           </>
         );
       case 'notes':
-        return <><NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} onAsk={startWithMobius} recordToken={meetingToken} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} /><NoteSwitcher notes={notes} active={app === 'notes' && !launcherOpen && !settingsOpen} /></>;
+        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} onAsk={startWithMobius} recordToken={meetingToken} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'tasks':
         return <TasksPage tasks={tasks} listPanels={listFor('tasks')} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'docs':
@@ -2144,6 +2167,9 @@ export function App() {
         recent={launcherOpen ? recentItems() : []}
         onOpenRecent={launch.openRecent}
         find={launch.find}
+        scopeTo={launcherScope}
+        recentIn={launcherRecentIn}
+        makeIn={launcherMakeIn}
         places={launch.places}
         onOpenMobius={launch.openMobius}
         onAsk={launch.ask}

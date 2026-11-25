@@ -400,6 +400,7 @@ test('a notebook is renamed and a note moved with links following them, and a de
   await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: 'Move to Trash' }).click();
   await expect.poll(() => fs.existsSync(file('Work', 'Groceries.md'))).toBe(false);
   await expect(shell().getByRole('region', { name: 'No note open' })).toBeVisible();
+  await expect(shell().getByRole('status').filter({ hasText: 'Moved “Groceries” to the Trash' })).toBeVisible();
   const trash = side().getByRole('region', { name: 'Trash' });
   await trash.getByRole('button', { name: 'Trash', exact: true }).click();
   await trash.getByRole('button', { name: 'Groceries', exact: true }).click();
@@ -412,39 +413,47 @@ test('a notebook is renamed and a note moved with links following them, and a de
   await side().getByRole('button', { name: 'Notebook options for Kitchen' }).click();
   await shell().getByRole('menu', { name: 'Kitchen' }).getByRole('menuitem', { name: 'Move to Trash' }).click();
   await expect(side().getByRole('region', { name: 'Kitchen' })).toHaveCount(0);
+  // The Undo pill brings it straight back; then it goes again.
+  await shell().getByRole('status').filter({ hasText: 'Moved “Kitchen” to the Trash' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(side().getByRole('region', { name: 'Kitchen' })).toBeVisible();
+  await side().getByRole('button', { name: 'Notebook options for Kitchen' }).click();
+  await shell().getByRole('menu', { name: 'Kitchen' }).getByRole('menuitem', { name: 'Move to Trash' }).click();
+  await expect(side().getByRole('region', { name: 'Kitchen' })).toHaveCount(0);
   await side().getByRole('region', { name: 'Trash' }).getByRole('button', { name: 'Empty Trash' }).click();
   await side().getByRole('button', { name: 'Confirm empty Trash' }).click();
   await expect(side().getByRole('region', { name: 'Trash' })).toHaveCount(0);
   expect(fs.existsSync(file('.deleted'))).toBe(false);
 });
 
-test('Ctrl+O opens any note by part of its title, and makes one when none has it', async () => {
+test('Ctrl+O opens the launcher narrowed to Notes: recent notes, a note by its title, and New note when none has it', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   fs.mkdirSync(file('Home'), { recursive: true });
   fs.writeFileSync(file('Work', 'Launch brief.md'), '# Launch brief\n\nShip on Friday.\n');
   fs.writeFileSync(file('Home', 'Groceries.md'), '# Groceries\n\n- [ ] Oats\n');
   await start();
   await shell().keyboard.press('Control+o');
-  const box = shell().getByRole('combobox', { name: 'Note to open' });
+  const box = shell().getByRole('combobox', { name: 'Search in Notes' });
   await expect(box).toBeFocused();
-  // With nothing typed, the notes edited last are listed.
-  await expect(shell().getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(2);
-  await box.fill('lnch');
-  await expect(shell().getByRole('option', { name: /Launch brief/ })).toHaveAttribute('aria-selected', 'true');
+  const results = shell().getByRole('listbox', { name: 'Results' });
+  // With nothing typed, the notes edited last.
+  await expect(results.getByRole('option', { name: /Launch brief/ })).toBeVisible();
+  await expect(results.getByRole('option', { name: /Groceries/ })).toBeVisible();
+  await box.fill('launch');
+  await expect(results.getByRole('option', { name: /Launch brief/ }).first()).toBeVisible();
   await shell().keyboard.press('Enter');
   await expect(text().locator('h1')).toHaveText('Launch brief');
-  await expect(shell().getByRole('dialog', { name: 'Open a note' })).toHaveCount(0);
-  // A title no note has: the last row makes it, in the notebook that is open.
+  // A title no note has: the first row makes it, in the notebook that is open.
   await shell().keyboard.press('Control+o');
   await box.fill('Standup');
-  await shell().getByRole('option', { name: /New note “Standup”/ }).click();
+  await expect(results.getByRole('option').first()).toHaveAccessibleName(/New note “Standup”/);
+  await shell().keyboard.press('Enter');
   await expect.poll(() => fs.existsSync(file('Work', 'Standup.md'))).toBe(true);
   await expect(text().locator('h1')).toHaveText('Standup');
-  // Escape closes it and leaves the note as it was.
+  // Backspace in the empty box widens it to everything again.
   await shell().keyboard.press('Control+o');
+  await shell().keyboard.press('Backspace');
+  await expect(shell().getByRole('combobox', { name: 'Find apps, pages and commands' })).toBeVisible();
   await shell().keyboard.press('Escape');
-  await expect(shell().getByRole('dialog', { name: 'Open a note' })).toHaveCount(0);
-  await expect(text().locator('h1')).toHaveText('Standup');
 });
 
 test('[[ links another note, the link opens it, and that note lists where it is linked from', async () => {

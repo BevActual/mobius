@@ -2201,7 +2201,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 @property --scroll-edge { syntax: '<length>'; inherits: false; initial-value: 0px; }
 .glass, .glass-clear,
 html .context-strip, html .launcher, html .hub, html .popmenu-list, html .convo-menu, html .menu-panel,
-html .selection-menu, html .selection-bar, html .address-suggestions, html .code-quick, html .note-quick,
+html .selection-menu, html .selection-bar, html .address-suggestions, html .code-quick,
 html .code-bar, html .sheet-menu, html .sheet-suggest, html .note-share-menu, html .note-comment-composer, html .tasks-undo,
 html .doc-editor .doc-toolbar, html .chat.full .composer, html .dock[data-floating] {
   background: var(--raised);
