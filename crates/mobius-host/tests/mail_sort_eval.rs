@@ -91,10 +91,25 @@ const SAMPLES: &[(&str, &str, &str, bool, &str, bool)] = &[
     ("Reddit <noreply@redditmail.com>", "Trending in r/rust", "Popular posts from communities you follow: async closures, a new borrow checker blog.", true, "archive", false),
     ("Amazon <shipment-tracking@amazon.com>", "Delivered: your package", "Your package was delivered. It was handed to a resident.", false, "archive", false),
     ("Instacart <orders@instacart.com>", "Your order has been delivered", "Your groceries were left at the door. Rate your shopper.", false, "archive", false),
+    // Fresh cases written after the third run, when rules for prize offers and deliveries already made were added on
+    // its two misses: more of those kinds, mail that must not be caught by them, and kinds not seen before.
+    ("FedEx <TrackingUpdates@fedex.com>", "Delivered: Your FedEx shipment", "Your shipment was delivered today at 1:42 PM. Left at front door.", false, "archive", false),
+    ("Target <orders@oe.target.com>", "Your order arrived", "Good news! Your order arrived today. Thanks for shopping with us.", false, "archive", false),
+    ("Costco Member Gifts <gifts@costco-member-rewards.top>", "Congratulations, you're our winner", "You have been chosen to receive a free Dyson vacuum. Pay only shipping to claim it.", false, "archive", false),
+    ("Lottery Commission <claims@intl-lotto-award.org>", "Final notice: unclaimed prize", "Your email was drawn in our annual draw. Reply with your bank details to receive EUR 850,000.", false, "archive", false),
+    ("Amazon <shipment-tracking@amazon.com>", "Arriving tomorrow: your order", "Your order of 2 items will arrive tomorrow by 9 PM.", false, "later", false),
+    ("Sam Lee <sam.lee@gmail.com>", "Did the lamp arrive?", "Did the lamp get delivered ok? Let me know if it didn't, I can chase the shop.", false, "reply", true),
+    ("Dana Reyes <dana@northwind.io>", "We won the Harbor bid", "Great news, we won the Harbor contract. Kickoff details to follow next week.", false, "later", false),
+    ("Google <no-reply@accounts.google.com>", "Security alert", "A new sign-in on Mac. If this was you, you don't need to do anything.", false, "reply", true),
+    ("Zoom <no-reply@zoom.us>", "Cloud recording now available", "The recording of 'Design review' is now available to view.", false, "later", false),
+    ("Notion Team <team@mail.notion.so>", "What's new in Notion", "Meet the new calendar, faster search and more.", true, "archive", false),
+    ("Jordan Kim <jordan@harborcafe.com>", "Invoice 1042 overdue", "Invoice 1042 for $640 is now 15 days overdue. Can you confirm when it will be paid?", false, "reply", true),
+    ("PayPal <service@paypal.com>", "You've got money", "Chris Wu sent you $25.00 USD. Note: lunch.", false, "later", false),
 ];
 
-/// Where the fresh cases start: the samples before them were seen when the rules were written.
-const FRESH_FROM: usize = 54;
+/// Where the fresh cases start: the samples before them were seen when the rules were written. (54 until the third
+/// run; the ten after them were tuned on once it showed two of them wrong.)
+const FRESH_FROM: usize = 64;
 
 type Sample = (&'static str, &'static str, &'static str, bool, &'static str, bool);
 
