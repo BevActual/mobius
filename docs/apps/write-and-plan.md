@@ -116,6 +116,9 @@ Your calendars by day, week or month.
   **More options** moves it to the Event panel on the right, which keeps each change as you make it (Saved shows
   once it is kept, and Done closes it). A repeating event keeps a Save button there, as each change asks which times
   it is for.
+- **Alert** in an event's details: none, at the time, or minutes, an hour or a day before (an all-day event: 9:00 on
+  the day or the day before). It is kept in the calendar file as a standard alarm, so other calendar apps ring it too.
+  When it comes, a pill at the foot of the window says so, with **Open**.
 - **Invite** in an event's details lists who is invited, with names from your address book as you type, as in Mail's
   To. Under it, each person's answer (going, maybe, not going) as their calendar sent it. Who is invited is kept in the
   calendar file and on CalDAV servers; Outlook calendars show it but do not take changes to it yet.

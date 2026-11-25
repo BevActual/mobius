@@ -489,3 +489,32 @@ test('the small month in the Calendars panel goes to the day picked, and marks t
   await expect(day).toHaveAttribute('aria-pressed', 'true');
   await expect(day).toHaveAttribute('data-shown', 'true');
 });
+
+test('an event’s alert is kept as a VALARM, changed in its details, and when it comes the pill says so with Open', async () => {
+  // A review ten minutes from now, with a ten-minute alert written by another app: it comes as Mobius opens.
+  const soon = new Date(Date.now() + 10 * 60_000 - 20_000);
+  const end = new Date(soon.getTime() + 3600_000);
+  const stamp = (d: Date) => `${ics(day(d))}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:alert\r\nDTSTART:${stamp(soon)}\r\nDTEND:${stamp(end)}\r\nSUMMARY:Budget review\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT10M\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start();
+  const pill = shell().getByRole('status').filter({ hasText: /^Budget review in (9|10) minutes/ });
+  await expect(pill).toBeVisible();
+  await pill.getByRole('button', { name: 'Open' }).click();
+  await expect(pill).toHaveCount(0);
+  // Its details show the alert, and a new one is kept in the file in its place.
+  await tools().getByRole('radio', { name: 'Day' }).click();
+  await page().getByRole('button', { name: /^Budget review/ }).click();
+  const pop = shell().getByRole('dialog', { name: 'Edit event' });
+  await expect(pop.getByRole('combobox', { name: 'Alert', exact: true })).toHaveText(/10 minutes before/);
+  await choose(pop, 'Alert', '1 hour before');
+  await pop.getByRole('textbox', { name: 'Title' }).press('Enter');
+  await expect(pop).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('TRIGGER:-PT60M');
+  expect(fs.readFileSync(file('Work'), 'utf8')).not.toContain('TRIGGER:-PT10M');
+  // None takes it off.
+  await page().getByRole('button', { name: /^Budget review/ }).click();
+  await choose(pop, 'Alert', 'None');
+  await pop.getByRole('textbox', { name: 'Title' }).press('Enter');
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).not.toContain('VALARM');
+});

@@ -412,6 +412,78 @@ fn parse_duration(value: &str) -> Option<Duration> {
     Some(total)
 }
 
+/// The alarms of an event (`VALARM` blocks, kept among its other lines), each as its lines.
+fn alarm_blocks(extra: &[String]) -> Vec<std::ops::Range<usize>> {
+    let mut blocks = Vec::new();
+    let mut open = None;
+    for (i, line) in extra.iter().enumerate() {
+        let upper = line.to_ascii_uppercase();
+        if upper.starts_with("BEGIN:VALARM") {
+            open = Some(i);
+        } else if upper.starts_with("END:VALARM")
+            && let Some(from) = open.take()
+        {
+            blocks.push(from..i + 1);
+        }
+    }
+    blocks
+}
+
+/// An alarm's time as minutes before the event starts (negative: after it starts), when it is set from the start;
+/// None for one at a set time or from the end, which Mobius keeps but does not show.
+fn alarm_minutes(lines: &[String]) -> Option<i64> {
+    lines.iter().filter_map(|l| split_line(l)).find(|(name, ..)| name == "TRIGGER").and_then(|(_, params, value)| {
+        let from_start = params.iter().all(|(k, v)| !(k == "VALUE" && v.eq_ignore_ascii_case("DATE-TIME")) && !(k == "RELATED" && v.eq_ignore_ascii_case("END")));
+        if !from_start {
+            return None;
+        }
+        let v = value.trim();
+        let (before, rest) = match v.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, v),
+        };
+        let d = parse_duration(rest)?.num_minutes();
+        Some(if before { d } else { -d })
+    })
+}
+
+/// The event's alert, as minutes before it starts: its first alarm set from the start.
+pub fn alert_of(e: &Event) -> Option<i64> {
+    alarm_blocks(&e.extra).into_iter().find_map(|r| alarm_minutes(&e.extra[r]))
+}
+
+/// The longest an alert may be before an event: four weeks.
+const MAX_ALERT_MINUTES: i64 = 28 * 24 * 60;
+
+/// Sets the event's alert: the alarms set from its start go, and one is written for `minutes` before it (if any).
+/// Alarms at a set time or from the end stay as they were.
+fn set_alert(e: &mut Event, minutes: Option<i64>) {
+    let mine: Vec<std::ops::Range<usize>> = alarm_blocks(&e.extra).into_iter().filter(|r| alarm_minutes(&e.extra[r.clone()]).is_some()).collect();
+    for r in mine.into_iter().rev() {
+        e.extra.drain(r);
+    }
+    if let Some(m) = minutes {
+        let trigger = match m {
+            0 => "PT0S".to_owned(),
+            m if m > 0 => format!("-PT{m}M"),
+            m => format!("PT{}M", -m),
+        };
+        e.extra.extend(["BEGIN:VALARM".to_owned(), "ACTION:DISPLAY".to_owned(), format!("DESCRIPTION:{}", escape(&e.title)), format!("TRIGGER:{trigger}"), "END:VALARM".to_owned()]);
+    }
+}
+
+/// An alert as sent: absent leaves it, null takes it off, a whole number of minutes before the start sets it.
+fn alert_sent(draft: &Draft) -> Res<Option<Option<i64>>> {
+    match &draft.alert {
+        None => Ok(None),
+        Some(Value::Null) => Ok(Some(None)),
+        Some(v) => match v.as_i64() {
+            Some(m) if m.abs() <= MAX_ALERT_MINUTES => Ok(Some(Some(m))),
+            _ => Err("alert is the minutes before the event starts, up to four weeks, or null for none".into()),
+        },
+    }
+}
+
 pub fn write(name: &str, events: &[Event], other: &[String]) -> String {
     let mut lines = vec!["BEGIN:VCALENDAR".to_owned(), "VERSION:2.0".to_owned(), "PRODID:-//Mobius//Calendar//EN".to_owned()];
     if !other.iter().any(|l| l.to_ascii_uppercase().starts_with("X-WR-CALNAME")) {
@@ -561,6 +633,9 @@ pub struct Draft {
     pub attendees: Option<Value>,
     /// Who sent it, as sent: `{ name, email }`, or null for no one. Checked when the event is saved.
     pub organizer: Option<Value>,
+    /// The alert, as minutes before the start (negative: after it, as an all-day event's 9:00 on the day), or null for
+    /// none. Absent leaves it as it was.
+    pub alert: Option<Value>,
 }
 
 impl Draft {
@@ -577,6 +652,7 @@ impl Draft {
             scope: s("scope"),
             attendees: v.get("attendees").cloned(),
             organizer: v.get("organizer").cloned(),
+            alert: v.get("alert").cloned(),
         }
     }
 }
@@ -872,7 +948,7 @@ fn event_json(calendar: &str, e: &Event, start: When, read_only: bool) -> Value 
     let all_day = matches!(e.start, When::Day(_));
     json!({ "id": e.uid, "calendar": calendar, "title": e.title, "start": start.show(), "end": end.show(), "allDay": all_day,
         "location": e.location, "notes": e.notes, "repeats": e.repeat.is_some(), "repeat": e.repeat.as_ref().map_or("", repeat_name), "readOnly": read_only,
-        "attendees": e.attendees.iter().map(person_json).collect::<Vec<_>>(), "organizer": e.organizer.as_ref().map(person_json) })
+        "attendees": e.attendees.iter().map(person_json).collect::<Vec<_>>(), "organizer": e.organizer.as_ref().map(person_json), "alert": alert_of(e) })
 }
 
 /// The starts a repeating event skips (`EXDATE`), and the one a changed copy of a single time replaces
@@ -1138,8 +1214,12 @@ impl Calendar {
         let (title, start, end, location, notes) = Self::checked(draft, None)?;
         let repeat = repeat_named(draft.repeat.as_deref().unwrap_or(""))?;
         let (attendees, organizer) = people_sent(draft, None)?;
+        let alert = alert_sent(draft)?;
         let (mut events, other) = self.load(calendar)?;
-        let event = Event { uid: new_uid(), title, start, end, location, notes, repeat, attendees, organizer, extra: Vec::new() };
+        let mut event = Event { uid: new_uid(), title, start, end, location, notes, repeat, attendees, organizer, extra: Vec::new() };
+        if let Some(alert) = alert {
+            set_alert(&mut event, alert);
+        }
         self.send(calendar, Some((std::slice::from_ref(&event), true)), None)?;
         events.push(event.clone());
         self.store(calendar, &events, &other)?;
@@ -1177,6 +1257,9 @@ impl Calendar {
         if let Some(name) = &draft.repeat {
             changed.repeat = repeat_named(name)?;
         }
+        if let Some(alert) = alert_sent(draft)? {
+            set_alert(&mut changed, alert);
+        }
         let mut after = events.clone();
         after[at] = changed.clone();
         let parts: Vec<Event> = after.iter().filter(|e| e.uid == uid).cloned().collect();
@@ -1208,6 +1291,9 @@ impl Calendar {
         let mut changed = base;
         (changed.title, changed.start, changed.end, changed.location, changed.notes) = (title, start, end, location, notes);
         (changed.attendees, changed.organizer) = (attendees, organizer);
+        if let Some(alert) = alert_sent(draft)? {
+            set_alert(&mut changed, alert);
+        }
         let mut shown_json = None;
         if scope == Scope::One {
             changed.repeat = None;
@@ -1504,6 +1590,37 @@ mod tests {
         assert!(listed[0].get("attendees").is_none() && listed[0].get("organizer").is_none(), "{listed}");
         let by_agent: Value = serde_json::from_str(&c.run("calendar.add", &json!({ "title": "Call", "start": "2026-11-18T09:00", "attendees": [{ "email": "x@example.org" }] })).unwrap()).unwrap();
         assert_eq!(c.events("2026-11-18", "2026-11-18").unwrap()[0]["attendees"], json!([]), "{by_agent}");
+    }
+
+    #[test]
+    fn an_alert_is_read_set_and_taken_off_as_a_valarm_keeping_alarms_mobius_does_not_show() {
+        let (dir, c) = store();
+        let file = dir.path().join("workspace/calendar/Calendar.ics");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        // One alarm set from the start (shown as the alert) and one at a set time (kept, not shown).
+        fs::write(&file, "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a1\r\nDTSTART:20261116T100000\r\nDTEND:20261116T110000\r\nSUMMARY:Review\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER;RELATED=START:-PT1H\r\nEND:VALARM\r\nBEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER;VALUE=DATE-TIME:20261116T080000Z\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n").unwrap();
+        assert_eq!(c.events("2026-11-16", "2026-11-16").unwrap()[0]["alert"], json!(60));
+        let saved = c.update("Calendar", "a1", &Draft::from_json(&json!({ "alert": 10 }))).unwrap();
+        assert_eq!(saved["alert"], json!(10));
+        let text = unfold(&fs::read_to_string(&file).unwrap()).join("\n");
+        assert!(text.contains("TRIGGER:-PT10M") && !text.contains("-PT1H"), "{text}");
+        assert!(text.contains("TRIGGER;VALUE=DATE-TIME:20261116T080000Z"), "{text}");
+        // A save that leaves it out keeps it; null takes it off, and the alarm at a set time stays.
+        c.update("Calendar", "a1", &Draft { title: Some("Review, moved".into()), ..Draft::default() }).unwrap();
+        assert_eq!(c.events("2026-11-16", "2026-11-16").unwrap()[0]["alert"], json!(10));
+        let cleared = c.update("Calendar", "a1", &Draft::from_json(&json!({ "alert": null }))).unwrap();
+        assert_eq!(cleared["alert"], Value::Null);
+        let text = fs::read_to_string(&file).unwrap();
+        assert!(!text.contains("-PT10M") && text.contains("ACTION:AUDIO"), "{text}");
+        // A new all-day event at 9:00 on its day: after its start, written as such.
+        let day = c.add("Calendar", &Draft::from_json(&json!({ "title": "Trip", "start": "2026-11-20", "alert": -540 }))).unwrap();
+        assert_eq!(day["alert"], json!(-540));
+        assert!(fs::read_to_string(&file).unwrap().contains("TRIGGER:PT540M"));
+        // At the time, and nonsense refused.
+        let now = c.add("Calendar", &Draft::from_json(&json!({ "title": "Call", "start": "2026-11-21T09:00", "alert": 0 }))).unwrap();
+        assert_eq!(now["alert"], json!(0));
+        assert!(c.add("Calendar", &Draft::from_json(&json!({ "title": "x", "start": "2026-11-21T09:00", "alert": "soon" }))).is_err());
+        assert!(c.add("Calendar", &Draft::from_json(&json!({ "title": "x", "start": "2026-11-21T09:00", "alert": 999_999 }))).is_err());
     }
 
     #[test]

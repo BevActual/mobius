@@ -99,6 +99,7 @@ import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
 import { pressIs } from './ui/PanelLayout';
 import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
+import { alertDue, alertSaid } from './calendar-alerts';
 import { UndoToast, AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
@@ -1748,16 +1749,22 @@ export function App() {
   // Record, gone by itself after a minute. It never takes focus. Each time of a meeting is offered once.
   const [starting, setStarting] = useState<CalendarEvent | null>(null);
   const offered = useRef(new Set<string>());
+  // An event's alert, when it comes: "{Event} in 10 minutes" in the same pill, with Open (docs/design/calendar.md).
+  const [alerting, setAlerting] = useState<{ event: CalendarEvent; said: string } | null>(null);
+  const alerted = useRef(new Set<string>());
   useEffect(() => {
     const api = window.mobius.calendar;
     if (!api) return;
     let gone = false;
     const look = async () => {
       const now = new Date();
-      const got = await api.events(calendarDay(now), calendarDay(now)).catch(() => null);
+      // Today and tomorrow: an alert a day before, or an all-day event's the day before, is for tomorrow's events.
+      const got = await api.events(calendarDay(now), calendarDay(new Date(now.getTime() + 86_400_000))).catch(() => null);
       if (gone || !Array.isArray(got)) return;
-      const next = meetingStarting(got, now, offered.current);
+      const next = meetingStarting(got.filter((e) => e.start.slice(0, 10) === calendarDay(now)), now, offered.current);
       if (next) { offered.current.add(meetingKey(next)); setStarting(next); }
+      const due = alertDue(got, now, alerted.current);
+      if (due) { alerted.current.add(meetingKey(due)); setAlerting({ event: due, said: alertSaid(due, now) }); }
     };
     void look();
     const timer = window.setInterval(() => void look(), 30_000);
@@ -1768,6 +1775,11 @@ export function App() {
     const timer = window.setTimeout(() => setStarting(null), OFFER_SHOWN_MS);
     return () => window.clearTimeout(timer);
   }, [starting]);
+  useEffect(() => {
+    if (!alerting) return;
+    const timer = window.setTimeout(() => setAlerting(null), OFFER_SHOWN_MS);
+    return () => window.clearTimeout(timer);
+  }, [alerting]);
   const onNoteSelection = (action: SelectionAction, text: string) => {
     const page = notes.page;
     if (!page) return;
@@ -2181,6 +2193,8 @@ export function App() {
               : [pane];
           })}
           {toast && <div className="toast" role="status">{toast}</div>}
+          {/* An alert, unless the meeting's own nudge is already saying it is starting. */}
+          {alerting && !(starting && meetingKey(starting) === meetingKey(alerting.event)) && <UndoToast text={alerting.said} undoLabel="Open" onUndo={() => { const day = new Date(`${alerting.event.start.slice(0, 10)}T12:00:00`); setAlerting(null); closeSettings(); openApp('calendar'); if (!Number.isNaN(day.getTime())) calendar.setAnchor(day); }} onDismiss={() => setAlerting(null)} />}
           {starting && <UndoToast text={`${starting.title.trim() || 'A meeting'} is starting`} undoLabel="Record" onUndo={() => { const event = starting; setStarting(null); void recordMeeting(event); }} onDismiss={() => setStarting(null)} />}
         </main>
         {/* The inspector: the open app's own panels (PanelTab), between the content and Mobius. */}

@@ -22,11 +22,15 @@ The guide's one open item for Calendar.
 As Google Calendar and Fantastical have them: one Alert row in the event, under Repeat.
 
 - **The choices:** None, At the time, 5, 10, 15 or 30 minutes before, 1 hour before, 1 day before. An all-day event
-  offers None, On the day (9:00) and The day before (9:00). A new timed event starts on None.
+  offers None, On the day (9:00) and The day before (9:00). A new event starts on None. An alert set in another app
+  that is not among these shows in words ("2 hours before") until it is changed. Turning All day on or off sets it
+  back to None, as the two lists differ.
 - **Kept in the calendar file** as a standard `VALARM` with a `TRIGGER`, so other calendar apps ring the same alert;
   alarms Mobius does not show are kept as they were written.
 - **When it comes**, the shared pill at the foot of the open app says "{Event} in 10 minutes" (or "{Event} is
-  starting"), with Open and ×, once per alert. Later: a system notification with the same words when Mobius is in the
+  starting", or "{Event} is today" for an all-day event), with Open, which goes to its day in Calendar, and ×. Once per
+  alert, for up to two minutes after its time, and gone by itself after a minute. A meeting's own "is starting" nudge
+  takes its place when both say the same. Later: a system notification with the same words when Mobius is in the
   background.
 
 ## A calendar's own menu
@@ -44,5 +48,5 @@ right-click.
 | Piece | State |
 | --- | --- |
 | The Event panel keeps changes as they are made | Built |
-| Alerts | Next |
+| Alerts | Built |
 | A calendar's own menu: Rename, Delete with Undo | Next |

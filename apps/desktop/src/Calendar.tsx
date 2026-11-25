@@ -1,3 +1,4 @@
+import { DAY_ALERTS, TIMED_ALERTS, alertLabel } from './calendar-alerts';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarPerson, CalendarSuggestion, RepeatScope } from '@mobius/shared';
@@ -791,6 +792,9 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   const invitePeople = useAddressSuggestions(invite);
   const initialRepeat = original?.repeat ?? (original?.repeats ? 'custom' : '');
   const [repeat, setRepeat] = useState(initialRepeat);
+  // The alert, as minutes before the start (null: none). A new event starts with none, as Google Calendar's own default.
+  const initialAlert = original?.alert ?? null;
+  const [alert, setAlert] = useState<number | null>(initialAlert);
   const writable = calendar.calendars.filter((c) => !calendar.readOnly(c));
   const [into, setInto] = useState(original?.calendar ?? writable.find((c) => !calendar.hidden.has(c)) ?? 'Calendar');
   const locked = original?.readOnly === true;
@@ -798,7 +802,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   const field = useRef<HTMLInputElement>(null);
   // What the event is now, as far as this editor knows: what it opened with, then what it last kept. The docked panel
   // keeps changes as they are made, so what is sent next is measured from here, not from the event it opened.
-  const base = useRef({ title: original?.title ?? '', where: original?.location ?? '', notes: original?.notes ?? '', allDay: initialAllDay, repeat: initialRepeat, invite: inviteText(original?.attendees), start: startText, end: endText, attendees: original?.attendees });
+  const base = useRef({ title: original?.title ?? '', where: original?.location ?? '', notes: original?.notes ?? '', allDay: initialAllDay, repeat: initialRepeat, alert: initialAlert, invite: inviteText(original?.attendees), start: startText, end: endText, attendees: original?.attendees });
   const save = async (event?: FormEvent, stay = false) => {
     event?.preventDefault();
     const draft: CalendarDraft = {
@@ -809,6 +813,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
       notes: notes.trim(),
     };
     if (repeat !== base.current.repeat) draft.repeat = repeat;
+    if (alert !== base.current.alert) draft.alert = alert;
     const invited = parseInvitees(invite, base.current.attendees);
     if (!sameInvitees(invited, base.current.attendees)) draft.attendees = invited;
     let done: unknown;
@@ -836,7 +841,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     setBusy(false);
     if (!done) return;
     if (!stay) { onClose(); return; }
-    base.current = { title, where, notes, allDay, repeat, invite, start: allDay ? startDay : `${startDay}T${startTime}`, end: allDay ? endDay : `${endDay}T${endTime}`, attendees: invited as typeof base.current.attendees };
+    base.current = { title, where, notes, allDay, repeat, alert, invite, start: allDay ? startDay : `${startDay}T${startTime}`, end: allDay ? endDay : `${endDay}T${endTime}`, attendees: invited as typeof base.current.attendees };
     setKept(true);
   };
   // The docked Event panel keeps an event's changes as they are made, a moment after the typing stops, as Google
@@ -889,7 +894,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     save, busy,
     changed: () => {
       const b = base.current;
-      return !locked && title.trim() !== '' && (title !== b.title || where !== b.where || notes !== b.notes || allDay !== b.allDay || repeat !== b.repeat || invite !== b.invite || startDay !== b.start.slice(0, 10) || endDay !== b.end.slice(0, 10) || (!allDay && (startTime !== b.start.slice(11, 16) || endTime !== b.end.slice(11, 16))) || !original);
+      return !locked && title.trim() !== '' && (title !== b.title || where !== b.where || notes !== b.notes || allDay !== b.allDay || repeat !== b.repeat || alert !== b.alert || invite !== b.invite || startDay !== b.start.slice(0, 10) || endDay !== b.end.slice(0, 10) || (!allDay && (startTime !== b.start.slice(11, 16) || endTime !== b.end.slice(11, 16))) || !original);
     },
   };
   const autosave = docked && original !== null && !original.repeats && !locked;
@@ -898,7 +903,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     if (live.current.changed()) setKept(false);
     const t = window.setTimeout(() => { const l = live.current; if (!l.busy && l.changed()) void l.save(undefined, true); }, 600);
     return () => window.clearTimeout(t);
-  }, [autosave, title, where, notes, allDay, repeat, invite, startDay, startTime, endDay, endTime]);
+  }, [autosave, title, where, notes, allDay, repeat, alert, invite, startDay, startTime, endDay, endTime]);
   /** Closing the docked panel keeps what was typed since the last keep. */
   const closeKeeping = () => { const l = live.current; if (autosave && !l.busy && l.changed()) void l.save(); else onClose(); };
   useEffect(() => {
@@ -950,7 +955,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           </ul>
         )}
         <div className="cal-editor-group">
-          <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={setAllDay} />
+          <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={(on) => { setAllDay(on); if (alert !== null && on !== allDay) setAlert(null); }} />
           <div className="cal-editor-row">
             <span>Starts</span>
             <DateField label="Start day" hideLabel short quick={DAY_PICKS} value={localDate(startDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); const was = localDate(startDay).getTime(); setStartDay(v); setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(v).getTime() - was))); }} />
@@ -968,6 +973,11 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           <div className="cal-editor-row"><span>Repeat</span>
             <Select label="Repeat" hideLabel value={repeat} onChange={setRepeat}
               choices={[...REPEAT_OPTIONS.map((r) => ({ value: r.id as string, label: r.name })), ...(initialRepeat === 'custom' ? [{ value: 'custom', label: 'Custom (set in another app)', disabled: true }] : [])]} />
+          </div>
+          <div className="cal-editor-row"><span>Alert</span>
+            <Select label="Alert" hideLabel value={alert === null ? '' : String(alert)} onChange={(v) => setAlert(v === '' ? null : Number(v))}
+              choices={[...(allDay ? DAY_ALERTS : TIMED_ALERTS).map((a) => ({ value: a.value === null ? '' : String(a.value), label: a.label })),
+                ...(alert !== null && !(allDay ? DAY_ALERTS : TIMED_ALERTS).some((a) => a.value === alert) ? [{ value: String(alert), label: alertLabel(alert, allDay) }] : [])]} />
           </div>
           {!original && writable.length > 1 && (
             <div className="cal-editor-row"><span>Calendar</span>
