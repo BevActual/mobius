@@ -19,6 +19,7 @@ Working notes that inform how Mobius is built. They are kept for reference and a
 | [Apps roadmap](apps-roadmap.md) | Every app's state, its next round, and the rounds that cross apps |
 | [Music roadmap](music-roadmap.md) | The instruments, effects, note tools and studio features Music works toward, each with its status |
 | [Workbench plan](workbench-plan.md) | Devices as files of parts and cables, the Workbench view in Music that edits them, and Mobius building them |
+| [Voice plan](voice-plan.md) | Free on-device voice: Whisper transcripts, two-track meetings with speaker labels, dictation that cleans itself up, and own-key cloud options |
 
 Hermes Agent (Nous Research) is a reference, not a dependency. See
 [ADR 0002](../adr/0002-native-agent-informed-by-hermes.md).
