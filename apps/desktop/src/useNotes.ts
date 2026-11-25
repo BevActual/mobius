@@ -27,6 +27,8 @@ export function newestPage<T extends { modified: number }>(pages: readonly T[]):
 export type NotesKind = 'notes' | 'docs' | 'slides' | 'designs' | 'songs' | 'boards' | 'research' | 'reading' | 'wiki' | 'views';
 export function useNotes(kind: NotesKind = 'notes', active = true) {
   const api = window.mobius[kind];
+  // What one page is called in the Undo pill: a note in Notes, a document in Docs.
+  const itemWord = kind === 'docs' ? 'document' : 'note';
   const remembered = useCallback((): string | null => { try { return window.localStorage.getItem(lastKey(kind)); } catch { return null; } }, [kind]);
   const remember = useCallback((path: string | null) => {
     try { if (path) window.localStorage.setItem(lastKey(kind), path); else window.localStorage.removeItem(lastKey(kind)); } catch { /* Not kept. */ }
@@ -196,7 +198,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     await refresh();
   }, [api, refresh, remembered, remember]);
 
-  // The Trash (Notes only: the other apps keeping pages this way delete for good). Read when the list is, so its
+  // The Trash (Notes and Docs: the other apps keeping pages this way delete for good). Read when the list is, so its
   // section stays true after a delete, a restore, or a change made elsewhere.
   const [trashed, setTrashed] = useState<DeletedNote[]>([]);
   /** What was just moved to the Trash, for the Undo pill ("Moved “Work” and 12 notes to the Trash"). */
@@ -244,7 +246,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     const count = notebooks.find((nb) => nb.name === name)?.pages.length ?? 0;
     const done = await api.trashNotebook(name);
     if (!done || await failed(done)) return;
-    setJustTrashed({ id: (done as { id: string }).id, text: count ? `Moved “${name}” and ${count === 1 ? '1 note' : `${count} notes`} to the Trash` : `Moved “${name}” to the Trash` });
+    setJustTrashed({ id: (done as { id: string }).id, text: count ? `Moved “${name}” and ${count === 1 ? `1 ${itemWord}` : `${count} ${itemWord}s`} to the Trash` : `Moved “${name}” to the Trash` });
     if (remembered()?.startsWith(`${name}/`)) remember(null);
     await Promise.all([refresh(), readTrash()]);
   }, [api, notebooks, closeIf, failed, refresh, readTrash, remembered, remember]);

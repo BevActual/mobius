@@ -7,7 +7,7 @@
    one column, the title over a quiet grey line of when it was edited and how long it is. */
 .doc-editor[data-frame], .doc-editor[data-frame] .doc-body { background: var(--paper, var(--bg)); }
 .doc-editor[data-frame] .doc-scroll { padding: 56px var(--sp-6) calc(var(--sp-8) * 3); }
-.doc-editor[data-frame] .doc-paper { max-width: var(--reading-w); border-radius: 0; box-shadow: none; background: none; }
+.doc-editor[data-frame] .doc-paper { max-width: var(--doc-text-w, var(--reading-w)); border-radius: 0; box-shadow: none; background: none; }
 .doc-editor[data-frame] .doc-page { min-height: 0; padding: 0; font-size: var(--fs-reading); line-height: var(--lh-body); }
 .doc-editor[data-frame] .doc-page h1:first-child { margin: 0; font-size: var(--fs-display); line-height: var(--lh-tight); }
 .doc-meta { margin: var(--sp-2) 0 var(--sp-6); font-size: var(--fs-sm); line-height: var(--lh-body); color: var(--muted); font-variant-numeric: tabular-nums; user-select: none; }
@@ -186,16 +186,6 @@
 
 /* Mobius's changes are drawn by change-blocks.css. */
 
-/* Docs' sidebar: each document's edited day on the right; its headings are in the Outline panel. */
-.doc-side-when { flex: none; padding-right: var(--sp-2); font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
-/* To review: ink, not indigo (indigo is only Mobius's own mark and edges). */
-.doc-side-review { flex: none; padding-right: var(--sp-2); font-size: var(--fs-xs); color: var(--ink); white-space: nowrap; }
-
-/* The sidebar while its folders are read: placeholder bars on the sidebar's rows. */
-.doc-side-loading { list-style: none; margin: 0; padding: var(--sp-2) 0; }
-.doc-side-loading li { display: flex; align-items: center; height: var(--row-side); padding: 0 var(--sp-3); }
-.doc-side-loading span { height: var(--sp-2); border-radius: var(--radius-small); background: var(--sel); }
-
 /* The outline as a panel (the right panel's Outline tab, beside Mobius). */
 .doc-outline-panel { display: flex; flex-direction: column; gap: 1px; padding: var(--sp-3); }
 .doc-outline-panel .doc-outline-item { display: flex; align-items: center; height: var(--row-side); padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--muted); font-size: var(--fs-md); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -208,17 +198,15 @@
 .doc-comments-panel .note-comments { width: auto; margin: 0; padding: 0; border: 0; }
 .doc-comments-panel .note-comment { flex-direction: column; align-items: stretch; gap: 2px; background: var(--bg); border-radius: var(--radius-panel); box-shadow: 0 0 0 1px var(--line); }
 .doc-comments-panel .note-comment-tools { justify-content: flex-end; margin: 0 -4px -4px 0; }
-/* The outline on the frame (panel look): its own panel between Documents and the page, no tab. The heading you are in
-   is ink, the others grey; sub-headings one step in. Hidden, one small button at the page's left brings it back. */
-.doc-editor[data-frame] .doc-outline-side { flex: none; width: 200px; display: flex; flex-direction: column; gap: 1px; padding: var(--sp-3) var(--sp-2); border-right: 0; background: none; overflow-y: auto; }
-.doc-outline-side .doc-outline-head { display: flex; align-items: center; justify-content: space-between; padding: 0 0 var(--sp-2) var(--sp-2); }
-.doc-outline-side .doc-outline-title { padding: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
-.doc-outline-side .doc-outline-head .strip-btn { width: 24px; height: 24px; }
-.doc-outline-side .doc-outline-head svg, .doc-outline-show svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.doc-editor[data-frame] .doc-outline-side .doc-outline-item { flex: none; height: var(--row-side); padding: 0 var(--sp-2); border-radius: var(--radius-control); background: none; color: var(--muted); font-size: var(--fs-sm); text-align: left; }
-.doc-editor[data-frame] .doc-outline-side .doc-outline-item[data-step="1"] { padding-left: var(--sp-5, 20px); }
-.doc-editor[data-frame] .doc-outline-side .doc-outline-item[data-step="2"] { padding-left: calc(var(--sp-5, 20px) + var(--sp-3)); }
-.doc-editor[data-frame] .doc-outline-side .doc-outline-item:hover { background: var(--sel); color: var(--ink); }
-.doc-editor[data-frame] .doc-outline-side .doc-outline-item[aria-current="true"] { background: none; color: var(--ink); font-weight: var(--fw-medium); }
-.doc-editor[data-frame] .doc-outline-show { position: absolute; z-index: 2; top: var(--sp-3); left: var(--sp-3); color: var(--muted); }
 .doc-editor[data-frame] .doc-body { position: relative; }
+
+/* Suggesting (docs/design/docs.md): the person's own suggestions, never indigo or dashed (those are Mobius's). Added
+   words are ink, underlined, on a faint fill; removed words stay, struck through in grey. */
+.doc-page ins.doc-suggest-add { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; background: color-mix(in srgb, var(--ink) 6%, transparent); border-radius: 2px; color: var(--ink); }
+.doc-page del.doc-suggest-del { text-decoration: line-through; text-decoration-color: var(--muted); color: var(--muted); }
+/* The mode's name in the tool row: muted while Editing, ink when it changes how the page behaves. */
+.doc-bar .doc-bar-mode { color: var(--muted); }
+.doc-bar .doc-bar-mode[data-mode="suggesting"], .doc-bar .doc-bar-mode[data-mode="viewing"] { color: var(--ink); }
+/* Page setup: a name over each choice. */
+.doc-setup { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--sp-3) var(--sp-4); }
+.doc-setup-name { font-size: var(--fs-sm); color: var(--muted); }

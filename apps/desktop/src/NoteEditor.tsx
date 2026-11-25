@@ -6,7 +6,7 @@ import { readBefore } from './readBefore';
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu, PanelTab, ToolbarControls, UndoToast, useInspector } from './ui';
-import { publishOutline } from './docs-outline';
+import { publishOutline, toHeading } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
 import { settleGone, settleIn, settleKept } from './settle';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
@@ -859,7 +859,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
         path,
         items: heads.slice(from).map((h) => ({ level: h.level, text: h.text })),
         current: -1,
-        go: (i) => { const h = heads[i + from]; if (h && !editor.isDestroyed) editor.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run(); },
+        go: (i) => { const h = heads[i + from]; if (h && !editor.isDestroyed) toHeading(editor, h.pos); },
       });
     }, 0);
     return () => window.clearTimeout(t);

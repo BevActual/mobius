@@ -86,6 +86,8 @@
 .ui-side-row-trail { border-radius: var(--row-radius, var(--radius-control)); }
 .ui-side-row-trail:hover:not(:has(> .list-row[aria-current="page"])) { background: var(--side-hover, color-mix(in srgb, var(--sel) 50%, transparent)); }
 .ui-side-row-trail:has(> .list-row[aria-current="page"]) { background: var(--side-select, var(--sel)); }
+/* On the current row's fill, the grey line and the date are a step darker, to keep 4.5:1 (WCAG AA) in every theme. */
+.ui-side-row-trail:has(> .list-row[aria-current="page"]) :is(.ui-side-sub, .note-side-when) { color: color-mix(in srgb, var(--muted) 65%, var(--ink)); }
 :is(.dock.left, .ui-dock[data-dock="left"]) .side .ui-side-row-trail.ui-side-row-trail > .list-row,
 :is(.dock.left, .ui-dock[data-dock="left"]) .side .ui-side-row-trail.ui-side-row-trail > .list-row:hover { background: transparent; }
 .ui-side-fold { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 0; border: 0; background: none; color: inherit; font: inherit; }

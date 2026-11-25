@@ -50,7 +50,7 @@ Checked 24 November 2026; pull requests not merged yet are marked (open).
 | Calendar | Yes | #798, #800, #862, #901 | Nothing for the look; what is Later is in [its spec](calendar.md) |
 | Tasks | Yes | #801 | Part B: When and Deadline, Things-style views |
 | Notes | Yes | #804, #862, #881, #884, this pull request | Notebooks, the Trash, Ctrl+O, note links, citations, sorting, version history, templates and meeting notes follow [its spec](notes.md); History as a panel is on hold |
-| Docs | Yes | #809, #862 | Part B: Editing, Suggesting and Viewing; comment on a selection; Page setup |
+| Docs | Yes | #809, #862, #899 | Nothing for the look; what is Later is in [its spec](docs.md) |
 | Files | Yes | #865 | Screens from a PC check |
 | Messages | Spec written | [Its spec](messages.md) | The app work |
 | Home | No | | Next: its spec is in the Hub's review files |
@@ -143,7 +143,7 @@ and in Mobius itself.
 | Calendar | comfortable | Calendars | | |
 | Tasks | comfortable | Lists | Details | |
 | Notes | comfortable | Notebooks | | |
-| Docs | comfortable | Documents | | |
+| Docs | comfortable | Documents | Outline, Comments | |
 | Files | comfortable | Places | | |
 | Browser | comfortable | Tabs | | |
 | Reader | comfortable | Library | | |
