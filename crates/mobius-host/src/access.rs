@@ -82,6 +82,7 @@ mod tests {
         let r = rules(&json!({ "browser": "follow", "notes": "always", "tasks": "off" }));
         assert_eq!(r["rules"], json!([
             { "capability": "files.read", "resource": "notes/*", "effect": "ask" },
+            { "capability": "notes.read", "effect": "ask" },
             { "capability": "files.write", "resource": "notes/*", "effect": "ask" },
             { "capability": "tasks.read", "effect": "deny" },
             { "capability": "tasks.write", "effect": "deny" },
