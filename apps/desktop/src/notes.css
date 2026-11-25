@@ -206,9 +206,6 @@
 .note-history-empty p { margin: 0; }
 .note-history-hint { max-width: 32ch; font-size: var(--fs-sm); }
 .note-history .spacer { flex: 1; }
-/* "Restored" and "Copied": one plain line at the top of the page. */
-.note-restored { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--field); font-size: var(--fs-sm); }
-.note-restored > span { flex: 1; }
 
 /* ── Notebooks: the panel of notebooks and their notes ──────────────────────────────────────────────────────────────────────── */
 /* One row height for every page, the two-line master-list height (56px comfortable, 48px compact): the title with its date at the end, and one grey line under it. Pin and

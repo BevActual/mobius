@@ -933,7 +933,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
           {(insertProblem ?? recording.problem ?? meeting.problem) && <span className="review-problem" role="alert">{insertProblem ?? recording.problem ?? meeting.problem}</span>}
         </div>
       )}
-      {shared && !history && <div className="note-restored note-shared" role="status"><span>{shared}</span><button type="button" className="review-btn" onClick={() => setShared(null)}>OK</button></div>}
+      {/* Copied, Saved and their failures: the shared pill at the foot of the page, as Restored is, never a line across the top. */}
+      {shared && !history && !restored && <UndoToast text={shared} onDismiss={() => setShared(null)} />}
       {restored && !history && <UndoToast text={`Restored the version from ${restored.label}.`} onUndo={() => { notes.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
       {review && !kept && !history && !showingChanges && !working && (
         <div ref={reviewBar} className="note-review" role="status">
