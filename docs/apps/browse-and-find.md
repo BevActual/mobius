@@ -24,7 +24,7 @@ A full web browser, with Mobius able to read and work on pages for you.
 
 - **History** (Ctrl+H, or History in the Tabs panel's ⋯) shows the pages you visited in the Tabs panel, under Today,
   Yesterday and each earlier day, with a search. A click goes there in the open tab, a middle-click opens a new tab, and
-  right-click copies the address or removes the page. **Clear history…** asks first. Escape or the head goes back to
+  right-click copies the address or removes the page (or Delete on the row). **Clear history…** asks first. Escape or the head goes back to
   your tabs. Searching your tabs (Ctrl+Shift+A) also finds pages you visited before, under History.
 
 Settings: **Settings › Browser** (allowed sites, local addresses, bookmarks, history).

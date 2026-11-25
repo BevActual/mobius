@@ -287,7 +287,9 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
     { label: 'Delete space', disabled: sp.spaces.length < 2, run: () => { const to = sp.spaces.find((s) => s.id !== space.id)!; setSpaces((s) => removeSpace(s, space.id)); goToSpace(to.id, tabs, onNewTab); } },
   ];
   const optionEntries: MenuEntry[] = [{ label: 'History', keys: 'Ctrl+H', run: () => setShowHistory(true) }, ...CLEAR_AFTER.map((c) => ({ label: c.ms === null ? 'Never clear Today' : `Clear Today after ${c.label.toLowerCase()}`, checked: sp.clearAfter === c.ms, separated: c === CLEAR_AFTER[0], run: () => setSpaces((s) => ({ ...s, clearAfter: c.ms })) }))];
-  if (showHistory) return <AppSidebar label="Tabs"><HistoryList tabs={tabs} onClose={() => setShowHistory(false)} /></AppSidebar>;
+  // Back from History, the keyboard is on the tab showing.
+  const closeHistory = () => { setShowHistory(false); afterPaint(() => document.querySelector<HTMLElement>('.tab[aria-current="page"] .tab-main, .tab .tab-main')?.focus()); };
+  if (showHistory) return <AppSidebar label="Tabs"><HistoryList tabs={tabs} onClose={closeHistory} /></AppSidebar>;
   return (
     <AppSidebar label="Tabs">
       <div className="browser-side">
@@ -464,7 +466,7 @@ function HistoryList({ tabs, onClose }: { tabs: readonly BrowserTabState[]; onCl
   return (
     <div className="browser-side browser-history" onKeyDown={(e) => { if (e.key === 'Escape' && !menu && !clearing) { e.preventDefault(); if (query) setQuery(''); else onClose(); } }}>
       <div className="space-head">
-        <button type="button" className="space-name history-back" title="Back to tabs (Escape)" onClick={onClose}>
+        <button type="button" className="space-name history-back" aria-label="History, back to tabs" title="Back to tabs (Escape)" onClick={onClose}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 4-4 4 4 4" /></svg>History
         </button>
       </div>
@@ -483,7 +485,8 @@ function HistoryList({ tabs, onClose }: { tabs: readonly BrowserTabState[]; onCl
                 <li key={`${e.url}|${e.visited}`} className="tab">
                   <button type="button" className="tab-main history-row" title={`${e.title || hostOf(e.url)}\n${e.url}`}
                     onClick={() => visit(e.url, tabs)} onAuxClick={(ev) => { if (ev.button === 1) { ev.preventDefault(); visit(e.url, tabs, true); } }}
-                    onContextMenu={(ev) => { ev.preventDefault(); setMenu({ entry: e, x: ev.clientX, y: ev.clientY }); }}>
+                    onContextMenu={(ev) => { ev.preventDefault(); setMenu({ entry: e, x: ev.clientX, y: ev.clientY }); }}
+                    onKeyDown={(ev) => { if (ev.key === 'Delete') { ev.preventDefault(); window.mobius.history.remove(e.url); } }}>
                     <SiteChip url={e.url} />
                     <span className="tab-title">{e.title || hostOf(e.url)}</span>
                     <span className="history-when">{timeLabel(e.visited)}</span>
@@ -503,7 +506,7 @@ function HistoryList({ tabs, onClose }: { tabs: readonly BrowserTabState[]; onCl
         { label: 'Open', run: () => visit(menu.entry.url, tabs) },
         { label: 'Open in new tab', run: () => visit(menu.entry.url, tabs, true) },
         { label: 'Copy address', run: () => void navigator.clipboard?.writeText(menu.entry.url).catch(() => undefined) },
-        { label: 'Remove from history', danger: true, separated: true, run: () => window.mobius.history.remove(menu.entry.url) },
+        { label: 'Remove from history', keys: 'Delete', danger: true, separated: true, run: () => window.mobius.history.remove(menu.entry.url) },
       ]} />}
       <Confirm open={clearing} title="Clear all browsing history?" description="Every page you visited is forgotten on this computer. Open tabs, bookmarks and Read later stay." action="Clear history"
         onCancel={() => setClearing(false)} onConfirm={() => { setClearing(false); window.mobius.history.clear(); }} />
