@@ -467,7 +467,7 @@ function Files({ content }: { content: MailContent }) {
       <ul className="mail-file-list" aria-label="Attachments">
         {files.map((f, i) => (
           <li key={`${i}-${f.name}`}>
-            <button type="button" className="mail-file" title={`Save ${f.name} to Downloads`} onClick={() => void save(i)}>
+            <button type="button" className="mail-file" title={`Save ${f.name} to Downloads`} aria-label={`Save ${f.name}${f.size >= 0 ? `, ${sizeWords(f.size)},` : ''} to Downloads`} onClick={() => void save(i)}>
               <span className="mail-file-kind" data-kind={fileKind(f.name)} aria-hidden="true">{KIND_MARK[fileKind(f.name)]}</span>
               <span className="mail-file-name">{f.name}</span>
               {f.size >= 0 && <span className="mail-file-size">{sizeWords(f.size)}</span>}
@@ -544,7 +544,7 @@ function Row({ t, on, onOpen, onMenu, onDone, onLater }: { t: Thread; on: boolea
     <button type="button" role="option" aria-selected={on} className="mail-row" data-unread={t.unread || undefined} data-flagged={t.flagged || undefined} data-id={m.id} data-count={n > 1 ? n : undefined} onClick={onOpen}
       onContextMenu={(e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}
       onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); onMenu(r.left + 16, r.bottom); } }}>
-      <span className="mail-row-who">{who}{n > 1 && <span className="mail-row-count" aria-label={`${n} messages`}>{n}</span>}</span>
+      <span className="mail-row-who">{who}{n > 1 && <span className="mail-row-count"><span aria-hidden="true">{n}</span><span className="sr-only">, {n} messages, </span></span>}</span>
       <span className="mail-row-what"><span className="mail-row-subject">{m.subject || '(no subject)'}</span>{m.needsReply && <span className="mail-needs-reply"> · Reply</span>}<span className="mail-row-preview">{m.preview}</span></span>
       <span className="mail-row-end">
         {t.flagged && <span className="mail-row-flag" role="img" aria-label="Flagged"><Glyph name="flag" filled /></span>}

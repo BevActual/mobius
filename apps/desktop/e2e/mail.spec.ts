@@ -244,7 +244,8 @@ test('a conversation is one row, opens on its latest with the earlier one folded
   await expect(list.getByRole('option')).toHaveCount(1);
   const row = list.getByRole('option').first();
   await expect(row).toContainText('Re: Terrace + lunch for the 13th');
-  await expect(row.locator('.mail-row-count')).toHaveText('2');
+  await expect(row.locator('.mail-row-count')).toContainText('2');
+  await expect(row).toHaveAccessibleName(/^Rui Almeida ?, 2 messages, Re: Terrace/);
   await row.click();
   const reader = page().locator('.mail-reader');
   await expect(reader.locator('.mail-text').last()).toContainText('Eight it is');
@@ -253,7 +254,7 @@ test('a conversation is one row, opens on its latest with the earlier one folded
   await earlier.getByRole('button', { name: /Rui Almeida/ }).click();
   await expect(earlier).toContainText('Could you send the headcount by Wednesday?');
   // The attachment is a chip with its size; a click saves it to Downloads.
-  const chip = reader.getByRole('list', { name: 'Attachments' }).getByRole('button', { name: /menu\.pdf/ });
+  const chip = reader.getByRole('list', { name: 'Attachments' }).getByRole('button', { name: 'Save menu.pdf, 19 bytes, to Downloads' });
   await expect(chip).toContainText('19 bytes');
   await chip.click();
   await expect(reader.getByRole('status').filter({ hasText: 'Saved' })).toHaveText('Saved “menu.pdf” to Downloads');
@@ -264,5 +265,5 @@ test('a conversation is one row, opens on its latest with the earlier one folded
   await expect(list.getByRole('option')).toHaveCount(0);
   await shell().keyboard.press('z');
   await expect(list.getByRole('option')).toHaveCount(1);
-  await expect(list.getByRole('option').first().locator('.mail-row-count')).toHaveText('2');
+  await expect(list.getByRole('option').first().locator('.mail-row-count')).toContainText('2 messages');
 });
