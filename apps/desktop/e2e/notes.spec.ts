@@ -420,7 +420,18 @@ test('a notebook is renamed and a note moved with links following them, and a de
   const trash = side().getByRole('region', { name: 'Trash' });
   await trash.getByRole('button', { name: 'Trash', exact: true }).click();
   await expect(trash.getByRole('button', { name: 'Trash', exact: true })).toHaveAttribute('aria-expanded', 'true');
-  await expect(trash.getByRole('button', { name: 'Groceries', exact: true })).toHaveAccessibleDescription(/^From Work · \d+ days left$/);
+  // While this fails only on Windows: what the Trash shows, what Notes answers for it, and what is on disk.
+  const groceries = trash.getByRole('button', { name: 'Groceries', exact: true });
+  if (!(await groceries.isVisible().catch(() => false))) {
+    await shell().waitForTimeout(1500);
+    const rows = await trash.locator('button').evaluateAll((all) => all.map((b) => `${b.getAttribute('aria-label') ?? ''} | ${b.textContent ?? ''}`));
+    const answered = await shell().evaluate(async () => JSON.stringify(await (window as unknown as { mobius: { notes?: { deleted?: () => Promise<unknown> } } }).mobius.notes?.deleted?.()));
+    const onTrash = (dir: string): string[] => (fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory()
+      ? [`${e.name}/`, ...onTrash(path.join(dir, e.name)).map((f) => `${e.name}/${f}`)]
+      : [e.name === 'entry.json' ? `entry.json ${fs.readFileSync(path.join(dir, e.name), 'utf8')}` : e.name])) : ['(no folder)']);
+    console.log(`[trash diag] rows: ${JSON.stringify(rows)}\n[trash diag] answered: ${answered}\n[trash diag] on disk: ${JSON.stringify(onTrash(file('.deleted')))}\n[trash diag] Work: ${JSON.stringify(fs.readdirSync(file('Work')))}`);
+  }
+  await expect(groceries).toHaveAccessibleDescription(/^From Work · \d+ days left$/);
   await trash.getByRole('button', { name: 'Groceries', exact: true }).click();
   await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: 'Put back' }).click();
   await expect.poll(() => fs.existsSync(file('Work', 'Groceries.md'))).toBe(true);
