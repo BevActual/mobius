@@ -974,7 +974,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
           {meetingDone && (
             <div className="note-clip note-meeting" role="status">
               <span>The meeting is in this note.</span>
-              {onAsk && <button type="button" className="btn primary" onClick={() => { onAsk(meetingAsk(meetingDone.title, meetingDone.path)); setMeetingDone(null); }}>Summarise and make tasks</button>}
+              {onAsk && <button type="button" className="btn primary" onClick={() => { onAsk(meetingAsk(meetingDone.title, meetingDone.path)); setMeetingDone(null); }}>Fill in my notes</button>}
               <button type="button" className="btn" onClick={() => setMeetingDone(null)}>Done</button>
             </div>
           )}

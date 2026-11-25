@@ -36,6 +36,7 @@ import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { AppSidebar, Button, DateField, Dialog, Menu, PanelTab, Select, useShowPanelTab, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, ViewSwitch } from './ui';
+import { isMeeting } from './meeting-start';
 
 /** An hour's height: 64 in the comfortable density (a working day shows whole), 48 in the compact one. */
 const hourPx = () => (document.documentElement.dataset.density === 'compact' ? 48 : 64);
@@ -897,7 +898,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   // A meeting link in the place or the notes: Join opens it.
   const joinAt = meetingLink(`${where}\n${notes}`);
   // Record meeting is for a meeting: a timed event with people invited or a place to be.
-  const meeting = original != null && onMeeting !== undefined && !original.allDay && ((original.attendees?.length ?? 0) > 0 || (original.location ?? '').trim() !== '');
+  const meeting = original != null && onMeeting !== undefined && isMeeting(original);
   const form = (
       <form
         ref={sheet} className="cal-editor" data-pop={at ? true : undefined} data-side={place?.side ?? undefined}
