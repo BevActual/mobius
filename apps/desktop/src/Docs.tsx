@@ -1,5 +1,5 @@
 import { settleGone, settleIn, settleKept } from './settle';
-import { useContext, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
 import { Extension, generateHTML } from '@tiptap/core';
@@ -36,12 +36,13 @@ import { DocFind, findKeyOf } from './DocFind';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { AppMenu, Menu, PanelTab, ToolbarControls, ToolbarItem, UndoToast, useInspector, type MenuEntry } from './ui';
+import { AppMenu, Button, Dialog, Menu, PanelTab, Segmented, ToolbarControls, ToolbarItem, UndoToast, useInspector, type MenuEntry } from './ui';
 import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
 import { publishOutline } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
+import { loadSetup, pageRule, saveSetup, textWidth, type PageSetup } from './doc-page-setup';
 import { DOC_MODES, SuggestAdd, SuggestDel, countSuggestions, settleAll, settleSuggestion, suggesting, suggestionAt, type DocMode } from './doc-suggest';
 import './docs.css';
 import { afterPaint } from './ui/frame';
@@ -217,7 +218,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
   onTool?: (tool: WritingTool, selection: string | null) => void;
   busy: boolean;
   /** What the document can do beyond writing; absent where the folder does not keep these (the wiki). */
-  extras: { onLink: () => void; onFile?: () => void; onHistory?: () => void; onShare?: (how: ShareHow) => void; outline: boolean; onOutline: () => void; comments: number; commentsOpen: boolean; onComments?: () => void; font: DocFont; onFont: (font: DocFont) => void; mode?: DocMode; onMode?: (mode: DocMode) => void };
+  extras: { onLink: () => void; onFile?: () => void; onHistory?: () => void; onShare?: (how: ShareHow) => void; outline: boolean; onOutline: () => void; comments: number; commentsOpen: boolean; onComments?: () => void; font: DocFont; onFont: (font: DocFont) => void; mode?: DocMode; onMode?: (mode: DocMode) => void; onPageSetup?: () => void };
   /** The folder's own controls at the end of the row (Knowledge's versions). */
   trailing?: ReactNode;
   /** Drawn in the window's toolbar (zone 3 of the frame) rather than above the page. */
@@ -294,6 +295,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
       ...(extras.onComments ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments, separated: true }] : []),
       { label: extras.outline ? 'Hide the outline' : 'Show the outline', run: extras.onOutline, separated: !extras.onComments },
       ...(extras.onHistory ? [{ label: 'Earlier versions…', keys: HISTORY_KEYS, run: extras.onHistory }] : []),
+      ...(extras.onPageSetup ? [{ label: 'Page setup…', run: extras.onPageSetup }] : []),
       extras.font === 'serif'
         ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans') }
         : { label: 'Use a serif font', run: () => extras.onFont('serif') },
@@ -512,6 +514,10 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const modeNow = useRef(mode);
   modeNow.current = mode;
   const suggestMarks = useMemo(() => suggesting(() => modeNow.current === 'suggesting'), []);
+  // Page setup: the paper and margins the page is as wide as, and that it prints on.
+  const [setup, setSetupState] = useState<PageSetup>(loadSetup);
+  const setSetup = (next: PageSetup) => { setSetupState(next); saveSetup(next); };
+  const [settingUp, setSettingUp] = useState(false);
   useEffect(() => { onComments?.(commentState.comments); }, [commentState.comments, onComments]);
   const askAbout = onTool ? (c: NoteComment) => onTool('comment', commentLine(c, commentState.comments)) : undefined;
   // The selection bar sits just above the chosen words.
@@ -931,7 +937,22 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const margin = !inFrame && own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
     <section ref={section} className="doc-editor" data-frame={inFrame || undefined} aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}
+      style={inFrame ? { '--doc-text-w': `${textWidth(setup)}px` } as CSSProperties : undefined}
       onKeyDown={(e) => { const k = findKeyOf(e); if (!k || !editor) return; e.preventDefault(); e.stopPropagation(); setFinding((f) => ({ replacing: k === 'replace' || (f?.replacing ?? false), token: (f?.token ?? 0) + 1 })); }}>
+      {inFrame && <style>{pageRule(setup)}</style>}
+      {inFrame && (
+        <Dialog open={settingUp} onOpenChange={setSettingUp} title="Page setup" description="The page is as wide as the paper's text, and prints on it. For every document on this device."
+          actions={<Button kind="primary" onClick={() => setSettingUp(false)}>Done</Button>}>
+          <div className="doc-setup">
+            <span className="doc-setup-name">Paper</span>
+            <Segmented label="Paper" value={setup.paper} onChange={(paper) => setSetup({ ...setup, paper })} choices={[{ value: 'letter', label: 'Letter' }, { value: 'a4', label: 'A4' }]} />
+            <span className="doc-setup-name">Orientation</span>
+            <Segmented label="Orientation" value={setup.orientation} onChange={(orientation) => setSetup({ ...setup, orientation })} choices={[{ value: 'portrait', label: 'Portrait' }, { value: 'landscape', label: 'Landscape' }]} />
+            <span className="doc-setup-name">Margins</span>
+            <Segmented label="Margins" value={setup.margins} onChange={(margins) => setSetup({ ...setup, margins })} choices={[{ value: 'narrow', label: 'Narrow' }, { value: 'normal', label: 'Normal' }, { value: 'wide', label: 'Wide' }]} />
+          </div>
+        </Dialog>
+      )}
       {finding && editor && <DocFind editor={editor} replacing={finding.replacing} focusToken={finding.token} onClose={() => setFinding(null)} />}
       {docs.status === 'conflict' && (
         <div className="note-conflict" role="alert">
@@ -943,6 +964,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       {editor && (
         <Toolbar editor={editor} busy={busy} inFrame={inFrame} flush={flush} {...(onTool ? { onTool } : {})} trailing={toolbarEnd} extras={{
           font, onFont: setFont,
+          ...(inFrame ? { onPageSetup: () => setSettingUp(true) } : {}),
           ...(inFrame && own ? { mode, onMode: (m: DocMode) => { setMode(m); if (m !== 'viewing') editor.commands.focus(); } } : {}),
           onLink: () => setLinking(''),
           ...(own?.attach ? { onFile: () => picker.current?.click() } : {}),

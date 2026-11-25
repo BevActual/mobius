@@ -51,9 +51,15 @@ Editing, ink otherwise), each mode with one line saying what it does.
 
 ## Page setup
 
-- **Docs › Page setup…** opens a small sheet: paper (Letter or A4), orientation, and margins (Normal, Narrow, Wide).
-  The page in the window follows it, at 816px for Letter, and Print or save as PDF uses it.
-- It is kept per document, beside it, so the Markdown file stays plain.
+- **Docs › Page setup…** opens a small sheet with three choices: Paper (Letter or A4), Orientation (Portrait or
+  Landscape) and Margins (Narrow, Normal or Wide, as Word names them: half an inch, an inch, and two inches at the
+  sides), with Done. A choice applies as it is made.
+- **The page in the window is as wide as the paper's text**: Letter with Normal margins is the guide's 816px page,
+  so 624px of text. Print or save as PDF uses the same paper and margins.
+- **It starts on Letter** where Letter is the custom (the United States, Canada, Mexico and the Philippines) and A4
+  everywhere else, as Google Docs does.
+- **Kept on this device for every document**, so the Markdown files stay plain. Later: a document's own page setup,
+  kept beside it.
 
 ## Done in this round
 
@@ -62,4 +68,4 @@ Editing, ink otherwise), each mode with one line saying what it does.
 | Documents panel on the shared list: Move to, Trash with Undo, folder Rename | Built |
 | Outline as the right dock's panel | Built |
 | Editing, Suggesting and Viewing | Built |
-| Page setup | Next |
+| Page setup | Built |

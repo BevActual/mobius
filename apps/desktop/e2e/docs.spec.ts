@@ -333,3 +333,26 @@ test('Suggesting keeps typing and deleting as suggestions in the file, each acce
   await expect(bar().getByRole('button', { name: 'Bold' })).toHaveCount(0);
   await expect(bar().getByRole('button', { name: 'Share' })).toBeVisible();
 });
+
+test('Page setup sets the paper and margins the page is as wide as and prints on, kept for the next document', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  await start();
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await expect(page()).toContainText('We have been talking');
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Docs', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Page setup…' }).click();
+  const sheet = shell().getByRole('dialog', { name: 'Page setup' });
+  await sheet.getByRole('radiogroup', { name: 'Paper' }).getByRole('radio', { name: 'A4' }).click();
+  await sheet.getByRole('radiogroup', { name: 'Orientation' }).getByRole('radio', { name: 'Portrait' }).click();
+  await sheet.getByRole('radiogroup', { name: 'Margins' }).getByRole('radio', { name: 'Narrow' }).click();
+  await sheet.getByRole('button', { name: 'Done' }).click();
+  await expect(sheet).toHaveCount(0);
+  // A4 is 794px wide; half an inch each side leaves 698px of text.
+  await expect(editor()).toHaveAttribute('style', /--doc-text-w: 698px/);
+  await expect.poll(() => editor().locator('style').evaluate((el) => el.textContent)).toBe('@page { size: A4 portrait; margin: 0.5in 0.5in; }');
+  // Kept on this device: a new document is set up the same way.
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('button', { name: 'New document', exact: true }).click();
+  await expect.poll(() => fs.existsSync(file('Work/Untitled.md'))).toBe(true);
+  await expect(editor()).toHaveAttribute('style', /--doc-text-w: 698px/);
+});

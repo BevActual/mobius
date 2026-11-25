@@ -7,7 +7,7 @@
    one column, the title over a quiet grey line of when it was edited and how long it is. */
 .doc-editor[data-frame], .doc-editor[data-frame] .doc-body { background: var(--paper, var(--bg)); }
 .doc-editor[data-frame] .doc-scroll { padding: 56px var(--sp-6) calc(var(--sp-8) * 3); }
-.doc-editor[data-frame] .doc-paper { max-width: var(--reading-w); border-radius: 0; box-shadow: none; background: none; }
+.doc-editor[data-frame] .doc-paper { max-width: var(--doc-text-w, var(--reading-w)); border-radius: 0; box-shadow: none; background: none; }
 .doc-editor[data-frame] .doc-page { min-height: 0; padding: 0; font-size: var(--fs-reading); line-height: var(--lh-body); }
 .doc-editor[data-frame] .doc-page h1:first-child { margin: 0; font-size: var(--fs-display); line-height: var(--lh-tight); }
 .doc-meta { margin: var(--sp-2) 0 var(--sp-6); font-size: var(--fs-sm); line-height: var(--lh-body); color: var(--muted); font-variant-numeric: tabular-nums; user-select: none; }
@@ -207,3 +207,6 @@
 /* The mode's name in the tool row: muted while Editing, ink when it changes how the page behaves. */
 .doc-bar .doc-bar-mode { color: var(--muted); }
 .doc-bar .doc-bar-mode[data-mode="suggesting"], .doc-bar .doc-bar-mode[data-mode="viewing"] { color: var(--ink); }
+/* Page setup: a name over each choice. */
+.doc-setup { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: var(--sp-3) var(--sp-4); }
+.doc-setup-name { font-size: var(--fs-sm); color: var(--muted); }

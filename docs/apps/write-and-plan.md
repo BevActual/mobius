@@ -55,6 +55,8 @@ Longer documents, with an outline and comments.
   underlined and what you delete stays struck through, until you accept or reject it: right-click one, or use
   **Accept all suggestions** or **Reject all suggestions** in the Docs menu. Suggestions are kept in the file as
   CriticMarkup (`{++added++}`, `{--removed--}`), which other Markdown tools read. **Viewing** only reads.
+- **Page setup** (in the Docs menu): Letter or A4, portrait or landscape, and narrow, normal or wide margins. The
+  page is as wide as the paper's text, and printing uses the same paper. It applies to every document on this computer.
 - **Review** mode (in the composer's Mode menu while you are in Docs or Notes) has Mobius comment and suggest without
   editing the text.
 - **Earlier versions** (in ⋯) puts one back, and **Undo** in the note at the foot takes it back again. **Share** copies,
