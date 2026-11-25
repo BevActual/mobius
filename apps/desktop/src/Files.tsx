@@ -99,7 +99,7 @@ export function useFiles(conversation: string, busy: boolean) {
   };
   // The person's own changes: each re-lists, and says what went wrong in the bar instead of failing quietly.
   const [notice, setNotice] = useState<string | null>(null);
-  const [trashed, setTrashed] = useState<{ held: string; path: string } | null>(null);
+  const [trashed, setTrashed] = useState<{ held: string; path: string }[] | null>(null);
   const after = async (done: Promise<FilesActionResult> | undefined): Promise<string | null> => {
     const result = await done?.catch(() => null);
     void list(); void listRoots();
@@ -120,33 +120,70 @@ export function useFiles(conversation: string, busy: boolean) {
     if (to) moveLink(path, to);
     return to;
   };
-  const trash = async (path: string) => {
-    const held = await after(window.mobius.files?.trash?.(path));
-    if (held) forgetLink(path);
-    setTrashed(held ? { held, path } : null);
-    if (held) { setMoved(null); if (cut === path) setCut(null); }
+  /** To the Trash, one or many at once; Undo puts all of them back. */
+  const trash = async (paths: string | readonly string[]) => {
+    const done: { held: string; path: string }[] = [];
+    for (const path of typeof paths === 'string' ? [paths] : paths) {
+      const held = await after(window.mobius.files?.trash?.(path));
+      if (!held) break;
+      forgetLink(path);
+      done.push({ held, path });
+    }
+    setTrashed(done.length > 0 ? done : null);
+    if (done.length > 0) { setMoved(null); setCopied(null); setClip((c) => (c && c.paths.some((p) => done.some((d) => d.path === p)) ? null : c)); }
   };
-  // Moving into another folder, by dragging or by Cut and Paste. Undo moves it back where it was.
-  const [moved, setMoved] = useState<{ path: string; from: string; to: string } | null>(null);
-  const moveTo = async (path: string, into: string): Promise<string | null> => {
-    const to = await after(window.mobius.files?.move?.(path, into));
-    if (to) moveLink(path, to);
-    if (to) { setTrashed(null); setMoved({ path: to, from: parentOf(path), to: into }); }
-    return to;
+  // Moving into another folder, by dragging or by Cut and Paste. Undo moves them back where they were.
+  const [moved, setMoved] = useState<{ items: { path: string; from: string }[]; to: string } | null>(null);
+  const moveAll = async (paths: readonly string[], into: string): Promise<string[]> => {
+    const items: { path: string; from: string }[] = [];
+    for (const path of paths) {
+      if (!canMoveInto(path, into)) continue;
+      const to = await after(window.mobius.files?.move?.(path, into));
+      if (!to) break;
+      moveLink(path, to);
+      items.push({ path: to, from: parentOf(path) });
+    }
+    if (items.length > 0) { setTrashed(null); setCopied(null); setMoved({ items, to: into }); }
+    return items.map((i) => i.path);
   };
+  const moveTo = async (path: string, into: string): Promise<string | null> => (await moveAll([path], into))[0] ?? null;
   const undoMove = async () => {
     if (!moved) return;
-    const back = await after(window.mobius.files?.move?.(moved.path, moved.from));
-    if (back) { moveLink(moved.path, back); setMoved(null); }
+    for (const item of moved.items) {
+      const back = await after(window.mobius.files?.move?.(item.path, item.from));
+      if (back) moveLink(item.path, back);
+    }
+    setMoved(null);
   };
-  // What is being dragged, and the folder it hovers over: a drag's data cannot be read until the drop.
+  // Copies, by Copy and Paste or Duplicate, as Explorer makes them ("name - Copy.ext" beside the first). Undo moves
+  // the copies to the Trash quietly: nothing the person had is lost.
+  const [copied, setCopied] = useState<{ paths: string[]; to: string } | null>(null);
+  const copyAll = async (paths: readonly string[], into: string | null): Promise<string[]> => {
+    const made: string[] = [];
+    for (const path of paths) {
+      const to = await after(window.mobius.files?.copy?.(path, into ?? parentOf(path)));
+      if (!to) break;
+      made.push(to);
+    }
+    if (made.length > 0) { setTrashed(null); setMoved(null); setCopied({ paths: made, to: into ?? parentOf(paths[0]!) }); }
+    return made;
+  };
+  const undoCopy = async () => {
+    if (!copied) return;
+    for (const path of copied.paths) await window.mobius.files?.trash?.(path)?.catch(() => null);
+    setCopied(null);
+    void list(); void listRoots();
+  };
+  // What is being dragged (the row under the pointer, and every row picked with it), and the folder it hovers over:
+  // a drag's data cannot be read until the drop.
   const [dragging, setDragging] = useState<string | null>(null);
+  const draggingAll = useRef<readonly string[]>([]);
   const [over, setOver] = useState<string | null>(null);
-  // Cut (Ctrl+X) marks one item; Paste (Ctrl+V) in another folder moves it there.
-  const [cut, setCut] = useState<string | null>(null);
-  const drag = (path: string) => ({
+  // Cut (Ctrl+X) or Copy (Ctrl+C) marks what is picked; Paste (Ctrl+V) moves or copies it into the folder open.
+  const [clip, setClip] = useState<{ paths: string[]; mode: 'cut' | 'copy' } | null>(null);
+  const drag = (path: string, all: readonly string[] = [path]) => ({
     draggable: true,
-    onDragStart: (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', path); e.dataTransfer.effectAllowed = 'copyMove'; setDragging(path); },
+    onDragStart: (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', path); e.dataTransfer.effectAllowed = 'copyMove'; draggingAll.current = all.includes(path) ? all : [path]; setDragging(path); },
     onDragEnd: () => { setDragging(null); setOver(null); },
   });
   const drop = (into: string): SidebarRowDrop<HTMLElement> => {
@@ -166,20 +203,22 @@ export function useFiles(conversation: string, busy: boolean) {
         const path = dragging;
         setDragging(null); setOver(null);
         if (fromDrive) { drives.setDragging(null); void drives.download(fromDrive.drive, fromDrive.path, into).then((to) => { if (to) { void list(); void listRoots(); } }); return; }
-        if (path && canMoveInto(path, into)) void moveTo(path, into);
+        if (path && canMoveInto(path, into)) void moveAll(draggingAll.current, into);
       },
     };
   };
-  const paste = async (into: string) => {
-    if (!cut || !canMoveInto(cut, into)) return null;
-    const to = await moveTo(cut, into);
-    if (to) setCut(null);
+  /** Paste: what was cut moves here (and the clipboard empties), what was copied is copied here (and stays to paste again). */
+  const paste = async (into: string): Promise<string[]> => {
+    if (!clip) return [];
+    if (clip.mode === 'copy') return copyAll(clip.paths, into);
+    const to = await moveAll(clip.paths, into);
+    if (to.length > 0) setClip(null);
     return to;
   };
   const putBack = async () => {
     if (!trashed) return;
-    const back = await after(window.mobius.files?.putBack?.(trashed.held, trashed.path));
-    if (back) setTrashed(null);
+    for (const t of trashed) await after(window.mobius.files?.putBack?.(t.held, t.path));
+    setTrashed(null);
   };
   // The Trash: what it holds, putting one thing back where it was, and deleting for good once the person confirms.
   const [trashItems, setTrashItems] = useState<TrashEntry[]>([]);
@@ -198,7 +237,7 @@ export function useFiles(conversation: string, busy: boolean) {
     if (!result) setNotice('That could not be done here.');
     else if (!result.ok) setNotice(`${result.error.charAt(0).toUpperCase()}${result.error.slice(1)}.`);
     else setNotice(null);
-    if (trashed && (!held || trashed.held === held)) setTrashed(null);
+    if (trashed && (!held || trashed.some((t) => t.held === held))) setTrashed(null);
     void loadTrash();
   };
   // Which top-level folders the person has opened since Mobius's last turn, kept per turn so a new turn's dots show again.
@@ -218,19 +257,21 @@ export function useFiles(conversation: string, busy: boolean) {
     });
   }, [place, seenKey]);
   const show = (path: string) => void window.mobius.files?.show?.(path);
-  const can = { change: typeof window.mobius.files?.rename === 'function', move: typeof window.mobius.files?.move === 'function', show: typeof window.mobius.files?.show === 'function', trash: typeof window.mobius.files?.trashList === 'function' };
+  const can = { change: typeof window.mobius.files?.rename === 'function', move: typeof window.mobius.files?.move === 'function', copy: typeof window.mobius.files?.copy === 'function', show: typeof window.mobius.files?.show === 'function', trash: typeof window.mobius.files?.trashList === 'function' };
   return {
     /** Mobius's turn is still running: its changes show, and Keep and Discard wait for the end. */
     working: busy,
     place, setPlace, back, forward, canBack: trail.at > 0, canForward: trail.at < trail.places.length - 1,
     entries, roots, problem, made, conversation, keep, discard, sort, setSort, query, setQuery,
     drives, sync, syncDialog, setSyncDialog, compare,
-    newFolder, rename, trash, putBack, show, trashed, moved, moveTo, undoMove, dismissMoved: () => setMoved(null), drag, drop, dragging, cut, setCut, paste, trashItems, putBackItem, emptyTrash, seen, loading, dismissTrashed: () => setTrashed(null), notice, dismissNotice: () => setNotice(null), can,
+    newFolder, rename, trash, putBack, show, trashed, moved, moveTo, moveAll, undoMove, dismissMoved: () => setMoved(null), copied, copyAll, undoCopy, dismissCopied: () => setCopied(null), drag, drop, dragging, clip, setClip, paste, trashItems, putBackItem, emptyTrash, seen, loading, dismissTrashed: () => setTrashed(null), notice, dismissNotice: () => setNotice(null), can,
     available: window.mobius.files !== undefined,
   };
 }
 export type FilesState = ReturnType<typeof useFiles>;
 
+/** Things acted on, in a toast: “Plan.md” for one, “3 items” for more. */
+const itemsName = (paths: readonly string[]) => (paths.length === 1 ? `“${paths[0]!.split('/').pop()}”` : `${paths.length} items`);
 /** The folder something is in ('' for the workspace itself). */
 const parentOf = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 /** Where a path may be moved: another folder, never itself, inside itself, or where it already is. */
@@ -456,6 +497,24 @@ function FileInfo({ entry, here, count, onOpen, onCopyPath }: { entry: (FileEntr
   );
 }
 
+/** Info for several picked rows, as Finder's Get Info on many: how many, of what, and how big the files are together. */
+function PickedInfo({ rows }: { rows: readonly (FileEntry & { path: string })[] }) {
+  const folders = rows.filter((r) => r.type === 'folder').length;
+  const fileRows = rows.filter((r) => r.type === 'file');
+  const bytes = fileRows.reduce((sum, r) => sum + (r.bytes ?? 0), 0);
+  const facts: [string, string][] = [
+    ['Picked', `${rows.length} items`],
+    ...(folders > 0 ? [['Folders', String(folders)] as [string, string]] : []),
+    ...(fileRows.length > 0 ? [['Files', `${fileRows.length}, ${size(bytes)} together`] as [string, string]] : []),
+  ];
+  return (
+    <div className="files-info" aria-label={`About ${rows.length} items`}>
+      <div className="files-info-head"><FileIcon path="workspace" type="folder" /><strong>{rows.length} items</strong></div>
+      <dl className="files-info-facts">{facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+    </div>
+  );
+}
+
 /** A folder's size, as Finder says it: how many things it holds. Blank when that is not known. */
 const itemCount = (n: number | undefined) => (n === undefined ? '' : n === 1 ? '1 item' : `${n} items`);
 
@@ -480,12 +539,19 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   const [peeking, setPeeking] = useState<string | null>(null);
   const [view, setView] = useState<FilesView>(readView);
   const changeView = (v: FilesView) => { setView(v); try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* kept for now */ } };
-  const [selected, setSelected] = useState<string | null>(null);
+  // The row the keyboard is on, and every row picked with it (Ctrl+click, Shift+click, Shift+arrows, Ctrl+A), as in
+  // Explorer and Finder. A plain click or arrow picks just the one row.
+  const [selected, setOne] = useState<string | null>(null);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
+  const anchor = useRef<string | null>(null);
+  // What was typed to go to a name, and when (a pause of a second starts again).
+  const typed = useRef({ text: '', at: 0 });
+  const setSelected = (path: string | null) => { setOne(path); setPicked(path ? new Set([path]) : new Set()); anchor.current = path; };
   const [menu, setMenu] = useState<{ path: string; type: FileEntry['type']; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const here = files.place.kind === 'folder' ? files.place.path : '';
-  useEffect(() => { setSelected(null); setRenaming(null); }, [files.place]);
+  useEffect(() => { setSelected(null); setRenaming(null); }, [files.place]); // eslint-disable-line react-hooks/exhaustive-deps
   // Alt+Left and Alt+Right go Back and Forward, as in Explorer and a browser.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -495,12 +561,20 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         const box = document.querySelector<HTMLInputElement>('input[aria-label="Search this folder"], input[aria-label="Search Made by Mobius"], input[aria-label="Search the Trash"]');
         if (box) { e.preventDefault(); box.focus(); box.select(); return; }
       }
+      const t = e.target as HTMLElement | null;
+      const typing = Boolean(t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'));
+      // Paste works in the folder open even when the list is empty or does not have the keyboard (the list handles
+      // its own first).
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'v' || e.key === 'V') && !e.defaultPrevented && !typing && files.clip && files.place.kind === 'folder') {
+        e.preventDefault(); void files.paste(here).then(pickMade); return;
+      }
       if (!e.altKey || e.ctrlKey || e.metaKey) return;
       // Typing keeps Alt+arrows for moving by word.
-      const t = e.target as HTMLElement | null;
-      if (t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (typing) return;
       if (e.key === 'ArrowLeft') { e.preventDefault(); files.back(); }
       if (e.key === 'ArrowRight') { e.preventDefault(); files.forward(); }
+      // Alt+Up goes up a folder, as in Explorer.
+      if (e.key === 'ArrowUp' && files.place.kind === 'folder' && here) { e.preventDefault(); cameFrom.current = here; files.setPlace({ kind: 'folder', path: here.includes('/') ? here.slice(0, here.lastIndexOf('/')) : '' }); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -533,21 +607,39 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   const changeable = (path: string) => files.can.change && !fixed(path);
   // What Mobius made waits where it is until the person keeps or discards it, so Keep and Discard still find it.
   const movable = (path: string) => changeable(path) && files.can.move && !files.made.files.some((f) => f === path || f.startsWith(`${path}/`));
-  const trash = (path: string) => { setSelected(null); void files.trash(path); };
+  /** What an action takes: every picked row when the one acted on is among them, else just that one. */
+  const chosenWith = (path: string): string[] => (picked.has(path) && picked.size > 1 ? rows.filter((r) => picked.has(r.path)).map((r) => r.path) : [path]);
+  const trash = (paths: string[]) => { const ok = paths.filter(changeable); if (ok.length === 0) return; setSelected(null); void files.trash(ok); };
+  const cutAll = (paths: string[]) => { const ok = paths.filter(movable); if (ok.length > 0) files.setClip({ paths: ok, mode: 'cut' }); };
+  const copyAll = (paths: string[]) => { if (files.can.copy && paths.length > 0) files.setClip({ paths, mode: 'copy' }); };
+  /** After Paste or Duplicate, what was made is picked, the keyboard on the first of it. */
+  const pickMade = (made: string[]) => {
+    const inHere = made.filter((p) => parentOf(p) === here);
+    if (inHere.length === 0) return;
+    setOne(inHere[0]!); setPicked(new Set(inHere)); anchor.current = inHere[0]!;
+  };
+  const duplicate = (paths: string[]) => { if (files.can.copy && paths.length > 0) void files.copyAll(paths, null).then(pickMade); };
   const copyPath = (path: string) => void navigator.clipboard?.writeText(path).catch(() => undefined);
-  const menuItems = (path: string, type: FileEntry['type']): MenuEntry[] => [
-    { label: 'Open', keys: 'Enter', run: () => open(path, type) },
-    ...(changeable(path) ? [{ label: 'Rename', keys: 'F2', run: () => setRenaming(path) }] : []),
-    ...(movable(path) ? [{ label: 'Cut', keys: 'Ctrl+X', run: () => files.setCut(path) }] : []),
-    ...(type === 'folder' && files.cut && canMoveInto(files.cut, path) ? [{ label: `Move “${files.cut.split('/').pop()}” Here`, run: () => void files.paste(path) }] : []),
-    { label: 'Copy path', keys: 'Ctrl+Shift+C', run: () => copyPath(path) },
+  const clipName = files.clip ? (files.clip.paths.length === 1 ? `“${files.clip.paths[0]!.split('/').pop()}”` : `${files.clip.paths.length} items`) : '';
+  const menuItems = (path: string, type: FileEntry['type']): MenuEntry[] => {
+    const all = chosenWith(path);
+    const many = all.length > 1;
+    return [
+    ...(many ? [] : [{ label: 'Open', keys: 'Enter', run: () => open(path, type) }]),
+    ...(!many && changeable(path) ? [{ label: 'Rename', keys: 'F2', run: () => setRenaming(path) }] : []),
+    ...(all.some(movable) ? [{ label: many ? `Cut ${all.length} Items` : 'Cut', keys: 'Ctrl+X', run: () => cutAll(all) }] : []),
+    ...(files.can.copy ? [{ label: many ? `Copy ${all.length} Items` : 'Copy', keys: 'Ctrl+C', run: () => copyAll(all) }] : []),
+    ...(files.can.copy ? [{ label: 'Duplicate', keys: 'Ctrl+D', run: () => duplicate(all) }] : []),
+    ...(!many && type === 'folder' && files.clip && files.clip.paths.some((c) => files.clip!.mode === 'copy' || canMoveInto(c, path)) ? [{ label: `${files.clip.mode === 'cut' ? 'Move' : 'Paste'} ${clipName} Here`, run: () => void files.paste(path) }] : []),
+    ...(many ? [] : [{ label: 'Copy path', keys: 'Ctrl+Shift+C', run: () => copyPath(path) }]),
     // A copy of a drive's file goes back over it, as long as no one has changed it there since.
-    ...(type !== 'folder' && files.drives.canSaveBack && linkOf(path) ? [{ label: `Save Back to ${files.drives.nameOfDrive(linkOf(path)!.drive)}`, run: () => void files.drives.saveBack(path) }] : []),
-    ...(files.can.show ? [{ label: SHOW_IN, run: () => files.show(path) }] : []),
-    ...(onAsk ? [{ label: 'Ask Mobius about this', separated: true, run: () => onAsk(type === 'folder' ? `What is in the folder ${path}/?` : `Tell me about ${path}.`) }] : []),
-    ...(type === 'folder' ? syncItems(path) : []),
-    ...(changeable(path) ? [{ label: 'Move to Trash', keys: 'Delete', danger: true, separated: true, run: () => trash(path) }] : []),
+    ...(!many && type !== 'folder' && files.drives.canSaveBack && linkOf(path) ? [{ label: `Save Back to ${files.drives.nameOfDrive(linkOf(path)!.drive)}`, run: () => void files.drives.saveBack(path) }] : []),
+    ...(!many && files.can.show ? [{ label: SHOW_IN, run: () => files.show(path) }] : []),
+    ...(onAsk ? [{ label: 'Ask Mobius about this', separated: true, run: () => onAsk(many ? `Tell me about these: ${all.join(', ')}.` : type === 'folder' ? `What is in the folder ${path}/?` : `Tell me about ${path}.`) }] : []),
+    ...(!many && type === 'folder' ? syncItems(path) : []),
+    ...(all.some(changeable) ? [{ label: many ? `Move ${all.length} Items to Trash` : 'Move to Trash', keys: 'Delete', danger: true, separated: true, run: () => trash(all) }] : []),
   ];
+  };
   // Sync: pair a folder with a drive folder, or pause, sync now and stop a paired one.
   const [stopping, setStopping] = useState<string | null>(null);
   const syncItems = (path: string): MenuEntry[] => {
@@ -583,8 +675,9 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   const bars = (
     <>
       {files.notice && <p className="field-error files-notice" role="alert">{files.notice} <button type="button" className="review-btn" onClick={files.dismissNotice}>OK</button></p>}
-      {files.moved && <UndoToast text={`Moved “${files.moved.path.split('/').pop()}” to ${placeName(files.moved.to)}`} onUndo={() => void files.undoMove()} onDismiss={files.dismissMoved} />}
-      {files.trashed && <UndoToast text={`Moved “${files.trashed.path.split('/').pop()}” to the Trash`} onUndo={() => void files.putBack()} onDismiss={files.dismissTrashed} />}
+      {files.moved && <UndoToast text={`Moved ${itemsName(files.moved.items.map((i) => i.path))} to ${placeName(files.moved.to)}`} onUndo={() => void files.undoMove()} onDismiss={files.dismissMoved} />}
+      {files.copied && <UndoToast text={`Copied ${itemsName(files.copied.paths)} to ${placeName(files.copied.to)}`} onUndo={() => void files.undoCopy()} onDismiss={files.dismissCopied} />}
+      {files.trashed && <UndoToast text={`Moved ${itemsName(files.trashed.map((t) => t.path))} to the Trash`} onUndo={() => void files.putBack()} onDismiss={files.dismissTrashed} />}
       <DriveBars drives={files.drives} />
       {files.sync.notice && <p className="field-error files-notice" role="alert">{files.sync.notice} <button type="button" className="review-btn" onClick={files.sync.dismissNotice}>OK</button></p>}
       {herePair && <SyncConflicts sync={files.sync} pair={herePair} onCompare={files.compare} />}
@@ -652,14 +745,41 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       {label}{files.sort.by === by && <span className="files-sort" aria-hidden="true">{files.sort.down ? '▾' : '▴'}</span>}
     </button>
   );
-  const move = (step: number) => {
+  /** Every row from the anchor to `path`, picked; the keyboard on `path`. */
+  const pickTo = (path: string, add = false) => {
+    const from = rows.findIndex((r) => r.path === (anchor.current ?? selected ?? path));
+    const to = rows.findIndex((r) => r.path === path);
+    if (from < 0 || to < 0) { setSelected(path); return; }
+    const range = rows.slice(Math.min(from, to), Math.max(from, to) + 1).map((r) => r.path);
+    setOne(path);
+    setPicked((cur) => new Set(add ? [...cur, ...range] : range));
+  };
+  const move = (step: number, extend = false) => {
     if (rows.length === 0) return;
     // With nothing chosen yet, from the row the keyboard is on (the first, once Files is open).
     const on = (document.activeElement as HTMLElement | null)?.dataset?.path;
     const at = rows.findIndex((r) => r.path === (selected ?? on));
     const next = rows[Math.max(0, Math.min(rows.length - 1, at < 0 ? 0 : at + step))]!;
-    setSelected(next.path);
+    if (extend) { if (!anchor.current) anchor.current = selected ?? on ?? next.path; pickTo(next.path); } else setSelected(next.path);
     listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(next.path)}"]`)?.focus();
+  };
+  // Typing a name goes to it, as in Explorer and Finder: the letters typed within a second, from the start of a name.
+  const jumpTo = (key: string) => {
+    const now = Date.now();
+    const text = (now - typed.current.at < 1000 ? typed.current.text : '') + key.toLowerCase();
+    typed.current = { text, at: now };
+    // The same letter again goes on to the next name that starts with it, round to the first, as Explorer does.
+    const again = [...text].every((c) => c === text[0]);
+    const starts = (prefix: string) => rows.filter((r) => r.name.toLowerCase().startsWith(prefix));
+    let hit = again ? undefined : starts(text)[0];
+    if (again) {
+      const all = starts(text[0]!);
+      const at = all.findIndex((r) => r.path === selected);
+      hit = text.length === 1 && at < 0 ? all[0] : all[(at + 1) % Math.max(1, all.length)];
+    }
+    if (!hit) return;
+    setSelected(hit.path);
+    listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(hit.path)}"]`)?.focus();
   };
   // How many tiles a grid row holds, for ↑ and ↓.
   const gridColumns = () => { const el = listRef.current; if (!el) return 1; return Math.max(1, getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length); };
@@ -669,19 +789,28 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       const r = rows.find((x) => x.path === selected);
       if (r && r.type === 'file') { e.preventDefault(); setPeeking((cur) => (cur === r.path ? null : r.path)); return; }
     }
-    if (e.key === 'ArrowDown') { e.preventDefault(); move(view === 'grid' ? gridColumns() : 1); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); move(view === 'grid' ? -gridColumns() : -1); }
-    else if (view === 'grid' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); move(e.key === 'ArrowRight' ? 1 : -1); }
-    else if (e.key === 'Home') { e.preventDefault(); move(-rows.length); }
-    else if (e.key === 'End') { e.preventDefault(); move(rows.length); }
-    else if (e.key === 'Enter') { const r = rows.find((x) => x.path === selected); if (r) { e.preventDefault(); open(r.path, r.type); } }
-    else if (e.key === 'F2' && selected && changeable(selected)) { e.preventDefault(); setRenaming(selected); }
-    else if ((e.key === 'C' || e.key === 'c') && e.ctrlKey && e.shiftKey && selected) { e.preventDefault(); copyPath(selected); }
-    else if ((e.key === 'x' || e.key === 'X') && e.ctrlKey && !e.shiftKey && selected && movable(selected)) { e.preventDefault(); files.setCut(selected); }
-    else if ((e.key === 'v' || e.key === 'V') && e.ctrlKey && !e.shiftKey && files.cut) { e.preventDefault(); void files.paste(here).then((to) => { if (to) setSelected(to); }); }
-    else if (e.key === 'Escape' && files.cut) { e.preventDefault(); files.setCut(null); }
-    else if (e.key === 'Delete' && selected && changeable(selected)) { e.preventDefault(); trash(selected); }
+    const ctrl = (e.ctrlKey || e.metaKey) && !e.altKey;
+    const k = e.key.toLowerCase();
+    // The keys act on what is picked (Ctrl+click can leave the keyboard on a row it just took out).
+    const all = picked.size > 0 ? rows.filter((r) => picked.has(r.path)).map((r) => r.path) : selected ? [selected] : [];
+    if (e.key === 'ArrowDown') { e.preventDefault(); move(view === 'grid' ? gridColumns() : 1, e.shiftKey); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(view === 'grid' ? -gridColumns() : -1, e.shiftKey); }
+    else if (view === 'grid' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); move(e.key === 'ArrowRight' ? 1 : -1, e.shiftKey); }
+    else if (e.key === 'Home') { e.preventDefault(); move(-rows.length, e.shiftKey); }
+    else if (e.key === 'End') { e.preventDefault(); move(rows.length, e.shiftKey); }
+    else if (e.key === 'Enter') { const r = rows.find((x) => x.path === selected); if (r && all.length <= 1) { e.preventDefault(); open(r.path, r.type); } }
+    else if (e.key === 'F2' && selected && all.length <= 1 && changeable(selected)) { e.preventDefault(); setRenaming(selected); }
+    else if (ctrl && !e.shiftKey && k === 'a') { e.preventDefault(); setPicked(new Set(rows.map((r) => r.path))); if (!selected && rows[0]) setOne(rows[0].path); }
+    else if (ctrl && e.shiftKey && k === 'c' && selected) { e.preventDefault(); copyPath(selected); }
+    else if (ctrl && !e.shiftKey && k === 'c' && all.length > 0 && files.can.copy) { e.preventDefault(); copyAll(all); }
+    else if (ctrl && !e.shiftKey && k === 'x' && all.some(movable)) { e.preventDefault(); cutAll(all); }
+    else if (ctrl && !e.shiftKey && k === 'd' && all.length > 0 && files.can.copy) { e.preventDefault(); duplicate(all); }
+    else if (ctrl && !e.shiftKey && k === 'v' && files.clip) { e.preventDefault(); void files.paste(here).then(pickMade); }
+    else if (e.key === 'Escape' && files.clip) { e.preventDefault(); files.setClip(null); }
+    else if (e.key === 'Escape' && picked.size > 1 && selected) { e.preventDefault(); setSelected(selected); }
+    else if (e.key === 'Delete' && all.some(changeable)) { e.preventDefault(); trash(all); }
     else if (e.key === 'Backspace' && parts.length > 0) { e.preventDefault(); cameFrom.current = here; files.setPlace({ kind: 'folder', path: parts.slice(0, -1).join('/') }); }
+    else if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); jumpTo(e.key); }
   };
   return (
     <section className="skills-page files-page" aria-label="Files">
@@ -706,7 +835,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         <EmptyState icon={GLYPH.folder} title="This folder is empty" line={files.can.change ? 'Drop files here, or make a new folder.' : undefined} {...(files.can.change ? { action: { label: 'New folder', keys: 'Ctrl+Shift+N', run: () => void startNewFolder() } } : {})} />
       )}
       {!files.problem && !files.loading && files.entries.length > 0 && (
-        <div className="files-table" data-view={view} role="grid" aria-label="Files in this folder" aria-rowcount={rows.length + 1}>
+        <div className="files-table" data-view={view} role="grid" aria-label="Files in this folder" aria-multiselectable="true" aria-rowcount={rows.length + 1}>
           <div className="files-head" role="row">{head('name', 'Name')}{head('modified', 'Modified')}{head('kind', 'Kind')}{head('size', 'Size')}</div>
           <div ref={listRef} role="rowgroup" onKeyDown={onListKey}>
             {rows.length === 0 && <p className="note-empty files-none">Nothing here matches “{files.query}”.</p>}
@@ -719,12 +848,17 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
               // name is being typed; a folder row takes a drop.
               const draggable = movable(e.path) && renaming !== e.path;
               return (
-                <div key={e.name} role="row" tabIndex={selected === e.path || (!selected && e === rows[0]) ? 0 : -1} data-path={e.path} aria-selected={selected === e.path}
-                  {...(draggable ? files.drag(e.path) : {})} {...(e.type === 'folder' && files.can.move ? files.drop(e.path) : {})}
-                  data-dragging={files.dragging === e.path || undefined} data-cut={files.cut === e.path || undefined}
+                <div key={e.name} role="row" tabIndex={selected === e.path || (!selected && e === rows[0]) ? 0 : -1} data-path={e.path} aria-selected={picked.has(e.path)}
+                  {...(draggable ? files.drag(e.path, chosenWith(e.path).filter(movable)) : {})} {...(e.type === 'folder' && files.can.move ? files.drop(e.path) : {})}
+                  data-dragging={(files.dragging !== null && (files.dragging === e.path || (picked.has(e.path) && picked.has(files.dragging)))) || undefined}
+                  data-cut={(files.clip?.mode === 'cut' && files.clip.paths.includes(e.path)) || undefined}
                   className="files-row" data-proposed={(mine && e.type === 'file') || undefined} aria-label={mine ? `${e.name}, from Mobius` : e.name}
-                  onClick={() => setSelected(e.path)} onDoubleClick={() => open(e.path, e.type)}
-                  onContextMenu={(ev) => { ev.preventDefault(); setSelected(e.path); setMenu({ path: e.path, type: e.type, x: ev.clientX, y: ev.clientY }); }}>
+                  onClick={(ev) => {
+                    if (ev.shiftKey) { ev.preventDefault(); pickTo(e.path, ev.ctrlKey || ev.metaKey); }
+                    else if (ev.ctrlKey || ev.metaKey) { setOne(e.path); anchor.current = e.path; setPicked((cur) => { const next = new Set(cur); if (next.has(e.path)) next.delete(e.path); else next.add(e.path); return next; }); }
+                    else setSelected(e.path);
+                  }} onDoubleClick={() => open(e.path, e.type)}
+                  onContextMenu={(ev) => { ev.preventDefault(); if (!picked.has(e.path)) setSelected(e.path); else setOne(e.path); setMenu({ path: e.path, type: e.type, x: ev.clientX, y: ev.clientY }); }}>
                   <span role="gridcell" className="files-cell files-name">{view === 'grid' ? <FileTile path={e.path} type={e.type} /> : <FileIcon path={e.path} type={e.type} />}{nameCell(e.path, e.name)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-held" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Mobius changed 1 file here, not kept yet' : `Mobius changed ${held} files here, not kept yet`}><MobiusMark size={14} /></span>}</span>
                   <span role="gridcell" className="files-cell files-date">{e.modified ? relativeTime(e.modified, Date.now()) : '—'}</span>
                   <span role="gridcell" className="files-cell files-kind">{fileKind(e.path, e.type)}</span>
@@ -746,7 +880,13 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       </nav>}
       {fileMenu}
       {peeking && <FilePeekView path={peeking} onClose={() => { setPeeking(null); listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus(); }} onOpen={() => { setPeeking(null); onOpenFile(peeking); }} />}
-      <PanelTab id="info" name="Info">{(() => { const e = rows.find((x) => x.path === selected) ?? null; return <FileInfo entry={e} here={here} count={files.entries.length} onOpen={e ? () => open(e.path, e.type) : undefined} onCopyPath={copyPath} />; })()}</PanelTab>
+      <PanelTab id="info" name="Info">{(() => {
+        if (picked.size > 1) return <PickedInfo rows={rows.filter((r) => picked.has(r.path))} />;
+        // The one row picked (Ctrl+click can leave the keyboard on a row it took out), or none: the folder itself.
+        const one = picked.size === 1 ? [...picked][0] : null;
+        const e = rows.find((x) => x.path === one) ?? null;
+        return <FileInfo entry={e} here={here} count={files.entries.length} onOpen={e ? () => open(e.path, e.type) : undefined} onCopyPath={copyPath} />;
+      })()}</PanelTab>
     </section>
   );
 }

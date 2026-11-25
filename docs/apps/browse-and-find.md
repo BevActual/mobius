@@ -123,7 +123,7 @@ Your whole workspace as a drive.
   file wears the icon of the app that opens it. A file Mobius made is dashed until kept; a folder holding such files
   has an indigo dot (hover it for how many).
 - **Select, then open.** A click selects, a double-click or Enter opens: folders in place, files in their own app. The
-  arrow keys move, Backspace goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
+  arrow keys move, Backspace (or Alt+Up) goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
 - **The toolbar** names the open folder with how many items it holds, and has Back, Forward and New folder. The
   **path bar** at the foot shows where the folder is; click any part to go back up.
 - **Search**, at the top of the Places panel, narrows the open folder by name. **Right-click** a row to open (Enter), rename (F2), copy its path
@@ -134,6 +134,14 @@ Your whole workspace as a drive.
 - **Drag** a file or folder onto a folder row, a folder in the Places panel, or a folder in the path bar to move it there, with
   Undo in a toast. The folder it would land in is ringed while you hover. From the keyboard, **Cut** (Ctrl+X) and then
   **Paste** (Ctrl+V) in another folder; Escape lets go. Something Mobius made stays put until you keep or discard it.
+- **Pick several**, as in Explorer: Ctrl+click adds or takes out one row, Shift+click (or Shift with the arrows) picks
+  the rows between, and Ctrl+A picks everything in the folder. Delete, Cut, Copy, Duplicate and dragging act on all of
+  them, with one Undo. The Info panel says how many are picked and how big the files are together.
+- **Copy** (Ctrl+C) and **Paste** (Ctrl+V) make copies in the folder open; the originals stay, and you can paste again.
+  **Duplicate** (Ctrl+D) copies beside the original, named as Explorer names them ("Plan - Copy.md", then
+  "Plan - Copy (2).md"). Undo takes the copies away.
+- **Type a name** to go to it: the first letters typed within a second; the same letter again goes on to the next
+  name that starts with it.
 - **Trash**, under Places, lists what you moved there, when, and where it was. **Put Back** (Ctrl+Backspace, or a
   double-click) returns it to that folder; **Empty Trash** (Ctrl+Shift+Backspace) and **Delete Immediately** (right-click, or Delete) delete for good, and
   always ask first. Mobius cannot empty the Trash. An app's own folder (notes/, docs/...) is never renamed or

@@ -76,6 +76,21 @@ export const PREVIEW_FILES: Record<string, (...args: never[]) => unknown> = {
     move(path, to);
     return { ok: true, path: to };
   }) as never,
+  'files.copy': ((path: string, folder: string): FilesActionResult => {
+    const item = TREE.get(path);
+    if (!item) return fail('that is not there any more');
+    if (item.type === 'folder' && (folder === path || folder.startsWith(`${path}/`))) return fail('a folder cannot be copied inside itself');
+    const name = nameOf(path);
+    const dot = item.type === 'file' ? name.lastIndexOf('.') : -1;
+    const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ''];
+    for (let n = 0; n < 1000; n += 1) {
+      const to = join(folder, n === 0 ? name : n === 1 ? `${stem} - Copy${ext}` : `${stem} - Copy (${n})${ext}`);
+      if (TREE.has(to)) continue;
+      for (const [p, it] of [...TREE]) if (p === path || p.startsWith(`${path}/`)) TREE.set(to + p.slice(path.length), { ...it, modified: Date.now() });
+      return { ok: true, path: to };
+    }
+    return fail(`there are too many copies of ${name} here`);
+  }) as never,
   'files.trash': ((path: string): FilesActionResult => {
     const held = `.trash/${Date.now()}-${nameOf(path)}`;
     move(path, held);

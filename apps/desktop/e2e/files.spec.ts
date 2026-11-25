@@ -235,6 +235,75 @@ test('a file dragged onto a folder moves into it with Undo, and Cut and Paste mo
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Plan.md'), 'utf8')).toBe('# Plan\n');
 });
 
+test('several files are picked with Ctrl, Shift and Ctrl+A; Duplicate, Copy and Paste make copies; Delete trashes all with one Undo', async () => {
+  const work = path.join(userData, 'workspace', 'notes', 'Work');
+  fs.writeFileSync(path.join(work, 'Budget.md'), '# Budget\n');
+  fs.writeFileSync(path.join(work, 'Notes.md'), '# Notes\n');
+  fs.mkdirSync(path.join(work, 'Archive'));
+  await start();
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  const row = (name: string) => page.getByRole('row', { name, exact: true });
+  const picked = page.locator('[role=row][aria-selected="true"]');
+
+  // Typing a name goes to it, as in Explorer.
+  await row('Archive').click();
+  await row('Archive').press('n');
+  await expect(row('Notes.md')).toBeFocused();
+  // Shift+click picks the rows between; Ctrl+click takes one out.
+  await row('Budget.md').click();
+  await row('Plan.md').click({ modifiers: ['Shift'] });
+  await expect(picked).toHaveCount(3);
+  await row('Notes.md').click({ modifiers: ['Control'] });
+  await expect(picked).toHaveCount(2);
+  await expect(shell().getByLabel('About 2 items')).toContainText('2 items');
+  // With one left picked, Info is about that one, not the row Ctrl+click took out.
+  await row('Plan.md').click({ modifiers: ['Control'] });
+  await expect(picked).toHaveCount(1);
+  await expect(shell().getByLabel('About Budget.md')).toHaveCount(1);
+  await row('Plan.md').click({ modifiers: ['Control'] });
+
+  // Duplicate (Ctrl+D) copies each beside itself, as Explorer names them, and Undo takes the copies away.
+  await row('Plan.md').press('Control+d');
+  await expect(row('Budget - Copy.md')).toBeVisible();
+  await expect(row('Plan - Copy.md')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Copied 2 items to Work');
+  expect(fs.readFileSync(path.join(work, 'Plan - Copy.md'), 'utf8')).toBe('# Plan\n');
+  await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect(row('Plan - Copy.md')).toHaveCount(0);
+  expect(fs.existsSync(path.join(work, 'Budget - Copy.md'))).toBe(false);
+
+  // Copy, then Paste in another folder: the originals stay.
+  await row('Budget.md').click();
+  await row('Notes.md').click({ modifiers: ['Control'] });
+  await row('Notes.md').press('Control+c');
+  await row('Archive').dblclick();
+  await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › notes › Work › Archive');
+  // Alt+Up goes up a folder and back down, as in Explorer.
+  await shell().keyboard.press('Alt+ArrowUp');
+  await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › notes › Work');
+  await row('Archive').dblclick();
+  await page.getByRole('grid', { name: 'Files in this folder' }).or(page.getByText('This folder is empty')).first().waitFor();
+  await shell().keyboard.press('Control+v');
+  await expect(row('Budget.md')).toBeVisible();
+  await expect(row('Notes.md')).toBeVisible();
+  expect(fs.existsSync(path.join(work, 'Archive', 'Budget.md'))).toBe(true);
+  expect(fs.existsSync(path.join(work, 'Budget.md'))).toBe(true);
+
+  // Ctrl+A and Delete: all of them to the Trash, and one Undo puts all back.
+  await row('Budget.md').click();
+  await row('Budget.md').press('Control+a');
+  await expect(picked).toHaveCount(2);
+  await row('Budget.md').press('Delete');
+  await expect(page.getByRole('status')).toContainText('Moved 2 items to the Trash');
+  expect(fs.readdirSync(path.join(work, 'Archive'))).toEqual([]);
+  await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect(row('Notes.md')).toBeVisible();
+  expect(fs.readdirSync(path.join(work, 'Archive')).sort()).toEqual(['Budget.md', 'Notes.md']);
+});
+
 test('the Trash lists what was trashed and where it was, puts it back there, and empties only after asking', async () => {
   await start();
   await openFiles();
