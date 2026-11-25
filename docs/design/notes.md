@@ -120,7 +120,9 @@ As built in #893, with what is still to come marked Later.
   is starting", with Record and ×. It never takes focus, goes by itself after a minute, and comes once per meeting.
   Later: a system notification with the same words and Record when Mobius is in the background.
 - **Record** opens the meeting's note, or the one already linked to the event, and starts recording. While it runs,
-  the tool row shows the red Stop and the time, as now, and nothing else on screen changes.
+  the tool row shows the red Stop and the time, as now, and nothing else on screen changes, so there is no headphones
+  hint in the bar: Settings › Voice › Hear the other side of calls says it once. Where Mobius hears the computer's
+  sound too (Windows, for now), what was said comes in turns under bold **You:** and **Others:** labels.
 - **What the person typed stays theirs.** When the meeting ends, the note's bar says "The meeting is in this note."
   with Fill in my notes (the one primary button) and Done. Fill in my notes has Mobius add what was said under each
   of their lines, then the decisions and a checklist of who does what. It is a change to keep, dashed until kept,
