@@ -429,6 +429,19 @@ test('a notebook is renamed and a note moved with links following them, and a de
     const onTrash = (dir: string): string[] => (fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory()
       ? [`${e.name}/`, ...onTrash(path.join(dir, e.name)).map((f) => `${e.name}/${f}`)]
       : [e.name === 'entry.json' ? `entry.json ${fs.readFileSync(path.join(dir, e.name), 'utf8')}` : e.name])) : ['(no folder)']);
+    const aria = await trash.ariaSnapshot().catch((e: unknown) => `(no snapshot: ${String(e)})`);
+    // The row and each box around it: what could hide it from the accessibility tree or give it no size.
+    const chain = await trash.locator('button.list-row').first().evaluate((row) => {
+      const out: string[] = [];
+      for (let el: Element | null = row; el && el !== document.body; el = el.parentElement) {
+        const css = getComputedStyle(el);
+        const box = el.getBoundingClientRect();
+        const flags = ['aria-hidden', 'inert', 'hidden', 'data-folded', 'role'].filter((a) => el!.hasAttribute(a)).map((a) => `${a}=${el!.getAttribute(a)}`);
+        out.push(`${el.tagName.toLowerCase()}.${el.className} ${css.display}/${css.visibility}/${css.opacity}/${css.contentVisibility} ${Math.round(box.width)}x${Math.round(box.height)}@${Math.round(box.x)},${Math.round(box.y)} ${flags.join(' ')}`);
+      }
+      return out;
+    }).catch((e: unknown) => [`(no row: ${String(e)})`]);
+    console.log(`[trash diag] aria:\n${aria}\n[trash diag] chain: ${JSON.stringify(chain, null, 1)}`);
     console.log(`[trash diag] rows: ${JSON.stringify(rows)}\n[trash diag] answered: ${answered}\n[trash diag] on disk: ${JSON.stringify(onTrash(file('.deleted')))}\n[trash diag] Work: ${JSON.stringify(fs.readdirSync(file('Work')))}`);
   }
   await expect(groceries).toHaveAccessibleDescription(/^From Work · \d+ days left$/);
