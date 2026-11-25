@@ -163,7 +163,7 @@
 /* A passage Mobius cited, when the note is opened from its answer: a soft grey tint that fades. Not indigo and not
    dashed, because Mobius only read it. Under Reduce Motion it stays a moment, then goes without fading. */
 @keyframes note-cited-fade { 0%, 40% { background: var(--sel); } 100% { background: transparent; } }
-.note-page .note-cited { border-radius: var(--radius-small); animation: note-cited-fade 1.6s var(--ease) both; }
+.note-page .note-cited { border-radius: var(--radius-small); animation: note-cited-fade calc(var(--dur-fade) * 10) var(--ease) both; }
 @media (prefers-reduced-motion: reduce) { .note-page .note-cited { animation-timing-function: steps(1, end); } }
 .note-page .note-commented { background: var(--comment, color-mix(in srgb, var(--c-yellow) 28%, transparent)); border-radius: var(--radius-small); }
 .note-comment-composer { position: absolute; z-index: var(--z-menu); width: var(--panel-w); display: grid; gap: var(--sp-2); padding: var(--sp-3); border-radius: var(--radius-sheet); background: var(--raised); box-shadow: var(--shadow-menu); animation: note-sheet-in var(--dur-med) var(--ease); }
