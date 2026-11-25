@@ -84,14 +84,15 @@ test('the desk is the Agent app’s home: what waits is allowed in place, and wh
   const desk = shell().getByRole('region', { name: 'Agent conversation' }).getByRole('region', { name: 'Desk' });
   await expect(desk.getByRole('heading', { name: GREETING })).toBeVisible();
   await expect(desk.locator('.desk-title')).toContainText('1 waiting for you');
-  // Chats are in the Chats panel; the desk lists the one that waits under Now, answered from its row.
+  // Chats are in the Chats panel; the desk's Inbox lists the one that waits, answered from its row.
   await expect(desk.getByRole('group', { name: 'Recent' })).toHaveCount(0);
-  const now = desk.getByRole('group', { name: 'Now' });
-  await expect(now.getByRole('listitem')).toContainText('Wants to');
+  const inbox = desk.getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('listitem')).toContainText('Wants to');
   await expect(desk.getByRole('group', { name: 'Next' }).getByRole('button', { name: /Morning brief.*at 0?8:00/ })).toBeVisible();
-  await now.getByRole('button', { name: /^Allow .* once$/ }).click();
-  await expect(desk.getByRole('group', { name: 'Now' })).toHaveCount(0);
+  await inbox.getByRole('button', { name: /^Allow .* once$/ }).click();
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(true);
+  // Once answered, nothing waits (Notes is open beside it, so its change is already in view).
+  await expect(inbox).toHaveCount(0);
   // Once it has finished it is in the Chats panel, and one press picks it up again.
   await shell().getByRole('complementary', { name: 'Chats' }).locator('.clist-main').first().click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');

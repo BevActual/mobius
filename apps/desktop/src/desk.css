@@ -86,3 +86,4 @@ li.desk-row:has(.desk-open:hover) { background: var(--line-soft, var(--soft)); }
 .desk-row[data-connect] > .desk-act { align-self: center; }
 /* Home's quick starts, just above the message box and lined up with it. */
 .chat.full .desk-starters { width: 100%; max-width: 760px; margin: 0 auto 8px; padding: 0 2px; }
+.desk-count { margin-left: var(--sp-1); font-weight: var(--fw-regular); font-variant-numeric: tabular-nums; }

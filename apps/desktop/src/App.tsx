@@ -1944,6 +1944,7 @@ export function App() {
                 onOpenSchedules={() => openSettingsAt('schedules')}
                 opened={recentItems(12)}
                 onOpenRecent={launch.openRecent}
+                suggested={{ count: mail.counts.suggested, onOpen: () => { openApp('mail'); mail.setView({ kind: 'drafts', only: 'mobius' }); } }}
                 // First run: once a model answers, mail and calendar are what make its answers about the person's own day.
                 {...(settings?.configured && (mail.accounts.length === 0 || calendar.accounts.length === 0) ? { connect: { mail: mail.accounts.length === 0, calendar: calendar.accounts.length === 0, onMail: () => openSettingsAt('mail'), onCalendar: () => openSettingsAt('calendar') } } : {})}
               />
