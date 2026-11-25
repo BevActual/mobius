@@ -96,7 +96,8 @@ import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
 import { pressIs } from './ui/PanelLayout';
-import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
+import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
+import { UndoToast, AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { SERVICE_NAMES, catchUpAsk, channelLabel, chatItem, isSpaceAccount } from './messages-view';
@@ -1680,6 +1681,30 @@ export function App() {
     const opened = there ? (await notes.open(there.path, there.title), there.path) : await notes.createPage(book, page.title, page.content);
     if (opened) setMeetingToken(Date.now());
   };
+  // The nudge when a meeting on the calendar starts: "{Meeting} is starting" in the pill at the foot of the app, with
+  // Record, gone by itself after a minute. It never takes focus. Each time of a meeting is offered once.
+  const [starting, setStarting] = useState<CalendarEvent | null>(null);
+  const offered = useRef(new Set<string>());
+  useEffect(() => {
+    const api = window.mobius.calendar;
+    if (!api) return;
+    let gone = false;
+    const look = async () => {
+      const now = new Date();
+      const got = await api.events(calendarDay(now), calendarDay(now)).catch(() => null);
+      if (gone || !Array.isArray(got)) return;
+      const next = meetingStarting(got, now, offered.current);
+      if (next) { offered.current.add(meetingKey(next)); setStarting(next); }
+    };
+    void look();
+    const timer = window.setInterval(() => void look(), 30_000);
+    return () => { gone = true; window.clearInterval(timer); };
+  }, []);
+  useEffect(() => {
+    if (!starting) return;
+    const timer = window.setTimeout(() => setStarting(null), OFFER_SHOWN_MS);
+    return () => window.clearTimeout(timer);
+  }, [starting]);
   const onNoteSelection = (action: SelectionAction, text: string) => {
     const page = notes.page;
     if (!page) return;
@@ -2085,6 +2110,7 @@ export function App() {
               : [pane];
           })}
           {toast && <div className="toast" role="status">{toast}</div>}
+          {starting && <UndoToast text={`${starting.title.trim() || 'A meeting'} is starting`} undoLabel="Record" onUndo={() => { const event = starting; setStarting(null); void recordMeeting(event); }} onDismiss={() => setStarting(null)} />}
         </main>
         {/* The inspector: the open app's own panels (PanelTab), between the content and Mobius. */}
         <InspectorDock />

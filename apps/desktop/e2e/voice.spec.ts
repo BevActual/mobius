@@ -140,7 +140,7 @@ test('Voice, This computer says whether a speech server answers at the saved add
   await expect(status).toContainText('faster-whisper');
 });
 
-test('a meeting recorded in a note is written down in the page, and Summarise and make tasks is put to Mobius, not sent', async () => {
+test('a meeting recorded in a note is written down in the page, and Fill in my notes is put to Mobius, not sent', async () => {
   await start({});
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
@@ -161,8 +161,8 @@ test('a meeting recorded in a note is written down in the page, and Summarise an
   await expect(page.getByRole('heading', { name: 'Transcript' })).toBeVisible();
   await expect(page).toContainText('book the terrace for Friday');
   expect(speech!.heard.filter((h) => h.path === '/v1/audio/transcriptions')).toHaveLength(1);
-  // The summary and actions are asked of Mobius in its box, ready to send; nothing went to the model yet.
-  await shell().getByRole('button', { name: 'Summarise and make tasks' }).click();
+  // Filling in the notes and the actions are asked of Mobius in its box, ready to send; nothing went to the model yet.
+  await shell().getByRole('button', { name: 'Fill in my notes' }).click();
   await expect(composer()).toHaveValue(/Add each action to Tasks/);
   expect(model!.requests).toHaveLength(0);
 });
@@ -191,4 +191,24 @@ test('Record meeting on a calendar event opens its page in Meetings, says which 
   await expect(note).toContainText('book the terrace for Friday');
   const kept = path.join(userData, 'workspace', 'notes', 'Meetings', `${iso} Budget review.md`);
   await expect.poll(() => (fs.existsSync(kept) ? fs.readFileSync(kept, 'utf8') : '')).toContain('### Transcript');
+});
+
+test('a meeting starting on the calendar is offered for recording, and Record opens its note and listens', async () => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const today = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const at = `${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  const iso = `${today.slice(0, 4)}-${today.slice(4, 6)}-${today.slice(6)}`;
+  fs.mkdirSync(path.join(userData, 'workspace', 'calendar'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'calendar', 'Work.ics'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:standup\r\nDTSTART:${today}T${at}\r\nDURATION:PT15M\r\nSUMMARY:Standup\r\nLOCATION:Room 4\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start({});
+  const nudge = shell().getByRole('status').filter({ hasText: 'Standup is starting' });
+  await expect(nudge).toBeVisible();
+  // It never takes focus: the page keeps what it had.
+  expect(await shell().evaluate(() => document.activeElement?.closest('.ui-undo') ?? null)).toBeNull();
+  await nudge.getByRole('button', { name: 'Record' }).click();
+  await expect(nudge).toBeHidden();
+  const note = shell().getByRole('textbox', { name: 'Note text' });
+  await expect(note.locator('h1')).toHaveText(`${iso} Standup`);
+  await expect(shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: /^End meeting/ })).toBeVisible();
 });

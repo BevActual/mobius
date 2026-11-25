@@ -47,11 +47,16 @@ export function meetingNote(event: { title: string; start: string; end: string; 
   return { title, content: `# ${title}\n\n${facts.join('  \n')}\n` };
 }
 
-/** What Mobius is asked after a meeting: a summary in the note, and the actions as tasks. */
+/**
+ * What Mobius is asked after a meeting: to fill in the notes the person typed from what was said, not to write a
+ * summary of its own beside them. Their lines stay as they are; the actions go to Tasks too.
+ */
 export function meetingAsk(title: string, path: string): string {
-  return `I just recorded a meeting into my note "${title}" (${path}); its transcript is under the last "## Meeting" heading. `
-    + 'Above "### Transcript" in that section, add "### Summary" with a few lines on what was discussed and decided, then "### Actions" listing each action with who owns it. '
-    + 'Add each action to Tasks as well. Change nothing else in the note.';
+  return `I just recorded a meeting into my note "${title}" (${path}); what was said is under the last "## Meeting" heading, in "### Transcript". `
+    + 'Fill in my notes above that heading from it with files.edit. Under each line I typed, add what was said about it, as short points. '
+    + 'Put each thing someone agreed to do as a - [ ] item with who and by when, under my Next steps or Actions heading, or under "## Next steps" at the end of my notes if I have neither. '
+    + 'If I typed nothing above it, write short notes there from what was said. Never reword, move or remove a line I wrote, and leave the transcript as it is. '
+    + 'Add each action to Tasks as well. Make the change without asking first: I keep or discard it.';
 }
 
 /** A web page kept in a note: its first paragraphs quoted, then where it came from. */

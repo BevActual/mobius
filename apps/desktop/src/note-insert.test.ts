@@ -21,6 +21,8 @@ describe('note insert', () => {
     const ask = meetingAsk('Standup', 'Work/Standup.md');
     expect(ask).toContain('"Standup" (Work/Standup.md)');
     expect(ask).toContain('Add each action to Tasks');
+    expect(ask).toContain('Never reword, move or remove a line I wrote');
+    expect(ask).not.toContain('Summary');
   });
 
   it('names a calendar event meeting page for its day and title, and says which event it was', () => {
