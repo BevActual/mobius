@@ -195,7 +195,10 @@ jobs:
 
           $(sha256sum *)"
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            # Run again, it replaces every file of the same name and the notes, and stays a prerelease that is never
+            # Latest. The host's pins come from the run whose files are up.
             gh release upload "$tag" -R "$GITHUB_REPOSITORY" --clobber *
+            gh release edit "$tag" -R "$GITHUB_REPOSITORY" --prerelease --latest=false --notes "$notes"
           else
             gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title "Voice: mobius-voice $version" --notes "$notes" *
           fi
