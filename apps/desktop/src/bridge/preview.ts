@@ -71,6 +71,13 @@ const notePage = (path: string, modified: number) => ({ path, title: path.slice(
 // Notebooks and pages made in the preview are kept for as long as it is open, so making a page can be tried.
 const NOTEBOOKS = ['P2 build', 'Home'];
 const NOTE_TIMES: Record<string, number> = { 'P2 build/Supplier notes.md': now - hour, 'P2 build/Build plan.md': now - 3 * hour, 'Home/Groceries.md': now - 30 * hour };
+/** What was put in the preview's Trash, with the pages' text so Put back can bring it back. */
+const NOTE_TRASH: { id: string; kind: 'page' | 'notebook'; title: string; from: string; deletedMs: number; pages?: number; texts: Record<string, string> }[] = [];
+function movePreviewNote(from: string, to: string) {
+  NOTE_TEXT[to] = NOTE_TEXT[from] ?? '';
+  NOTE_TIMES[to] = NOTE_TIMES[from] ?? now;
+  delete NOTE_TEXT[from];
+}
 const NOTES = () => NOTEBOOKS.map((name) => ({
   name,
   pages: Object.keys(NOTE_TEXT).filter((p) => p.startsWith(`${name}/`)).map((p) => notePage(p, NOTE_TIMES[p] ?? now)).sort((a, b) => b.modified - a.modified),
@@ -173,6 +180,38 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_DATABASES,
   'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
   'notes.createNotebook': ((name: string) => { const n = name.trim() || 'Notes'; if (!NOTEBOOKS.includes(n)) NOTEBOOKS.push(n); return { name: n }; }) as never,
+  // Renames, moves and the Trash, kept for as long as the preview is open (links are not rewritten here).
+  'notes.renameNotebook': ((from: string, to: string) => {
+    if (NOTEBOOKS.includes(to)) return { ok: false, message: `There is already a notebook called ${to}.` };
+    NOTEBOOKS.splice(NOTEBOOKS.indexOf(from), 1, to);
+    for (const p of Object.keys(NOTE_TEXT).filter((k) => k.startsWith(`${from}/`))) movePreviewNote(p, `${to}/${p.slice(from.length + 1)}`);
+    return { name: to, relinked: [] };
+  }) as never,
+  'notes.move': ((path: string, notebook: string) => { const to = `${notebook}/${path.slice(path.indexOf('/') + 1)}`; movePreviewNote(path, to); return { path: to, relinked: [] }; }) as never,
+  'notes.trash': ((path: string) => {
+    const id = String(Date.now());
+    NOTE_TRASH.unshift({ id, kind: 'page', title: path.slice(path.indexOf('/') + 1, -3), from: path.split('/')[0] ?? '', deletedMs: Date.now(), texts: { [path]: NOTE_TEXT[path] ?? '' } });
+    delete NOTE_TEXT[path];
+    return { id, path };
+  }) as never,
+  'notes.trashNotebook': ((name: string) => {
+    const id = String(Date.now());
+    const texts = Object.fromEntries(Object.entries(NOTE_TEXT).filter(([k]) => k.startsWith(`${name}/`)));
+    NOTE_TRASH.unshift({ id, kind: 'notebook', title: name, from: name, deletedMs: Date.now(), pages: Object.keys(texts).length, texts });
+    for (const k of Object.keys(texts)) delete NOTE_TEXT[k];
+    NOTEBOOKS.splice(NOTEBOOKS.indexOf(name), 1);
+    return { id, name };
+  }) as never,
+  'notes.deleted': (() => NOTE_TRASH.map(({ texts: _texts, ...item }) => item)) as never,
+  'notes.restore': ((id: string) => {
+    const at = NOTE_TRASH.findIndex((t) => t.id === id);
+    if (at < 0) return { ok: false, message: 'That is no longer in the Trash.' };
+    const [item] = NOTE_TRASH.splice(at, 1);
+    if (!NOTEBOOKS.includes(item!.from)) NOTEBOOKS.push(item!.from);
+    Object.assign(NOTE_TEXT, item!.texts);
+    return item!.kind === 'page' ? { kind: 'page', path: Object.keys(item!.texts)[0] } : { kind: 'notebook', name: item!.from };
+  }) as never,
+  'notes.forget': ((id: string | null) => { NOTE_TRASH.splice(0, NOTE_TRASH.length, ...(id ? NOTE_TRASH.filter((t) => t.id !== id) : [])); return { ok: true }; }) as never,
   'notes.createPage': ((notebook: string, title: string) => {
     let path = `${notebook}/${title}.md`;
     for (let i = 2; path in NOTE_TEXT; i++) path = `${notebook}/${title} ${i}.md`;

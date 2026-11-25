@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type NoteHit, type Notebook } from '@mobius/shared';
+import { isNotesFailure, type DeletedNote, type NoteHit, type Notebook } from '@mobius/shared';
 import { liveTitle, onPageChanged, type SaveStatus } from './notes-state';
 import { saveBeforeQuit } from './saveBeforeQuit';
 
@@ -196,6 +196,108 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     await refresh();
   }, [api, refresh, remembered, remember]);
 
+  // The Trash (Notes only: the other apps keeping pages this way delete for good). Read when the list is, so its
+  // section stays true after a delete, a restore, or a change made elsewhere.
+  const [trashed, setTrashed] = useState<DeletedNote[]>([]);
+  /** What was just moved to the Trash, for the Undo pill ("Moved “Work” and 12 notes to the Trash"). */
+  const [justTrashed, setJustTrashed] = useState<{ id: string; text: string } | null>(null);
+  useEffect(() => { if (!justTrashed) return undefined; const t = window.setTimeout(() => setJustTrashed(null), 8000); return () => window.clearTimeout(t); }, [justTrashed]);
+  // Reads overlap (a change seen on disk reads it again while a delete still does), so only the latest read is kept:
+  // an older one ending last put back a Trash from before.
+  const trashReads = useRef(0);
+  const readTrash = useCallback(async () => {
+    const n = ++trashReads.current;
+    const got = await api?.deleted?.();
+    if (n === trashReads.current && got && !isNotesFailure(got)) setTrashed(got);
+  }, [api]);
+  /** Closes the open page when `gone` says it is going, so nothing of it is saved or shown while it moves. */
+  const closeIf = useCallback(async (gone: (path: string) => boolean): Promise<boolean> => {
+    const p = live.current.page;
+    if (!p || !gone(p.path)) return false;
+    if (!(await leave())) return true;
+    setPage(null); setText(''); setStatus('saved');
+    await new Promise((settle) => setTimeout(settle, 0));
+    return false;
+  }, [leave]);
+  const failed = useCallback(async (result: unknown): Promise<boolean> => {
+    if (!result) return true;
+    if (isNotesFailure(result as never)) { setMessage((result as { message: string }).message); await refresh(); return true; }
+    return false;
+  }, [refresh]);
+
+  /** The page (and its files, comments and versions) into the Trash, kept 30 days. */
+  const trash = useCallback(async (path: string) => {
+    if (!api?.trash) return;
+    if (await closeIf((p) => p === path)) return;
+    const title = notebooks.flatMap((nb) => nb.pages).find((pg) => pg.path === path)?.title ?? path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
+    const done = await api.trash(path);
+    if (!done || await failed(done)) return;
+    setJustTrashed({ id: (done as { id: string }).id, text: `Moved “${title}” to the Trash` });
+    if (remembered() === path) remember(null);
+    await Promise.all([refresh(), readTrash()]);
+  }, [api, notebooks, closeIf, failed, refresh, readTrash, remembered, remember]);
+
+  /** The whole notebook into the Trash, its pages with it. */
+  const trashNotebook = useCallback(async (name: string) => {
+    if (!api?.trashNotebook) return;
+    if (await closeIf((p) => p.startsWith(`${name}/`))) return;
+    const count = notebooks.find((nb) => nb.name === name)?.pages.length ?? 0;
+    const done = await api.trashNotebook(name);
+    if (!done || await failed(done)) return;
+    setJustTrashed({ id: (done as { id: string }).id, text: count ? `Moved “${name}” and ${count === 1 ? '1 note' : `${count} notes`} to the Trash` : `Moved “${name}” to the Trash` });
+    if (remembered()?.startsWith(`${name}/`)) remember(null);
+    await Promise.all([refresh(), readTrash()]);
+  }, [api, notebooks, closeIf, failed, refresh, readTrash, remembered, remember]);
+
+  /** The open page, if it was under `was`, opened again where it now is. */
+  const reopenAt = useCallback(async (was: string, now: string) => {
+    if (remembered() === was) remember(now);
+    const p = live.current.page;
+    if (p && p.path === was) await load(now, p.title);
+  }, [load, remembered, remember]);
+
+  const renameNotebook = useCallback(async (from: string, to: string): Promise<boolean> => {
+    if (!api?.renameNotebook || !to.trim() || to.trim() === from) return false;
+    if (!(await leave())) return false;
+    const done = await api.renameNotebook(from, to.trim());
+    if (!done || await failed(done)) return false;
+    const name = (done as { name: string }).name;
+    await refresh();
+    const p = live.current.page;
+    if (p?.path.startsWith(`${from}/`)) await reopenAt(p.path, `${name}/${p.path.slice(from.length + 1)}`);
+    const last = remembered();
+    if (last?.startsWith(`${from}/`)) remember(`${name}/${last.slice(from.length + 1)}`);
+    return true;
+  }, [api, leave, failed, refresh, reopenAt, remembered, remember]);
+
+  /** The page into another notebook; links to it from other pages follow it. */
+  const move = useCallback(async (path: string, notebook: string) => {
+    if (!api?.move || path.split('/')[0] === notebook) return;
+    if (live.current.page?.path === path && !(await leave())) return;
+    const done = await api.move(path, notebook);
+    if (!done || await failed(done)) return;
+    await refresh();
+    await reopenAt(path, (done as { path: string }).path);
+  }, [api, leave, failed, refresh, reopenAt]);
+
+  /** Back where it was; a page put back is opened. */
+  const restore = useCallback(async (id: string) => {
+    if (!api?.restore) return;
+    setJustTrashed((j) => (j?.id === id ? null : j));
+    const done = await api.restore(id);
+    if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); await Promise.all([refresh(), readTrash()]); return; }
+    await Promise.all([refresh(), readTrash()]);
+    if (done.kind === 'page' && (await leave())) await load(done.path, done.path.slice(done.path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, ''));
+  }, [api, failed, refresh, readTrash, leave, load]);
+
+  /** One thing in the Trash gone for good, or everything in it with null. */
+  const forget = useCallback(async (id: string | null) => {
+    if (!api?.forget) return;
+    const done = await api.forget(id);
+    if (done && isNotesFailure(done)) setMessage(done.message);
+    await readTrash();
+  }, [api, readTrash]);
+
   const search = useCallback(async (query: string): Promise<NoteHit[]> => {
     const hits = await api?.search(query);
     return hits && !isNotesFailure(hits) ? hits : [];
@@ -206,6 +308,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     if (!active) return undefined;
     // The first list opens the page that was open last, if it is still there and nothing else was opened meanwhile.
     // Docs and Slides open the newest one when none was open, so a first visit never lands on an empty window.
+    void readTrash();
     void refresh().then((list) => {
       const last = remembered();
       const pages = list?.flatMap((nb) => nb.pages) ?? [];
@@ -214,6 +317,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     });
     return api?.onChanged((change) => {
       const listed = refresh();
+      void readTrash();
       // Something Mobius made or changed opens when nothing else is open, so it can be seen and reviewed.
       if (change.by === 'assistant' && change.path && !live.current.page) {
         const path = change.path;
@@ -228,7 +332,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
       if (action === 'reload' && p) void load(p.path, p.title).then(() => setReloads((n) => n + 1));
       if (action === 'ask') setStatus('conflict');
     });
-  }, [active, api, refresh, load, remembered, kind]);
+  }, [active, api, refresh, readTrash, load, remembered, kind]);
 
   // Nothing typed is lost when the window goes away.
   useEffect(() => () => { void keepBeforeGoing(); }, [keepBeforeGoing]);
@@ -239,7 +343,10 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     void load(path, title);
   }, [load]);
 
-  return { kind, openIfIdle, available: api !== undefined, loaded, notebooks, page, text, status, message, reloads, open, edit, resolve, createNotebook, createPage, remove, search };
+  return { kind, openIfIdle, available: api !== undefined, loaded, notebooks, page, text, status, message, reloads, open, edit, resolve, createNotebook, createPage, remove, search,
+    // Notes' notebooks and Trash; absent (undefined) where the app's pages are not kept that way.
+    trashed, justTrashed, clearJustTrashed: () => setJustTrashed(null), trash: api?.trash ? trash : undefined, trashNotebook: api?.trashNotebook ? trashNotebook : undefined,
+    renameNotebook: api?.renameNotebook ? renameNotebook : undefined, move: api?.move ? move : undefined, restore, forget };
 }
 
 export type NotesState = ReturnType<typeof useNotes>;

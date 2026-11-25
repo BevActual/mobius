@@ -259,8 +259,9 @@ pub const APP_TOOLS: &[(&str, &[&str])] = &[
     ("notes", &["comments"]),
 ];
 const HOME_TOOLS: &[&str] = &["tasks", "calendar", "mail", "web"];
-/// Offered in every app: the workspace's files (notes, docs, slides and boards are files) and what to remember.
-pub const EVERYDAY_TOOLS: &[&str] = &["files", "memory"];
+/// Offered in every app: the workspace's files (notes, docs, slides and boards are files), the search of the notes,
+/// and what to remember.
+pub const EVERYDAY_TOOLS: &[&str] = &["files", "notes", "memory"];
 /// Every tool is offered while they fill at most this part of the window; past it, only the app's.
 const TOOLS_SHARE: usize = 4;
 

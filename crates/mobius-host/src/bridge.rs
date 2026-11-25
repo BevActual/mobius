@@ -3126,6 +3126,20 @@ impl Bridge {
                 _ => Err("that cannot be saved".to_owned()),
             },
             "remove" => text(0).ok_or_else(|| "a page is needed".to_owned()).and_then(|p| notes.remove_page(p)).map(|_| json!({ "ok": true })),
+            // Notebooks renamed, pages moved between them, and the Trash (deleted pages and notebooks, kept 30 days).
+            "renameNotebook" => match (text(0), text(1)) {
+                (Some(from), Some(to)) => notes.rename_notebook(from, to),
+                _ => Err("a notebook and its new name are needed".to_owned()),
+            },
+            "move" => match (text(0), text(1)) {
+                (Some(page), Some(notebook)) => notes.move_page(page, notebook),
+                _ => Err("a page and a notebook are needed".to_owned()),
+            },
+            "trash" => text(0).ok_or_else(|| "a page is needed".to_owned()).and_then(|p| notes.trash_page(p)),
+            "trashNotebook" => text(0).ok_or_else(|| "a notebook is needed".to_owned()).and_then(|n| notes.trash_notebook(n)),
+            "deleted" => notes.deleted(),
+            "restore" => text(0).ok_or_else(|| "something in the Trash is needed".to_owned()).and_then(|id| notes.restore(id)),
+            "forget" => notes.forget(text(0)),
             // A page's earlier versions, a file added beside it, and one of those files to show.
             "versions" => text(0).ok_or_else(|| "a page is needed".to_owned()).and_then(|p| notes.versions(p)),
             "attach" => match (text(0), text(1), text(2)) {
@@ -3150,7 +3164,7 @@ impl Bridge {
         };
         match result {
             Ok(value) => {
-                if matches!(method, "createNotebook" | "createPage" | "save" | "remove" | "attach") {
+                if matches!(method, "createNotebook" | "createPage" | "save" | "remove" | "attach" | "renameNotebook" | "move" | "trash" | "trashNotebook" | "restore") {
                     let path = value.get("path").cloned().unwrap_or(Value::Null);
                     (self.emit)(event, json!({ "path": path, "by": "person" }));
                 }

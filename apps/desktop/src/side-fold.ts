@@ -45,7 +45,15 @@ export function foldedBy(title: Element): Element[] {
 
 const sidebarOf = (title: Element): string => title.closest('[aria-label]:not(.side-head)')?.getAttribute('aria-label') ?? 'sidebar';
 
+/**
+ * A section that folds itself (the shared SidebarSection with `foldable`: its title holds its own fold button, and React
+ * draws or drops its rows) is left alone here. Folding it twice, once each way, left a list folded under a button that
+ * said it was open: Notes' Trash, which starts closed, opened its button and folded its rows.
+ */
+const foldsItself = (title: Element): boolean => title.querySelector('.ui-side-fold') !== null;
+
 function apply(title: HTMLElement, folded: Set<string>): void {
+  if (foldsItself(title)) return;
   const key = foldKey(sidebarOf(title), title.textContent ?? '');
   const isFolded = folded.has(key);
   if (!title.dataset.fold) {

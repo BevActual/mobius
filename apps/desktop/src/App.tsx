@@ -5,6 +5,8 @@ import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menus
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, parseLaunchChoice, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, settleBindings, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type CalendarEvent } from '@mobius/shared';
 import { MEETINGS_NOTEBOOK, meetingNote } from './note-insert';
+import { citeWhenOpen, noteForSource } from './note-sources';
+import { ClaimSources } from './RichText';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, findApp, isAvailable, isInstalled, isListed, setInstalledApps, type AppId, noteOpened, noteRecentItem, recentItems, APPS, COMPACT_APPS } from './apps';
@@ -19,7 +21,7 @@ import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
 import { useBots } from './useBots';
 import { useDownloads } from './useDownloads';
-import { GoButton, Launcher, pinnedApps } from './Launcher';
+import { GoButton, Launcher, pinnedApps, type FoundItem } from './Launcher';
 import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
 import { UpdateNotice } from './UpdateNotice';
@@ -118,8 +120,10 @@ import { contactSheet } from './picture';
 
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
+import { recentNotes, useNoteQuickOpen } from './note-quick-open';
 import { findTodayNote, JOURNAL, liveTitle, statusText, todayNoteTitle } from './notes-state';
 import { checkedLast, setCheckedLast } from './checked-last';
+import { noteSort, setNoteSort, type NoteSort } from './note-sort';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
@@ -836,6 +840,7 @@ export function App() {
   const [commentFocus, setCommentFocus] = useState<string | null>(null);
   // Notes (marked): Move checked items to the bottom, in the Notes menu.
   const [checkedLastOn, setCheckedLastOn] = useState(checkedLast);
+  const [notesSort, setNotesSort] = useState<NoteSort>(noteSort);
   const commentDoc = inSheets && sheets.data ? `${sheets.data.workbook}/${sheets.data.sheet}` : inMail && mail.open ? mail.open.id : inNotes && notes.page ? notes.page.path : inDocs && docs.page ? docs.page.path : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id) : inCalendar ? 'calendar' : inBrowser ? (active?.url ?? null) : place || appName(app);
   const commentThreads = useCommentThreads(app, commentDoc);
   const openComments = useOpenComments(app);
@@ -908,6 +913,15 @@ export function App() {
     opener.current = document.activeElement as HTMLElement | null;
     // About this: what is selected in the open app goes with the launcher, for its AI commands.
     setLauncherAbout(selectionNow());
+    setLauncherOpen(true);
+  }, []);
+  // Ctrl+O in Notes: the launcher, narrowed to Notes.
+  const [launcherScope, setLauncherScope] = useState<{ app: AppId; n: number } | undefined>(undefined);
+  const openLauncherIn = useCallback((scopeApp: AppId) => {
+    setLauncherScope((s) => ({ app: scopeApp, n: (s?.n ?? 0) + 1 }));
+    if (launcherShown.current) return;
+    opener.current = document.activeElement as HTMLElement | null;
+    setLauncherAbout(undefined);
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
@@ -1196,7 +1210,7 @@ export function App() {
             />
           );
         case 'notes':
-          return <NotesSidebar synced={syncedIn('notes')} notes={notes} tags pin={null} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />;
+          return <NotesSidebar synced={syncedIn('notes')} notes={notes} sort={notesSort} tags pin={null} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />;
         case 'files':
           return <FilesSidebar files={files} pin={null} />;
         case 'mail':
@@ -1342,7 +1356,7 @@ export function App() {
       commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
-      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn },
+      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn, sort: notesSort },
       docs: { hasPage: docs.page !== null, isTemplate: isTemplate(docs.page?.path), templates: templatesIn(docs.notebooks) },
       tasks: { inList: tasks.view.kind === 'list', done: tasksDone },
       calendar: { mode: calendar.mode },
@@ -1389,6 +1403,7 @@ export function App() {
         newList: () => sendCommand('new-folder'),
       },
       notes: {
+        open: () => sendCommand('open-note'),
         newNotebook: () => sendCommand('new-notebook'),
         today: () => createActions.find((a) => a.id === 'today-note')!.run(),
         pin: () => { if (notes.page) togglePin({ kind: 'note', id: notes.page.path, title: notes.page.title || notes.page.path }); },
@@ -1398,6 +1413,7 @@ export function App() {
         clip: () => sendCommand('clip-page'),
         markdown: () => sendCommand('show-markdown'),
         checkedLast: () => { setCheckedLast(!checkedLastOn); setCheckedLastOn(!checkedLastOn); },
+        sortBy: (by) => { setNoteSort(by); setNotesSort(by); },
       },
       tasks: {
         newList: () => sendCommand('new-list'),
@@ -1514,6 +1530,20 @@ export function App() {
   // And what each app registered with the launcher (launcher-sources.ts).
   const allCommands = sourceCommands(launcherCommands);
   // What the launcher does, the same from Ctrl+K and from the launcher's own window over other apps.
+  // Ctrl+O in Notes opens the launcher narrowed to Notes: the notes edited last, and New note “…” when nothing matches.
+  const openNotesLauncher = useCallback(() => openLauncherIn('notes'), [openLauncherIn]);
+  useNoteQuickOpen(app === 'notes' && !settingsOpen && !launcherOpen, openNotesLauncher);
+  const launcherRecentIn = (scopeApp: AppId): FoundItem[] => (scopeApp !== 'notes' ? [] : recentNotes(notes.notebooks, notes.page?.path).map((n) => ({
+    id: n.path, app: 'notes', label: n.title, detail: n.notebook, run: () => { opener.current = null; closeSettings(); openTarget({ app: 'notes', path: n.path, title: n.title }, n.title); },
+  })));
+  const launcherMakeIn = (scopeApp: AppId, text: string): FoundItem | null => {
+    if (scopeApp !== 'notes' || !text) return null;
+    const into = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name;
+    return {
+      id: 'new-note', app: 'notes', label: `New note “${text.length > 60 ? `${text.slice(0, 59)}…` : text}”`, detail: into ?? 'Notes',
+      run: () => { opener.current = null; closeSettings(); openApp('notes'); void (async () => { const nb = into ?? (await notes.createNotebook('Notes')); if (nb) await notes.createPage(nb, text); })(); },
+    };
+  };
   const launch = {
     // Everything found in your apps: what Mobius already holds, then what each app's own source finds.
     find: (query: string) => findInSources(query, launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? 'search', label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))),
@@ -1997,8 +2027,16 @@ export function App() {
     ? () => { if (!shows('agent')) setChatOpen(true); void conversation.send(TRY_ANOTHER_ASK, []); }
     : null;
 
+  // A fact Mobius took from a note ("Notes · <title>") opens that note from its card.
+  // Its lines are tinted for a moment when the page shows.
+  const claimSource = (source: string, words: string) => {
+    const found = noteForSource(source, notes.notebooks);
+    return found ? { label: 'Open note', open: () => { citeWhenOpen(found.page.path, words); openTarget({ app: 'notes', path: found.page.path, title: found.page.title }); } } : null;
+  };
+
   return (
     <TryAnotherContext.Provider value={tryAnother}>
+    <ClaimSources.Provider value={claimSource}>
     <AppFrame
       openRight={openRight}
       mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
@@ -2168,6 +2206,9 @@ export function App() {
         recent={launcherOpen ? recentItems() : []}
         onOpenRecent={launch.openRecent}
         find={launch.find}
+        scopeTo={launcherScope}
+        recentIn={launcherRecentIn}
+        makeIn={launcherMakeIn}
         places={launch.places}
         onOpenMobius={launch.openMobius}
         onAsk={launch.ask}
@@ -2177,6 +2218,7 @@ export function App() {
         commands={allCommands} />
       <TooltipLayer />
     </AppFrame>
+    </ClaimSources.Provider>
     </TryAnotherContext.Provider>
   );
 }
