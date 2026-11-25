@@ -47,7 +47,8 @@ const notesMenu = async (item: string): Promise<void> => {
 };
 const viewMenu = async (item: string): Promise<void> => {
   await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
-  await shell().getByRole('menu', { name: 'View' }).getByRole('menuitem', { name: item }).click();
+  // A choice that is ticked or not is a menuitemcheckbox, as the sort orders are.
+  await shell().getByRole('menu', { name: 'View' }).getByRole('menuitemcheckbox', { name: item }).click();
 };
 const status = (): Locator => shell().locator('.note-status');
 const file = (...parts: string[]) => path.join(userData, 'workspace', 'notes', ...parts);
@@ -424,7 +425,10 @@ test('a notebook is renamed and a note moved with links following them, and a de
   const trash = side().getByRole('region', { name: 'Trash' });
   await trash.getByRole('button', { name: 'Trash', exact: true }).click();
   await expect(trash.getByRole('button', { name: 'Trash', exact: true })).toHaveAttribute('aria-expanded', 'true');
-  await expect(trash.getByRole('button', { name: 'Groceries', exact: true })).toHaveAccessibleDescription(/^From Work · \d+ days left$/);
+  // The Trash folds itself: its rows show once its button says it is open (it was folded a second time, out of step).
+  const groceries = trash.getByRole('button', { name: 'Groceries', exact: true });
+  await expect(groceries).toBeVisible();
+  await expect(groceries).toHaveAccessibleDescription(/^From Work · \d+ days left$/);
   await trash.getByRole('button', { name: 'Groceries', exact: true }).click();
   await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: 'Put back' }).click();
   await expect.poll(() => fs.existsSync(file('Work', 'Groceries.md'))).toBe(true);
@@ -473,6 +477,8 @@ test('Ctrl+O opens the launcher narrowed to Notes: recent notes, a note by its t
   await expect(text().locator('h1')).toHaveText('Standup');
   // Backspace in the empty box widens it to everything again.
   await shell().keyboard.press('Control+o');
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue('');
   await shell().keyboard.press('Backspace');
   await expect(shell().getByRole('combobox', { name: 'Find apps, pages and commands' })).toBeVisible();
   await shell().keyboard.press('Escape');

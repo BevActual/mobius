@@ -84,6 +84,11 @@ fn folder_id(folder: &Path) -> String {
 }
 
 impl Checkpoints {
+    /// Where the checkpoints are kept.
+    pub(crate) fn store(&self) -> &std::path::Path {
+        &self.store
+    }
+
     pub fn new(store: impl Into<PathBuf>) -> Checkpoints {
         Checkpoints { store: store.into() }
     }
