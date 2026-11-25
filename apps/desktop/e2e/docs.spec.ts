@@ -293,3 +293,43 @@ test('a document moves to another folder, goes to the Trash with Undo and comes 
   await expect.poll(() => fs.existsSync(file('Work/Offsite brief.md'))).toBe(true);
   await expect(trash).toHaveCount(0);
 });
+
+test('Suggesting keeps typing and deleting as suggestions in the file, each accepted or rejected; Viewing only reads', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  await start();
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await expect(page()).toContainText('We have been talking');
+  const bar = () => shell().getByRole('toolbar', { name: 'Format' });
+  await bar().getByRole('button', { name: 'Document mode: Editing' }).click();
+  await shell().getByRole('menu', { name: 'Document mode' }).getByRole('menuitemcheckbox', { name: 'Suggesting' }).click();
+  await expect(bar().getByRole('button', { name: 'Document mode: Suggesting' })).toBeVisible();
+  // Typed words are an added suggestion, kept in the file as CriticMarkup.
+  await page().getByText('Plan on the 13th').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' or 14th');
+  await expect(page().locator('ins.doc-suggest-add')).toHaveText(/or 14th/);
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toMatch(/Plan on the 13th ?\{\+\+ ?or 14th\+\+\}/);
+  // Deleted words stay, struck through.
+  await page().getByText('Arrive on the 12th').click();
+  await shell().keyboard.press('End');
+  for (let i = 0; i < 4; i++) await shell().keyboard.press('Backspace');
+  await expect(page().locator('del.doc-suggest-del')).toHaveText('12th');
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toContain('Arrive on the {--12th--}');
+  // Rejecting the removal puts the words back as they were.
+  await page().locator('del.doc-suggest-del').click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Edit' }).getByRole('menuitem', { name: 'Reject the removal' }).click();
+  await expect(page().locator('del.doc-suggest-del')).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toContain('- Arrive on the 12th\n');
+  // Accept all keeps the addition as ordinary text.
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Docs', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: 'Accept all suggestions (1)' }).click();
+  await expect(page().locator('ins.doc-suggest-add')).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8'), { timeout: 5000 }).toContain('- Plan on the 13th or 14th\n');
+  // Viewing: the page only reads, and the writing tools leave the tool row.
+  await bar().getByRole('button', { name: 'Document mode: Suggesting' }).click();
+  await shell().getByRole('menu', { name: 'Document mode' }).getByRole('menuitemcheckbox', { name: 'Viewing' }).click();
+  await expect(page()).toHaveAttribute('contenteditable', 'false');
+  await expect(bar().getByRole('button', { name: 'Bold' })).toHaveCount(0);
+  await expect(bar().getByRole('button', { name: 'Share' })).toBeVisible();
+});

@@ -32,14 +32,22 @@ As Notes' Notebooks panel, on the same shared list (`NotesSidebar`), so the two 
 
 ## Editing, Suggesting and Viewing
 
-As Google Docs has the three modes, in the tool row's trailing end as one small menu that names the mode.
+As Google Docs has the three modes: one small menu in the tool row, before Share, that names the mode (muted while
+Editing, ink otherwise), each mode with one line saying what it does.
 
-- **Editing** is as now.
-- **Suggesting:** what the person types is kept as a suggestion: added words underlined in ink with a faint fill,
-  removed words struck through in grey, each with Accept and Reject on hover. It is the person's own suggestion, so it
-  is never indigo or dashed; those stay Mobius's.
-- **Viewing:** the page reads only, the tool row's writing tools go, and the selection bar keeps Comment and Copy.
-- **Later:** Mobius's suggestions in Suggesting mode, using the same marks with its dashed indigo edge.
+- **Editing** is as before.
+- **Suggesting:** what the person types is kept as a suggestion: added words in ink, underlined, on a faint fill;
+  removed words stay in the page, struck through in grey. Deleting one's own suggested words takes them out for good.
+  It is the person's own suggestion, so it is never indigo or dashed; those stay Mobius's.
+- **Accept or reject** one suggestion from the page's right-click menu (Accept the addition, Reject the removal), or
+  all of them from the Docs menu (Accept all suggestions, with the count, and Reject all suggestions), in one step to
+  undo.
+- **Kept in the file** in the open [CriticMarkup](https://github.com/CriticMarkup/CriticMarkup-toolkit) notation,
+  `{++added++}` and `{--removed--}`, so the document stays plain Markdown that other tools and Mobius read as it is.
+- **Viewing:** the page reads only, and the writing tools leave the tool row and its ⋯; Share stays.
+- **Later:** a deletion across paragraphs kept as a suggestion (it is made as it is for now); Accept and Reject on
+  hover; Mobius's suggestions in Suggesting mode, with the same marks and its dashed indigo edge; the selection bar's
+  Comment while Viewing.
 
 ## Page setup
 
@@ -53,5 +61,5 @@ As Google Docs has the three modes, in the tool row's trailing end as one small 
 | --- | --- |
 | Documents panel on the shared list: Move to, Trash with Undo, folder Rename | Built |
 | Outline as the right dock's panel | Built |
-| Editing, Suggesting and Viewing | Next |
+| Editing, Suggesting and Viewing | Built |
 | Page setup | Next |

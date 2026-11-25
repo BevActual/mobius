@@ -199,3 +199,11 @@
 .doc-comments-panel .note-comment { flex-direction: column; align-items: stretch; gap: 2px; background: var(--bg); border-radius: var(--radius-panel); box-shadow: 0 0 0 1px var(--line); }
 .doc-comments-panel .note-comment-tools { justify-content: flex-end; margin: 0 -4px -4px 0; }
 .doc-editor[data-frame] .doc-body { position: relative; }
+
+/* Suggesting (docs/design/docs.md): the person's own suggestions, never indigo or dashed (those are Mobius's). Added
+   words are ink, underlined, on a faint fill; removed words stay, struck through in grey. */
+.doc-page ins.doc-suggest-add { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; background: color-mix(in srgb, var(--ink) 6%, transparent); border-radius: 2px; color: var(--ink); }
+.doc-page del.doc-suggest-del { text-decoration: line-through; text-decoration-color: var(--muted); color: var(--muted); }
+/* The mode's name in the tool row: muted while Editing, ink when it changes how the page behaves. */
+.doc-bar .doc-bar-mode { color: var(--muted); }
+.doc-bar .doc-bar-mode[data-mode="suggesting"], .doc-bar .doc-bar-mode[data-mode="viewing"] { color: var(--ink); }

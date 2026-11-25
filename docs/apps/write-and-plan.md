@@ -51,6 +51,10 @@ Longer documents, with an outline and comments.
 - **Mobius's writing tools** work on the selection or the whole document. Each change Mobius makes is one dashed block
   in the page where it is, with the words it took out struck through, and its own **Discard**, **Try another** and
   **Keep**.
+- **Editing, Suggesting and Viewing**, from the mode's name in the toolbar. In **Suggesting**, what you type is
+  underlined and what you delete stays struck through, until you accept or reject it: right-click one, or use
+  **Accept all suggestions** or **Reject all suggestions** in the Docs menu. Suggestions are kept in the file as
+  CriticMarkup (`{++added++}`, `{--removed--}`), which other Markdown tools read. **Viewing** only reads.
 - **Review** mode (in the composer's Mode menu while you are in Docs or Notes) has Mobius comment and suggest without
   editing the text.
 - **Earlier versions** (in ⋯) puts one back, and **Undo** in the note at the foot takes it back again. **Share** copies,

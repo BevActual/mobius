@@ -42,6 +42,7 @@ import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
 import { publishOutline } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
+import { DOC_MODES, SuggestAdd, SuggestDel, countSuggestions, settleAll, settleSuggestion, suggesting, suggestionAt, type DocMode } from './doc-suggest';
 import './docs.css';
 import { afterPaint } from './ui/frame';
 
@@ -216,7 +217,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
   onTool?: (tool: WritingTool, selection: string | null) => void;
   busy: boolean;
   /** What the document can do beyond writing; absent where the folder does not keep these (the wiki). */
-  extras: { onLink: () => void; onFile?: () => void; onHistory?: () => void; onShare?: (how: ShareHow) => void; outline: boolean; onOutline: () => void; comments: number; commentsOpen: boolean; onComments?: () => void; font: DocFont; onFont: (font: DocFont) => void };
+  extras: { onLink: () => void; onFile?: () => void; onHistory?: () => void; onShare?: (how: ShareHow) => void; outline: boolean; onOutline: () => void; comments: number; commentsOpen: boolean; onComments?: () => void; font: DocFont; onFont: (font: DocFont) => void; mode?: DocMode; onMode?: (mode: DocMode) => void };
   /** The folder's own controls at the end of the row (Knowledge's versions). */
   trailing?: ReactNode;
   /** Drawn in the window's toolbar (zone 3 of the frame) rather than above the page. */
@@ -229,6 +230,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
       bold: e.isActive('bold'), italic: e.isActive('italic'), underline: e.isActive('underline'), strike: e.isActive('strike'), code: e.isActive('code'), link: e.isActive('link'),
       bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), task: e.isActive('taskList'), quote: e.isActive('blockquote'), table: e.isActive('table'),
       empty: e.state.selection.empty,
+      suggestions: countSuggestions(e.state.doc),
     }),
   });
   const run = (f: (c: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) => () => { f(editor.chain().focus()).run(); };
@@ -265,7 +267,8 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
       const b = <button type="button" className="strip-btn doc-bar-btn" aria-label={label} title={title} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })} onPointerDown={keep} onClick={onClick}>{icon}</button>;
       return extra.gives ? <ToolbarItem priority="low">{b}</ToolbarItem> : b;
     };
-    const more: MenuEntry[] = [
+    const viewing = extras.mode === 'viewing';
+    const formats: MenuEntry[] = viewing ? [] : [
       { label: 'Numbered list', checked: state.ordered, keys: `${mod}Shift+7`, run: run((c) => c.toggleOrderedList()) },
       { label: 'Checklist', checked: state.task, keys: `${mod}Shift+9`, run: run((c) => c.toggleTaskList()) },
       { label: 'Quote', checked: state.quote, keys: `${mod}Shift+B`, run: run((c) => c.toggleBlockquote()) },
@@ -278,8 +281,16 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
       ...(extras.onFile ? [{ label: 'Insert a picture or file…', run: extras.onFile }] : []),
       { label: 'Insert a divider', run: run((c) => c.setHorizontalRule()) },
       { label: 'Insert a code block', keys: `${mod}Alt+C`, run: run((c) => c.toggleCodeBlock()) },
+    ];
+    const more: MenuEntry[] = [
+      ...formats,
+      // Suggestions, all at once (one at a time from the page's right-click menu).
+      ...(state.suggestions > 0 ? [
+        { label: `Accept all suggestions (${state.suggestions})`, separated: true, run: () => { settleAll(editor, true); } },
+        { label: 'Reject all suggestions', run: () => { settleAll(editor, false); } },
+      ] : []),
       // Mobius's writing tools: on the chosen words, or the whole document when none are chosen.
-      ...(onTool ? WRITING_TOOLS.map((t, i) => ({ label: t.label, icon: mobiusIcon, disabled: busy, separated: i === 0, run: () => onTool(t.id, t.id === 'summarise' ? null : selectedText()) })) : []),
+      ...(onTool && !viewing ? WRITING_TOOLS.map((t, i) => ({ label: t.label, icon: mobiusIcon, disabled: busy, separated: i === 0, run: () => onTool(t.id, t.id === 'summarise' ? null : selectedText()) })) : []),
       ...(extras.onComments ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments, separated: true }] : []),
       { label: extras.outline ? 'Hide the outline' : 'Show the outline', run: extras.onOutline, separated: !extras.onComments },
       ...(extras.onHistory ? [{ label: 'Earlier versions…', keys: HISTORY_KEYS, run: extras.onHistory }] : []),
@@ -289,7 +300,8 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
     ];
     return (
       <ToolbarControls label="Docs">
-        <div className="doc-toolbar doc-bar" data-frame data-flush={flush || undefined} role="toolbar" aria-label="Format">
+        <div className="doc-toolbar doc-bar" data-frame data-flush={flush || undefined} data-mode={extras.mode} role="toolbar" aria-label="Format">
+          {!viewing && <>
           <span className="doc-bar-group">
             {btn('Undo', `Undo (${mod}Z)`, undefined, run((c) => c.undo()), <Icon d="M7.5 6 4 9.5 7.5 13M4.5 9.5H12a4 4 0 0 1 0 8h-2" />)}
             {btn('Redo', `Redo (${mod}Shift+Z)`, undefined, run((c) => c.redo()), <Icon d="M12.5 6 16 9.5 12.5 13M15.5 9.5H8a4 4 0 0 0 0 8h2" />)}
@@ -313,6 +325,16 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
             {btn('Link', state.link ? 'Remove the link' : 'Link to a web page or another document', state.link, () => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink()),
               <Icon d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" />, { gives: true })}
           </span>
+          </>}
+          {/* Editing, Suggesting or Viewing, as Google Docs names them: the mode's name, with the other two under it. */}
+          {extras.mode && extras.onMode && (() => {
+            const onMode = extras.onMode;
+            const now = DOC_MODES.find((m) => m.id === extras.mode) ?? DOC_MODES[0]!;
+            return (
+              <Menu label="Document mode" align="end" entries={DOC_MODES.map((m) => ({ label: m.label, detail: m.line, checked: m.id === now.id, run: () => onMode(m.id) }))}
+                trigger={<button type="button" className="doc-bar-style doc-bar-mode" data-mode={now.id} aria-label={`Document mode: ${now.label}`} title="Editing, Suggesting or Viewing"><span>{now.label}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
+            );
+          })()}
           {extras.onShare && (() => {
             const share = extras.onShare;
             return (
@@ -485,6 +507,11 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const changeMarks = useMemo(() => changeBlocks(() => changesNow.current), []);
   const metaNow = useRef<MetaLine | null>(null);
   const metaMarks = useMemo(() => docMeta(() => metaNow.current), []);
+  // Editing, Suggesting or Viewing (docs/design/docs.md). Suggesting keeps what is typed as suggestions; Viewing reads.
+  const [mode, setMode] = useState<DocMode>('editing');
+  const modeNow = useRef(mode);
+  modeNow.current = mode;
+  const suggestMarks = useMemo(() => suggesting(() => modeNow.current === 'suggesting'), []);
   useEffect(() => { onComments?.(commentState.comments); }, [commentState.comments, onComments]);
   const askAbout = onTool ? (c: NoteComment) => onTool('comment', commentLine(c, commentState.comments)) : undefined;
   // The selection bar sits just above the chosen words.
@@ -515,6 +542,9 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       commentMarks,
       changeMarks,
       FindMarks,
+      SuggestAdd,
+      SuggestDel,
+      suggestMarks,
       ...(inFrame ? [metaMarks] : []),
     ],
     content: '',
@@ -560,6 +590,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   // The document the cursor was last placed in: a document just opened starts at its top, as Pages opens one; the same
   // document changed from elsewhere (by Mobius) keeps the cursor about where it was, so the page does not jump.
   const placed = useRef<string | null>(null);
+  useEffect(() => { if (editor && !editor.isDestroyed) editor.setEditable(mode !== 'viewing', false); }, [editor, mode]);
   useEffect(() => {
     if (!editor || editor.isDestroyed || docs.text === known.current) return;
     known.current = docs.text;
@@ -691,7 +722,18 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       const at = editor.view.coordsAtPos(from);
       items.push({ label: 'Comment', separated: true, run: () => { setComposing({ quote: words.trim(), top: end.bottom - box.top + 10, left: Math.min(Math.max(8, at.left - box.left - 40), Math.max(8, box.width - 380)) }); setCommentsOpen(true); } });
     }
-    if (words.trim()) items.push({ label: 'Link…', separated: items.length === 3, run: () => setLinking('') });
+    if (words.trim() && mode !== 'viewing') items.push({ label: 'Link…', separated: items.length === 3, run: () => setLinking('') });
+    // A suggestion where the page was right-clicked: accept or reject it there.
+    const at = editMenu ? editor.view.posAtCoords({ left: editMenu.x, top: editMenu.y })?.pos : undefined;
+    const suggestion = at === undefined ? null : suggestionAt(editor.state, at);
+    if (suggestion && at !== undefined && mode !== 'viewing') {
+      const what = suggestion.kind === 'add' ? 'addition' : 'removal';
+      items.unshift(
+        { label: `Accept the ${what}`, run: () => { settleSuggestion(editor, true, at); editor.commands.focus(); } },
+        { label: `Reject the ${what}`, run: () => { settleSuggestion(editor, false, at); editor.commands.focus(); } },
+      );
+      items[2] = { ...items[2]!, separated: true };
+    }
     return items;
   };
   useEffect(() => { setComposing(null); setSelection(null); }, [path]);
@@ -901,6 +943,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       {editor && (
         <Toolbar editor={editor} busy={busy} inFrame={inFrame} flush={flush} {...(onTool ? { onTool } : {})} trailing={toolbarEnd} extras={{
           font, onFont: setFont,
+          ...(inFrame && own ? { mode, onMode: (m: DocMode) => { setMode(m); if (m !== 'viewing') editor.commands.focus(); } } : {}),
           onLink: () => setLinking(''),
           ...(own?.attach ? { onFile: () => picker.current?.click() } : {}),
           ...(own?.versions ? { onHistory: () => setHistory(true) } : {}),
@@ -986,8 +1029,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
             <button type="button" className="selection-btn" data-action="comment" title="Comment on these words" onPointerDown={keep}
               onClick={() => { setComposing({ quote: selection.text.trim(), top: selection.below, left: selection.left }); setCommentsOpen(true); setSelection(null); }}>Comment</button>
           )}
-          <button type="button" className="selection-btn" title="Link these words to a web page or another document" onPointerDown={keep} onClick={() => { setLinking(''); setSelection(null); }}>Link</button>
-          {onTool && (
+          {mode !== 'viewing' && <button type="button" className="selection-btn" title="Link these words to a web page or another document" onPointerDown={keep} onClick={() => { setLinking(''); setSelection(null); }}>Link</button>}
+          {onTool && mode !== 'viewing' && (
             <>
               <span className="selection-sep" aria-hidden="true" />
               <button type="button" className="selection-btn" data-action="proofread" title="Have Mobius proofread these words" disabled={busy} onPointerDown={keep} onClick={() => { onTool('proofread', selection.text); setSelection(null); }}>Proofread</button>
