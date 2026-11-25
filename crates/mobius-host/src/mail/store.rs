@@ -256,12 +256,15 @@ fn in_inbox(m: &Message, now: i64) -> bool {
 /// Words that mark a message as asking the person for something.
 const ASKS: [&str; 11] = ["please ", "can you", "could you", "would you", " by monday", " by friday", " by tomorrow", "deadline", "confirm", "send me", "send the"];
 
+/// Words in a subject that mark a sign-in or account-security notice.
+const SECURITY: [&str; 9] = ["sign-in", "signed in", "sign in", "login", "log in", "logged in", "new device", "security", "password"];
+
 /// Triage never puts these in Archive, whatever the model sorted: a person's own message that asks something or
 /// answers the person's mail, and a security alert. Unnamed, they go to Later, so nothing that needs the person
 /// hides in Archive.
 fn kept_from_archive(m: &Message) -> bool {
     let subject = m.subject.to_lowercase();
-    if ["sign-in", "signed in", "security", "password"].iter().any(|w| subject.contains(w)) {
+    if SECURITY.iter().any(|w| subject.contains(w)) {
         return true;
     }
     if m.category != "primary" || m.list {
@@ -284,9 +287,9 @@ fn from_a_person(from: &Person) -> bool {
 /// (Andrew, Nov 24: most misses in the comparison were unclear rules, mostly between later and archive).
 pub const SORT_SYSTEM: &str = "You sort one unread email for the busy person it was sent to. Answer with JSON only, on one line: {\"why\":\"five words at most\",\"group\":\"reply\" or \"later\" or \"archive\",\"asks_me\":true or false,\"urgent\":true or false,\"sure\":true or false}.
 
-reply: the person has to answer or act. Examples: a question to them, a request to review, sign, confirm or decide, an invitation that needs a yes or no, a bill or payment that will fail unless they act, a new sign-in they should check was them.
-later: no action now, but it is about the person's own life or work and they would want to know. Examples: a delivery, a booking or a trip, a statement or bill ready to view, a meeting moved, a file someone shared with them, a notice about their own work or project (a build fixed, their pull request merged, a task assigned), a friend's or colleague's reply that settles a plan.
-archive: nothing for the person to do or know. Examples: a newsletter, an offer or sale, a receipt for something already paid, a survey or a request for feedback from a company, an automatic reply, a social network's notice, a prize or reward they never entered (a scam: archive, and it asks nothing).
+reply: the person has to answer or act. Examples: a question to them, a request to review, sign, confirm or decide, an invitation that needs a yes or no, a bill or payment that will fail unless they act, a new sign-in or login they should check was them (even when it says nothing is needed if it was them).
+later: no action now, but it is about the person's own life or work and they would want to know. Examples: a delivery on its way, a booking or a trip, a statement or bill ready to view, a meeting moved, a file someone shared with them, a notice about their own work or project (a build fixed, their pull request merged, a task assigned to them in a tool, which is not a request to answer), a friend's or colleague's reply that settles a plan.
+archive: nothing for the person to do or know. Examples: a newsletter, an offer or sale, a receipt for something already paid, an order already delivered, a survey or a request for feedback from a company, an automatic reply, a social network's or neighbourhood site's notice or post, a prize or reward they never entered (a scam: archive, and it asks nothing).
 
 asks_me: it asks the person to do, answer, confirm, send, review or decide something. A company's survey, an offer and a scam do not count.
 urgent: it needs the person within a day or two, or others wait on it.
@@ -487,6 +490,24 @@ pub fn sort_group(m: &Message, answer: &str) -> Option<&'static str> {
 #[must_use]
 pub fn sort_unsure(answer: &str) -> bool {
     parse_sorted(answer).is_none_or(|s| !s.sure)
+}
+
+/// Whether the quick model's answer about `m` is asked of the chat model again. Not on the model's own word alone
+/// (Haiku said it was sure of all 54 test emails, the wrong ones too), but on signs in the mail where the quick model
+/// was seen to go wrong: an account-security notice, bulk mail kept out of Archive, and mail to answer that no person
+/// wrote (a scam, a tool's notice).
+#[must_use]
+pub fn sort_needs_chat(m: &Message, answer: &str) -> bool {
+    let Some(s) = parse_sorted(answer) else { return true };
+    if !s.sure {
+        return true;
+    }
+    let subject = m.subject.to_lowercase();
+    if SECURITY.iter().any(|w| subject.contains(w)) {
+        return true;
+    }
+    let group = group_of(m, &s);
+    (m.list && group != "archive") || (group == "reply" && !from_a_person(&m.from))
 }
 
 fn group_of(m: &Message, s: &Sorted) -> &'static str {
@@ -1002,6 +1023,16 @@ impl Mail {
     /// a person, answers their mail or warns about their account is never archived; the three that need the person
     /// first are the urgent ones to answer (an ask first, then the newest). The counts line is made here, never by the
     /// model.
+    /// The unread messages whose quick answer is asked of the chat model again ([`sort_needs_chat`]), and those with
+    /// no answer.
+    pub fn sort_escalations(&self, answers: &[(String, Result<String, String>)]) -> Vec<String> {
+        self.unread_in_inbox()
+            .iter()
+            .filter(|m| answers.iter().find(|(id, _)| *id == m.id).is_none_or(|(_, a)| !a.as_ref().is_ok_and(|t| !sort_needs_chat(m, t))))
+            .map(|m| m.id.clone())
+            .collect()
+    }
+
     pub fn sort_result(&self, answers: &[(String, Result<String, String>)]) -> Value {
         let unread = self.unread_in_inbox();
         let said: HashMap<&str, Sorted> = answers.iter().filter_map(|(id, a)| a.as_ref().ok().and_then(|t| parse_sorted(t)).map(|s| (id.as_str(), s))).collect();
@@ -2076,6 +2107,27 @@ mod tests {
         assert!(sort_prompt(&plain).starts_with("From: Prize Desk <winner@prize-claims.biz>\nSignals: none\nSubject: You have won!"));
         let reply = message("Maya Chen", "maya@gmail.com", "Re: Saturday dinner");
         assert!(sort_prompt(&reply).contains("sender looks like a person; a reply in a thread"));
+    }
+
+    #[test]
+    fn the_chat_model_is_asked_again_on_signs_in_the_mail_not_the_models_word_alone() {
+        let sure = |group: &str, asks: bool| format!(r#"{{"why":"x","group":"{group}","asks_me":{asks},"urgent":false,"sure":true}}"#);
+        // Mail to answer that no person wrote: a scam, a tool's notice.
+        let prize = message("Prize Desk", "winner@prize-claims.biz", "You have won!");
+        assert!(sort_needs_chat(&prize, &sure("reply", true)));
+        assert!(!sort_needs_chat(&prize, &sure("archive", false)));
+        // Bulk mail kept out of Archive.
+        let mut post = message("Nextdoor", "no-reply@nextdoor.com", "Lost cat on Elm Street");
+        post.list = true;
+        assert!(sort_needs_chat(&post, &sure("later", false)));
+        assert!(!sort_needs_chat(&post, &sure("archive", false)));
+        // An account-security notice, whatever was said.
+        let login = message("Twitter", "info@x.com", "New login to your account");
+        assert!(sort_needs_chat(&login, &sure("archive", false)));
+        // A person's question stays with the quick model.
+        let maya = message("Maya Chen", "maya@gmail.com", "Saturday dinner");
+        assert!(!sort_needs_chat(&maya, &sure("reply", true)));
+        assert!(sort_needs_chat(&maya, r#"{"why":"x","group":"reply","asks_me":true,"urgent":false,"sure":false}"#));
     }
 
     #[test]
