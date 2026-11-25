@@ -930,12 +930,13 @@ impl Bridge {
             // The person looking through their own workspace: read only, and inside it.
             ("files", "list") => Ok(self.workspace.browse(arg(0).as_str().unwrap_or("")).unwrap_or_else(|error| json!({ "error": error }))),
             // The person's own actions in Files. The agent has none of these: it only reads, writes and edits.
-            ("files", "newFolder" | "rename" | "move" | "trash" | "putBack") => {
+            ("files", "newFolder" | "rename" | "move" | "copy" | "trash" | "putBack") => {
                 let text = |i: usize| arg(i).as_str().unwrap_or("").to_owned();
                 let done = match method {
                     "newFolder" => self.workspace.new_folder(&text(0), &text(1)),
                     "rename" => self.workspace.rename(&text(0), &text(1)),
                     "move" => self.workspace.move_to(&text(0), &text(1)),
+                    "copy" => self.workspace.copy_to(&text(0), &text(1)),
                     "trash" => self.workspace.trash(&text(0)),
                     _ => self.workspace.put_back(&text(0), &text(1)),
                 };

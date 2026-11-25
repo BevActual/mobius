@@ -396,6 +396,44 @@ impl Workspace {
         Ok(to_relative)
     }
 
+    /// A copy of a file or folder put into `folder` (empty: the workspace itself), as Explorer's Copy and Paste: a taken
+    /// name becomes "name - Copy.ext", then "name - Copy (2).ext". Never into itself. Returns the copy's path. The
+    /// person's own action from Files; the agent writes through `write`.
+    pub fn copy_to(&self, relative: &str, folder: &str) -> Res<String> {
+        if relative.is_empty() {
+            return Err("the workspace itself cannot be copied".into());
+        }
+        let from = self.inside(relative)?;
+        let meta = fs::symlink_metadata(&from).map_err(|_| "that is not there any more".to_owned())?;
+        if meta.is_dir() && (folder == relative || folder.starts_with(&format!("{relative}/"))) {
+            return Err("a folder cannot be copied inside itself".into());
+        }
+        if !self.inside(folder)?.is_dir() {
+            return Err("that folder is not there".into());
+        }
+        let name = relative.rsplit('/').next().unwrap_or(relative);
+        let (stem, ext) = match name.rfind('.') {
+            Some(dot) if dot > 0 && !meta.is_dir() => (&name[..dot], &name[dot..]),
+            _ => (name, ""),
+        };
+        let join = |candidate: &str| if folder.is_empty() { candidate.to_owned() } else { format!("{folder}/{candidate}") };
+        for n in 0..1000 {
+            let candidate = match n {
+                0 => name.to_owned(),
+                1 => format!("{stem} - Copy{ext}"),
+                _ => format!("{stem} - Copy ({n}){ext}"),
+            };
+            let to_relative = join(&candidate);
+            let to = self.inside(&to_relative)?;
+            if to.exists() {
+                continue;
+            }
+            copy_tree(&from, &to).map_err(|e| e.to_string())?;
+            return Ok(to_relative);
+        }
+        Err(format!("there are too many copies of {name} here"))
+    }
+
     /// Moves a file or folder to the workspace's Trash (`.trash/`, hidden from Files and the agent), so it can be put
     /// back. Returns where it went inside the Trash.
     pub fn trash(&self, relative: &str) -> Res<String> {
@@ -900,6 +938,27 @@ fn loose_find(text: &str, old: &str) -> Vec<(usize, usize)> {
     found
 }
 
+/// A file, or a folder and everything in it, copied to `to` (which must not exist yet). Links are left out, so a copy
+/// never reaches outside the workspace.
+fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+    let meta = fs::symlink_metadata(from)?;
+    if meta.is_dir() {
+        fs::create_dir(to)?;
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
+            if entry.file_type()?.is_symlink() {
+                continue;
+            }
+            copy_tree(&entry.path(), &to.join(entry.file_name()))?;
+        }
+        Ok(())
+    } else if meta.is_file() {
+        fs::copy(from, to).map(|_| ())
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -923,6 +982,24 @@ mod tests {
         assert!(ws.inside("slides/Presentations/Build brief.md").unwrap().is_file(), "it is written all the same");
         let note = call(&ws, "files.write", json!({ "path": "notes/Work/List.md", "content": "- 1\n- 2\n- 3\n- 4\n- 5\n" })).unwrap();
         assert!(note.get("fix").is_none(), "only decks are checked");
+    }
+
+    #[test]
+    fn the_person_copies_a_file_or_folder_beside_itself_or_into_another_folder() {
+        let (_d, ws) = setup();
+        ws.run("files.write", &json!({ "path": "notes/Plan.md", "content": "plan" })).unwrap();
+        ws.run("files.write", &json!({ "path": "notes/sub/a.md", "content": "a" })).unwrap();
+        ws.new_folder("", "archive").unwrap();
+        assert_eq!(ws.copy_to("notes/Plan.md", "notes").unwrap(), "notes/Plan - Copy.md");
+        assert_eq!(ws.copy_to("notes/Plan.md", "notes").unwrap(), "notes/Plan - Copy (2).md");
+        assert_eq!(fs::read_to_string(ws.inside("notes/Plan - Copy (2).md").unwrap()).unwrap(), "plan");
+        assert_eq!(ws.copy_to("notes/Plan.md", "archive").unwrap(), "archive/Plan.md");
+        // A folder comes with everything in it, and its name keeps any dot.
+        assert_eq!(ws.copy_to("notes/sub", "notes").unwrap(), "notes/sub - Copy");
+        assert_eq!(fs::read_to_string(ws.inside("notes/sub - Copy/a.md").unwrap()).unwrap(), "a");
+        assert!(ws.copy_to("notes", "notes/sub").unwrap_err().contains("inside itself"));
+        assert!(ws.copy_to("notes/gone.md", "notes").unwrap_err().contains("not there"));
+        assert!(ws.copy_to("", "notes").is_err());
     }
 
     #[test]

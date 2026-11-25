@@ -134,6 +134,14 @@ Your whole workspace as a drive.
 - **Drag** a file or folder onto a folder row, a folder in the Places panel, or a folder in the path bar to move it there, with
   Undo in a toast. The folder it would land in is ringed while you hover. From the keyboard, **Cut** (Ctrl+X) and then
   **Paste** (Ctrl+V) in another folder; Escape lets go. Something Mobius made stays put until you keep or discard it.
+- **Pick several**, as in Explorer: Ctrl+click adds or takes out one row, Shift+click (or Shift with the arrows) picks
+  the rows between, and Ctrl+A picks everything in the folder. Delete, Cut, Copy, Duplicate and dragging act on all of
+  them, with one Undo. The Info panel says how many are picked and how big the files are together.
+- **Copy** (Ctrl+C) and **Paste** (Ctrl+V) make copies in the folder open; the originals stay, and you can paste again.
+  **Duplicate** (Ctrl+D) copies beside the original, named as Explorer names them ("Plan - Copy.md", then
+  "Plan - Copy (2).md"). Undo takes the copies away.
+- **Type a name** to go to it: the first letters typed within a second; the same letter again goes on to the next
+  name that starts with it.
 - **Trash**, under Places, lists what you moved there, when, and where it was. **Put Back** (Ctrl+Backspace, or a
   double-click) returns it to that folder; **Empty Trash** (Ctrl+Shift+Backspace) and **Delete Immediately** (right-click, or Delete) delete for good, and
   always ask first. Mobius cannot empty the Trash. An app's own folder (notes/, docs/...) is never renamed or

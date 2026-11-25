@@ -51,7 +51,7 @@ Checked 24 November 2026; pull requests not merged yet are marked (open).
 | Tasks | Yes | #801, #903 | Nothing for the look; what is Later is in [its spec](tasks.md) |
 | Notes | Yes | #804, #862, #881, #884, this pull request | Notebooks, the Trash, Ctrl+O, note links, citations, sorting, version history, templates and meeting notes follow [its spec](notes.md); History as a panel is on hold |
 | Docs | Yes | #809, #862, #899 | Nothing for the look; what is Later is in [its spec](docs.md) |
-| Files | Yes | #865 | Screens from a PC check |
+| Files | Yes | #865, this round's PR | Nothing for the look; see [its spec](files.md) |
 | Messages | Spec written | [Its spec](messages.md) | The app work |
 | Home | No | | Next: its spec is in the Hub's review files |
 | Everything else | Frame only | #770 | Each app's own pass, after the seven folded apps move to their new homes |

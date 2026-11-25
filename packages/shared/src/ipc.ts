@@ -883,6 +883,8 @@ export interface MobiusBridge {
     rename?(path: string, name: string): Promise<FilesActionResult>;
     /** Into `folder` (empty: the workspace itself), keeping its name. */
     move?(path: string, folder: string): Promise<FilesActionResult>;
+    /** A copy into `folder` (empty: the workspace itself); beside itself it is named "name - Copy.ext", as Explorer does. */
+    copy?(path: string, folder: string): Promise<FilesActionResult>;
     /** Moves to the workspace's Trash; `path` in the answer is where it is held, for putBack. */
     trash?(path: string): Promise<FilesActionResult>;
     /** `path` empty: back to where the Trash remembers it came from. */
