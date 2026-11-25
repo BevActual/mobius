@@ -9,9 +9,10 @@ import { MobiusMark } from './MobiusMark';
 import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
-import { addressParts, dropPlan, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter, type Suggestion } from './browser-view';
+import { addressParts, dropPlan, historyByDay, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter, type Suggestion } from './browser-view';
 import { addSpace, CLEAR_AFTER, favouriteTab, inSpace, isFavourite, MAX_FAVOURITES, moveTab, readSpaces, removeSpace, renameSpace, siteHue, staleTabs, syncSpaces, tabToShow, toggleFavourite, type SpacesState } from './browser-spaces';
-import { AppSidebar, IconButton, KeyCaps, Menu, SidebarRow, SidebarSection, ToolbarControls, type MenuEntry } from './ui';
+import { AppSidebar, Confirm, IconButton, KeyCaps, Menu, PointMenu, SidebarRow, SidebarSection, ToolbarControls, type MenuEntry } from './ui';
+import { timeLabel } from './dates';
 import { SurfaceSlot } from './SurfaceSlot';
 import { TOOL_ICONS } from './ui/ToolIcons';
 import './browser.css';
@@ -231,6 +232,7 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
   const closeMenu = useCallback(() => setMenu(null), []);
   const [query, setQuery] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   const bookmarks = useBookmarks();
   const mine = inSpace(sp, tabs);
@@ -247,6 +249,9 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
   const pinned = pool.filter((t) => t.pinned && shown(t));
   const open = pool.filter((t) => !t.pinned && shown(t));
   const saved = bookmarks.filter((b) => matches(b.title, b.url)).slice(0, 20);
+  // A search also finds pages visited before, as Arc's and Chrome's do: the latest visit of each, after the bookmarks.
+  const visited = useHistory(searching);
+  const pastPages = searching ? historyByDay(visited.entries, new Date(), query).flatMap((d) => d.entries).filter((e, i, all) => all.findIndex((x) => x.url === e.url) === i && !saved.some((b) => b.url === e.url) && !tabs.some((t) => t.url === e.url)).slice(0, 8) : [];
   const row = (tab: BrowserTabState) => <TabRow key={tab.id} tab={tab} drag={drag} reading={reading !== null} onShow={onShowTab} onMenu={(t, x, y) => setMenu({ tab: t, x, y })} />;
   const later = readLater.filter((a) => (searching || !a.done || a.path === reading) && matches(a.title, a.site ?? '')).slice(0, searching ? 20 : 12);
   const menuTab = menu ? tabs.find((t) => t.id === menu.tab.id) : undefined;
@@ -263,7 +268,9 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || !(e.ctrlKey || e.metaKey)) return;
-      if (e.shiftKey && !e.altKey && e.code === 'KeyA') { e.preventDefault(); search.current?.focus(); return; }
+      if (e.shiftKey && !e.altKey && e.code === 'KeyA') { e.preventDefault(); setShowHistory(false); afterPaint(() => search.current?.focus()); return; }
+      // Ctrl+H: History in the panel, as in Chrome and Edge; again goes back to the tabs.
+      if (!e.shiftKey && !e.altKey && e.code === 'KeyH') { e.preventDefault(); setShowHistory((on) => !on); return; }
       if (e.altKey && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         if ((e.target as Element | null)?.closest?.('input, textarea, [contenteditable="true"]')) return;
         e.preventDefault();
@@ -279,7 +286,8 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
     { label: 'Rename space…', run: () => setRenaming(true) },
     { label: 'Delete space', disabled: sp.spaces.length < 2, run: () => { const to = sp.spaces.find((s) => s.id !== space.id)!; setSpaces((s) => removeSpace(s, space.id)); goToSpace(to.id, tabs, onNewTab); } },
   ];
-  const optionEntries: MenuEntry[] = CLEAR_AFTER.map((c) => ({ label: c.ms === null ? 'Never clear Today' : `Clear Today after ${c.label.toLowerCase()}`, checked: sp.clearAfter === c.ms, run: () => setSpaces((s) => ({ ...s, clearAfter: c.ms })) }));
+  const optionEntries: MenuEntry[] = [{ label: 'History', keys: 'Ctrl+H', run: () => setShowHistory(true) }, ...CLEAR_AFTER.map((c) => ({ label: c.ms === null ? 'Never clear Today' : `Clear Today after ${c.label.toLowerCase()}`, checked: sp.clearAfter === c.ms, separated: c === CLEAR_AFTER[0], run: () => setSpaces((s) => ({ ...s, clearAfter: c.ms })) }))];
+  if (showHistory) return <AppSidebar label="Tabs"><HistoryList tabs={tabs} onClose={() => setShowHistory(false)} /></AppSidebar>;
   return (
     <AppSidebar label="Tabs">
       <div className="browser-side">
@@ -341,7 +349,7 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
             <ul className="tabs" role="list" aria-label="Open tabs">
               <AnimatePresence initial={false}>{open.map(row)}</AnimatePresence>
             </ul>
-            {searching && open.length === 0 && pinned.length === 0 && saved.length === 0 && <p className="tabs-empty">Nothing matches.</p>}
+            {searching && open.length === 0 && pinned.length === 0 && saved.length === 0 && pastPages.length === 0 && <p className="tabs-empty">Nothing matches.</p>}
             {!searching && (
               <button type="button" className="tab-new" title="New tab (Ctrl+T)" onClick={onNewTab}>
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
@@ -370,6 +378,13 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
             <SidebarSection title="Bookmarks">
               {saved.map((b) => (
                 <SidebarRow key={b.url} label={b.title || hostOf(b.url)} title={b.url} onSelect={() => onOpenBookmark(b.url)} icon={<SiteChip url={b.url} />} />
+              ))}
+            </SidebarSection>
+          )}
+          {pastPages.length > 0 && (
+            <SidebarSection title="History">
+              {pastPages.map((e) => (
+                <SidebarRow key={e.url} label={e.title || hostOf(e.url)} title={e.url} onSelect={() => visit(e.url, tabs)} icon={<SiteChip url={e.url} />} />
               ))}
             </SidebarSection>
           )}
@@ -413,6 +428,89 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
 }
 
 /** The saved pages, newest first, kept up to date while the sidebar shows. */
+/** Browsing history (newest first), read again whenever it changes. Off when history is turned off in Settings. */
+function useHistory(active: boolean): { enabled: boolean; entries: HistoryEntry[] } {
+  const [view, setView] = useState<{ enabled: boolean; entries: HistoryEntry[] }>({ enabled: true, entries: [] });
+  useEffect(() => {
+    if (!active) return undefined;
+    let live = true;
+    const load = () => void window.mobius.history.get('').then((h) => { if (live) setView({ enabled: h.enabled, entries: h.entries }); }).catch(() => {});
+    load();
+    const off = window.mobius.history.onChanged(load);
+    return () => { live = false; off(); };
+  }, [active]);
+  return view;
+}
+
+/** Goes to a page: in the tab showing a web page, as clicking History does in Chrome and Safari, else in a new tab. */
+function visit(url: string, tabs: readonly BrowserTabState[], newTab = false) {
+  const here = tabs.find((t) => t.active);
+  if (!newTab && here) void window.mobius.browser.navigate(here.id, url); else void window.mobius.browser.open(url);
+}
+
+/**
+ * History, in the tabs panel in place of the tabs (Ctrl+H, as in Chrome and Edge; Escape or Tabs goes back): a search,
+ * then the pages visited under Today, Yesterday and each earlier day. A click goes there in the tab open, a middle-click
+ * opens a new tab; right-click to copy the address or remove the page; Clear history asks first.
+ */
+function HistoryList({ tabs, onClose }: { tabs: readonly BrowserTabState[]; onClose: () => void }) {
+  const history = useHistory(true);
+  const [query, setQuery] = useState('');
+  const [menu, setMenu] = useState<{ entry: HistoryEntry; x: number; y: number } | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => { field.current?.focus(); }, []);
+  const days = historyByDay(history.entries, new Date(), query);
+  return (
+    <div className="browser-side browser-history" onKeyDown={(e) => { if (e.key === 'Escape' && !menu && !clearing) { e.preventDefault(); if (query) setQuery(''); else onClose(); } }}>
+      <div className="space-head">
+        <button type="button" className="space-name history-back" title="Back to tabs (Escape)" onClick={onClose}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 4-4 4 4 4" /></svg>History
+        </button>
+      </div>
+      <label className="space-search">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM10.3 10.3 13.5 13.5" /></svg>
+        <input ref={field} type="search" aria-label="Search history" placeholder="Search history" value={query} onChange={(e) => setQuery(e.target.value)} />
+      </label>
+      <div className="tab-lists">
+        {!history.enabled && history.entries.length === 0 && <p className="tabs-empty">History is off. Turn it on in Settings › Browser.</p>}
+        {history.enabled && days.length === 0 && <p className="tabs-empty">{query ? 'Nothing matches.' : 'No pages visited yet.'}</p>}
+        {days.map((d) => (
+          <section key={d.label} className="ui-side-section">
+            <div className="side-head"><span className="side-title">{d.label}</span></div>
+            <ul className="tabs" role="list" aria-label={`Visited ${d.label === 'Today' || d.label === 'Yesterday' ? d.label.toLowerCase() : `on ${d.label}`}`}>
+              {d.entries.map((e) => (
+                <li key={`${e.url}|${e.visited}`} className="tab">
+                  <button type="button" className="tab-main history-row" title={`${e.title || hostOf(e.url)}\n${e.url}`}
+                    onClick={() => visit(e.url, tabs)} onAuxClick={(ev) => { if (ev.button === 1) { ev.preventDefault(); visit(e.url, tabs, true); } }}
+                    onContextMenu={(ev) => { ev.preventDefault(); setMenu({ entry: e, x: ev.clientX, y: ev.clientY }); }}>
+                    <SiteChip url={e.url} />
+                    <span className="tab-title">{e.title || hostOf(e.url)}</span>
+                    <span className="history-when">{timeLabel(e.visited)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+      {history.entries.length > 0 && (
+        <div className="tabs-foot history-foot">
+          <button type="button" className="today-clear" onClick={() => setClearing(true)}>Clear history…</button>
+        </div>
+      )}
+      {menu && <PointMenu x={menu.x} y={menu.y} label={menu.entry.title || hostOf(menu.entry.url)} onClose={() => setMenu(null)} entries={[
+        { label: 'Open', run: () => visit(menu.entry.url, tabs) },
+        { label: 'Open in new tab', run: () => visit(menu.entry.url, tabs, true) },
+        { label: 'Copy address', run: () => void navigator.clipboard?.writeText(menu.entry.url).catch(() => undefined) },
+        { label: 'Remove from history', danger: true, separated: true, run: () => window.mobius.history.remove(menu.entry.url) },
+      ]} />}
+      <Confirm open={clearing} title="Clear all browsing history?" description="Every page you visited is forgotten on this computer. Open tabs, bookmarks and Read later stay." action="Clear history"
+        onCancel={() => setClearing(false)} onConfirm={() => { setClearing(false); window.mobius.history.clear(); }} />
+    </div>
+  );
+}
+
 function useBookmarks(): BookmarkEntry[] {
   const [list, setList] = useState<BookmarkEntry[]>([]);
   useEffect(() => {

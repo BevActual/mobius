@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrowserTabState } from '@mobius/shared';
-import { addressParts, dropPlan, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter } from './browser-view';
+import { addressParts, dropPlan, historyByDay, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter } from './browser-view';
 
 const tab = (id: string, url: string, title: string, extra: Partial<BrowserTabState> = {}): BrowserTabState => ({ id, url, title, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra });
 
@@ -90,5 +90,27 @@ describe('nextTabId', () => {
   });
   it('has nowhere to go with one tab', () => {
     expect(nextTabId([t('a', { active: true })], 1)).toBeNull();
+  });
+});
+
+describe('History by day', () => {
+  const now = new Date(2026, 10, 25, 15);
+  const at = (d: number, h: number) => new Date(2026, 10, d, h).getTime();
+  const e = (url: string, title: string, visited: number) => ({ url, title, visited });
+  it('groups under Today, Yesterday and earlier days, newest first, each page once a day', () => {
+    const days = historyByDay([
+      e('https://a.test/', 'Alpha', at(25, 9)), e('https://b.test/', 'Beta', at(25, 14)), e('https://a.test/', 'Alpha', at(25, 12)),
+      e('https://c.test/', 'Gamma', at(24, 10)), e('https://a.test/', 'Alpha', at(20, 10)),
+    ], now);
+    expect(days.map((d) => d.label).slice(0, 2)).toEqual(['Today', 'Yesterday']);
+    expect(days).toHaveLength(3);
+    expect(days[0]!.entries.map((x) => x.title)).toEqual(['Beta', 'Alpha']);
+    expect(days[0]!.entries[1]!.visited).toBe(at(25, 12));
+    expect(days[2]!.entries.map((x) => x.title)).toEqual(['Alpha']);
+  });
+  it('keeps only pages with every word typed, in the title or the address', () => {
+    const list = [e('https://docs.test/rust', 'Rust book', at(25, 9)), e('https://news.test/', 'News', at(25, 10))];
+    expect(historyByDay(list, now, 'rust docs').flatMap((d) => d.entries.map((x) => x.title))).toEqual(['Rust book']);
+    expect(historyByDay(list, now, 'nothing')).toEqual([]);
   });
 });
