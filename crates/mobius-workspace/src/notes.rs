@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use crate::checkpoints::Checkpoints;
 
 type Res<T> = Result<T, String>;
+mod find;
 
 pub const FOLDER: &str = "notes";
 pub const MAX_PAGE: usize = 1024 * 1024;

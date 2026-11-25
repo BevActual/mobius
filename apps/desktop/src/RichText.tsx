@@ -27,6 +27,12 @@ export const readableSource = (source: string): string => (/^(id\s*)?#?\d+$/i.te
  */
 export const Citations = createContext<((source: string) => { n: number; title: string; site: string; url: string } | null) | null>(null);
 
+/**
+ * Where a fact's source can be opened: a note named in `Notes · <title>` opens in Notes. The app provides it, as it
+ * knows the notes; without it a source is only shown.
+ */
+export const ClaimSources = createContext<((source: string) => { label: string; open: () => void } | null) | null>(null);
+
 function Cite({ n, title, site, url }: { n: number; title: string; site: string; url: string }) {
   return (
     <sup className="cite-wrap">
@@ -44,6 +50,7 @@ function Claim({ tier, source: given, words, children }: { tier: 'yours' | 'web'
   const [open, setOpen] = useState(false);
   const checks = useContext(ClaimChecks);
   const cite = useContext(Citations)?.(given) ?? null;
+  const place = useContext(ClaimSources)?.(given) ?? null;
   const key = claimKey(words, given);
   const checked = tier === 'unsure' && (checks?.checked.has(key) ?? false);
   const shown = checked ? 'Checked by you' : TIERS[tier].name;
@@ -57,6 +64,7 @@ function Claim({ tier, source: given, words, children }: { tier: 'yours' | 'web'
           <b>{shown}</b>
           {source && <span>{source}</span>}
           {!checked && <span className="claim-note">{TIERS[tier].note}</span>}
+          {place && <button type="button" className="btn claim-open" onClick={() => { setOpen(false); place.open(); }}>{place.label}</button>}
           {tier === 'unsure' && !checked && checks && <button type="button" className="btn" onClick={() => { checks.check(key); setOpen(false); }}>I checked this</button>}
         </span>
       )}
