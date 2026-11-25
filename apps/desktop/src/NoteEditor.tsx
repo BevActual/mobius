@@ -44,6 +44,7 @@ import './notes.css';
 import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { fileMarkdown, noteImage, ownMarked, readFile } from './note-files';
+import { KeptLink, keptMarkdown } from './note-kept';
 import { linkTo, linkedFrom, pageOfLink, pagesMatching } from './note-links';
 import { afterPaint } from './ui/frame';
 
@@ -347,7 +348,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   }
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
+      // StarterKit's link, written back with angle brackets round an address with a space (note-kept).
+      StarterKit.configure({ link: false }),
+      KeptLink.configure({ openOnClick: false, autolink: true }),
+      // Front matter, footnotes, HTML and link definitions from other apps, kept as written.
+      ...keptMarkdown,
       TableKit,
       TaskList,
       TaskItem.configure({ nested: true }),

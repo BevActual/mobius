@@ -152,6 +152,22 @@ test('the agent panel sits beside a note, and a change the agent makes shows up 
   await expect(text().locator('li')).toHaveText(['one', 'two']);
 });
 
+test('a note written in another app keeps its front matter, footnotes, HTML and links when it is edited here', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  const before = '---\ntitle: Plan\ntags: [launch]\n---\n\n# Plan\n\nBody text.[^1] See [the brief](<Launch brief.md>).\n\n<details>\n<summary>More</summary>\n\nHidden\n\n</details>\n\nPress <kbd>Ctrl</kbd> to start.\n\n[^1]: The source.\n';
+  fs.writeFileSync(file('Work', 'Plan.md'), before);
+  await start();
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect(text().locator('p', { hasText: 'Body text.' })).toBeVisible();
+  // The list shows how the note starts, not its front matter.
+  await expect(side().getByRole('button', { name: 'Plan', exact: true })).not.toContainText('title:');
+  await text().locator('p', { hasText: 'Press' }).click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' Then go.');
+  await expect(status()).toHaveText('Saved');
+  await expect.poll(() => onDisk('Work', 'Plan.md')).toBe(before.replace('to start.', 'to start. Then go.'));
+});
+
 test('a change Mobius makes to the open page is marked as it lands, and its Keep comes when the turn ends', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nOne thing.\n');
