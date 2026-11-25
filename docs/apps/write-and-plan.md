@@ -112,6 +112,10 @@ Your calendars by day, week or month.
   rather than over it; a task due only on a day waits
   in the all-day row. A repeating task shows a small repeat mark, and ticking it moves it on to its next day, as in
   Tasks.
+- **An event** opens beside itself when clicked; a click elsewhere or Enter keeps a change, and Escape takes it back.
+  **More options** moves it to the Event panel on the right, which keeps each change as you make it (Saved shows
+  once it is kept, and Done closes it). A repeating event keeps a Save button there, as each change asks which times
+  it is for.
 - **Invite** in an event's details lists who is invited, with names from your address book as you type, as in Mail's
   To. Under it, each person's answer (going, maybe, not going) as their calendar sent it. Who is invited is kept in the
   calendar file and on CalDAV servers; Outlook calendars show it but do not take changes to it yet.

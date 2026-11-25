@@ -382,15 +382,23 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   await expect(review('Budget review Q4')).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('SUMMARY:Budget review Q4');
 
-  // More options moves the edit to the Event panel on the right, keeping what was typed; there it has Save.
+  // More options moves the edit to the Event panel on the right, keeping what was typed. There it keeps each change as
+  // it is made, with no Save: it says Saved, and Done closes it.
   await review('Budget review Q4').click();
   await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('textbox', { name: 'Notes' }).fill('Bring last year’s numbers.');
   await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'More options' }).click();
   const docked = shell().getByRole('complementary', { name: 'Inspector' }).getByRole('form', { name: 'Edit event' });
   await expect(docked.getByRole('textbox', { name: 'Notes' })).toHaveValue('Bring last year’s numbers.');
-  await docked.getByRole('button', { name: 'Save' }).click();
-  await expect(docked).toHaveCount(0);
+  await expect(docked.getByRole('button', { name: 'Save' })).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('Bring last year');
+  await expect(docked.getByRole('status')).toHaveText('Saved');
+  await docked.getByRole('textbox', { name: 'Place' }).fill('Room 4');
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('LOCATION:Room 4');
+  // A change typed just before Done is kept too.
+  await docked.getByRole('textbox', { name: 'Place' }).fill('Room 5');
+  await docked.getByRole('button', { name: 'Done' }).click();
+  await expect(docked).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('LOCATION:Room 5');
 
   // Opened, it stays picked out once closed: Ctrl+D copies it and Delete takes the copy away again, each with Undo.
   await review('Budget review Q4').click();
@@ -408,7 +416,7 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   // Its menu moves it to another calendar.
   await review('Budget review Q4').click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Budget review Q4' }).getByRole('menuitem', { name: 'Move to Home' }).click();
-  await expect(page().getByRole('button', { name: new RegExp(`^Budget review Q4, ${span('11:00', '12:00')}, Home`) })).toBeVisible();
+  await expect(page().getByRole('button', { name: new RegExp(`^Budget review Q4, ${span('11:00', '12:00')}, Room 5, Home`) })).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('SUMMARY:Budget review Q4');
   expect(fs.readFileSync(file('Work'), 'utf8')).not.toContain('Budget review Q4');
 

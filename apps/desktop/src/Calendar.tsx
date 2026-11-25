@@ -796,7 +796,10 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   const locked = original?.readOnly === true;
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLInputElement>(null);
-  const save = async (event?: FormEvent) => {
+  // What the event is now, as far as this editor knows: what it opened with, then what it last kept. The docked panel
+  // keeps changes as they are made, so what is sent next is measured from here, not from the event it opened.
+  const base = useRef({ title: original?.title ?? '', where: original?.location ?? '', notes: original?.notes ?? '', allDay: initialAllDay, repeat: initialRepeat, invite: inviteText(original?.attendees), start: startText, end: endText, attendees: original?.attendees });
+  const save = async (event?: FormEvent, stay = false) => {
     event?.preventDefault();
     const draft: CalendarDraft = {
       title: title.trim(),
@@ -805,13 +808,14 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
       location: where.trim(),
       notes: notes.trim(),
     };
-    if (repeat !== initialRepeat) draft.repeat = repeat;
-    const invited = parseInvitees(invite, original?.attendees);
-    if (!sameInvitees(invited, original?.attendees)) draft.attendees = invited;
+    if (repeat !== base.current.repeat) draft.repeat = repeat;
+    const invited = parseInvitees(invite, base.current.attendees);
+    if (!sameInvitees(invited, base.current.attendees)) draft.attendees = invited;
     let done: unknown;
     if (original) {
       // Only what changed is sent; moving one time of a repeating event moves every time by as much.
-      const shown: CalendarDraft = { title: original.title, start: original.start, end: endText, location: original.location, notes: original.notes };
+      const b = base.current;
+      const shown: CalendarDraft = { title: b.title, start: b.start, end: b.end, location: b.where, notes: b.notes };
       let change = Object.fromEntries(Object.entries(draft).filter(([k, v]) => shown[k as keyof CalendarDraft] !== v)) as CalendarDraft;
       if (change.start !== undefined || change.end !== undefined) {
         change.start = draft.start;
@@ -830,8 +834,14 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
       done = await calendar.add(into, draft);
     }
     setBusy(false);
-    if (done) onClose();
+    if (!done) return;
+    if (!stay) { onClose(); return; }
+    base.current = { title, where, notes, allDay, repeat, invite, start: allDay ? startDay : `${startDay}T${startTime}`, end: allDay ? endDay : `${endDay}T${endTime}`, attendees: invited as typeof base.current.attendees };
+    setKept(true);
   };
+  // The docked Event panel keeps an event's changes as they are made, a moment after the typing stops, as Google
+  // Calendar's event page and Fantastical do. A repeating event keeps Save, as each change asks which times it is for.
+  const [kept, setKept] = useState(false);
   const removeIt = async () => {
     if (!original) return;
     const scope = original.repeats && askScope ? await askScope('delete', true, original.start) : 'all';
@@ -877,8 +887,20 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   const live = useRef({ save, busy, changed: () => false as boolean });
   live.current = {
     save, busy,
-    changed: () => !locked && title.trim() !== '' && (title !== (original?.title ?? '') || where !== (original?.location ?? '') || notes !== (original?.notes ?? '') || allDay !== initialAllDay || repeat !== initialRepeat || invite !== inviteText(original?.attendees) || startDay !== startText.slice(0, 10) || endDay !== endText.slice(0, 10) || (!allDay && (startTime !== startText.slice(11, 16) || endTime !== endText.slice(11, 16))) || !original),
+    changed: () => {
+      const b = base.current;
+      return !locked && title.trim() !== '' && (title !== b.title || where !== b.where || notes !== b.notes || allDay !== b.allDay || repeat !== b.repeat || invite !== b.invite || startDay !== b.start.slice(0, 10) || endDay !== b.end.slice(0, 10) || (!allDay && (startTime !== b.start.slice(11, 16) || endTime !== b.end.slice(11, 16))) || !original);
+    },
   };
+  const autosave = docked && original !== null && !original.repeats && !locked;
+  useEffect(() => {
+    if (!autosave) return undefined;
+    if (live.current.changed()) setKept(false);
+    const t = window.setTimeout(() => { const l = live.current; if (!l.busy && l.changed()) void l.save(undefined, true); }, 600);
+    return () => window.clearTimeout(t);
+  }, [autosave, title, where, notes, allDay, repeat, invite, startDay, startTime, endDay, endTime]);
+  /** Closing the docked panel keeps what was typed since the last keep. */
+  const closeKeeping = () => { const l = live.current; if (autosave && !l.busy && l.changed()) void l.save(); else onClose(); };
   useEffect(() => {
     if (!at) return undefined;
     const away = (e: PointerEvent) => {
@@ -905,7 +927,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
         style={at ? { left: place?.left ?? 0, top: place?.top ?? 0, visibility: place ? undefined : 'hidden', ['--arrow' as string]: `${place?.arrow ?? 0}px` } : undefined}
         role={docked ? 'form' : 'dialog'} aria-modal={docked ? undefined : true} data-docked={docked || undefined} aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') { e.stopPropagation(); onClose(); return; }
+          if (e.key === 'Escape') { e.stopPropagation(); if (autosave) closeKeeping(); else onClose(); return; }
           // The popover has no Save: Enter in a line of text keeps the change, as a click elsewhere does. A day or time
           // field takes its own Enter, to read what was typed.
           if (at && e.key === 'Enter' && !e.defaultPrevented && (e.target as HTMLElement).matches('input:not([type="checkbox"])')) {
@@ -973,13 +995,17 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
         </div>
         ) : (
         docked ? (
-        // The Event panel: one row, Record meeting on the left, Delete in red words and Save on the right. Escape or
+        // The Event panel: one row, Record meeting on the left, Delete in red words and Save on the right; an event that
+        // keeps its changes as they are made has Done in place of Save, and a quiet Saved once they are kept. Escape or
         // the panel's × closes it.
         <div className="cal-editor-actions" data-docked>
           {meeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting?.(original!); }}>Record meeting</button>}
           <span className="spacer" />
+          {autosave && <span className="cal-editor-kept" role="status">{busy ? 'Saving…' : kept ? 'Saved' : ''}</span>}
           {original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void removeIt()}>Delete</button>}
-          {!locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
+          {autosave
+            ? <button type="button" className="btn" onClick={closeKeeping}>Done</button>
+            : !locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
         </div>
         ) : (
         <div className="cal-editor-actions">
