@@ -17,9 +17,9 @@ pub trait Engine: Send + Sync {
     fn forward(&self, tab: &str);
     fn reload(&self, tab: &str);
     fn close(&self, tab: &str);
-    /// Show only `visible` (if any) at `bounds`; every other page is hidden. `None` hides all of them, which is how
-    /// overlays get drawn above the native pages.
-    fn layout(&self, visible: Option<&str>, bounds: Option<Bounds>);
+    /// Show exactly these pages, each at its place (one, or two side by side in split view); every other page is hidden.
+    /// None at all hides them all, which is how overlays get drawn above the native pages.
+    fn layout(&self, shown: &[(String, Bounds)]);
     /// Run a script in a world that sees the page's DOM but none of the page's own scripts or globals, and give back
     /// what it returned (waiting for a promise). The script is text built by this crate with JSON-encoded arguments.
     fn eval(&self, tab: &str, script: &str) -> Result<Value, String>;
@@ -40,7 +40,7 @@ pub mod fake {
     #[derive(Default)]
     pub struct FakeEngine {
         pub calls: Mutex<Vec<String>>,
-        pub layouts: Mutex<Vec<(Option<String>, Option<Bounds>)>>,
+        pub layouts: Mutex<Vec<Vec<(String, Bounds)>>>,
         /// Script text containing the key → the value to answer with.
         pub answers: Mutex<HashMap<String, Result<Value, String>>>,
         pub scripts: Mutex<Vec<(String, String)>>,
@@ -81,9 +81,9 @@ pub mod fake {
         fn close(&self, tab: &str) {
             self.note(format!("close {tab}"));
         }
-        fn layout(&self, visible: Option<&str>, bounds: Option<Bounds>) {
+        fn layout(&self, shown: &[(String, Bounds)]) {
             if let Ok(mut l) = self.layouts.lock() {
-                l.push((visible.map(str::to_owned), bounds));
+                l.push(shown.to_vec());
             }
         }
         fn eval(&self, tab: &str, script: &str) -> Result<Value, String> {

@@ -67,6 +67,25 @@ struct State {
     counter: u64,
     bounds: Option<Bounds>,
     closed: Vec<String>,
+    /// Split view: the tab in the first place and the tab beside it. The active tab is one of the two.
+    split: Option<(String, String)>,
+    beside_bounds: Option<Bounds>,
+}
+
+fn roomy(bounds: Option<Bounds>) -> Option<Bounds> {
+    bounds.filter(|b| b.width > 0 && b.height > 0)
+}
+
+impl State {
+    /// The pages to show and where: the active one, or both halves of a split once the second has its place.
+    /// Nothing while the page area is hidden (an overlay is up), so the second page hides with the first.
+    fn pages(&self) -> Vec<(String, Bounds)> {
+        let Some(bounds) = roomy(self.bounds) else { return Vec::new() };
+        match (&self.split, roomy(self.beside_bounds)) {
+            (Some((first, second)), Some(beside)) => vec![(first.clone(), bounds), (second.clone(), beside)],
+            _ => self.active.iter().map(|id| (id.clone(), bounds)).collect(),
+        }
+    }
 }
 
 pub struct Browser {
@@ -108,16 +127,13 @@ impl Browser {
                 })
             })
             .collect();
-        json!({ "tabs": tabs, "activeId": s.active })
+        let split = s.split.as_ref().map(|(first, second)| json!({ "first": first, "second": second }));
+        json!({ "tabs": tabs, "activeId": s.active, "beside": s.split.as_ref().map(|(_, second)| second), "split": split })
     }
 
     fn layout(&self) {
-        let (active, bounds) = {
-            let s = lock(&self.state);
-            (s.active.clone(), s.bounds)
-        };
-        let shown = bounds.filter(|b| b.width > 0 && b.height > 0);
-        self.engine.layout(active.as_deref().filter(|_| shown.is_some()), shown);
+        let pages = lock(&self.state).pages();
+        self.engine.layout(&pages);
     }
 
     /// Opens a new tab (on the start page when there is no address) and makes it the active one.
@@ -201,9 +217,47 @@ impl Browser {
             if !s.tabs.iter().any(|t| t.id == id) {
                 return;
             }
+            // A tab outside the split ends it; one of its two pages only takes the keys, and both stay where they are.
+            if s.split.as_ref().is_some_and(|(first, second)| first != id && second != id) {
+                s.split = None;
+            }
             s.active = Some(id.to_owned());
         }
         self.layout();
+        self.publish();
+    }
+
+    /// Shows `id` beside the active tab (split view), or ends the split with `None`. A tab that is not open, or is the
+    /// active one, ends it too.
+    pub fn show_beside(&self, id: Option<&str>) {
+        {
+            let mut s = lock(&self.state);
+            let active = s.active.clone();
+            s.split = match (active, id) {
+                (Some(active), Some(id)) if active != id && s.tabs.iter().any(|t| t.id == id) => Some((active, id.to_owned())),
+                _ => None,
+            };
+        }
+        self.layout();
+        self.publish();
+    }
+
+    /// Where the page beside goes in split view; `None` until the window has drawn its place.
+    pub fn set_beside_bounds(&self, bounds: Option<Bounds>) {
+        lock(&self.state).beside_bounds = bounds;
+        self.layout();
+    }
+
+    /// A page took the keyboard (the person clicked in it): in a split, it becomes the active tab where it stands.
+    pub fn focused(&self, id: &str) {
+        {
+            let mut s = lock(&self.state);
+            let in_split = s.split.as_ref().is_some_and(|(first, second)| first == id || second == id);
+            if !in_split || s.active.as_deref() == Some(id) {
+                return;
+            }
+            s.active = Some(id.to_owned());
+        }
         self.publish();
     }
 
@@ -218,7 +272,10 @@ impl Browser {
                     s.closed.remove(0);
                 }
             }
-            if s.active.as_deref() == Some(id) {
+            // Closing one half of a split leaves the other, on its own.
+            if let Some((first, second)) = s.split.take_if(|(first, second)| first == id || second == id) {
+                s.active = Some(if first == id { second } else { first });
+            } else if s.active.as_deref() == Some(id) {
                 s.active = s.tabs.get(index).or_else(|| index.checked_sub(1).and_then(|i| s.tabs.get(i))).map(|t| t.id.clone());
             }
             s.active.clone()
@@ -402,9 +459,13 @@ impl Browser {
     /// The tab that is showing and where, or none while the page is hidden.
     pub fn shown(&self) -> Option<(String, Bounds)> {
         let s = lock(&self.state);
-        let id = s.active.clone()?;
-        let bounds = s.bounds.filter(|b| b.width > 0 && b.height > 0)?;
-        Some((id, bounds))
+        let active = s.active.clone()?;
+        s.pages().into_iter().find(|(id, _)| *id == active)
+    }
+
+    /// Every page showing and where: one, or two in split view.
+    pub fn showing(&self) -> Vec<(String, Bounds)> {
+        lock(&self.state).pages()
     }
 
     /// Who is using a tab now (none: the person's, as usual).
@@ -592,9 +653,90 @@ mod tests {
         b.set_bounds(Some(Bounds { width: 0, ..area }));
         b.activate("tab-1");
         let last = engine.layouts.lock().unwrap().clone();
-        assert!(last.contains(&(Some("tab-2".into()), Some(area))));
-        assert!(last.iter().filter(|(_, bounds)| bounds.is_none()).count() >= 3, "hidden when there are no bounds or no room: {last:?}");
-        assert_eq!(last.last().unwrap(), &(None, None));
+        assert!(last.contains(&vec![("tab-2".into(), area)]));
+        assert!(last.iter().filter(|shown| shown.is_empty()).count() >= 3, "hidden when there are no bounds or no room: {last:?}");
+        assert_eq!(last.last().unwrap(), &vec![]);
+    }
+
+    fn last_layout(engine: &FakeEngine) -> Vec<(String, Bounds)> {
+        engine.layouts.lock().unwrap().last().cloned().unwrap_or_default()
+    }
+
+    #[test]
+    fn a_tab_beside_shows_next_to_the_active_one_once_it_has_a_place() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        b.open(None);
+        b.open(None);
+        b.activate("tab-1");
+        let (left, right) = (Bounds { x: 0, y: 0, width: 300, height: 200 }, Bounds { x: 300, y: 0, width: 300, height: 200 });
+        b.set_bounds(Some(left));
+        b.show_beside(Some("tab-2"));
+        assert_eq!(last_layout(&engine), vec![("tab-1".into(), left)], "only the first until the second has its place");
+        b.set_beside_bounds(Some(right));
+        assert_eq!(last_layout(&engine), vec![("tab-1".into(), left), ("tab-2".into(), right)]);
+        let state = b.state();
+        assert_eq!(state["beside"], "tab-2");
+        assert_eq!(state["split"], json!({ "first": "tab-1", "second": "tab-2" }));
+        assert_eq!(b.showing().len(), 2);
+        b.set_bounds(None);
+        assert_eq!(last_layout(&engine), vec![], "an overlay hides both");
+        b.set_bounds(Some(left));
+        b.show_beside(None);
+        assert_eq!(last_layout(&engine), vec![("tab-1".into(), left)]);
+        assert_eq!(b.state()["split"], Value::Null);
+        assert_eq!(b.state()["beside"], Value::Null);
+    }
+
+    #[test]
+    fn only_another_open_tab_can_go_beside() {
+        let (b, _, _, _) = browser();
+        b.open(None);
+        b.show_beside(Some("tab-1"));
+        assert_eq!(b.state()["split"], Value::Null, "not the active tab itself");
+        b.show_beside(Some("tab-9"));
+        assert_eq!(b.state()["split"], Value::Null, "not a tab that is not open");
+    }
+
+    #[test]
+    fn the_page_clicked_last_is_active_and_the_pages_stay_where_they_are() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        b.open(None);
+        b.open(None);
+        b.activate("tab-1");
+        let (left, right) = (Bounds { x: 0, y: 0, width: 300, height: 200 }, Bounds { x: 300, y: 0, width: 300, height: 200 });
+        b.set_bounds(Some(left));
+        b.set_beside_bounds(Some(right));
+        b.show_beside(Some("tab-2"));
+        b.focused("tab-2");
+        assert_eq!(b.active_id().as_deref(), Some("tab-2"));
+        assert_eq!(b.shown(), Some(("tab-2".into(), right)), "the active page, where it is");
+        b.focused("tab-3");
+        assert_eq!(b.active_id().as_deref(), Some("tab-2"), "a page outside the split taking focus changes nothing");
+        b.activate("tab-1");
+        assert_eq!(last_layout(&engine), vec![("tab-1".into(), left), ("tab-2".into(), right)], "same places");
+        b.activate("tab-3");
+        assert_eq!(b.state()["split"], Value::Null, "a tab outside the split ends it");
+        assert_eq!(last_layout(&engine), vec![("tab-3".into(), left)]);
+    }
+
+    #[test]
+    fn closing_one_half_of_a_split_leaves_the_other() {
+        let (b, _, _, _) = browser();
+        b.open(None);
+        b.open(None);
+        b.open(None);
+        b.activate("tab-1");
+        b.show_beside(Some("tab-3"));
+        b.close("tab-1");
+        assert_eq!(b.active_id().as_deref(), Some("tab-3"), "not the neighbour: the other half");
+        assert_eq!(b.state()["split"], Value::Null);
+        b.activate("tab-2");
+        b.show_beside(Some("tab-3"));
+        b.close("tab-3");
+        assert_eq!(b.active_id().as_deref(), Some("tab-2"));
+        assert_eq!(b.state()["split"], Value::Null);
     }
 
     fn titles(b: &Browser) -> Vec<String> {

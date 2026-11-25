@@ -231,6 +231,14 @@ impl Engine for WebViewEngine {
                             let _ = engine_cdp(&engine_pages, &tab, "Browser.setPermission", json!({ "permission": { "name": name }, "setting": "denied" }));
                         }
                     });
+                    // In split view the page clicked last takes the keys, and becomes the active tab.
+                    let (focus_slot, focus_id) = (self.browser.clone(), id.clone());
+                    crate::cdp::watch_focus(&webview, Arc::new(move || {
+                        if let Some(b) = weak_browser(&focus_slot) {
+                            let id = focus_id.clone();
+                            in_order(move || b.focused(&id));
+                        }
+                    }));
                     let key_slot = self.keys.clone();
                     crate::cdp::watch_keys(&webview, Arc::new(move |key, control, alt, shift| key_slot.get().and_then(Weak::upgrade).is_some_and(|bridge| bridge.page_key(key, control, alt, shift))));
                     let (start_slot, progress_slot, end_slot) = (self.downloads.clone(), self.downloads.clone(), self.downloads.clone());
@@ -291,12 +299,12 @@ impl Engine for WebViewEngine {
         lock(&self.finds).remove(tab);
     }
 
-    fn layout(&self, visible: Option<&str>, bounds: Option<Bounds>) {
+    fn layout(&self, shown: &[(String, Bounds)]) {
         let zoom = *lock(&self.zoom);
         let pages: Vec<(String, Webview<Wry>)> = lock(&self.pages).iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         for (id, page) in pages {
-            match (visible, bounds) {
-                (Some(shown), Some(b)) if shown == id => {
+            match shown.iter().find(|(s, _)| *s == id).map(|(_, b)| *b) {
+                Some(b) => {
                     let rect = Rect {
                         position: LogicalPosition::new(f64::from(b.x) * zoom, f64::from(b.y) * zoom).into(),
                         size: LogicalSize::new(f64::from(b.width) * zoom, f64::from(b.height) * zoom).into(),
