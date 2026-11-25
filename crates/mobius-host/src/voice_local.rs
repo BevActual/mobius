@@ -408,6 +408,9 @@ impl DeviceVoice {
     /// Writes down a 16 kHz mono WAV with `model`: the words, and each piece with its times.
     pub fn transcribe(&self, wav: &[u8], model: &str) -> Value {
         let Some((_, e, d, t)) = whisper(model) else { return failed("That is not a model Mobius can listen with.") };
+        if self.program.is_none() {
+            return failed("Listening on this computer isn't available on this computer yet.");
+        }
         if !self.ready(model) {
             return json!({ "ok": false, "error": "Listening on this computer isn't set up yet. Set it up in Settings, Voice.", "setup": true });
         }
@@ -591,7 +594,7 @@ mod tests {
     #[test]
     fn a_recording_before_set_up_points_to_settings_and_another_model_is_refused() {
         let dir = tempfile::tempdir().unwrap();
-        let voice = DeviceVoice::new(dir.path().to_path_buf(), quiet());
+        let voice = DeviceVoice::serving(dir.path().to_path_buf(), quiet(), "http://127.0.0.1:9/".into(), Some(("prog.gz".into(), "0".repeat(64))));
         let got = voice.transcribe(&wav(16_000, 1), "base.en");
         assert_eq!((got["ok"].clone(), got["setup"].clone()), (json!(false), json!(true)));
         assert_eq!(voice.transcribe(&wav(16_000, 1), "large")["ok"], false);
@@ -623,6 +626,14 @@ mod tests {
         assert_eq!(voice.transcribe(b"\x1aE\xdf\xa3 webm", "base.en")["wav"], true);
         assert_eq!(voice.remove("base.en")["ok"], true);
         assert_eq!(voice.status("base.en")["state"], "absent");
+    }
+
+    #[test]
+    fn with_no_build_for_this_computer_a_recording_does_not_point_to_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let voice = DeviceVoice::serving(dir.path().to_path_buf(), quiet(), "http://127.0.0.1:9/".into(), None);
+        let got = voice.transcribe(&wav(16_000, 1), "base.en");
+        assert_eq!((got["ok"].clone(), got["setup"].clone()), (json!(false), Value::Null), "{got}");
     }
 
     #[test]

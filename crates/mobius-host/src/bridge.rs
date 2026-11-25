@@ -584,10 +584,15 @@ impl Bridge {
             emit,
         };
         // Only sets what the agent will send: nothing is configured until a chat model is.
-        // A new install listens on this computer for free once that is set up, and until then with the chat model's
-        // server, as before. One already in use keeps what it had.
+        // A new install listens on this computer for free once that is set up (where there's a build of it for this
+        // computer), and until then with the chat model's server, as before. One already in use keeps what it had.
         if fresh {
-            lock(&bridge.preferences).set(&json!({ "installedApps": preferences::DEFAULT_APPS, "listenWith": "device", "listenFallback": "chat" }));
+            let mut start = json!({ "installedApps": preferences::DEFAULT_APPS });
+            if crate::voice_local::available() {
+                start["listenWith"] = json!("device");
+                start["listenFallback"] = json!("chat");
+            }
+            lock(&bridge.preferences).set(&start);
         }
         let _ = bridge.restore_quick();
         // Once the local space's server answers, the person's account and the space are made (the first time) or brought

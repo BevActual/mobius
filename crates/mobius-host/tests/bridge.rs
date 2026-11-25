@@ -1415,10 +1415,16 @@ fn listening_on_this_computer_before_it_is_set_up_points_to_settings_and_says_wh
     assert!(status["bytes"].as_u64().unwrap() > 150_000_000);
     call(&b, "preferences", "set", json!([{ "listenWith": "device", "listenFallback": "off", "listenModel": "small.en" }]));
     assert_eq!(call(&b, "voice", "deviceStatus", json!([]))["model"], "small.en");
-    // A 16 kHz recording, but nothing downloaded yet: the answer says where to set it up.
+    // A 16 kHz recording, but nothing downloaded yet: the answer says where to set it up, or that there's no build
+    // of it for this computer yet.
     let heard = call(&b, "agent", "transcribe", json!(["UklGRigAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQQAAAAAAAAA", "audio/wav"]));
-    assert_eq!((heard["ok"].clone(), heard["setup"].clone()), (json!(false), json!(true)), "{heard}");
-    assert!(heard["error"].as_str().unwrap().contains("Settings, Voice"));
+    assert_eq!(heard["ok"], false, "{heard}");
+    let error = heard["error"].as_str().unwrap();
+    if status["available"] == true {
+        assert!(error.contains("Settings, Voice") && heard["setup"] == true, "{heard}");
+    } else {
+        assert!(error.contains("isn't available on this computer"), "{heard}");
+    }
     assert_eq!(call(&b, "voice", "test", json!(["listen"]))["ok"], false);
     assert_eq!(call(&b, "voice", "deviceRemove", json!([]))["ok"], true, "removing what isn't there is fine");
 }
