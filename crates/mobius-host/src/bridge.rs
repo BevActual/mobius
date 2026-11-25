@@ -324,6 +324,8 @@ pub struct Bridge {
     music: crate::music::Music,
     /// The local Mobius space's homeserver, fetched and started the first time the space opens.
     homeserver: Arc<crate::homeserver::Homeserver>,
+    /// Listening on this computer with Whisper, downloaded the first time it is set up in Settings, Voice.
+    device_voice: Arc<crate::voice_local::DeviceVoice>,
     photos: mobius_workspace::photos::Photos,
     skills: mobius_workspace::skills::Skills,
     video: mobius_workspace::video::Video,
@@ -539,6 +541,7 @@ impl Bridge {
             video: mobius_workspace::video::Video::new(data_dir.join("workspace")),
             music: crate::music::Music::new(emit.clone()),
             homeserver: Arc::new(crate::homeserver::Homeserver::new(data_dir.join("homeserver"), emit.clone())),
+            device_voice: Arc::new(crate::voice_local::DeviceVoice::new(data_dir.join("voice"), emit.clone())),
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter).with_files(),
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
@@ -581,8 +584,15 @@ impl Bridge {
             emit,
         };
         // Only sets what the agent will send: nothing is configured until a chat model is.
+        // A new install listens on this computer for free once that is set up (where there's a build of it for this
+        // computer), and until then with the chat model's server, as before. One already in use keeps what it had.
         if fresh {
-            lock(&bridge.preferences).set(&json!({ "installedApps": preferences::DEFAULT_APPS }));
+            let mut start = json!({ "installedApps": preferences::DEFAULT_APPS });
+            if crate::voice_local::available() {
+                start["listenWith"] = json!("device");
+                start["listenFallback"] = json!("chat");
+            }
+            lock(&bridge.preferences).set(&start);
         }
         let _ = bridge.restore_quick();
         // Once the local space's server answers, the person's account and the space are made (the first time) or brought
@@ -878,6 +888,11 @@ impl Bridge {
             ("voice", "test") => Ok(self.voice_test(arg(0).as_str().unwrap_or(""))),
             // Settings, Voice, This computer: whether a speech server answers at the saved address. Nothing is installed.
             ("voice", "local") => Ok(self.voice_local(arg(0).as_str().unwrap_or(""))),
+            // Settings, Voice, This computer (free): the program and the chosen model, downloaded and checked against
+            // their pinned SHA-256s. Remove takes them all off again.
+            ("voice", "deviceStatus") => Ok(self.device_voice.status(&self.listen_model(arg(0).as_str()))),
+            ("voice", "deviceSetup") => Ok(self.device_voice.setup(&self.listen_model(arg(0).as_str()))),
+            ("voice", "deviceRemove") => Ok(self.device_voice.remove(&self.listen_model(None))),
             // Read words aloud with the service chosen for speaking: the window gets the sound, never a key.
             ("voice", "speak") => Ok(self.speak(arg(0).as_str().unwrap_or(""))),
             // Comments on anything in the workspace, kept per document in `.comments/` (see mobius_workspace::comments).
@@ -1031,6 +1046,7 @@ impl Bridge {
     /// outlives the app or keeps its data folder in use.
     pub fn stop_core(&self) {
         self.homeserver.stop();
+        self.device_voice.stop();
         self.core.stop_shared();
     }
 
@@ -2605,9 +2621,13 @@ impl Bridge {
         let (first, fallback, url, model) = (s("listenWith"), s("listenFallback"), s("listenUrl"), s("dictationModel"));
         let model = if model.is_empty() { "whisper-1".to_owned() } else { model };
         let mut last = json!({ "ok": false, "error": "Listening is off. Choose who listens in Settings, Voice.", "setup": true });
+        let mut device_unset = None;
         for with in crate::voice::order(&first, &fallback) {
             let got = match with {
                 "chat" => self.agent.transcribe(bytes, mime, &model),
+                // The window sends a 16 kHz WAV when this is the choice; anything else comes back with `wav` so it
+                // converts the recording and asks again.
+                "device" => self.device_voice.transcribe(bytes, &self.listen_model(None)),
                 "local" => crate::voice::transcribe_local(&url, &model, bytes, mime),
                 "elevenlabs" => match (self.providers.key("elevenlabs"), self.providers.address("elevenlabs")) {
                     (Some(key), Some(base)) => crate::voice::transcribe_elevenlabs(&base, &key, &model, bytes, mime),
@@ -2618,9 +2638,25 @@ impl Bridge {
             if got["ok"] == true {
                 return got;
             }
+            // Whisper here takes a 16 kHz WAV: the window converts the recording and asks again.
+            if with == "device" && got["wav"] == true {
+                return got;
+            }
+            // Setting up listening on this computer is what helps most, so that is what's said if nothing listened.
+            if with == "device" && got["setup"] == true {
+                device_unset = Some(got.clone());
+            }
             last = got;
         }
-        last
+        device_unset.unwrap_or(last)
+    }
+
+    /// The Whisper model for listening on this computer: the one asked about, else the one chosen in Settings, else
+    /// the default.
+    fn listen_model(&self, asked: Option<&str>) -> String {
+        let saved = lock(&self.preferences).get()["listenModel"].as_str().unwrap_or("").to_owned();
+        let model = asked.filter(|m| !m.is_empty()).map_or(saved, str::to_owned);
+        if model.is_empty() { crate::voice_local::DEFAULT_MODEL.to_owned() } else { model }
     }
 
     /// Read words aloud with the service chosen for speaking, then its fallback.
@@ -2696,6 +2732,10 @@ impl Bridge {
                 }
                 let listed = self.agent.models();
                 if listed["ok"] == true { json!({ "ok": true, "message": "The chat model's server answers. Listening uses its speech model." }) } else { failed("The chat model's server did not answer.") }
+            }
+            "device" => {
+                let model = self.listen_model(None);
+                if self.device_voice.ready(&model) { json!({ "ok": true, "message": "Listening on this computer is set up." }) } else { failed("Listening on this computer isn't set up yet.") }
             }
             "local" => match reach(&url, None) {
                 Ok(status) if (200..300).contains(&status) => json!({ "ok": true, "message": "The speech server on this computer answers." }),

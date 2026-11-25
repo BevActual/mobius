@@ -1408,6 +1408,28 @@ fn a_command_mobius_started_is_listed_read_and_stopped() {
 }
 
 #[test]
+fn listening_on_this_computer_before_it_is_set_up_points_to_settings_and_says_what_it_would_download() {
+    let (b, _c, _events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    let status = call(&b, "voice", "deviceStatus", json!([]));
+    assert_eq!((status["state"].as_str(), status["model"].as_str()), (Some("absent"), Some("base.en")), "{status}");
+    assert!(status["bytes"].as_u64().unwrap() > 150_000_000);
+    call(&b, "preferences", "set", json!([{ "listenWith": "device", "listenFallback": "off", "listenModel": "small.en" }]));
+    assert_eq!(call(&b, "voice", "deviceStatus", json!([]))["model"], "small.en");
+    // A 16 kHz recording, but nothing downloaded yet: the answer says where to set it up, or that there's no build
+    // of it for this computer yet.
+    let heard = call(&b, "agent", "transcribe", json!(["UklGRigAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQQAAAAAAAAA", "audio/wav"]));
+    assert_eq!(heard["ok"], false, "{heard}");
+    let error = heard["error"].as_str().unwrap();
+    if status["available"] == true {
+        assert!(error.contains("Settings, Voice") && heard["setup"] == true, "{heard}");
+    } else {
+        assert!(error.contains("isn't available on this computer"), "{heard}");
+    }
+    assert_eq!(call(&b, "voice", "test", json!(["listen"]))["ok"], false);
+    assert_eq!(call(&b, "voice", "deviceRemove", json!([]))["ok"], true, "removing what isn't there is fine");
+}
+
+#[test]
 fn voice_settings_are_kept_and_the_test_says_what_is_missing_without_any_key_in_the_answer() {
     let (b, _c, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
     // Off: nothing to try.

@@ -3,6 +3,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 pub mod updates;
 pub mod voice;
+pub mod voice_local;
 pub mod access;
 pub mod homeserver;
 pub mod ask_each;

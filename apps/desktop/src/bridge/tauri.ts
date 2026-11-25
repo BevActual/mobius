@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { ClipboardEntry, LauncherAnswer, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo, WindowState } from '@mobius/shared';
+import type { ClipboardEntry, DeviceVoiceStatus, LauncherAnswer, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo, WindowState } from '@mobius/shared';
 import { parseLauncherAnswer } from '@mobius/shared';
+import { toListeningWav } from './wav';
 import {
   DEFAULT_APPEARANCE,
   DEFAULT_PREFERENCES,
@@ -248,7 +249,14 @@ export function createTauriBridge(): MobiusBridge {
       send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.ask || options.quick || options.mode || options.app || (options.images && options.images.length > 0) || (options.reads && options.reads.length > 0) || options.finish || (options.tools && options.tools.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
       models: () => call('agent', 'models', [], () => refused),
       setModel: (model) => call('agent', 'setModel', [model], () => refused),
-      transcribe: (audio, mime) => call('agent', 'transcribe', [toBase64(audio), mime], () => refused),
+      // Listening on this computer takes a 16 kHz WAV: when the host asks for one, the recording is converted and sent again.
+      transcribe: async (audio, mime) => {
+        const first = await call('agent', 'transcribe', [toBase64(audio), mime], () => refused);
+        if (first.ok || !(first as { wav?: boolean }).wav) return first;
+        const wav = await toListeningWav(audio).catch(() => null);
+        if (!wav) return { ok: false as const, error: 'Mobius could not read the recording to listen to it.' };
+        return call('agent', 'transcribe', [toBase64(wav), 'audio/wav'], () => refused);
+      },
       cancel: (conversation) => call('agent', 'cancel', [conversation], () => undefined).then(() => undefined),
       takeOver: (conversation) => call('agent', 'takeOver', [conversation], () => ({ ok: false as const, error: 'Not available.' })),
       handBack: (conversation, note) => call('agent', 'handBack', note ? [conversation, note] : [conversation], () => ({ ok: false as const, error: 'Not available.' })),
@@ -340,6 +348,10 @@ export function createTauriBridge(): MobiusBridge {
       test: (job) => call('voice', 'test', [job], () => ({ ok: false as const, error: 'Voice is not available here.' })),
       local: (job) => call('voice', 'local', [job], () => ({ ok: false as const, error: 'Voice is not available here.' })),
       speak: (text) => call('voice', 'speak', [text], () => ({ ok: false as const, error: 'Voice is not available here.' })),
+      deviceStatus: (model) => call('voice', 'deviceStatus', model ? [model] : [], () => ({ ok: false as const, error: 'Voice is not available here.' })),
+      deviceSetup: (model) => call('voice', 'deviceSetup', model ? [model] : [], () => ({ ok: false as const, error: 'Voice is not available here.' })),
+      deviceRemove: () => call('voice', 'deviceRemove', [], () => ({ ok: false as const, error: 'Voice is not available here.' })),
+      onDevice: (listener) => on<DeviceVoiceStatus>('mobius:voice-device', listener),
     },
     comments: {
       list: (app, doc) => call('comments', 'list', [app, doc], () => []),

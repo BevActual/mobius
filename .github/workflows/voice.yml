@@ -145,9 +145,10 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Fetch and unpack them
         run: |
-          mkdir out && cd out
+          mkdir -p out && cd out
           curl -sSfL -o silero_vad.onnx "$MODELS/silero_vad.onnx"
           for m in base.en small.en; do
             curl -sSfL "$MODELS/sherpa-onnx-whisper-$m.tar.bz2" | tar xjf - --wildcards "*/$m-encoder.int8.onnx" "*/$m-decoder.int8.onnx" "*/$m-tokens.txt"
@@ -156,6 +157,15 @@ jobs:
           done
           ls -la
           sha256sum *
+      # Each licence goes beside what it covers. Three are kept in the repository (crates/mobius-voice/licences);
+      # onnxruntime's, which sherpa-onnx's library links inside it, is fetched here and must be the MIT licence.
+      - name: Put the licences beside them
+        run: |
+          cp crates/mobius-voice/licences/LICENSE-*.txt out/
+          curl -sSfL -o out/LICENSE-onnxruntime.txt https://raw.githubusercontent.com/microsoft/onnxruntime/main/LICENSE
+          head -1 out/LICENSE-onnxruntime.txt | grep -qx 'MIT License' || { echo "onnxruntime's licence is not the MIT licence; not publishing."; exit 1; }
+          grep -q 'Microsoft Corporation' out/LICENSE-onnxruntime.txt
+          ls -la out/LICENSE-*
       - uses: actions/upload-artifact@v4
         with:
           name: voice-models
@@ -181,11 +191,14 @@ jobs:
           tag="voice-$version"
           cd out
           sha256sum *
-          notes="mobius-voice $version: listening on this computer with Whisper and Silero VAD through sherpa-onnx (Apache-2.0, https://github.com/k2-fsa/sherpa-onnx). The whisper-* and silero_vad files are the int8 models from sherpa-onnx's asr-models release: Whisper by OpenAI (MIT, https://github.com/openai/whisper) and Silero VAD (MIT, https://github.com/snakers4/silero-vad). Mobius downloads what it needs and checks each file against the SHA-256 pinned in its own build.
+          notes="mobius-voice $version: listening on this computer with Whisper and Silero VAD through sherpa-onnx (Apache-2.0, https://github.com/k2-fsa/sherpa-onnx). The whisper-* and silero_vad files are the int8 models from sherpa-onnx's asr-models release: Whisper by OpenAI (MIT, https://github.com/openai/whisper) and Silero VAD (MIT, https://github.com/snakers4/silero-vad). sherpa-onnx's library links onnxruntime (MIT, https://github.com/microsoft/onnxruntime). Each licence is beside the files, as LICENSE-*.txt. Mobius downloads what it needs and checks each file against the SHA-256 pinned in its own build.
 
           $(sha256sum *)"
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            # Run again, it replaces every file of the same name and the notes, and stays a prerelease that is never
+            # Latest. The host's pins come from the run whose files are up.
             gh release upload "$tag" -R "$GITHUB_REPOSITORY" --clobber *
+            gh release edit "$tag" -R "$GITHUB_REPOSITORY" --prerelease --latest=false --notes "$notes"
           else
             gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title "Voice: mobius-voice $version" --notes "$notes" *
           fi

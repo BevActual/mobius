@@ -48,9 +48,12 @@ fn is_voice_name(v: &Value) -> bool {
     v.as_str().is_some_and(|s| s.chars().count() <= 100 && !s.chars().any(char::is_control))
 }
 
-/// Who listens (speech to text) and who speaks (text to speech), each with a fallback: the chat model's server,
-/// a speech server on this computer (OpenAI's audio format, as faster-whisper and Kokoro speak it), or ElevenLabs.
-pub const LISTEN_WITH: [&str; 4] = ["chat", "local", "elevenlabs", "off"];
+/// Who listens (speech to text) and who speaks (text to speech), each with a fallback: Whisper on this computer
+/// (`device`, downloaded when set up), the chat model's server, a speech server on this computer (OpenAI's audio
+/// format, as faster-whisper and Kokoro speak it), or ElevenLabs.
+pub const LISTEN_WITH: [&str; 5] = ["device", "chat", "local", "elevenlabs", "off"];
+/// The Whisper models for listening on this computer: quick, or more accurate for meetings.
+pub const LISTEN_MODELS: [&str; 2] = ["base.en", "small.en"];
 pub const SPEAK_WITH: [&str; 3] = ["local", "elevenlabs", "off"];
 
 /// The apps a new install starts with; the rest are added from Abilities.
@@ -71,7 +74,7 @@ fn is_signatures(v: &Value) -> bool {
     v.as_object().is_some_and(|m| m.len() <= 20 && m.iter().all(|(k, s)| !k.is_empty() && k.len() <= 200 && s.as_str().is_some_and(|s| s.chars().count() <= 2000 && !s.contains('\0'))))
 }
 
-static FIELDS: [Field; 28] = [
+static FIELDS: [Field; 29] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -91,6 +94,7 @@ static FIELDS: [Field; 28] = [
     Field { name: "dictationModel", default: || json!("whisper-1"), check: is_model_name },
     Field { name: "listenWith", default: || json!("chat"), check: |v| one_of(v, &LISTEN_WITH) },
     Field { name: "listenFallback", default: || json!("off"), check: |v| one_of(v, &LISTEN_WITH) },
+    Field { name: "listenModel", default: || json!("base.en"), check: |v| one_of(v, &LISTEN_MODELS) },
     Field { name: "listenUrl", default: || json!("http://127.0.0.1:8000/v1"), check: is_voice_url },
     Field { name: "speakWith", default: || json!("off"), check: |v| one_of(v, &SPEAK_WITH) },
     Field { name: "speakFallback", default: || json!("off"), check: |v| one_of(v, &SPEAK_WITH) },
@@ -201,6 +205,12 @@ mod voice_tests {
         assert_eq!(again.get()["speakVoice"], "Rachel");
         assert!(!is_voice_url(&json!("ftp://x")) && !is_voice_url(&json!("http://a b")) && is_voice_url(&json!("https://api.example/v1")));
         assert!(!one_of(&json!("whisper"), &LISTEN_WITH));
+        assert_eq!(again.get()["listenModel"], "base.en");
+        let mut p = open(dir.path().join("device.json"));
+        p.set(&json!({ "listenWith": "device", "listenModel": "small.en" }));
+        assert_eq!((p.get()["listenWith"].as_str(), p.get()["listenModel"].as_str()), (Some("device"), Some("small.en")));
+        p.set(&json!({ "listenModel": "large" }));
+        assert_eq!(p.get()["listenModel"], "small.en", "a model Mobius doesn't have is not saved");
     }
 }
 

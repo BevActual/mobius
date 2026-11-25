@@ -396,7 +396,12 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await go('Voice', 'Listening');
   // The chat model's server in these tests is a plain OpenAI-format one, so listening through it is offered.
   await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveText('Chat server');
-  await choose(page(), 'Listen with', 'This computer');
+  // Whisper on this computer: the one-time download and the accuracy, and no speech model to name.
+  await choose(page(), 'Listen with', 'This computer (free)');
+  await expect(page().getByTestId('voice-device')).toBeVisible();
+  await expect(page().getByRole('combobox', { name: 'Accuracy' })).toHaveText('Quick');
+  await expect(page().getByRole('textbox', { name: 'Speech model' })).toHaveCount(0);
+  await choose(page(), 'Listen with', 'Speech server on this computer');
   const address = page().getByRole('textbox', { name: 'Listening server address' });
   await address.fill('ftp://nope');
   await expect(page().getByRole('alert')).toContainText('http:// or https://');
@@ -421,7 +426,7 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openSettings();
   await go('Voice', 'Listening');
-  await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveText('This computer');
+  await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveText('Speech server on this computer');
   await expect(page().getByRole('textbox', { name: 'Listening server address' })).toHaveValue('http://127.0.0.1:9/v1');
   await go('Voice', 'Speaking');
   await expect(page().getByRole('combobox', { name: 'Speak with' })).toHaveText('ElevenLabs');
