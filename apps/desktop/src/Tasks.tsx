@@ -270,6 +270,9 @@ function TaskNote({ text }: { text: string }) {
   return <span className="task-note" title={text}>{text}</span>;
 }
 
+/** The task the keyboard just moved (Ctrl+↑/↓): its row takes focus back once it is drawn in its new place. */
+let refocus: { list: string; text: string } | null = null;
+
 function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = false, reorder = false, hideDue = false, hideWhen = false }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [words, setWords] = useState(task.text);
@@ -280,6 +283,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const line = useRef<HTMLDivElement>(null);
   const completing = useCompleting(() => stepAway(line.current, () => tasks.complete(list, task)));
   useEffect(() => { if (editing) field.current?.select(); }, [editing]);
+  useEffect(() => { if (refocus?.list === list && refocus.text === task.text) { refocus = null; line.current?.focus(); } }, [list, task.text, task.line]);
   const finish = (keep: boolean) => {
     setEditing(false);
     const next = words.trim();
@@ -296,9 +300,10 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const shift = (by: 1 | -1) => {
     const tops = nest(tasks.all[list] ?? []).map((n) => n.task);
     const at = tops.findIndex((t) => t.line === task.line);
-    if (at < 0 || task.parent != null) return;
-    if (by === -1 && at > 0) void tasks.move(list, task, list, tops[at - 1]);
-    if (by === 1 && at < tops.length - 1) void tasks.move(list, task, list, tops[at + 2]);
+    if (at < 0 || task.parent != null || (by === -1 && at === 0) || (by === 1 && at === tops.length - 1)) return;
+    // The row is drawn again in its new place: the keyboard goes with it (see `refocus`), so the key can be pressed again.
+    refocus = { list, text: task.text };
+    void tasks.move(list, task, list, by === -1 ? tops[at - 1] : tops[at + 2]);
   };
   // The row's own keys, as in Reminders: arrows between tasks, Space ticks, Enter renames, ⌘I details, Delete deletes.
   const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -495,7 +500,7 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
         <div className="inspector-chips" role="group" aria-label="When">
           {quickDays(now).map((q) => <button key={q.label} type="button" className="chip" aria-pressed={task.when === q.day} onClick={() => void tasks.change(list, task, { when: q.day })}>{q.label}</button>)}
           <button type="button" className="chip" aria-pressed={task.when === SOMEDAY} onClick={() => void tasks.change(list, task, { when: SOMEDAY })}>Someday</button>
-          {task.when && <button type="button" className="chip" onClick={() => void tasks.change(list, task, { when: null })}>Anytime</button>}
+          <button type="button" className="chip" aria-pressed={!task.when} onClick={() => void tasks.change(list, task, { when: null })}>Anytime</button>
         </div>
         <div className="inspector-row">
           <span className="inspector-label">Deadline</span>

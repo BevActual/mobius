@@ -27,7 +27,8 @@ The Lists panel's views across every list, in Things' order, then Flagged:
 - **Today**: planned for today or before, and anything with a deadline today or past (overdue in red). A task typed here
   is planned for today.
 - **Upcoming** (was Scheduled): what is after today, day by day for the week, then by month, each task on the day it is
-  planned for, else on its deadline. A day's + adds a task planned for that day.
+  planned for, else on its deadline (a Someday task with a deadline shows there too, so the deadline is not missed,
+  as Things shows deadlines). A day's + adds a task planned for that day.
 - **Anytime** (was All): every open task not planned for later and not Someday, list by list.
 - **Someday**: what was put off, list by list. A task typed here goes to Someday.
 - **Flagged**: as before.

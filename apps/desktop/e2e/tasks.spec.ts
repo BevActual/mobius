@@ -363,6 +363,12 @@ test('When and Deadline: Today, Someday and the Logbook, set from Details, the m
   await sweep.focus();
   await shell().keyboard.press('Control+ArrowUp');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toMatch(/Sweep the yard\n- \[ \] Learn the banjo/);
+  // The keyboard stays on it, so it can move again.
+  await expect(todo().locator('.task-line').nth(1)).toHaveAttribute('aria-label', 'Sweep the yard');
+  await expect(sweep).toBeFocused();
+  await shell().keyboard.press('Control+ArrowDown');
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toMatch(/Learn the banjo \(when someday\)\n- \[ \] Sweep the yard/);
+  await expect(sweep).toBeFocused();
   await lists().getByRole('button', { name: /^Someday/ }).click();
   await expect(todo().getByRole('checkbox')).toHaveCount(1);
   await expect(todo().getByRole('checkbox', { name: 'Learn the banjo' })).toBeVisible();
