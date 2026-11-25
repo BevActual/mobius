@@ -126,7 +126,7 @@ pub fn event_of(e: &Value) -> Option<Event> {
     };
     let attendees = e.get("attendees").and_then(Value::as_array).map(|list| list.iter().filter_map(|a| person(a, answer(a))).collect()).unwrap_or_default();
     let organizer = e.get("organizer").and_then(|o| person(o, ""));
-    Some(Event { uid: id.to_owned(), title: text("/subject"), start, end, location: text("/location/displayName"), notes: text("/body/content"), repeat: None, attendees, organizer, extra: Vec::new() })
+    Some(Event { uid: id.to_owned(), title: text("/subject"), start, end, location: text("/location/displayName"), notes: text("/body/content"), repeat: None, attendees, organizer, extra: Vec::new(), zone: None })
 }
 
 /// A repetition as Graph writes it, from where the event starts. None for one Graph can't take.
@@ -382,7 +382,7 @@ pub(crate) mod tests {
     #[test]
     fn events_go_both_ways_in_local_time() {
         let at = |d: &str| When::parse(d).unwrap();
-        let e = Event { uid: "x".into(), title: "Retro".into(), start: at("2026-11-12T16:00"), end: at("2026-11-12T16:30"), location: String::new(), notes: "Bring notes".into(), repeat: Some(Repeat { freq: "WEEKLY".into(), interval: 2, count: Some(5), until: None, by_day: vec![3] }), attendees: Vec::new(), organizer: None, extra: Vec::new() };
+        let e = Event { uid: "x".into(), title: "Retro".into(), start: at("2026-11-12T16:00"), end: at("2026-11-12T16:30"), location: String::new(), notes: "Bring notes".into(), repeat: Some(Repeat { freq: "WEEKLY".into(), interval: 2, count: Some(5), until: None, by_day: vec![3] }), attendees: Vec::new(), organizer: None, extra: Vec::new(), zone: None };
         let body = body_of(&e, true);
         assert_eq!(body["start"]["timeZone"], "UTC");
         assert_eq!(body["recurrence"]["pattern"], json!({ "type": "weekly", "interval": 2, "daysOfWeek": ["thursday"], "firstDayOfWeek": "monday" }));
@@ -393,7 +393,7 @@ pub(crate) mod tests {
         let read = event_of(&back).unwrap();
         assert_eq!((read.start, read.end, read.title.as_str(), read.notes.as_str()), (e.start, e.end, "Retro", "Bring notes"), "UTC there, local here");
 
-        let day = Event { uid: "d".into(), title: "Offsite".into(), start: When::Day(NaiveDate::from_ymd_opt(2026, 11, 12).unwrap()), end: When::Day(NaiveDate::from_ymd_opt(2026, 11, 14).unwrap()), location: String::new(), notes: String::new(), repeat: Some(Repeat { freq: "YEARLY".into(), interval: 1, count: None, until: None, by_day: Vec::new() }), attendees: Vec::new(), organizer: None, extra: Vec::new() };
+        let day = Event { uid: "d".into(), title: "Offsite".into(), start: When::Day(NaiveDate::from_ymd_opt(2026, 11, 12).unwrap()), end: When::Day(NaiveDate::from_ymd_opt(2026, 11, 14).unwrap()), location: String::new(), notes: String::new(), repeat: Some(Repeat { freq: "YEARLY".into(), interval: 1, count: None, until: None, by_day: Vec::new() }), attendees: Vec::new(), organizer: None, extra: Vec::new(), zone: None };
         let body = body_of(&day, true);
         assert_eq!((body["isAllDay"].clone(), body["start"]["dateTime"].clone()), (json!(true), json!("2026-11-12T00:00:00")));
         assert_eq!(body["recurrence"]["pattern"], json!({ "type": "absoluteYearly", "interval": 1, "dayOfMonth": 12, "month": 11 }));

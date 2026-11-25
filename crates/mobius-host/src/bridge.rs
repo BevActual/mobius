@@ -4138,6 +4138,13 @@ impl Bridge {
                 _ => Err("two days are needed".to_owned()),
             },
             "create" => text(0).ok_or_else(|| "a name is needed".to_owned()).and_then(|n| cal.create(n)),
+            // One of the person's own calendars renamed, deleted (kept aside), or put back.
+            "rename" => match (text(0), text(1)) {
+                (Some(from), Some(to)) => cal.rename(from, to),
+                _ => Err("a calendar and its new name are needed".to_owned()),
+            },
+            "removeCalendar" => text(0).ok_or_else(|| "a calendar is needed".to_owned()).and_then(|n| cal.remove_calendar(n)),
+            "restoreCalendar" => text(0).ok_or_else(|| "a deleted calendar is needed".to_owned()).and_then(|id| cal.restore_calendar(id)),
             "add" => text(0).ok_or_else(|| "a calendar is needed".to_owned()).and_then(|c| cal.add(c, &draft())),
             "update" => match (text(0), args.get(1).and_then(|d| d.get("id")).and_then(Value::as_str)) {
                 (Some(c), Some(id)) => cal.update(c, id, &draft()),

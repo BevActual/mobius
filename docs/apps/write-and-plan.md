@@ -113,12 +113,20 @@ Your calendars by day, week or month.
   Microsoft, their sign-in says it isn't set up yet, and their calendars can still be subscribed to through the private
   iCal address each one gives (see [calendar sign-in](../reference/calendar-sign-in.md)).
 - **The Calendars panel** lists your calendars as plain rows, each with its colour as a dot. Press one to hide its events, and
-  again to show them; **Tasks with due dates** works the same way. Under **From Mobius**, **Suggested events** says how
+  again to show them. A calendar of your own has **⋯** (or right-click it) to **Rename** it or **Delete calendar**,
+  which the Undo pill brings back; **Tasks with due dates** works the same way. Under **From Mobius**, **Suggested events** says how
   many events Mobius suggested or added are waiting for you, and goes to the first.
 - **Tasks due at a time** sit at their hour in Day and Week as a thin line you can tick, beside any event at that hour
   rather than over it; a task due only on a day waits
   in the all-day row. A repeating task shows a small repeat mark, and ticking it moves it on to its next day, as in
   Tasks.
+- **An event** opens beside itself when clicked; a click elsewhere or Enter keeps a change, and Escape takes it back.
+  **More options** moves it to the Event panel on the right, which keeps each change as you make it (Saved shows
+  once it is kept, and Done closes it). A repeating event keeps a Save button there, as each change asks which times
+  it is for.
+- **Alert** in an event's details: none, at the time, or minutes, an hour or a day before (an all-day event: 9:00 on
+  the day or the day before). It is kept in the calendar file as a standard alarm, so other calendar apps ring it too.
+  When it comes, a pill at the foot of the window says so, with **Open**.
 - **Invite** in an event's details lists who is invited, with names from your address book as you type, as in Mail's
   To. Under it, each person's answer (going, maybe, not going) as their calendar sent it. Who is invited is kept in the
   calendar file and on CalDAV servers; Outlook calendars show it but do not take changes to it yet.

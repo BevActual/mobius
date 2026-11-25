@@ -1,3 +1,4 @@
+import { DAY_ALERTS, TIMED_ALERTS, alertLabel } from './calendar-alerts';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarPerson, CalendarSuggestion, RepeatScope } from '@mobius/shared';
@@ -59,15 +60,25 @@ const ALL_DAY_ROWS = 3;
 const MODES: { id: CalendarMode; name: string; keys: string }[] = [{ id: 'day', name: 'Day', keys: 'D' }, { id: 'week', name: 'Week', keys: 'W' }, { id: 'month', name: 'Month', keys: 'M' }, { id: 'year', name: 'Year', keys: 'Y' }];
 
 /** A calendar in the sidebar: a checkbox in its colour, its name; pressed, it is hidden from the grid and pressed again, shown. */
-function CalendarRow({ calendar, name, proposed = false }: { calendar: CalendarState; name: string; proposed?: boolean }) {
+function CalendarRow({ calendar, name, proposed = false, onMenu }: { calendar: CalendarState; name: string; proposed?: boolean; /** A calendar of the person's own: its menu (Rename, Delete), at a place. */ onMenu?: (x: number, y: number) => void }) {
   const shown = !calendar.hidden.has(name);
   return (
-    <li>
-      <button type="button" className="list-row calendar-row" aria-pressed={shown} data-proposed={proposed || undefined} title={shown ? 'Shown in the calendar. Press to hide it.' : 'Hidden. Press to show it.'} onClick={() => calendar.toggle(name)}>
+    <li className="calendar-row-item">
+      <button type="button" className="list-row calendar-row" aria-pressed={shown} data-proposed={proposed || undefined} title={shown ? 'Shown in the calendar. Press to hide it.' : 'Hidden. Press to show it.'} onClick={() => calendar.toggle(name)}
+        {...(onMenu ? {
+          onContextMenu: (e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); },
+          onKeyDown: (e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); onMenu(r.left + 24, r.bottom); } },
+        } : {})}>
         <span className="cal-dot" aria-hidden="true" style={{ ['--swatch' as string]: calendarColor(calendar.calendars, name) }}><svg viewBox="0 0 12 12"><path d="m2.8 6.2 2.1 2.1 4.3-4.6" /></svg></span>
         <span className="ui-side-name">{name}</span>
         {calendar.readOnly(name) && <svg className="cal-lock" viewBox="0 0 20 20" role="img" aria-label="Read only"><rect x="5" y="9" width="10" height="8" rx="1.5" /><path d="M7.5 9V7a2.5 2.5 0 0 1 5 0v2" /></svg>}
       </button>
+      {onMenu && (
+        <button type="button" className="strip-btn cal-row-more" aria-label={`Calendar options for ${name}`} title="Calendar options" aria-haspopup="menu"
+          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onMenu(r.left, r.bottom); }}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01" /></svg>
+        </button>
+      )}
     </li>
   );
 }
@@ -86,7 +97,29 @@ export function CalendarSidebar({ calendar, pin, changed, review = null }: { cal
     if (await calendar.createCalendar(name.trim() || 'Calendar')) { setNaming(false); setName(''); }
   };
   const local = calendar.sources.length > 0 ? calendar.sources.filter((s) => s.account === null).map((s) => s.name) : calendar.calendars;
-  const row = (c: string) => <CalendarRow key={c} calendar={calendar} name={c} proposed={changed?.has(c) ?? false} />;
+  // A calendar of the person's own has a menu: Rename in place, and Delete, which asks nothing as Undo brings it back.
+  const [menu, setMenu] = useState<{ x: number; y: number; name: string } | null>(null);
+  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  const [gone, setGone] = useState<{ id: string; text: string } | null>(null);
+  useEffect(() => { if (!gone) return undefined; const t = window.setTimeout(() => setGone(null), 10_000); return () => window.clearTimeout(t); }, [gone]);
+  const rename = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!renaming) return;
+    const to = renaming.to.trim();
+    if (!to || to === renaming.from || (await calendar.renameCalendar(renaming.from, to))) setRenaming(null);
+  };
+  const remove = async (c: string) => {
+    const done = await calendar.deleteCalendar(c);
+    if (done) setGone({ id: done.id, text: done.events > 0 ? `Deleted “${c}” and ${done.events === 1 ? '1 event' : `${done.events} events`}` : `Deleted “${c}”` });
+  };
+  const row = (c: string) => renaming?.from === c ? (
+    <li key={c} className="notes-rename">
+      <form className="notes-name" onSubmit={(e) => void rename(e)}>
+        <input autoFocus aria-label={`New name for ${c}`} value={renaming.to} maxLength={80} onFocus={(e) => e.currentTarget.select()} onChange={(e) => setRenaming({ from: c, to: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
+        <button type="submit" className="btn">Rename</button>
+      </form>
+    </li>
+  ) : <CalendarRow key={c} calendar={calendar} name={c} proposed={changed?.has(c) ?? false} {...(calendar.ownCalendar(c) ? { onMenu: (x: number, y: number) => setMenu({ x, y, name: c }) } : {})} />;
   // What waits for the person: events Mobius suggested without asking, and those its last turn added or changed.
   const { changed: added } = useCalendarReview(review, calendar.events);
   const waiting = [...calendar.suggestions, ...added].sort((a, b) => a.start.localeCompare(b.start));
@@ -130,6 +163,11 @@ export function CalendarSidebar({ calendar, pin, changed, review = null }: { cal
           </SidebarSection>
         </div>
       )}
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={[
+        { action: 'rename', label: 'Rename', run: () => setRenaming({ from: menu.name, to: menu.name }) },
+        { action: 'delete', label: 'Delete calendar', danger: true, run: () => void remove(menu.name) },
+      ]} />, document.body)}
+      {gone && <UndoToast text={gone.text} onUndo={() => { const id = gone.id; setGone(null); void calendar.restoreCalendar(id); }} onDismiss={() => setGone(null)} />}
     </AppSidebar>
   );
 }
@@ -791,12 +829,18 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   const invitePeople = useAddressSuggestions(invite);
   const initialRepeat = original?.repeat ?? (original?.repeats ? 'custom' : '');
   const [repeat, setRepeat] = useState(initialRepeat);
+  // The alert, as minutes before the start (null: none). A new event starts with none, as Google Calendar's own default.
+  const initialAlert = original?.alert ?? null;
+  const [alert, setAlert] = useState<number | null>(initialAlert);
   const writable = calendar.calendars.filter((c) => !calendar.readOnly(c));
   const [into, setInto] = useState(original?.calendar ?? writable.find((c) => !calendar.hidden.has(c)) ?? 'Calendar');
   const locked = original?.readOnly === true;
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLInputElement>(null);
-  const save = async (event?: FormEvent) => {
+  // What the event is now, as far as this editor knows: what it opened with, then what it last kept. The docked panel
+  // keeps changes as they are made, so what is sent next is measured from here, not from the event it opened.
+  const base = useRef({ title: original?.title ?? '', where: original?.location ?? '', notes: original?.notes ?? '', allDay: initialAllDay, repeat: initialRepeat, alert: initialAlert, invite: inviteText(original?.attendees), start: startText, end: endText, attendees: original?.attendees });
+  const save = async (event?: FormEvent, stay = false) => {
     event?.preventDefault();
     const draft: CalendarDraft = {
       title: title.trim(),
@@ -805,13 +849,15 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
       location: where.trim(),
       notes: notes.trim(),
     };
-    if (repeat !== initialRepeat) draft.repeat = repeat;
-    const invited = parseInvitees(invite, original?.attendees);
-    if (!sameInvitees(invited, original?.attendees)) draft.attendees = invited;
+    if (repeat !== base.current.repeat) draft.repeat = repeat;
+    if (alert !== base.current.alert) draft.alert = alert;
+    const invited = parseInvitees(invite, base.current.attendees);
+    if (!sameInvitees(invited, base.current.attendees)) draft.attendees = invited;
     let done: unknown;
     if (original) {
       // Only what changed is sent; moving one time of a repeating event moves every time by as much.
-      const shown: CalendarDraft = { title: original.title, start: original.start, end: endText, location: original.location, notes: original.notes };
+      const b = base.current;
+      const shown: CalendarDraft = { title: b.title, start: b.start, end: b.end, location: b.where, notes: b.notes };
       let change = Object.fromEntries(Object.entries(draft).filter(([k, v]) => shown[k as keyof CalendarDraft] !== v)) as CalendarDraft;
       if (change.start !== undefined || change.end !== undefined) {
         change.start = draft.start;
@@ -830,8 +876,14 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
       done = await calendar.add(into, draft);
     }
     setBusy(false);
-    if (done) onClose();
+    if (!done) return;
+    if (!stay) { onClose(); return; }
+    base.current = { title, where, notes, allDay, repeat, alert, invite, start: allDay ? startDay : `${startDay}T${startTime}`, end: allDay ? endDay : `${endDay}T${endTime}`, attendees: invited as typeof base.current.attendees };
+    setKept(true);
   };
+  // The docked Event panel keeps an event's changes as they are made, a moment after the typing stops, as Google
+  // Calendar's event page and Fantastical do. A repeating event keeps Save, as each change asks which times it is for.
+  const [kept, setKept] = useState(false);
   const removeIt = async () => {
     if (!original) return;
     const scope = original.repeats && askScope ? await askScope('delete', true, original.start) : 'all';
@@ -877,8 +929,20 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   const live = useRef({ save, busy, changed: () => false as boolean });
   live.current = {
     save, busy,
-    changed: () => !locked && title.trim() !== '' && (title !== (original?.title ?? '') || where !== (original?.location ?? '') || notes !== (original?.notes ?? '') || allDay !== initialAllDay || repeat !== initialRepeat || invite !== inviteText(original?.attendees) || startDay !== startText.slice(0, 10) || endDay !== endText.slice(0, 10) || (!allDay && (startTime !== startText.slice(11, 16) || endTime !== endText.slice(11, 16))) || !original),
+    changed: () => {
+      const b = base.current;
+      return !locked && title.trim() !== '' && (title !== b.title || where !== b.where || notes !== b.notes || allDay !== b.allDay || repeat !== b.repeat || alert !== b.alert || invite !== b.invite || startDay !== b.start.slice(0, 10) || endDay !== b.end.slice(0, 10) || (!allDay && (startTime !== b.start.slice(11, 16) || endTime !== b.end.slice(11, 16))) || !original);
+    },
   };
+  const autosave = docked && original !== null && !original.repeats && !locked;
+  useEffect(() => {
+    if (!autosave) return undefined;
+    if (live.current.changed()) setKept(false);
+    const t = window.setTimeout(() => { const l = live.current; if (!l.busy && l.changed()) void l.save(undefined, true); }, 600);
+    return () => window.clearTimeout(t);
+  }, [autosave, title, where, notes, allDay, repeat, alert, invite, startDay, startTime, endDay, endTime]);
+  /** Closing the docked panel keeps what was typed since the last keep. */
+  const closeKeeping = () => { const l = live.current; if (autosave && !l.busy && l.changed()) void l.save(); else onClose(); };
   useEffect(() => {
     if (!at) return undefined;
     const away = (e: PointerEvent) => {
@@ -905,7 +969,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
         style={at ? { left: place?.left ?? 0, top: place?.top ?? 0, visibility: place ? undefined : 'hidden', ['--arrow' as string]: `${place?.arrow ?? 0}px` } : undefined}
         role={docked ? 'form' : 'dialog'} aria-modal={docked ? undefined : true} data-docked={docked || undefined} aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') { e.stopPropagation(); onClose(); return; }
+          if (e.key === 'Escape') { e.stopPropagation(); if (autosave) closeKeeping(); else onClose(); return; }
           // The popover has no Save: Enter in a line of text keeps the change, as a click elsewhere does. A day or time
           // field takes its own Enter, to read what was typed.
           if (at && e.key === 'Enter' && !e.defaultPrevented && (e.target as HTMLElement).matches('input:not([type="checkbox"])')) {
@@ -928,7 +992,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           </ul>
         )}
         <div className="cal-editor-group">
-          <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={setAllDay} />
+          <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={(on) => { setAllDay(on); if (alert !== null && on !== allDay) setAlert(null); }} />
           <div className="cal-editor-row">
             <span>Starts</span>
             <DateField label="Start day" hideLabel short quick={DAY_PICKS} value={localDate(startDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); const was = localDate(startDay).getTime(); setStartDay(v); setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(v).getTime() - was))); }} />
@@ -946,6 +1010,11 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           <div className="cal-editor-row"><span>Repeat</span>
             <Select label="Repeat" hideLabel value={repeat} onChange={setRepeat}
               choices={[...REPEAT_OPTIONS.map((r) => ({ value: r.id as string, label: r.name })), ...(initialRepeat === 'custom' ? [{ value: 'custom', label: 'Custom (set in another app)', disabled: true }] : [])]} />
+          </div>
+          <div className="cal-editor-row"><span>Alert</span>
+            <Select label="Alert" hideLabel value={alert === null ? '' : String(alert)} onChange={(v) => setAlert(v === '' ? null : Number(v))}
+              choices={[...(allDay ? DAY_ALERTS : TIMED_ALERTS).map((a) => ({ value: a.value === null ? '' : String(a.value), label: a.label })),
+                ...(alert !== null && !(allDay ? DAY_ALERTS : TIMED_ALERTS).some((a) => a.value === alert) ? [{ value: String(alert), label: alertLabel(alert, allDay) }] : [])]} />
           </div>
           {!original && writable.length > 1 && (
             <div className="cal-editor-row"><span>Calendar</span>
@@ -973,13 +1042,17 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
         </div>
         ) : (
         docked ? (
-        // The Event panel: one row, Record meeting on the left, Delete in red words and Save on the right. Escape or
+        // The Event panel: one row, Record meeting on the left, Delete in red words and Save on the right; an event that
+        // keeps its changes as they are made has Done in place of Save, and a quiet Saved once they are kept. Escape or
         // the panel's × closes it.
         <div className="cal-editor-actions" data-docked>
           {meeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting?.(original!); }}>Record meeting</button>}
           <span className="spacer" />
+          {autosave && <span className="cal-editor-kept" role="status">{busy ? 'Saving…' : kept ? 'Saved' : ''}</span>}
           {original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void removeIt()}>Delete</button>}
-          {!locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
+          {autosave
+            ? <button type="button" className="btn" onClick={closeKeeping}>Done</button>
+            : !locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
         </div>
         ) : (
         <div className="cal-editor-actions">

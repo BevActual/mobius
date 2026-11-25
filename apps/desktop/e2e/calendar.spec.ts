@@ -382,15 +382,23 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   await expect(review('Budget review Q4')).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('SUMMARY:Budget review Q4');
 
-  // More options moves the edit to the Event panel on the right, keeping what was typed; there it has Save.
+  // More options moves the edit to the Event panel on the right, keeping what was typed. There it keeps each change as
+  // it is made, with no Save: it says Saved, and Done closes it.
   await review('Budget review Q4').click();
   await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('textbox', { name: 'Notes' }).fill('Bring last year’s numbers.');
   await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'More options' }).click();
   const docked = shell().getByRole('complementary', { name: 'Inspector' }).getByRole('form', { name: 'Edit event' });
   await expect(docked.getByRole('textbox', { name: 'Notes' })).toHaveValue('Bring last year’s numbers.');
-  await docked.getByRole('button', { name: 'Save' }).click();
-  await expect(docked).toHaveCount(0);
+  await expect(docked.getByRole('button', { name: 'Save' })).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('Bring last year');
+  await expect(docked.getByRole('status')).toHaveText('Saved');
+  await docked.getByRole('textbox', { name: 'Place' }).fill('Room 4');
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('LOCATION:Room 4');
+  // A change typed just before Done is kept too.
+  await docked.getByRole('textbox', { name: 'Place' }).fill('Room 5');
+  await docked.getByRole('button', { name: 'Done' }).click();
+  await expect(docked).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('LOCATION:Room 5');
 
   // Opened, it stays picked out once closed: Ctrl+D copies it and Delete takes the copy away again, each with Undo.
   await review('Budget review Q4').click();
@@ -408,7 +416,7 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   // Its menu moves it to another calendar.
   await review('Budget review Q4').click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Budget review Q4' }).getByRole('menuitem', { name: 'Move to Home' }).click();
-  await expect(page().getByRole('button', { name: new RegExp(`^Budget review Q4, ${span('11:00', '12:00')}, Home`) })).toBeVisible();
+  await expect(page().getByRole('button', { name: new RegExp(`^Budget review Q4, ${span('11:00', '12:00')}, Room 5, Home`) })).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('SUMMARY:Budget review Q4');
   expect(fs.readFileSync(file('Work'), 'utf8')).not.toContain('Budget review Q4');
 
@@ -480,4 +488,59 @@ test('the small month in the Calendars panel goes to the day picked, and marks t
   await day.click();
   await expect(day).toHaveAttribute('aria-pressed', 'true');
   await expect(day).toHaveAttribute('data-shown', 'true');
+});
+
+test('an event’s alert is kept as a VALARM, changed in its details, and when it comes the pill says so with Open', async () => {
+  // A review ten minutes from now, with a ten-minute alert written by another app: it comes as Mobius opens.
+  const soon = new Date(Date.now() + 10 * 60_000 - 20_000);
+  const end = new Date(soon.getTime() + 3600_000);
+  const stamp = (d: Date) => `${ics(day(d))}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:alert\r\nDTSTART:${stamp(soon)}\r\nDTEND:${stamp(end)}\r\nSUMMARY:Budget review\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT10M\r\nEND:VALARM\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start();
+  const pill = shell().getByRole('status').filter({ hasText: /^Budget review in (9|10) minutes/ });
+  await expect(pill).toBeVisible();
+  await pill.getByRole('button', { name: 'Open' }).click();
+  await expect(pill).toHaveCount(0);
+  // Its details show the alert, and a new one is kept in the file in its place.
+  await tools().getByRole('radio', { name: 'Day' }).click();
+  await page().getByRole('button', { name: /^Budget review/ }).click();
+  const pop = shell().getByRole('dialog', { name: 'Edit event' });
+  await expect(pop.getByRole('combobox', { name: 'Alert', exact: true })).toHaveText(/10 minutes before/);
+  await choose(pop, 'Alert', '1 hour before');
+  await pop.getByRole('textbox', { name: 'Title' }).press('Enter');
+  await expect(pop).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('TRIGGER:-PT60M');
+  expect(fs.readFileSync(file('Work'), 'utf8')).not.toContain('TRIGGER:-PT10M');
+  // None takes it off.
+  await page().getByRole('button', { name: /^Budget review/ }).click();
+  await choose(pop, 'Alert', 'None');
+  await pop.getByRole('textbox', { name: 'Title' }).press('Enter');
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).not.toContain('VALARM');
+});
+
+test('a calendar of one’s own is renamed in place from its menu, and deleted with Undo; the default one has no menu', async () => {
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nX-WR-CALNAME:Work\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T110000\r\nDTEND:${ics(today())}T120000\r\nSUMMARY:Budget review\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start();
+  const side = () => shell().getByRole('complementary', { name: 'Calendars' });
+  await expect(side().getByRole('button', { name: 'Calendar options for Calendar' })).toHaveCount(0);
+  // Rename, from the row's right-click menu: typed in place; the file and the name inside it follow.
+  await side().getByRole('button', { name: 'Work', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Work' }).getByRole('menuitem', { name: 'Rename' }).click();
+  await side().getByRole('textbox', { name: 'New name for Work' }).fill('Office');
+  await side().getByRole('textbox', { name: 'New name for Work' }).press('Enter');
+  await expect(side().getByRole('button', { name: 'Office', exact: true })).toBeVisible();
+  await expect.poll(() => fs.existsSync(file('Office'))).toBe(true);
+  expect(fs.existsSync(file('Work'))).toBe(false);
+  expect(fs.readFileSync(file('Office'), 'utf8')).toContain('X-WR-CALNAME:Office');
+  await expect(page().getByRole('button', { name: /^Budget review/ }).first()).toBeAttached();
+  // Delete, from its ⋯: no question, and Undo puts it back with its events.
+  await side().getByRole('button', { name: 'Calendar options for Office' }).click();
+  await shell().getByRole('menu', { name: 'Office' }).getByRole('menuitem', { name: 'Delete calendar' }).click();
+  await expect(side().getByRole('button', { name: 'Office', exact: true })).toHaveCount(0);
+  expect(fs.existsSync(file('Office'))).toBe(false);
+  await shell().getByRole('status').filter({ hasText: 'Deleted “Office” and 1 event' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(side().getByRole('button', { name: 'Office', exact: true })).toBeVisible();
+  await expect.poll(() => fs.existsSync(file('Office')) && fs.readFileSync(file('Office'), 'utf8').includes('SUMMARY:Budget review')).toBe(true);
 });
