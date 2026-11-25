@@ -3,41 +3,418 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mobius Workspace</title>
-  <meta name="description" content="Mobius Workspace is an AI workspace for Windows: your everyday apps in one app, with an agent that works across all of them.">
+  <title>Mobius Workspace · Every app. One agent.</title>
+  <meta name="description" content="Mobius Workspace is a free, open-source AI workspace: 23 everyday apps in one app, with an agent that works across all of them. Your files stay on your computer, and you bring your own AI.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f3f3f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e0e10" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://mobiusworkspace.com/">
   <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="/assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/assets/style.css">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Mobius Workspace">
+  <meta property="og:title" content="Mobius Workspace · Every app. One agent.">
+  <meta property="og:description" content="A free, open-source AI workspace: your everyday apps in one app, with an agent that works across all of them.">
+  <meta property="og:url" content="https://mobiusworkspace.com/">
+  <meta property="og:image" content="https://mobiusworkspace.com/assets/social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta name="twitter:card" content="summary_large_image">
+  <script>document.documentElement.classList.add('js')</script>
+  <script src="/assets/site.js" defer></script>
 </head>
 <body>
-<main>
-  <header><img src="/assets/mark.svg" alt=""><a href="/">Mobius Workspace</a></header>
 
-  <h1>Every app. One agent.</h1>
-  <p class="lead">Mobius Workspace is an AI workspace for your computer: Notes, Tasks, Calendar, Mail, Docs, Files, a browser and
-  more in one app, with an agent that works across all of them.</p>
+<!-- App icons: the same line drawings the app uses (apps/desktop/src/Rail.tsx). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 20 20"><path d="M15.34 10.06 L15.64 10.36 L15.91 10.66 L16.13 10.97 L16.32 11.29 L16.48 11.60 L16.59 11.90 L16.67 12.20 L16.71 12.49 L16.73 12.76 L16.71 13.02 L16.66 13.26 L16.59 13.49 L16.49 13.70 L16.36 13.90 L16.21 14.08 L16.03 14.25 L15.82 14.40 L15.59 14.53 L15.32 14.64 L15.04 14.73 L14.72 14.79 L14.38 14.82 L14.02 14.83 L13.64 14.80 L13.25 14.73 L12.85 14.63 L12.44 14.49 L12.02 14.33 L11.61 14.11 L11.19 13.87 L10.78 13.59 L10.39 13.29 L10.00 12.94 L9.63 12.58 L9.28 12.18 L8.95 11.76 L8.64 11.32 L8.37 10.86 L8.12 10.38 L7.89 10.08 L7.56 9.89 L7.19 9.84 L6.82 9.94 L6.52 10.17 L6.33 10.49 L6.28 10.87 L6.38 11.24 L6.68 11.81 L7.02 12.37 L7.39 12.91 L7.79 13.42 L8.22 13.90 L8.67 14.36 L9.14 14.78 L9.64 15.16 L10.15 15.51 L10.67 15.82 L11.21 16.08 L11.76 16.31 L12.31 16.49 L12.86 16.63 L13.40 16.72 L13.94 16.76 L14.47 16.76 L14.99 16.71 L15.50 16.61 L15.98 16.47 L16.44 16.27 L16.87 16.03 L17.26 15.75 L17.61 15.42 L17.92 15.05 L18.18 14.64 L18.39 14.21 L18.54 13.75 L18.62 13.27 L18.66 12.79 L18.64 12.29 L18.56 11.80 L18.43 11.31 L18.25 10.83 L18.02 10.36 L17.74 9.90 L17.42 9.46 L17.06 9.04 L16.65 8.64 L16.33 8.44 L15.96 8.38 L15.59 8.47 L15.28 8.69 L15.09 9.02 L15.03 9.39 L15.12 9.76 Z"/><path d="M7.38 5.36 L7.49 4.96 L7.62 4.57 L7.77 4.22 L7.94 3.89 L8.14 3.61 L8.34 3.35 L8.56 3.13 L8.79 2.95 L9.02 2.80 L9.26 2.69 L9.49 2.60 L9.72 2.55 L9.96 2.53 L10.19 2.54 L10.43 2.58 L10.66 2.65 L10.90 2.76 L11.13 2.89 L11.36 3.06 L11.58 3.27 L11.79 3.51 L11.99 3.79 L12.17 4.10 L12.33 4.44 L12.48 4.82 L12.59 5.22 L12.68 5.64 L12.73 6.09 L12.76 6.56 L12.76 7.04 L12.72 7.53 L12.65 8.03 L12.55 8.53 L12.41 9.04 L12.24 9.54 L12.04 10.04 L11.81 10.53 L11.56 10.99 L11.27 11.45 L11.12 11.80 L11.12 12.18 L11.26 12.52 L11.53 12.79 L11.88 12.94 L12.26 12.94 L12.61 12.80 L12.88 12.53 L13.22 11.98 L13.54 11.41 L13.82 10.82 L14.06 10.21 L14.27 9.60 L14.44 8.98 L14.56 8.36 L14.65 7.74 L14.69 7.12 L14.70 6.51 L14.66 5.91 L14.59 5.32 L14.47 4.76 L14.31 4.21 L14.12 3.69 L13.89 3.20 L13.62 2.74 L13.31 2.31 L12.98 1.93 L12.61 1.58 L12.21 1.28 L11.79 1.03 L11.34 0.84 L10.88 0.69 L10.40 0.61 L9.92 0.59 L9.44 0.64 L8.97 0.74 L8.51 0.89 L8.07 1.11 L7.66 1.38 L7.26 1.69 L6.91 2.06 L6.58 2.46 L6.29 2.89 L6.03 3.36 L5.81 3.87 L5.63 4.39 L5.49 4.95 L5.48 5.32 L5.62 5.68 L5.88 5.95 L6.23 6.10 L6.61 6.11 L6.96 5.98 L7.23 5.71 Z"/><path d="M7.29 14.59 L6.88 14.71 L6.48 14.78 L6.10 14.82 L5.73 14.83 L5.39 14.81 L5.06 14.76 L4.76 14.68 L4.49 14.57 L4.25 14.44 L4.03 14.30 L3.84 14.14 L3.69 13.96 L3.55 13.76 L3.44 13.56 L3.36 13.33 L3.31 13.09 L3.28 12.84 L3.28 12.57 L3.31 12.29 L3.39 11.99 L3.49 11.69 L3.63 11.38 L3.81 11.06 L4.03 10.75 L4.28 10.44 L4.58 10.14 L4.90 9.86 L5.26 9.58 L5.65 9.32 L6.07 9.09 L6.51 8.88 L6.98 8.68 L7.47 8.52 L7.97 8.39 L8.49 8.28 L9.03 8.21 L9.56 8.17 L10.10 8.16 L10.64 8.18 L11.01 8.13 L11.34 7.94 L11.57 7.64 L11.67 7.28 L11.62 6.91 L11.44 6.57 L11.14 6.34 L10.77 6.24 L10.12 6.22 L9.47 6.23 L8.81 6.28 L8.17 6.38 L7.54 6.50 L6.91 6.66 L6.31 6.86 L5.73 7.10 L5.17 7.37 L4.64 7.67 L4.14 8.00 L3.67 8.36 L3.24 8.74 L2.84 9.15 L2.49 9.57 L2.17 10.02 L1.91 10.49 L1.69 10.96 L1.52 11.45 L1.41 11.94 L1.35 12.43 L1.34 12.93 L1.39 13.41 L1.50 13.88 L1.67 14.34 L1.89 14.76 L2.16 15.16 L2.49 15.52 L2.85 15.84 L3.26 16.11 L3.69 16.34 L4.16 16.52 L4.65 16.65 L5.16 16.73 L5.69 16.77 L6.23 16.76 L6.77 16.69 L7.32 16.59 L7.87 16.44 L8.20 16.26 L8.44 15.96 L8.54 15.60 L8.50 15.22 L8.32 14.89 L8.03 14.66 L7.66 14.55 Z"/></symbol>
+    <symbol id="i-agents" viewBox="0 0 20 20"><rect x="4.5" y="7" width="11" height="8.5" rx="2.5"/><path d="M10 7V4.5M8 11h.01M12 11h.01"/></symbol>
+    <symbol id="i-store" viewBox="0 0 20 20"><path d="M4.5 7h11l-.8 9.5h-9.4z"/><path d="M7.5 7V6a2.5 2.5 0 0 1 5 0v1"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.5"/><path d="M10 2.8v1.9M10 15.3v1.9M2.8 10h1.9M15.3 10h1.9M4.9 4.9l1.35 1.35M13.75 13.75l1.35 1.35M4.9 15.1l1.35-1.35M13.75 6.25l1.35-1.35"/><circle cx="10" cy="10" r="5.2"/></symbol>
+    <symbol id="i-notes" viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="1.5"/><path d="M7.5 2.5v3M10 2.5v3M12.5 2.5v3M7.5 9.5h5M7.5 12.5h3.5"/></symbol>
+    <symbol id="i-docs" viewBox="0 0 20 20"><path d="M5.5 3h6l3 3v11h-9z"/><path d="M11.5 3v3h3M7.5 9.5h5M7.5 12h5M7.5 14.5h3"/></symbol>
+    <symbol id="i-tasks" viewBox="0 0 20 20"><rect x="3.5" y="4" width="5" height="5" rx="1"/><path d="m4.8 6.5 1 1 1.6-2M11 6.5h5.5M11 13.5h5.5"/><rect x="3.5" y="11" width="5" height="5" rx="1"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 20 20"><rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3M7 11.5h2M11 11.5h2M7 14h2"/></symbol>
+    <symbol id="i-sheets" viewBox="0 0 20 20"><rect x="3.5" y="4" width="13" height="12" rx="2"/><path d="M3.5 8h13M3.5 12h13M8 4v12"/></symbol>
+    <symbol id="i-database" viewBox="0 0 20 20"><ellipse cx="10" cy="5.5" rx="6" ry="2.5"/><path d="M4 5.5v9c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-9M4 10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5"/></symbol>
+    <symbol id="i-projects" viewBox="0 0 20 20"><path d="M3.5 6.5h5l1.5 1.5h6.5v7.5h-13z"/><path d="M3.5 6.5v-2h5"/></symbol>
+    <symbol id="i-knowledge" viewBox="0 0 20 20"><circle cx="6" cy="6" r="2"/><circle cx="14.5" cy="8" r="2"/><circle cx="8" cy="14.5" r="2"/><path d="m8 6.5 4.6 1.1M13.1 9.5l-3.6 3.6M6.5 8l1 4.5"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10.5" rx="2"/><path d="m3.5 6 6.5 5 6.5-5"/></symbol>
+    <symbol id="i-messages" viewBox="0 0 20 20"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3h0A1.5 1.5 0 0 1 4 11.5z"/><path d="M7 7.5h6M7 10h4"/></symbol>
+    <symbol id="i-browser" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="m12.8 7.2-1.6 4-4 1.6 1.6-4z"/></symbol>
+    <symbol id="i-files" viewBox="0 0 20 20"><path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/></symbol>
+    <symbol id="i-slides" viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="9.5" rx="1.5"/><path d="M10 13.5V16M7 16.5h6M8.5 7l3 1.8-3 1.8z"/></symbol>
+    <symbol id="i-design" viewBox="0 0 20 20"><path d="M4 16l1-4 8.5-8.5a2.1 2.1 0 0 1 3 3L8 15z"/><path d="M12 5l3 3M4 16h5"/></symbol>
+    <symbol id="i-photo" viewBox="0 0 20 20"><rect x="3" y="4.5" width="14" height="11" rx="2"/><path d="m3.5 13.5 4-4 3 3 2-2 4 4"/><circle cx="13" cy="8" r="1.3"/></symbol>
+    <symbol id="i-music" viewBox="0 0 20 20"><path d="M8 15.5V5l8-1.5V14"/><circle cx="6" cy="15.5" r="2"/><circle cx="14" cy="14" r="2"/></symbol>
+    <symbol id="i-video" viewBox="0 0 20 20"><rect x="3" y="5" width="10.5" height="10" rx="2"/><path d="m13.5 8.5 3.5-2v7l-3.5-2"/></symbol>
+    <symbol id="i-code" viewBox="0 0 20 20"><path d="m7 6-4 4 4 4M13 6l4 4-4 4M11 4.5l-2 11"/></symbol>
+    <symbol id="i-canvas" viewBox="0 0 20 20"><rect x="3" y="3.5" width="6" height="6" rx="1"/><rect x="11" y="10.5" width="6" height="6" rx="1"/><path d="M9 6.5h3.5a1.5 1.5 0 0 1 1.5 1.5v2.5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9 10 12.5 13.5 9M4 15.5h12"/></symbol>
+    <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" stroke="none" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></symbol>
+  </defs>
+</svg>
 
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="/assets/hero-dark.png">
-    <img src="/assets/hero-light.png" alt="The Mobius window, with an app on the left and the Mobius panel on the right" style="width:100%;height:auto;border-radius:8px;border:1px solid var(--line)">
-  </picture>
+<a class="skip" href="#main">Skip to content</a>
 
-  <h2>Yours, on your computer</h2>
-  <p>Mobius is a desktop app. Your notes, documents, tasks, mail and settings are files on your own computer. It works
-  with services you already use, such as your mail account, your calendar server and your cloud drive, and it signs in
-  to them directly. There is no Mobius account and no Mobius server.</p>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/" aria-label="Mobius Workspace, home"><img src="/assets/mark.svg" alt="" width="24" height="24"><span>Mobius</span></a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#apps">Apps</a>
+      <a href="#ai">Your AI</a>
+      <a href="#open">Open source</a>
+    </nav>
+    <div class="nav-end">
+      <a class="icon-link" href="https://github.com/BevActual/mobius" aria-label="Mobius on GitHub"><svg class="ico gh"><use href="#i-github"/></svg></a>
+      <a class="btn btn-ink btn-sm" href="/download/">Download</a>
+    </div>
+  </div>
+</header>
 
-  <h2>Bring your own AI</h2>
-  <p>You choose the model service Mobius talks to, or run a model on your own computer. Changes Mobius makes show as
-  drafts until you keep them.</p>
+<main id="main">
 
-  <h2>Open source</h2>
-  <p>Mobius is free and open source under the MIT licence. The code, releases and documentation are on
-  <a href="https://github.com/BevActual/mobius">GitHub</a>.</p>
+  <section class="hero">
+    <div class="wrap hero-in">
+      <a class="eyebrow" href="/changelog/"><span class="dot" aria-hidden="true"></span>Early preview · what's new in 0.1.26 <span class="arr" aria-hidden="true">→</span></a>
+      <h1>Every app.<br><span class="mobius-word">One agent.</span></h1>
+      <p class="lead">Mobius Workspace puts Notes, Mail, Calendar, Docs, Sheets, a browser, a music studio and more into one
+        calm app, with an agent that sees what you have open and carries your work from one app to the next.</p>
+      <div class="cta">
+        <a class="btn btn-ink btn-lg" href="https://github.com/BevActual/mobius/releases/latest"><svg class="ico"><use href="#i-download"/></svg>Download for Windows</a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/BevActual/mobius"><svg class="ico gh"><use href="#i-github"/></svg>View on GitHub</a>
+      </div>
+      <p class="fine">Windows 10 and 11, 64-bit · macOS is on the way · <a href="/download/">Install guide</a></p>
+    </div>
 
-  <footer>
-    <a href="/privacy/">Privacy policy</a> · <a href="https://github.com/BevActual/mobius">GitHub</a> ·
-    <a href="mailto:hello@mobiusworkspace.com">hello@mobiusworkspace.com</a>
-  </footer>
+    <div class="wrap-wide">
+      <figure class="hero-fig">
+      <div class="window hero-shot">
+        <svg class="hero-mock" viewBox="0 0 1440 880" role="img" aria-labelledby="hero-mock-t"><title id="hero-mock-t">Mobius in Calendar. You asked for an hour to prep the bay before Friday; Mobius found Wednesday at 2 PM, added it with a dashed edge, and waits for you to keep it, discard it or try another.</title><rect x="0" y="0" width="1440" height="880" rx="0" class="m-frame"/><use href="#i-calendar" x="18" y="10" width="16" height="16" class="m-ico m-ink2"/><text x="48" y="23" class="m-t m-ink2" style="font-size:12.5px">File</text><text x="82" y="23" class="m-t m-ink2" style="font-size:12.5px">Edit</text><text x="116" y="23" class="m-t m-ink2" style="font-size:12.5px">View</text><text x="154" y="23" class="m-t m-ink2" style="font-size:12.5px">Go</text><text x="182" y="23" class="m-t m-ink2" style="font-size:12.5px">Calendar</text><text x="248" y="23" class="m-t m-ink2" style="font-size:12.5px">Window</text><text x="308" y="23" class="m-t m-ink2" style="font-size:12.5px">Help</text><text x="720.0" y="23" text-anchor="middle" class="m-t" style="font-size:12.5px"><tspan style="font-weight:560">Calendar</tspan><tspan class="m-ink3" dx="7">Nov 23 – 29</tspan></text><path d="M0 5h10" transform="translate(1336 13)" class="m-stroke"/><path d="M0 0h10v10h-10z" transform="translate(1370 13)" class="m-stroke"/><path d="M0 0l10 10M10 0l-10 10" transform="translate(1404 13)" class="m-stroke"/><rect x="530.0" y="40" width="380" height="32" rx="8" class="m-tool"/><text x="560.0" y="61" class="m-t" text-anchor="middle" style="font-size:12.5px;font-weight:520">Today</text><path d="M600.0 50l-5 6 5 6M622.0 50l5 6-5 6" class="m-stroke"/><line x1="642.0" y1="48" x2="642.0" y2="64" class="m-hair"/><rect x="652.0" y="44" width="204" height="24" rx="6" class="m-seg"/><text x="677.5" y="60" class="m-t m-ink2" text-anchor="middle" style="font-size:12px">Day</text><rect x="705.0" y="46" width="47" height="20" rx="5" class="m-seg-on"/><text x="728.5" y="60" class="m-t" text-anchor="middle" style="font-size:12px;font-weight:520">Week</text><text x="779.5" y="60" class="m-t m-ink2" text-anchor="middle" style="font-size:12px">Month</text><text x="830.5" y="60" class="m-t m-ink2" text-anchor="middle" style="font-size:12px">Year</text><line x1="868.0" y1="48" x2="868.0" y2="64" class="m-hair"/><path d="M889.0 50v12M883.0 56h12" class="m-stroke"/><path d="M1370 47h16a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9l-5 4v-4h-2a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3z" class="m-stroke"/><rect x="1398" y="42" width="28" height="28" rx="7" class="m-mob-btn"/><use href="#i-home" x="1404" y="48" width="16" height="16" class="m-mob-fill"/><rect x="8" y="80" width="232" height="792" rx="10" class="m-panel"/><rect x="248" y="80" width="856" height="792" rx="10" class="m-panel"/><rect x="1112" y="80" width="320" height="792" rx="10" class="m-panel"/><text x="24" y="106" class="m-t" style="font-size:13px;font-weight:600">Calendars</text><path d="M206 94v12M200 100h12" class="m-stroke"/><text x="24" y="138" class="m-t" style="font-size:12.5px;font-weight:560">November 2026</text><path d="M196 129l-4 5 4 5M214 129l4 5-4 5" class="m-stroke"/><text x="36" y="162" class="m-t m-ink3" text-anchor="middle" style="font-size:11px">M</text><text x="64" y="162" class="m-t m-ink3" text-anchor="middle" style="font-size:11px">T</text><text x="92" y="162" class="m-t m-ink3" text-anchor="middle" style="font-size:11px">W</text><text x="120" y="162" class="m-t m-ink3" text-anchor="middle" style="font-size:11px">T</text><text x="148" y="162" class="m-t m-ink3" text-anchor="middle" style="font-size:11px">F</text><text x="176" y="162" class="m-t m-ink3" text-anchor="middle" style="font-size:11px">S</text><text x="204" y="162" class="m-t m-ink3" text-anchor="middle" style="font-size:11px">S</text><text x="36" y="186" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">26</text><text x="64" y="186" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">27</text><text x="92" y="186" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">28</text><text x="120" y="186" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">29</text><text x="148" y="186" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">30</text><text x="176" y="186" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">31</text><text x="204" y="186" class="m-t" text-anchor="middle" style="font-size:11.5px">1</text><text x="36" y="210" class="m-t" text-anchor="middle" style="font-size:11.5px">2</text><text x="64" y="210" class="m-t" text-anchor="middle" style="font-size:11.5px">3</text><text x="92" y="210" class="m-t" text-anchor="middle" style="font-size:11.5px">4</text><text x="120" y="210" class="m-t" text-anchor="middle" style="font-size:11.5px">5</text><text x="148" y="210" class="m-t" text-anchor="middle" style="font-size:11.5px">6</text><text x="176" y="210" class="m-t" text-anchor="middle" style="font-size:11.5px">7</text><text x="204" y="210" class="m-t" text-anchor="middle" style="font-size:11.5px">8</text><text x="36" y="234" class="m-t" text-anchor="middle" style="font-size:11.5px">9</text><text x="64" y="234" class="m-t" text-anchor="middle" style="font-size:11.5px">10</text><text x="92" y="234" class="m-t" text-anchor="middle" style="font-size:11.5px">11</text><text x="120" y="234" class="m-t" text-anchor="middle" style="font-size:11.5px">12</text><text x="148" y="234" class="m-t" text-anchor="middle" style="font-size:11.5px">13</text><text x="176" y="234" class="m-t" text-anchor="middle" style="font-size:11.5px">14</text><text x="204" y="234" class="m-t" text-anchor="middle" style="font-size:11.5px">15</text><text x="36" y="258" class="m-t" text-anchor="middle" style="font-size:11.5px">16</text><text x="64" y="258" class="m-t" text-anchor="middle" style="font-size:11.5px">17</text><text x="92" y="258" class="m-t" text-anchor="middle" style="font-size:11.5px">18</text><text x="120" y="258" class="m-t" text-anchor="middle" style="font-size:11.5px">19</text><text x="148" y="258" class="m-t" text-anchor="middle" style="font-size:11.5px">20</text><text x="176" y="258" class="m-t" text-anchor="middle" style="font-size:11.5px">21</text><text x="204" y="258" class="m-t" text-anchor="middle" style="font-size:11.5px">22</text><rect x="20" y="267" width="200" height="22" rx="6" class="m-sel"/><text x="36" y="282" class="m-t" text-anchor="middle" style="font-size:11.5px">23</text><circle cx="64" cy="278" r="10" class="m-ink-fill"/><text x="64" y="282" class="m-t m-on-ink" text-anchor="middle" style="font-size:11.5px;font-weight:600">24</text><text x="92" y="282" class="m-t" text-anchor="middle" style="font-size:11.5px">25</text><text x="120" y="282" class="m-t" text-anchor="middle" style="font-size:11.5px">26</text><text x="148" y="282" class="m-t" text-anchor="middle" style="font-size:11.5px">27</text><text x="176" y="282" class="m-t" text-anchor="middle" style="font-size:11.5px">28</text><text x="204" y="282" class="m-t" text-anchor="middle" style="font-size:11.5px">29</text><text x="36" y="306" class="m-t" text-anchor="middle" style="font-size:11.5px">30</text><text x="64" y="306" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">1</text><text x="92" y="306" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">2</text><text x="120" y="306" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">3</text><text x="148" y="306" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">4</text><text x="176" y="306" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">5</text><text x="204" y="306" class="m-t m-ink3" text-anchor="middle" style="font-size:11.5px">6</text><text x="24" y="352" class="m-t m-ink3" style="font-size:11.5px;font-weight:560">This computer</text><rect x="26" y="371" width="10" height="10" rx="2.5" class="m-c-teal"/><text x="46" y="380" class="m-t" style="font-size:12.5px">Kestrel P2</text><rect x="26" y="399" width="10" height="10" rx="2.5" class="m-c-blue"/><text x="46" y="408" class="m-t" style="font-size:12.5px">Work</text><rect x="26" y="427" width="10" height="10" rx="2.5" class="m-c-amber"/><text x="46" y="436" class="m-t" style="font-size:12.5px">Home</text><rect x="26" y="455" width="10" height="10" rx="2.5" class="m-c-grey"/><text x="46" y="464" class="m-t" style="font-size:12.5px">Tasks with due dates</text><text x="24" y="508" class="m-t m-ink3" style="font-size:11.5px;font-weight:560">From Mobius</text><use href="#i-home" x="24" y="524" width="14" height="14" class="m-mob-fill"/><text x="46" y="536" class="m-t" style="font-size:12.5px">Suggested events</text><text x="222" y="536" class="m-t m-ink3" text-anchor="end" style="font-size:12px">1</text><text x="324" y="110" class="m-t m-ink2" style="font-size:12px">Mon</text><text x="366" y="110.5" class="m-t" text-anchor="middle" style="font-size:12.5px;font-weight:560">23</text><text x="436" y="110" class="m-t m-ink2" style="font-size:12px">Tue</text><circle cx="478" cy="106" r="12" class="m-ink-fill"/><text x="478" y="110.5" class="m-t m-on-ink" text-anchor="middle" style="font-size:12.5px;font-weight:600">24</text><text x="548" y="110" class="m-t m-ink2" style="font-size:12px">Wed</text><text x="590" y="110.5" class="m-t" text-anchor="middle" style="font-size:12.5px;font-weight:560">25</text><text x="660" y="110" class="m-t m-ink2" style="font-size:12px">Thu</text><text x="702" y="110.5" class="m-t" text-anchor="middle" style="font-size:12.5px;font-weight:560">26</text><text x="772" y="110" class="m-t m-ink2" style="font-size:12px">Fri</text><text x="814" y="110.5" class="m-t" text-anchor="middle" style="font-size:12.5px;font-weight:560">27</text><text x="884" y="110" class="m-t m-ink2" style="font-size:12px">Sat</text><text x="926" y="110.5" class="m-t" text-anchor="middle" style="font-size:12.5px;font-weight:560">28</text><text x="996" y="110" class="m-t m-ink2" style="font-size:12px">Sun</text><text x="1038" y="110.5" class="m-t" text-anchor="middle" style="font-size:12.5px;font-weight:560">29</text><line x1="312" y1="128" x2="1096" y2="128" class="m-hair"/><text x="302" y="148" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">all-day</text><rect x="315" y="134" width="554" height="20" rx="5" class="m-ev m-c-teal"/><rect x="315" y="134" width="3" height="20" rx="1.5" class="m-edge m-c-teal"/><text x="325" y="148" class="m-t" style="font-size:11.5px;font-weight:560">Build week · Kestrel P2</text><circle cx="886" cy="144" r="5" class="m-stroke"/><text x="896" y="148" class="m-t m-ink2" style="font-size:11px">Book the sled</text><line x1="312" y1="160" x2="1096" y2="160" class="m-hair"/><line x1="312" y1="176" x2="1096" y2="176" class="m-hair"/><text x="302" y="180" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">8 AM</text><line x1="312" y1="238" x2="1096" y2="238" class="m-hair"/><text x="302" y="242" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">9 AM</text><line x1="312" y1="300" x2="1096" y2="300" class="m-hair"/><text x="302" y="304" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">10 AM</text><line x1="312" y1="362" x2="1096" y2="362" class="m-hair"/><text x="302" y="366" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">11 AM</text><line x1="312" y1="424" x2="1096" y2="424" class="m-hair"/><text x="302" y="428" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">12 PM</text><line x1="312" y1="486" x2="1096" y2="486" class="m-hair"/><text x="302" y="490" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">1 PM</text><line x1="312" y1="548" x2="1096" y2="548" class="m-hair"/><text x="302" y="552" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">2 PM</text><line x1="312" y1="610" x2="1096" y2="610" class="m-hair"/><text x="302" y="614" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">3 PM</text><line x1="312" y1="672" x2="1096" y2="672" class="m-hair"/><text x="302" y="676" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">4 PM</text><line x1="312" y1="734" x2="1096" y2="734" class="m-hair"/><text x="302" y="738" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">5 PM</text><line x1="312" y1="796" x2="1096" y2="796" class="m-hair"/><text x="302" y="800" class="m-t m-ink3" text-anchor="end" style="font-size:10.5px">6 PM</text><line x1="424" y1="128" x2="424" y2="872" class="m-hair"/><line x1="536" y1="128" x2="536" y2="872" class="m-hair"/><line x1="648" y1="128" x2="648" y2="872" class="m-hair"/><line x1="760" y1="128" x2="760" y2="872" class="m-hair"/><line x1="872" y1="128" x2="872" y2="872" class="m-hair"/><line x1="984" y1="128" x2="984" y2="872" class="m-hair"/><rect x="315" y="239" width="106" height="29.0" rx="5" class="m-ev m-c-blue"/><rect x="315" y="239" width="3" height="29.0" rx="1.5" class="m-edge m-c-blue"/><text x="325" y="255" class="m-t" style="font-size:11.5px;font-weight:560">Standup</text><rect x="427" y="218.54" width="106" height="60.0" rx="5" class="m-ev m-c-teal"/><rect x="427" y="218.54" width="3" height="60.0" rx="1.5" class="m-edge m-c-teal"/><text x="437" y="234.54" class="m-t" style="font-size:11.5px;font-weight:560">Packs arrive</text><text x="437" y="249.54" class="m-t m-ink2" style="font-size:10.5px">8:40 AM · Dock 2</text><rect x="427" y="285.5" width="106" height="24.039999999999996" rx="5" class="m-ev m-c-blue"/><rect x="427" y="285.5" width="3" height="24.039999999999996" rx="1.5" class="m-edge m-c-blue"/><text x="437" y="301.5" class="m-t" style="font-size:11.5px;font-weight:560">Standup</text><rect x="427" y="487" width="106" height="91.0" rx="5" class="m-ev m-c-blue"/><rect x="427" y="487" width="3" height="91.0" rx="1.5" class="m-edge m-c-blue"/><text x="437" y="503" class="m-t" style="font-size:11.5px;font-weight:560">Design review</text><text x="437" y="518" class="m-t m-ink2" style="font-size:10.5px">1:00 PM · Sam</text><rect x="539" y="301" width="106" height="60" rx="5" class="m-ev m-c-blue"/><rect x="539" y="301" width="3" height="60" rx="1.5" class="m-edge m-c-blue"/><text x="549" y="317" class="m-t" style="font-size:11.5px;font-weight:560">Motor call</text><text x="549" y="332" class="m-t m-ink2" style="font-size:10.5px">10:00 AM · Axion</text><rect x="651" y="456.0" width="106" height="60.0" rx="5" class="m-ev m-c-amber"/><rect x="651" y="456.0" width="3" height="60.0" rx="1.5" class="m-edge m-c-amber"/><text x="661" y="472.0" class="m-t" style="font-size:11.5px;font-weight:560">Lunch with Priya</text><text x="661" y="487.0" class="m-t m-ink2" style="font-size:10.5px">12:30 PM</text><rect x="651" y="239" width="106" height="29.0" rx="5" class="m-ev m-c-blue"/><rect x="651" y="239" width="3" height="29.0" rx="1.5" class="m-edge m-c-blue"/><text x="661" y="255" class="m-t" style="font-size:11.5px;font-weight:560">Standup</text><rect x="763" y="239" width="106" height="184" rx="5" class="m-ev m-c-teal"/><rect x="763" y="239" width="3" height="184" rx="1.5" class="m-edge m-c-teal"/><text x="773" y="255" class="m-t" style="font-size:11.5px;font-weight:560">Crash test</text><text x="773" y="270" class="m-t m-ink2" style="font-size:10.5px">9:00 AM · Bay 1</text><rect x="763" y="611" width="106" height="60" rx="5" class="m-ev m-c-blue"/><rect x="763" y="611" width="3" height="60" rx="1.5" class="m-edge m-c-blue"/><text x="773" y="627" class="m-t" style="font-size:11.5px;font-weight:560">Supplier review</text><text x="773" y="642" class="m-t m-ink2" style="font-size:10.5px">3:00 PM</text><rect x="315" y="766.0" width="106" height="78.60000000000005" rx="5" class="m-ev m-c-amber"/><rect x="315" y="766.0" width="3" height="78.60000000000005" rx="1.5" class="m-edge m-c-amber"/><text x="325" y="782.0" class="m-t" style="font-size:11.5px;font-weight:560">Gym</text><text x="325" y="797.0" class="m-t m-ink2" style="font-size:10.5px">5:30 PM</text><rect x="875" y="301" width="106" height="153.0" rx="5" class="m-ev m-c-teal"/><rect x="875" y="301" width="3" height="153.0" rx="1.5" class="m-edge m-c-teal"/><text x="885" y="317" class="m-t" style="font-size:11.5px;font-weight:560">Sled run</text><text x="885" y="332" class="m-t m-ink2" style="font-size:10.5px">10:00 AM</text><rect x="539" y="549" width="106" height="60" rx="5" class="m-mob-ev"/><text x="548" y="565" class="m-t m-mob-ink" style="font-size:11.5px;font-weight:560">Prep the bay</text><text x="548" y="580" class="m-t m-ink2" style="font-size:10.5px">2:00 PM · Sam</text><line x1="312" y1="320.66666666666674" x2="1096" y2="320.66666666666674" class="m-now"/><circle cx="312" cy="320.66666666666674" r="4" class="m-now-dot"/><text x="302" y="324.66666666666674" class="m-t m-now-ink" text-anchor="end" style="font-size:10.5px;font-weight:600">10:20</text><g class="m-float"><rect x="435" y="621" width="330" height="62" rx="10" class="m-bar"/></g><use href="#i-home" x="447" y="631" width="14" height="14" class="m-mob-fill"/><text x="467" y="642.5" class="m-t m-mob-ink" style="font-size:12px;font-weight:560">1 change</text><text x="535" y="642.5" class="m-t m-ink2" style="font-size:12px">Why</text><text x="571" y="642.5" class="m-t m-ink2" style="font-size:12px">Discard</text><text x="629" y="642.5" class="m-t m-ink2" style="font-size:12px">Try another</text><rect x="709" y="628" width="46" height="22" rx="6" class="m-ink-fill"/><text x="732" y="643" class="m-t m-on-ink" text-anchor="middle" style="font-size:12px;font-weight:600">Keep</text><line x1="445" y1="657" x2="755" y2="657" class="m-hair"/><text x="447" y="673" class="m-t m-ink2" style="font-size:11.5px">You asked: “Find an hour to prep the bay before Friday”</text><text x="1128" y="106" class="m-t" style="font-size:13px;font-weight:600">Prep before the crash test</text><path d="M1378 94v12M1372 100h12" class="m-stroke"/><path d="M1402 95h-4v10h10v-4M1404 93h6v6M1410 93l-7 7" class="m-stroke"/><rect x="1176" y="130" width="240" height="58" rx="14" class="m-sel"/><text x="1192" y="153" class="m-t" style="font-size:12.5px">Find an hour for Sam and me to</text><text x="1192" y="172" class="m-t" style="font-size:12.5px">prep the bay before Friday</text><path d="M1130 214l3 3 5-6" class="m-stroke"/><text x="1146" y="218" class="m-t m-ink3" style="font-size:12px">Checked your calendar and Sam’s  ›</text><text x="1128" y="246" class="m-t" style="font-size:12.5px">Wednesday 2 to 3 PM is free for both</text><text x="1128" y="266" class="m-t" style="font-size:12.5px">of you. I put it on Kestrel P2, so you</text><text x="1128" y="286" class="m-t" style="font-size:12.5px">can keep it or have me try another.</text><rect x="1128" y="306" width="288" height="52" rx="9" class="m-mob-row"/><rect x="1140" y="318" width="28" height="28" rx="7" class="m-sub"/><use href="#i-calendar" x="1146" y="324" width="16" height="16" class="m-ico"/><text x="1178" y="328" class="m-t" style="font-size:12.5px;font-weight:560">Prep the bay</text><text x="1178" y="345" class="m-t m-ink3" style="font-size:11px">Calendar · not kept yet</text><rect x="1356" y="319" width="48" height="26" rx="7" class="m-btn"/><text x="1380" y="336" class="m-t" text-anchor="middle" style="font-size:12px">Open</text><text x="1128" y="398" class="m-t m-ink3" style="font-size:11.5px;font-weight:560">Waiting for you · 1</text><rect x="1128" y="410" width="288" height="52" rx="9" class="m-card"/><rect x="1140" y="422" width="28" height="28" rx="7" class="m-sub"/><use href="#i-mail" x="1146" y="428" width="16" height="16" class="m-ico"/><text x="1178" y="432" class="m-t" style="font-size:12.5px;font-weight:560">Reply to Priya Nair</text><text x="1178" y="449" class="m-t m-ink3" style="font-size:11px">Draft ready · P2 build dates</text><rect x="1356" y="423" width="48" height="26" rx="7" class="m-btn"/><text x="1380" y="440" class="m-t" text-anchor="middle" style="font-size:12px">Open</text><rect x="1128" y="736" width="134" height="26" rx="13" class="m-btn"/><text x="1195.0" y="753" class="m-t m-ink2" text-anchor="middle" style="font-size:11.5px">What is coming up?</text><rect x="1268" y="736" width="92" height="26" rx="13" class="m-btn"/><text x="1314.0" y="753" class="m-t m-ink2" text-anchor="middle" style="font-size:11.5px">Plan my week</text><rect x="1124" y="772" width="296" height="84" rx="11" class="m-card"/><text x="1138" y="798" class="m-t m-ink3" style="font-size:12.5px">Ask about your calendar</text><text x="1138" y="840" class="m-t m-ink2" style="font-size:14px">+</text><text x="1156" y="840" class="m-t m-ink2" style="font-size:11.5px">Agent ▾</text><text x="1210" y="840" class="m-t m-ink2" style="font-size:11.5px">Review ▾</text><text x="1378" y="840" class="m-t m-ink3" text-anchor="end" style="font-size:11.5px">Best fit ▾</text><circle cx="1400" cy="836" r="11" class="m-sub-fill"/><path d="M1400 841v-10M1395 836l5-5 5 5" class="m-stroke"/></svg>
+      </div>
+      <figcaption><span class="fig">Fig 1</span>You asked for an hour to prep the bay. Mobius found Wednesday at 2 PM, and the event stays dashed until you keep it.</figcaption>
+      </figure>
+    </div>
+
+    <ul class="wrap facts" aria-label="At a glance">
+      <li><b>23</b><span>apps in one window</span></li>
+      <li><b>1</b><span>agent across all of them</span></li>
+      <li><b>0</b><span>Mobius accounts or servers</span></li>
+      <li><b>MIT</b><span>open source licence</span></li>
+    </ul>
+  </section>
+
+  <section id="how" class="band">
+    <div class="wrap">
+      <p class="kicker">How it works</p>
+      <h2>One quote. Five apps. No copy and paste.</h2>
+      <p class="sub">A supplier sends a quote. Follow it through your workspace: Mobius takes it where it belongs, and
+        every change waits, dashed, for you to keep.</p>
+
+      <div class="story">
+        <div class="story-tabs" role="tablist" aria-label="Follow the quote">
+          <button type="button" role="tab" id="t-mail" aria-controls="p-mail" aria-selected="true"><svg class="ico"><use href="#i-mail"/></svg><span><b>Mail</b>The quote arrives</span></button>
+          <button type="button" role="tab" id="t-notes" aria-controls="p-notes" aria-selected="false" tabindex="-1"><svg class="ico"><use href="#i-notes"/></svg><span><b>Notes</b>Filed with your notes</span></button>
+          <button type="button" role="tab" id="t-docs" aria-controls="p-docs" aria-selected="false" tabindex="-1"><svg class="ico"><use href="#i-docs"/></svg><span><b>Docs</b>The brief brought up to date</span></button>
+          <button type="button" role="tab" id="t-sheets" aria-controls="p-sheets" aria-selected="false" tabindex="-1"><svg class="ico"><use href="#i-sheets"/></svg><span><b>Sheets</b>The budget filled in</span></button>
+          <button type="button" role="tab" id="t-home" aria-controls="p-home" aria-selected="false" tabindex="-1"><svg class="ico filled"><use href="#i-home"/></svg><span><b>Home</b>Your day in one place</span></button>
+        </div>
+
+        <div class="story-panels">
+          <figure class="window" role="tabpanel" id="p-mail" aria-labelledby="t-mail">
+            <picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/mail-dark.webp"><img src="/assets/shots/mail-light.webp" width="1600" height="1000" loading="lazy" alt="Mail, showing a supplier's quote for eight battery packs, with a button to draft a reply with Mobius."></picture>
+            <figcaption><span class="fig">Fig 2.1</span>The quote lands in <b>Mail</b>. Mobius can draft a reply in your tone. It never sends: you press Send.</figcaption>
+          </figure>
+          <figure class="window" role="tabpanel" id="p-notes" aria-labelledby="t-notes" hidden>
+            <picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/notes-dark.webp"><img src="/assets/shots/notes-light.webp" width="1600" height="1000" loading="lazy" alt="Notes, with a dashed box Mobius added holding the quote's price and lead time, and Keep, Try another and Discard buttons."></picture>
+            <figcaption><span class="fig">Fig 2.2</span>The price and lead time go into your supplier notes, in a dashed box until you keep it.</figcaption>
+          </figure>
+          <figure class="window" role="tabpanel" id="p-docs" aria-labelledby="t-docs" hidden>
+            <picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/docs-dark.webp"><img src="/assets/shots/docs-light.webp" width="1600" height="1000" loading="lazy" alt="Docs, showing a build brief where Mobius changed the dates and the packs section, marked with a dashed edge."></picture>
+            <figcaption><span class="fig">Fig 2.3</span>The build brief gets the new dates. You see exactly what changed before you keep it.</figcaption>
+          </figure>
+          <figure class="window" role="tabpanel" id="p-sheets" aria-labelledby="t-sheets" hidden>
+            <picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/sheets-dark.webp"><img src="/assets/shots/sheets-light.webp" width="1600" height="1000" loading="lazy" alt="Sheets, showing a budget where Mobius changed two cells, with a note saying why."></picture>
+            <figcaption><span class="fig">Fig 2.4</span>The budget fills in, and Mobius says why: you asked it to add the quote.</figcaption>
+          </figure>
+          <figure class="window" role="tabpanel" id="p-home" aria-labelledby="t-home" hidden>
+            <picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/agent-dark.webp"><img src="/assets/shots/agent-light.webp" width="1600" height="1000" loading="lazy" alt="Home, with a morning greeting, what is waiting for you, and what is happening in Calendar, Tasks, Mail, Notes, Docs and Browser."></picture>
+            <figcaption><span class="fig">Fig 2.5</span><b>Home</b> shows what's waiting for you and what's happening in every app, with Mobius one line away.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap split">
+      <div>
+        <p class="kicker">You stay in charge</p>
+        <h2>It suggests.<br>You decide.</h2>
+        <p class="sub">Anything Mobius makes shows up in place with a dashed edge. Keep it, discard it, or ask for another
+          take. Every step is recorded, so you can rewind any conversation.</p>
+        <ul class="ticks">
+          <li><b>Sending, paying, deleting and running commands always ask,</b> whatever mode you pick.</li>
+          <li><b>Choose how far it goes:</b> Ask each time, Review changes, Apply changes or Auto.</li>
+          <li><b>No hidden memory.</b> What Mobius knows about you is on pages you can read and edit.</li>
+        </ul>
+      </div>
+      <div class="demo" aria-hidden="true">
+        <div class="demo-card">
+          <div class="demo-head"><span class="demo-title"><svg class="ico"><use href="#i-sheets"/></svg>P2 budget</span><span class="demo-meta">Sheet 1</span></div>
+          <div class="demo-rows">
+            <div class="demo-row demo-row-h"><span>Item</span><span>Supplier</span><span class="num">Cost</span></div>
+            <div class="demo-row is-new"><span>Battery packs</span><span>Veltro</span><span class="num">48,000</span></div>
+            <div class="demo-row"><span>Sled hire</span><span>Northfield</span><span class="num">6,500</span></div>
+            <div class="demo-row"><span>Motor test rig</span><span>Brakes &amp; Co</span><span class="num">1,800</span></div>
+            <div class="demo-row"><span>Jigs</span><span>In house</span><span class="num">960</span></div>
+            <div class="demo-row demo-total is-new"><span>Total</span><span></span><span class="num">57,260</span></div>
+          </div>
+          <div class="changebar">
+            <div class="changebar-top">
+              <span class="changebar-label"><svg class="ico filled"><use href="#i-home"/></svg>2 changes</span>
+              <span class="changebar-actions"><span>Why</span><span>Discard</span><span>Try another</span><span class="keep">Keep</span></span>
+            </div>
+            <p class="changebar-ask">You asked: "Add the Veltro quote to my supplier notes"</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="apps" class="band">
+    <div class="wrap">
+      <p class="kicker">Every app</p>
+      <h2>23 apps. One look. One agent.</h2>
+      <p class="sub">Start with the everyday six and add the rest from Store when you want them. Apps load the first time
+        you open them, so the ones you don't use cost nothing. Pick an app to see it.</p>
+    </div>
+    <div class="wrap-wide">
+      <div class="showcase">
+        <div class="sc-rail" role="tablist" aria-label="Apps" aria-orientation="vertical">
+          <span class="sc-group" aria-hidden="true">Assistant</span>
+          <button role="tab" id="a-home" aria-controls="ap-home" aria-selected="true"><svg class="ico filled"><use href="#i-home"/></svg>Home</button>
+          <button role="tab" id="a-agents" aria-controls="ap-agents" aria-selected="false"><svg class="ico"><use href="#i-agents"/></svg>Agents</button>
+          <button role="tab" id="a-store" aria-controls="ap-store" aria-selected="false"><svg class="ico"><use href="#i-store"/></svg>Store</button>
+          <button role="tab" id="a-settings" aria-controls="ap-settings" aria-selected="false"><svg class="ico"><use href="#i-settings"/></svg>Settings</button>
+          <span class="sc-group" aria-hidden="true">Write and plan</span>
+          <button role="tab" id="a-notes" aria-controls="ap-notes" aria-selected="false"><svg class="ico"><use href="#i-notes"/></svg>Notes</button>
+          <button role="tab" id="a-docs" aria-controls="ap-docs" aria-selected="false"><svg class="ico"><use href="#i-docs"/></svg>Docs</button>
+          <button role="tab" id="a-tasks" aria-controls="ap-tasks" aria-selected="false"><svg class="ico"><use href="#i-tasks"/></svg>Tasks</button>
+          <button role="tab" id="a-calendar" aria-controls="ap-calendar" aria-selected="false"><svg class="ico"><use href="#i-calendar"/></svg>Calendar</button>
+          <button role="tab" id="a-sheets" aria-controls="ap-sheets" aria-selected="false"><svg class="ico"><use href="#i-sheets"/></svg>Sheets</button>
+          <button role="tab" id="a-database" aria-controls="ap-database" aria-selected="false"><svg class="ico"><use href="#i-database"/></svg>Database</button>
+          <button role="tab" id="a-projects" aria-controls="ap-projects" aria-selected="false"><svg class="ico"><use href="#i-projects"/></svg>Projects</button>
+          <button role="tab" id="a-knowledge" aria-controls="ap-knowledge" aria-selected="false"><svg class="ico"><use href="#i-knowledge"/></svg>Knowledge</button>
+          <span class="sc-group" aria-hidden="true">Browse and find</span>
+          <button role="tab" id="a-mail" aria-controls="ap-mail" aria-selected="false"><svg class="ico"><use href="#i-mail"/></svg>Mail</button>
+          <button role="tab" id="a-messages" aria-controls="ap-messages" aria-selected="false"><svg class="ico"><use href="#i-messages"/></svg>Messages</button>
+          <button role="tab" id="a-browser" aria-controls="ap-browser" aria-selected="false"><svg class="ico"><use href="#i-browser"/></svg>Browser</button>
+          <button role="tab" id="a-files" aria-controls="ap-files" aria-selected="false"><svg class="ico"><use href="#i-files"/></svg>Files</button>
+          <span class="sc-group" aria-hidden="true">Create</span>
+          <button role="tab" id="a-slides" aria-controls="ap-slides" aria-selected="false"><svg class="ico"><use href="#i-slides"/></svg>Slides</button>
+          <button role="tab" id="a-design" aria-controls="ap-design" aria-selected="false"><svg class="ico"><use href="#i-design"/></svg>Design</button>
+          <button role="tab" id="a-photo" aria-controls="ap-photo" aria-selected="false"><svg class="ico"><use href="#i-photo"/></svg>Photo</button>
+          <button role="tab" id="a-music" aria-controls="ap-music" aria-selected="false"><svg class="ico"><use href="#i-music"/></svg>Music</button>
+          <button role="tab" id="a-video" aria-controls="ap-video" aria-selected="false"><svg class="ico"><use href="#i-video"/></svg>Video</button>
+          <button role="tab" id="a-code" aria-controls="ap-code" aria-selected="false"><svg class="ico"><use href="#i-code"/></svg>Code</button>
+          <button role="tab" id="a-canvas" aria-controls="ap-canvas" aria-selected="false"><svg class="ico"><use href="#i-canvas"/></svg>Canvas</button>
+        </div>
+        <div class="sc-panels">
+          <figure role="tabpanel" id="ap-home" aria-labelledby="a-home">
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/agent-dark.webp"><img src="/assets/shots/agent-light.webp" width="1600" height="1000" loading="lazy" alt="Home, with what is waiting for you and what is happening in each app."></picture></div>
+            <figcaption><span class="fig">Fig 3.1</span><b>Home</b> Your desk and your conversations with Mobius. <a class="sc-more" href="/apps/home/">More about Home →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-agents" aria-labelledby="a-agents" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/agents-dark.webp"><img src="/assets/shots/agents-light.webp" width="1600" height="1000" loading="lazy" alt="Agents, with helpers and when each one runs."></picture></div>
+            <figcaption><span class="fig">Fig 3.2</span><b>Agents</b> Helpers that run the jobs you repeat, on a schedule. <a class="sc-more" href="/apps/agents/">More about Agents →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-store" aria-labelledby="a-store" hidden>
+            <div class="sc-screen"><div class="sc-empty"><svg class="ico"><use href="#i-store"/></svg><span>A picture of Store is on the way.</span></div></div>
+            <figcaption><span class="fig">Fig 3.3</span><b>Store</b> Add apps, connectors, skills and plugins. <a class="sc-more" href="/apps/store/">More about Store →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-settings" aria-labelledby="a-settings" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/settings-dark.webp"><img src="/assets/shots/settings-light.webp" width="1600" height="1000" loading="lazy" alt="Settings, with the AI chosen for each job."></picture></div>
+            <figcaption><span class="fig">Fig 3.4</span><b>Settings</b> Pick which AI does which job, and how far it goes. <a class="sc-more" href="/apps/settings/">More about Settings →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-notes" aria-labelledby="a-notes" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/notes-dark.webp"><img src="/assets/shots/notes-light.webp" width="1600" height="1000" loading="lazy" alt="A note with a checklist."></picture></div>
+            <figcaption><span class="fig">Fig 3.5</span><b>Notes</b> Quick pages, saved as Markdown files. <a class="sc-more" href="/apps/notes/">More about Notes →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-docs" aria-labelledby="a-docs" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/docs-dark.webp"><img src="/assets/shots/docs-light.webp" width="1600" height="1000" loading="lazy" alt="A document with its outline."></picture></div>
+            <figcaption><span class="fig">Fig 3.6</span><b>Docs</b> Longer documents with an outline, comments and history. <a class="sc-more" href="/apps/docs/">More about Docs →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-tasks" aria-labelledby="a-tasks" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/tasks-dark.webp"><img src="/assets/shots/tasks-light.webp" width="1600" height="1000" loading="lazy" alt="Today in Tasks."></picture></div>
+            <figcaption><span class="fig">Fig 3.7</span><b>Tasks</b> Lists of what's due, planned with Mobius. <a class="sc-more" href="/apps/tasks/">More about Tasks →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-calendar" aria-labelledby="a-calendar" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/calendar-dark.webp"><img src="/assets/shots/calendar-light.webp" width="1600" height="1000" loading="lazy" alt="A week in Calendar."></picture></div>
+            <figcaption><span class="fig">Fig 3.8</span><b>Calendar</b> Your week at a glance, and time found for you. <a class="sc-more" href="/apps/calendar/">More about Calendar →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-sheets" aria-labelledby="a-sheets" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/sheets-dark.webp"><img src="/assets/shots/sheets-light.webp" width="1600" height="1000" loading="lazy" alt="A budget in Sheets."></picture></div>
+            <figcaption><span class="fig">Fig 3.9</span><b>Sheets</b> Spreadsheets with formulas, saved as CSV. <a class="sc-more" href="/apps/sheets/">More about Sheets →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-database" aria-labelledby="a-database" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/database-dark.webp"><img src="/assets/shots/database-light.webp" width="1600" height="1000" loading="lazy" alt="A table in Database."></picture></div>
+            <figcaption><span class="fig">Fig 3.10</span><b>Database</b> SQLite tables you can question in plain words. <a class="sc-more" href="/apps/database/">More about Database →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-projects" aria-labelledby="a-projects" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/projects-dark.webp"><img src="/assets/shots/projects-light.webp" width="1600" height="1000" loading="lazy" alt="A project with its files and rules."></picture></div>
+            <figcaption><span class="fig">Fig 3.11</span><b>Projects</b> One piece of work: its files, rules and memory. <a class="sc-more" href="/apps/projects/">More about Projects →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-knowledge" aria-labelledby="a-knowledge" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/knowledge-dark.webp"><img src="/assets/shots/knowledge-light.webp" width="1600" height="1000" loading="lazy" alt="A Knowledge page."></picture></div>
+            <figcaption><span class="fig">Fig 3.12</span><b>Knowledge</b> What Mobius knows, on pages you can edit. <a class="sc-more" href="/apps/knowledge/">More about Knowledge →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-mail" aria-labelledby="a-mail" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/mail-dark.webp"><img src="/assets/shots/mail-light.webp" width="1600" height="1000" loading="lazy" alt="The inbox in Mail."></picture></div>
+            <figcaption><span class="fig">Fig 3.13</span><b>Mail</b> Your inbox, sorted, with drafts in your tone. <a class="sc-more" href="/apps/mail/">More about Mail →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-messages" aria-labelledby="a-messages" hidden>
+            <div class="sc-screen"><div class="sc-empty"><svg class="ico"><use href="#i-messages"/></svg><span>A picture of Messages is on the way.</span></div></div>
+            <figcaption><span class="fig">Fig 3.14</span><b>Messages</b> Slack, Matrix, Teams and Telegram in one list. <a class="sc-more" href="/apps/messages/">More about Messages →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-browser" aria-labelledby="a-browser" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/browser-dark.webp"><img src="/assets/shots/browser-light.webp" width="1600" height="1000" loading="lazy" alt="A page in Browser."></picture></div>
+            <figcaption><span class="fig">Fig 3.15</span><b>Browser</b> A full browser Mobius can read and compare in. <a class="sc-more" href="/apps/browser/">More about Browser →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-files" aria-labelledby="a-files" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/files-dark.webp"><img src="/assets/shots/files-light.webp" width="1600" height="1000" loading="lazy" alt="The workspace in Files."></picture></div>
+            <figcaption><span class="fig">Fig 3.16</span><b>Files</b> Your whole workspace as a drive of real files. <a class="sc-more" href="/apps/files/">More about Files →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-slides" aria-labelledby="a-slides" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/slides-dark.webp"><img src="/assets/shots/slides-light.webp" width="1600" height="1000" loading="lazy" alt="A deck in Slides."></picture></div>
+            <figcaption><span class="fig">Fig 3.17</span><b>Slides</b> Decks with layouts, presenter notes and a player. <a class="sc-more" href="/apps/slides/">More about Slides →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-design" aria-labelledby="a-design" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/design-dark.webp"><img src="/assets/shots/design-light.webp" width="1600" height="1000" loading="lazy" alt="Screens on the Design canvas."></picture></div>
+            <figcaption><span class="fig">Fig 3.18</span><b>Design</b> Frames, layers, components and smart guides. <a class="sc-more" href="/apps/design/">More about Design →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-photo" aria-labelledby="a-photo" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/photo-dark.webp"><img src="/assets/shots/photo-light.webp" width="1600" height="1000" loading="lazy" alt="A photo being adjusted."></picture></div>
+            <figcaption><span class="fig">Fig 3.19</span><b>Photo</b> Crops, adjustments and filters you can undo. <a class="sc-more" href="/apps/photo/">More about Photo →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-music" aria-labelledby="a-music" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/music-dark.webp"><img src="/assets/shots/music-light.webp" width="1600" height="1000" loading="lazy" alt="A song in Music."></picture></div>
+            <figcaption><span class="fig">Fig 3.20</span><b>Music</b> A studio on Mobius's own audio engine, in Rust. <a class="sc-more" href="/apps/music/">More about Music →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-video" aria-labelledby="a-video" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/video-dark.webp"><img src="/assets/shots/video-light.webp" width="1600" height="1000" loading="lazy" alt="A timeline in Video."></picture></div>
+            <figcaption><span class="fig">Fig 3.21</span><b>Video</b> Cut footage into a short film on a timeline. <a class="sc-more" href="/apps/video/">More about Video →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-code" aria-labelledby="a-code" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/code-dark.webp"><img src="/assets/shots/code-light.webp" width="1600" height="1000" loading="lazy" alt="A file open in Code."></picture></div>
+            <figcaption><span class="fig">Fig 3.22</span><b>Code</b> An editor with git, and changes you review line by line. <a class="sc-more" href="/apps/code/">More about Code →</a></figcaption>
+          </figure>
+          <figure role="tabpanel" id="ap-canvas" aria-labelledby="a-canvas" hidden>
+            <div class="sc-screen"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/canvas-dark.webp"><img src="/assets/shots/canvas-light.webp" width="1600" height="1000" loading="lazy" alt="A whiteboard in Canvas."></picture></div>
+            <figcaption><span class="fig">Fig 3.23</span><b>Canvas</b> A whiteboard of stickies, shapes and arrows. <a class="sc-more" href="/apps/canvas/">More about Canvas →</a></figcaption>
+          </figure>
+        </div>
+      </div>
+      <p class="apps-all"><a href="/apps/">See every app and what it does →</a></p>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <p class="kicker">Made for making</p>
+      <h2>Not just paperwork.</h2>
+      <p class="sub">Write a song, build a deck, sketch a screen. Mobius works here too: in Music it writes notes, never
+        audio, so a bassline it adds is yours to edit like any other part.</p>
+    </div>
+    <div class="wrap-wide">
+      <div class="trio">
+        <figure class="window trio-main">
+          <picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/music-dark.webp"><img src="/assets/shots/music-light.webp" width="1600" height="1000" loading="lazy" alt="Music, with five tracks in Arrange view and a pad part Mobius added, marked with a dashed edge and Keep, Try another and Discard."></picture>
+          <figcaption><svg class="ico"><use href="#i-music"/></svg><span><span class="fig">Fig 4.1</span><b>Music</b> Mobius added a pad under the second half, dashed until you keep it.</span></figcaption>
+        </figure>
+        <figure class="window">
+          <picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/slides-dark.webp"><img src="/assets/shots/slides-light.webp" width="1600" height="1000" loading="lazy" alt="Slides, with a title slide, the slide list and the format panel."></picture>
+          <figcaption><svg class="ico"><use href="#i-slides"/></svg><span><span class="fig">Fig 4.2</span><b>Slides</b> A deck from a document, with speaker notes.</span></figcaption>
+        </figure>
+        <figure class="window">
+          <picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/design-dark.webp"><img src="/assets/shots/design-light.webp" width="1600" height="1000" loading="lazy" alt="Design, with two phone screens on a canvas, layers on the left and colour styles on the right."></picture>
+          <figcaption><svg class="ico"><use href="#i-design"/></svg><span><span class="fig">Fig 4.3</span><b>Design</b> Screens and layouts on a canvas.</span></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="ai" class="band">
+    <div class="wrap split split-top">
+      <div>
+        <p class="kicker">Bring your own AI</p>
+        <h2>Your plan, your keys, or your own computer.</h2>
+        <p class="sub">Mobius isn't tied to one AI company. Sign in with a plan you already pay for, add a key, or run a
+          model on your own graphics card, and pick a different model for each job.</p>
+      </div>
+      <ul class="gateways">
+        <li><b>ChatGPT plan</b><span>OpenAI's sign-in for open-source apps</span></li>
+        <li><b>Claude plan</b><span>Through Claude Code on your computer</span></li>
+        <li><b>GitHub Copilot</b><span>Through GitHub's Copilot CLI</span></li>
+        <li><b>OpenRouter</b><span>Sign in on OpenRouter's own page</span></li>
+        <li><b>API keys</b><span>OpenAI, Anthropic, Gemini, Mistral, xAI, Azure, Bedrock and more</span></li>
+        <li><b>On your computer</b><span>Built-in llama.cpp, or Ollama and LM Studio</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="open" class="band">
+    <div class="wrap split">
+      <div>
+        <p class="kicker">Local and open</p>
+        <h2>Yours, on your computer.</h2>
+        <p class="sub">Your notes, documents, sheets and settings are real files you can open in any other app. There is
+          no Mobius account and no Mobius server, and the code is MIT licensed on
+          <a href="https://github.com/BevActual/mobius">GitHub</a>.</p>
+        <p class="more"><a href="/privacy/">Read the privacy policy <span aria-hidden="true">→</span></a></p>
+      </div>
+      <div class="switches" role="list" aria-label="How Mobius handles your data">
+        <div class="sw-head"><svg class="ico" aria-hidden="true"><use href="#i-settings"/></svg>Privacy</div>
+        <div class="sw-row" role="listitem"><div><b>Files on this computer</b><span>Everything you keep is a file in your Mobius folder.</span></div><span class="sw on"><span class="vh">On</span></span></div>
+        <div class="sw-row" role="listitem"><div><b>Mobius server</b><span>There isn't one. Mobius talks straight to the services you connect.</span></div><span class="sw"><span class="vh">Off</span></span></div>
+        <div class="sw-row" role="listitem"><div><b>Analytics and tracking</b><span>None, so there is nothing to opt out of.</span></div><span class="sw"><span class="vh">Off</span></span></div>
+        <div class="sw-row" role="listitem"><div><b>Tracking pixels in email</b><span>Mail shows messages without scripts or remote images.</span></div><span class="sw"><span class="vh">Off</span></span></div>
+        <div class="sw-row" role="listitem"><div><b>Keys in your system's secret store</b><span>Each key is only sent to the service it belongs to.</span></div><span class="sw on"><span class="vh">On</span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap final-in">
+      <img src="/assets/mark.svg" alt="" width="56" height="56">
+      <h2>Try Mobius.</h2>
+      <p class="sub">It's an early preview, so expect rough edges, and tell us what breaks.</p>
+      <div class="cta">
+        <a class="btn btn-ink btn-lg" href="https://github.com/BevActual/mobius/releases/latest"><svg class="ico"><use href="#i-download"/></svg>Download for Windows</a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/BevActual/mobius/issues/new/choose">Report a bug or idea</a>
+      </div>
+      <p class="fine">The installer is on GitHub. See the <a href="/download/">install guide</a> and <a href="/changelog/">what's new</a>.</p>
+    </div>
+  </section>
+
 </main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <a class="brand" href="/"><img src="/assets/mark.svg" alt="" width="20" height="20"><span>Mobius Workspace</span></a>
+    <nav aria-label="Footer">
+      <a href="/download/">Download</a>
+      <a href="/changelog/">What's new</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="https://github.com/BevActual/mobius">GitHub</a>
+      <a href="https://github.com/BevActual/mobius/tree/main/docs">Docs</a>
+      <a href="mailto:hello@mobiusworkspace.com">hello@mobiusworkspace.com</a>
+    </nav>
+  </div>
+</footer>
+
 </body>
 </html>

@@ -1,0 +1,883 @@
+[
+  {
+    "key": "home",
+    "name": "Home",
+    "group": "Assistant",
+    "tagline": "Your desk and your conversations with Mobius.",
+    "intro": "Home opens on your desk: a greeting, what is in flight and suggestions to start from. Your conversations with Mobius live here too, and one press picks any of them up again.",
+    "features": [
+      {
+        "title": "The desk",
+        "text": "See what needs you, what Mobius is working on and what is scheduled next, all on one page."
+      },
+      {
+        "title": "Answer in place",
+        "text": "Questions and approvals from Mobius wait under Now, each answerable right there, with Stop for anything running."
+      },
+      {
+        "title": "In your apps",
+        "text": "One thing worth a look from each app, like your next event, the first task due or your newest mail."
+      },
+      {
+        "title": "Talk your way",
+        "text": "The message box takes text, pictures, files and dictation, and lets you pick the mode and the model."
+      },
+      {
+        "title": "See every step",
+        "text": "While it works, Mobius shows its plan as a checklist and each tool it uses as a plain sentence."
+      },
+      {
+        "title": "Mobius everywhere",
+        "text": "The same conversation follows you into every app in the Mobius panel, or in Little Mobius."
+      }
+    ],
+    "mobius": "Mobius talks with you here, shows its plan as it works, and ends each turn with a card naming every app it changed.",
+    "kept": "",
+    "related": [
+      "agents",
+      "calendar",
+      "tasks"
+    ]
+  },
+  {
+    "key": "agents",
+    "name": "Agents",
+    "group": "Assistant",
+    "tagline": "Named helpers for the jobs you repeat.",
+    "intro": "Give an agent a name, instructions and a model, then run it when you ask or on a schedule. Each agent's page shows what it does, when it runs and how its recent runs went.",
+    "features": [
+      {
+        "title": "Run on a schedule",
+        "text": "Start an agent on weekdays or every day at a set time, and still run it whenever you ask."
+      },
+      {
+        "title": "One page per agent",
+        "text": "See its instructions, model, schedule, what it can use and its recent runs in one place."
+      },
+      {
+        "title": "Clear run status",
+        "text": "Each run says where it stands: a question for you, working, finished or failed."
+      },
+      {
+        "title": "From a chat",
+        "text": "Turn a conversation into an agent: its name comes from the title and its instructions from your first ask."
+      },
+      {
+        "title": "Same safety rules",
+        "text": "An agent works under the same permissions as Mobius, and its card says exactly what it may touch."
+      },
+      {
+        "title": "Help inside projects",
+        "text": "In a project, Ask a bot sends an agent off on a side job, and its report comes back into the thread."
+      }
+    ],
+    "mobius": "Each agent works like Mobius with its own instructions and model, and its finished runs wait for you to review.",
+    "kept": "",
+    "related": [
+      "projects",
+      "home",
+      "settings"
+    ]
+  },
+  {
+    "key": "store",
+    "name": "Store",
+    "group": "Assistant",
+    "tagline": "Add apps, skills and connectors when you need them.",
+    "intro": "Store is where you add to Mobius: more apps, skills that teach it steps, and connectors that give it new tools. Start small and add more as you go, since apps load only the first time you open them.",
+    "features": [
+      {
+        "title": "Apps as cards",
+        "text": "Browse apps grouped by what they are for, each with one line on what it does and Add or Open."
+      },
+      {
+        "title": "Remove without losing files",
+        "text": "Removing an app takes it off your menus but keeps its files, and Undo puts it straight back."
+      },
+      {
+        "title": "Skills you can shape",
+        "text": "A skill is a short, named set of steps: edit them one by one, see earlier versions or run it."
+      },
+      {
+        "title": "Look before you install",
+        "text": "Before a shared skill is added you see what it is for, its steps and what it says it will use."
+      },
+      {
+        "title": "Add connectors",
+        "text": "Add Model Context Protocol servers by command or address, and see at a glance which ones are running."
+      },
+      {
+        "title": "Start up stays quick",
+        "text": "Apps load the first time you open them, so adding more does not slow Mobius down when it starts."
+      }
+    ],
+    "mobius": "Mobius can propose a new skill, which waits dashed for your Keep like any other change.",
+    "kept": "Each skill is a SKILL.md file, and connectors are listed in an mcp.json file in Mobius's data folder.",
+    "related": [
+      "settings",
+      "messages"
+    ]
+  },
+  {
+    "key": "settings",
+    "name": "Settings",
+    "group": "Assistant",
+    "tagline": "Choose your AI and how far Mobius may go.",
+    "intro": "Settings groups everything in one side panel, with a search that finds any setting by what it does. Changes take effect as soon as you make them, with no Save button.",
+    "features": [
+      {
+        "title": "Bring your own AI",
+        "text": "Use a ChatGPT, Claude or GitHub Copilot plan, an API key, OpenRouter, or a model on your own computer."
+      },
+      {
+        "title": "Models per job",
+        "text": "Pick which model chats, which makes quick checks, which makes images and which listens and speaks."
+      },
+      {
+        "title": "Approvals and safety",
+        "text": "Set how much Mobius does without asking, overall and app by app, and see the activity log."
+      },
+      {
+        "title": "See your usage",
+        "text": "Tokens and estimated cost by day, model, service or app, counted on your computer and exportable as CSV."
+      },
+      {
+        "title": "Memory you control",
+        "text": "See everything Mobius remembers about you and forget any of it."
+      },
+      {
+        "title": "Themes and type",
+        "text": "Follow the system or choose Light, Mid grey, Dark or Cool dark, with your own text size and font."
+      }
+    ],
+    "mobius": "",
+    "kept": "Your settings live in files on your own computer, and keys sit in the system's secret store.",
+    "related": [
+      "store",
+      "knowledge",
+      "agents"
+    ]
+  },
+  {
+    "key": "notes",
+    "name": "Notes",
+    "group": "Write and plan",
+    "tagline": "Quick pages, saved as you type.",
+    "intro": "Write and your page is formatted as you go, with headings, checklists, tables and pictures. Notebooks, pins and tags keep everything easy to find.",
+    "features": [
+      {
+        "title": "Formatted as you write",
+        "text": "Headings, lists, checklists you tick, tables, pictures and links between notes, with nothing to set up."
+      },
+      {
+        "title": "Record a meeting",
+        "text": "Notes listens for up to three hours and writes the transcript into the page; only the words are kept, never the sound."
+      },
+      {
+        "title": "Summarise and make tasks",
+        "text": "After a meeting, Mobius writes a summary and the actions into the note and adds each action to Tasks."
+      },
+      {
+        "title": "Tags and pins",
+        "text": "Every #tag you write builds a Tags list, and pinned pages stay at the top."
+      },
+      {
+        "title": "Version history",
+        "text": "Compare an earlier version with the page now and restore it, and even that can be undone."
+      },
+      {
+        "title": "Share a page",
+        "text": "Copy a page, export it as a web page or Markdown, or print it."
+      }
+    ],
+    "mobius": "Select text for Mobius's actions right where it is, then keep or discard its edits, line by line if you like; it never overwrites a page while you type.",
+    "kept": "Each page is a Markdown file in your workspace, in a folder for its notebook, so it opens in any editor.",
+    "related": [
+      "tasks",
+      "docs",
+      "calendar"
+    ]
+  },
+  {
+    "key": "docs",
+    "name": "Docs",
+    "group": "Write and plan",
+    "tagline": "Longer documents, with an outline and comments.",
+    "intro": "Write on a clean white page with headings, tables, pictures and links, and move around with the outline. A quiet line under the title says when you last edited it and how many words it has.",
+    "features": [
+      {
+        "title": "Outline as you go",
+        "text": "Your headings sit under the open document; click one to jump there, and the one you are reading is marked."
+      },
+      {
+        "title": "Comments with answers",
+        "text": "Leave comments beside the page, and Ask Mobius on one to get its answer right in the thread."
+      },
+      {
+        "title": "Writing tools",
+        "text": "Mobius works on a selection or the whole document, showing the words it took out struck through."
+      },
+      {
+        "title": "Review mode",
+        "text": "Have Mobius comment and suggest without touching your text."
+      },
+      {
+        "title": "Earlier versions",
+        "text": "Put an earlier version back, and Undo takes it back again if you change your mind."
+      },
+      {
+        "title": "Share and export",
+        "text": "Copy a document, export it as a web page or Markdown, print it or save it as a PDF."
+      }
+    ],
+    "mobius": "Each change Mobius makes is one dashed block in the page with its own Keep, Discard and Try another, and your open comments go along when you ask it about the document.",
+    "kept": "Each document is a Markdown file in your workspace.",
+    "related": [
+      "notes",
+      "files"
+    ]
+  },
+  {
+    "key": "tasks",
+    "name": "Tasks",
+    "group": "Write and plan",
+    "tagline": "Lists of things to do, with dates and repeats.",
+    "intro": "Each task is one clear line, with its due date, flag and subtasks at the edge. Smart lists like Today, Scheduled and Flagged gather what matters from all your lists.",
+    "features": [
+      {
+        "title": "Smart lists",
+        "text": "Today, Scheduled, All, Flagged and Completed gather tasks from every list, with Scheduled grouped by day."
+      },
+      {
+        "title": "Times in plain words",
+        "text": "Type a time after the day, like \"Call Sam tomorrow at 3pm\", and the task is set."
+      },
+      {
+        "title": "Repeating tasks",
+        "text": "Repeat every day, weekday, week, month or year; ticking one off moves it to its next day."
+      },
+      {
+        "title": "Details and subtasks",
+        "text": "Each task holds notes, a due date, a flag, its list and its subtasks in a panel beside the list."
+      },
+      {
+        "title": "Lists on a server",
+        "text": "Connect a CalDAV account such as iCloud Reminders, Fastmail or Nextcloud and its lists appear in Tasks."
+      },
+      {
+        "title": "Easy undo",
+        "text": "Deleting a task or a list shows Undo, and a task you just ticked can be clicked back for a moment."
+      }
+    ],
+    "mobius": "Tasks Mobius adds are dashed until you keep them, and Discard puts the list back as it was before that turn.",
+    "kept": "Each list is a Markdown file of checkbox lines in your workspace. Lists from a CalDAV server stay on that server, with a copy in Mobius's data folder.",
+    "related": [
+      "calendar",
+      "notes",
+      "mail"
+    ]
+  },
+  {
+    "key": "calendar",
+    "name": "Calendar",
+    "group": "Write and plan",
+    "tagline": "Your calendars by day, week, month or year.",
+    "intro": "See your time at a glance, with a soft colour for each calendar and a red line for now. Tasks due at a time sit right beside your events.",
+    "features": [
+      {
+        "title": "Your calendars together",
+        "text": "Use Mobius's own calendars, subscribed calendar links and CalDAV accounts such as iCloud, Fastmail and Nextcloud."
+      },
+      {
+        "title": "Quick events",
+        "text": "Type an event in plain words, like \"Lunch fri 1pm\", or sweep across the hours to make one."
+      },
+      {
+        "title": "Tasks on the calendar",
+        "text": "Tasks due at a time show at their hour as a thin line you can tick off."
+      },
+      {
+        "title": "Invites and answers",
+        "text": "Invite people with names from your address book, and see who is going, maybe or not going."
+      },
+      {
+        "title": "Record a meeting",
+        "text": "Start recording from an event, and its page in Notes names the event and who is on it."
+      },
+      {
+        "title": "Year view",
+        "text": "See the whole year on one screen, with a dot under each day that has events."
+      }
+    ],
+    "mobius": "Events Mobius adds or suggests are drawn dashed until you Keep, Discard or Try another, and the Mobius panel tells you how much free time is left today.",
+    "kept": "Your calendars are .ics files in your workspace that other calendar apps can open.",
+    "related": [
+      "tasks",
+      "notes",
+      "mail"
+    ]
+  },
+  {
+    "key": "sheets",
+    "name": "Sheets",
+    "group": "Write and plan",
+    "tagline": "Spreadsheets with formulas, saved as plain files.",
+    "intro": "Type in a cell or the formula bar, and formulas work across sheets with a hint for the function you are in. Columns size themselves, and headers and totals are spotted for you.",
+    "features": [
+      {
+        "title": "Formulas across sheets",
+        "text": "Use functions like SUM and IF and refer to cells on other sheets, with hints as you type."
+      },
+      {
+        "title": "Smart headers and totals",
+        "text": "A first row of words reads as a header, and a last row that adds up the rest reads as the total."
+      },
+      {
+        "title": "Number formats",
+        "text": "Show a column as Number, Currency or Percentage, following your computer's region."
+      },
+      {
+        "title": "Sorting that stays tidy",
+        "text": "Sort by any column while the header and total rows stay where they are."
+      },
+      {
+        "title": "Find in a sheet",
+        "text": "Matching cells are tinted, and you can step from one to the next."
+      },
+      {
+        "title": "Analyse mode",
+        "text": "Ask about your numbers and get charts and tables back, with no cell ever changed."
+      }
+    ],
+    "mobius": "In Analyse mode Mobius answers with charts and tables and never changes a cell, and the Mobius panel shows the sum, average and count of the cells you pick.",
+    "kept": "Each workbook is a folder in your workspace, with each sheet a CSV file that any spreadsheet app can open.",
+    "related": [
+      "database",
+      "files"
+    ]
+  },
+  {
+    "key": "database",
+    "name": "Database",
+    "group": "Write and plan",
+    "tagline": "Browse and query databases, with or without SQL.",
+    "intro": "Make a database or import a CSV file or a sheet, and each table opens ready to browse. Sort, filter and edit rows much like a spreadsheet, or switch to SQL when you want it.",
+    "features": [
+      {
+        "title": "Three views",
+        "text": "Every table opens with Data for its rows, Structure for its columns and SQL for any statement."
+      },
+      {
+        "title": "Browse without SQL",
+        "text": "Sort by any column, filter rows by the words they hold and page through a hundred rows at a time."
+      },
+      {
+        "title": "Edit in place",
+        "text": "Change a cell by double-clicking it, add rows, and undo your last change."
+      },
+      {
+        "title": "Query history",
+        "text": "Bring back an earlier query and copy any result as CSV."
+      },
+      {
+        "title": "Bring in your data",
+        "text": "Import a CSV file or a sheet from Sheets as a table."
+      },
+      {
+        "title": "Safe questions",
+        "text": "Mobius reads through a read-only connection, so a query it writes cannot change anything."
+      }
+    ],
+    "mobius": "Mobius answers questions about your data with charts and tables through a read-only connection, and any change to the data asks first and waits for your Keep or Discard.",
+    "kept": "Each database is a SQLite file in your workspace.",
+    "related": [
+      "sheets",
+      "files"
+    ]
+  },
+  {
+    "key": "projects",
+    "name": "Projects",
+    "group": "Write and plan",
+    "tagline": "A place for one piece of work.",
+    "intro": "A project gathers its conversations, files and memory on one page, with its own rules for what Mobius may do. A line at the top says what it has made, what waits on you and when it last moved.",
+    "features": [
+      {
+        "title": "Rules per project",
+        "text": "Choose Ask each time, Review changes or Auto for each app; paying, sending, deleting and running commands always ask."
+      },
+      {
+        "title": "Project threads",
+        "text": "Move conversations in and the project's rules apply; take one out and the conversation is kept."
+      },
+      {
+        "title": "Project memory",
+        "text": "Each project has its own memory page, and what Mobius proposes for it waits dashed until kept."
+      },
+      {
+        "title": "Files in one list",
+        "text": "See the project's folder and everything its threads made or changed, newest first."
+      },
+      {
+        "title": "Ask a bot",
+        "text": "Send one of your agents off on a side job, and its report comes back into the thread."
+      },
+      {
+        "title": "Nothing lost on delete",
+        "text": "Deleting a project keeps its threads, folder and memory page; only the project and its rules go."
+      }
+    ],
+    "mobius": "Mobius works within the project's rules, and what it proposes for the project's memory waits dashed until you keep it.",
+    "kept": "Each project has its own folder in Files and its own memory page in Knowledge.",
+    "related": [
+      "knowledge",
+      "files",
+      "agents"
+    ]
+  },
+  {
+    "key": "knowledge",
+    "name": "Knowledge",
+    "group": "Write and plan",
+    "tagline": "What Mobius knows, on pages you can read.",
+    "intro": "Knowledge opens on your private How I work page, where everything Mobius remembers about you is in plain sight. Shared pages, like each project's memory, sit beside it.",
+    "features": [
+      {
+        "title": "How I work",
+        "text": "What Mobius remembers, grouped as About you, Preferences, Projects, People and Learned skills."
+      },
+      {
+        "title": "Nothing learned silently",
+        "text": "What Mobius learns waits at the top, dashed, until you Keep it or say Not true."
+      },
+      {
+        "title": "Edit or forget",
+        "text": "Edit, forget or share any line, or add one of your own."
+      },
+      {
+        "title": "Shared pages",
+        "text": "Changes to a shared page are offered, not written straight in, and wait with Decline, Edit first and Keep."
+      },
+      {
+        "title": "Earlier versions",
+        "text": "See what putting an earlier version back would change, line by line, and Undo if you change your mind."
+      }
+    ],
+    "mobius": "Mobius offers what it learns as dashed lines on How I work, and you decide whether each one stays.",
+    "kept": "Pages are Markdown files in your workspace, and what Mobius remembers about you is one plain Markdown file in its data folder.",
+    "related": [
+      "projects",
+      "settings"
+    ]
+  },
+  {
+    "key": "mail",
+    "name": "Mail",
+    "group": "Browse and find",
+    "tagline": "Your mail, sorted, with drafts Mobius writes.",
+    "intro": "Your mail is mirrored to this computer and sorted into Primary, Transactions and Updates. Mobius suggests replies and plans, but it never sends: you press Send.",
+    "features": [
+      {
+        "title": "Sorted for you",
+        "text": "Mobius sorts the Inbox into Primary, Transactions and Updates, and you can move any message to another."
+      },
+      {
+        "title": "Suggested replies",
+        "text": "A reply waits under the message as a dashed draft until you choose Keep and edit, Discard or Try another."
+      },
+      {
+        "title": "Take care of this",
+        "text": "One ask turns an email into tasks with due dates, a calendar event and a suggested reply, each waiting for you."
+      },
+      {
+        "title": "Get to zero",
+        "text": "Mobius proposes a plan for the whole inbox, dashed until you keep it."
+      },
+      {
+        "title": "Triage mode",
+        "text": "Sort unread mail into Reply, Later and Archive with replies drafted and nothing sent."
+      },
+      {
+        "title": "Shown safely",
+        "text": "No scripts and nothing loaded from the web, so tracking pixels never fire."
+      }
+    ],
+    "mobius": "Mobius sorts, triages and drafts replies, but it never sends mail itself: you press Send.",
+    "kept": "A copy of each account's recent Inbox and Sent mail, with your drafts, is kept in your workspace.",
+    "related": [
+      "tasks",
+      "calendar"
+    ]
+  },
+  {
+    "key": "messages",
+    "name": "Messages",
+    "group": "Browse and find",
+    "tagline": "Your chats in one place, with a catch-up.",
+    "intro": "Messages is made to bring Slack, Matrix, Teams chats and Telegram into one list, through each service's official API. Signing in to some of them is still on the way.",
+    "features": [
+      {
+        "title": "Catch me up",
+        "text": "Get at most five lines on what was said and decided in a channel, plus a draft reply to anything waiting on you."
+      },
+      {
+        "title": "One list",
+        "text": "See all your conversations together or one account at a time, with mentions and unread counts."
+      },
+      {
+        "title": "Mobius space",
+        "text": "Your own chat space, run on this computer, that opens straight to its first channel."
+      },
+      {
+        "title": "Threads in place",
+        "text": "Open a thread's replies right where you are, then step back to the channel."
+      },
+      {
+        "title": "Ask about your chats",
+        "text": "Ask Mobius from any app, like \"anything urgent in Ops?\", and it reads the chats it needs."
+      }
+    ],
+    "mobius": "Mobius reads your chats as someone else's words, sums them up and suggests replies, but it has no way to send: only you do.",
+    "kept": "Messages stay with each chat service and are read as you open them.",
+    "related": [
+      "mail",
+      "store"
+    ]
+  },
+  {
+    "key": "browser",
+    "name": "Browser",
+    "group": "Browse and find",
+    "tagline": "A full web browser, with Mobius to help.",
+    "intro": "Tabs live in a side panel, as in Safari and Arc, and a new tab opens on your favourites and reading list. Ask Mobius about the page you are on, or select text and act on it.",
+    "features": [
+      {
+        "title": "Tabs in a panel",
+        "text": "Pin, reorder and search your tabs and bookmarks in one side panel."
+      },
+      {
+        "title": "Reader mode",
+        "text": "Keep a page in Read later and read it as clean, plain text, picking up where you stopped."
+      },
+      {
+        "title": "Keep highlights",
+        "text": "Highlight passages as you read, ask about them, and copy them all to Notes."
+      },
+      {
+        "title": "A private start page",
+        "text": "Your new tab page is drawn by Mobius, so none of it is shown to a web page."
+      },
+      {
+        "title": "Mobius on the page",
+        "text": "Ask about a page or act on selected text; clicking or typing on a page asks every time."
+      },
+      {
+        "title": "Your sign-ins stay yours",
+        "text": "When a page needs a sign-in, you sign in yourself."
+      }
+    ],
+    "mobius": "Mobius reads and works on pages for you, asks before opening a site it has not been allowed, and asks every time before it clicks or types.",
+    "kept": "Pages you save to read later are Markdown files in your workspace.",
+    "related": [
+      "notes",
+      "settings"
+    ]
+  },
+  {
+    "key": "files",
+    "name": "Files",
+    "group": "Browse and find",
+    "tagline": "Your whole workspace as a drive.",
+    "intro": "Every note, sheet and document is a real file, and Files shows them all in a list like Finder's. Double-click anything to open it in its own app.",
+    "features": [
+      {
+        "title": "Made by Mobius",
+        "text": "Everything Mobius created in one place, dashed until you keep it, with a count of what is waiting."
+      },
+      {
+        "title": "Trash with Put Back",
+        "text": "Deleted files go to the Trash, where Put Back returns them to the folder they came from."
+      },
+      {
+        "title": "Drag to move",
+        "text": "Drag files onto any folder to move them, with Undo if you change your mind."
+      },
+      {
+        "title": "Add a drive",
+        "text": "Add a WebDAV server such as Nextcloud or a Synology, or an S3 bucket, and browse it like your workspace."
+      },
+      {
+        "title": "Sync a folder",
+        "text": "Keep a workspace folder in step with a drive both ways, keeping both copies when they clash."
+      },
+      {
+        "title": "Careful saving back",
+        "text": "A changed copy goes back to a drive only if nobody changed the file there since you copied it."
+      }
+    ],
+    "mobius": "A file Mobius made is dashed until you keep it, and Mobius can never empty the Trash.",
+    "kept": "Files shows your workspace folder itself; a drive's files stay on its server, and its password sits in your computer's secret store.",
+    "related": [
+      "notes",
+      "docs",
+      "projects"
+    ]
+  },
+  {
+    "key": "slides",
+    "name": "Slides",
+    "group": "Create",
+    "tagline": "Presentations, played as Keynote plays them.",
+    "intro": "Edit each slide at 16:9 with presenter notes underneath, then play the deck full screen. Layouts, pictures and transitions are close at hand.",
+    "features": [
+      {
+        "title": "Presenter view",
+        "text": "See the next slide, your notes and the clock while you present."
+      },
+      {
+        "title": "Layouts and pictures",
+        "text": "Start a slide from a layout, and paste or drop in pictures that sit beside your words."
+      },
+      {
+        "title": "Slide transitions",
+        "text": "Choose how each slide moves on: None, Dissolve, Push or Move in."
+      },
+      {
+        "title": "Skip a slide",
+        "text": "Leave a slide out of Play without deleting it; it stays in the list, dimmed."
+      },
+      {
+        "title": "Presenter notes",
+        "text": "Write notes under each slide and show or hide them as you work."
+      }
+    ],
+    "mobius": "Ask Mobius about the deck and its changes come back as dashed slides, and Keep keeps every slide it changed.",
+    "kept": "Each deck is a Markdown file in your workspace, with its pictures in a folder beside it.",
+    "related": [
+      "docs",
+      "files"
+    ]
+  },
+  {
+    "key": "design",
+    "name": "Design",
+    "group": "Create",
+    "tagline": "Frames on a canvas, as in Sketch and Figma.",
+    "intro": "Draw frames, shapes, lines and text on a canvas, with smart guides as you move things around. Reuse parts as components and export frames as pictures.",
+    "features": [
+      {
+        "title": "Reusable components",
+        "text": "Turn layers into a component, place copies, and every copy follows when you change it."
+      },
+      {
+        "title": "Smart guides",
+        "text": "Move with smart guides, size from any edge and line layers up from the inspector."
+      },
+      {
+        "title": "Layers you control",
+        "text": "Rename, lock, hide and drag layers to change what sits in front."
+      },
+      {
+        "title": "Pictures that fit",
+        "text": "Paste or drop a picture and it fills its box, cropped to fit, with rounded corners if you like."
+      },
+      {
+        "title": "Export as PNG",
+        "text": "Export a frame at 1x, 2x or 3x, saved to a Design exports album in Photo."
+      },
+      {
+        "title": "Shared assets",
+        "text": "Keep components and colour styles together and put them on your design with a click."
+      }
+    ],
+    "mobius": "Mobius's changes are dashed for you to keep or discard, and it can make pictures with your Images model.",
+    "kept": "Each design is a JSON file in your workspace, with its pictures in a folder beside it.",
+    "related": [
+      "photo",
+      "store"
+    ]
+  },
+  {
+    "key": "photo",
+    "name": "Photo",
+    "group": "Create",
+    "tagline": "Your pictures, with edits you can always take back.",
+    "intro": "Browse your albums as a grid and edit with adjustments, filters and crop. Your original files are never changed.",
+    "features": [
+      {
+        "title": "Originals untouched",
+        "text": "Edits are kept beside each photo, so every change can be put back."
+      },
+      {
+        "title": "Fine adjustments",
+        "text": "Exposure, highlights, shadows, contrast, saturation, warmth and more, on all of a picture or just part of it."
+      },
+      {
+        "title": "Filters and crop",
+        "text": "Apply a filter, or turn, flip and straighten a picture in Crop."
+      },
+      {
+        "title": "Show original",
+        "text": "Compare with the picture before your edits, or Revert to start over."
+      },
+      {
+        "title": "Recently Deleted",
+        "text": "Deleted photos keep their edits until you empty it, and can be put back in their album."
+      },
+      {
+        "title": "Export a copy",
+        "text": "Export writes a new file next to the photo."
+      }
+    ],
+    "mobius": "Pictures Mobius makes with your Images model are saved here.",
+    "kept": "Albums are folders in your workspace, with your original files untouched and your edits in a small file beside each one.",
+    "related": [
+      "design",
+      "files"
+    ]
+  },
+  {
+    "key": "music",
+    "name": "Music",
+    "group": "Create",
+    "tagline": "A small studio for writing songs as notes.",
+    "intro": "Build a song from tracks of drums, bass, piano, pads and leads, and play it from start to end or launch clips as you go. Every track has its own sound, effects and automation.",
+    "features": [
+      {
+        "title": "Arrange and Session",
+        "text": "See the song from start to end, or launch looping clips and whole scenes from a grid."
+      },
+      {
+        "title": "Piano roll and steps",
+        "text": "Draw notes in a piano roll, or switch steps on and off in a sixteen-step sequencer."
+      },
+      {
+        "title": "Shape the sound",
+        "text": "Every instrument has an oscillator, filter, envelope and vibrato, set with knobs."
+      },
+      {
+        "title": "Track effects",
+        "text": "Add EQ, compressor, delay, reverb, saturator, phaser and more to any track."
+      },
+      {
+        "title": "Play from your keyboard",
+        "text": "Turn on the computer keyboard to play notes, and Record writes what you play into the track."
+      },
+      {
+        "title": "Export as WAV",
+        "text": "Play the whole song into a stereo WAV file, never over an earlier export."
+      }
+    ],
+    "mobius": "Ask Mobius for a part or a warmer sound, and its change arrives dashed in indigo until you Keep, Discard or Try another.",
+    "kept": "Each song is a JSON file of notes in your workspace, and exported sound goes in an Exports folder.",
+    "related": [
+      "store",
+      "files"
+    ]
+  },
+  {
+    "key": "video",
+    "name": "Video",
+    "group": "Create",
+    "tagline": "Cut footage into a short film.",
+    "intro": "Drop in footage, add clips to the cut and trim them on a filmstrip timeline. Export the finished film with its titles and sound.",
+    "features": [
+      {
+        "title": "Filmstrip timeline",
+        "text": "Each shot is a numbered filmstrip you can trim from either end, split, duplicate and move."
+      },
+      {
+        "title": "Precise trims",
+        "text": "Set where a shot starts and ends as timecode or plain seconds."
+      },
+      {
+        "title": "Full screen viewer",
+        "text": "Play the shots in order, and full screen when you want a proper look."
+      },
+      {
+        "title": "Export the film",
+        "text": "Save the film, titles and sound included, as a video file in the project's Exports folder."
+      },
+      {
+        "title": "Clips stay untouched",
+        "text": "Your original clips are never changed."
+      }
+    ],
+    "mobius": "You can ask Mobius about your cut.",
+    "kept": "Each project is a folder in your workspace, with the cut saved as a small file and finished films in an Exports folder.",
+    "related": [
+      "store",
+      "files"
+    ]
+  },
+  {
+    "key": "code",
+    "name": "Code",
+    "group": "Create",
+    "tagline": "A code editor for projects in your workspace.",
+    "intro": "Open a project, write in an editor that closes brackets for you, and commit with git from the side panel. Mobius proposes changes you review line by line.",
+    "features": [
+      {
+        "title": "Review line by line",
+        "text": "See Mobius's change as removed and added lines, and keep or put back each one."
+      },
+      {
+        "title": "Built-in git",
+        "text": "See every changed file with git's marks, then commit and push from the side panel."
+      },
+      {
+        "title": "Debug mode",
+        "text": "Mobius reproduces the bug first, then proposes the fix."
+      },
+      {
+        "title": "Comfortable editor",
+        "text": "The current line is lit, brackets and quotes close themselves, and every change can be undone."
+      },
+      {
+        "title": "Start page",
+        "text": "With no file open, see the project, the files you opened lately and a quick way to run tests."
+      },
+      {
+        "title": "Project console",
+        "text": "Mobius can run a command in the project's folder beside your own, asking every time."
+      }
+    ],
+    "mobius": "Mobius proposes changes you review line by line, and it asks before every commit, push or command.",
+    "kept": "Each project is an ordinary folder in your workspace that git and other editors can use.",
+    "related": [
+      "files",
+      "store"
+    ]
+  },
+  {
+    "key": "canvas",
+    "name": "Canvas",
+    "group": "Create",
+    "tagline": "A whiteboard for thinking out loud.",
+    "intro": "Put stickies, shapes, text, arrows and pen lines on a board you can pan and zoom. Mobius can add to the board too, and you choose what stays.",
+    "features": [
+      {
+        "title": "Stickies and shapes",
+        "text": "Put stickies, shapes and text anywhere on the board."
+      },
+      {
+        "title": "Arrows and pen lines",
+        "text": "Connect ideas with arrows between them and sketch freely with the pen."
+      },
+      {
+        "title": "Pan and zoom",
+        "text": "Move around the board and zoom in or out to see the whole picture or one detail."
+      },
+      {
+        "title": "Copy between boards",
+        "text": "Copy items from one board to another."
+      }
+    ],
+    "mobius": "Mobius's additions are dashed until you keep them, and the change bar says what it added and took away.",
+    "kept": "Each board is a JSON file in your workspace.",
+    "related": [
+      "store",
+      "files"
+    ]
+  }
+]
