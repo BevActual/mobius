@@ -22,5 +22,8 @@ cpal = "0.16"
 # MIDI keyboards in, through WinMM on Windows and Core MIDI on macOS.
 midir = "0.10"
 
+[dev-dependencies]
+tempfile = "3"
+
 [lints]
 workspace = true
