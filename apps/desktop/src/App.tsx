@@ -124,6 +124,7 @@ import { recentNotes, useNoteQuickOpen } from './note-quick-open';
 import { findTodayNote, JOURNAL, liveTitle, statusText, todayNoteTitle } from './notes-state';
 import { checkedLast, setCheckedLast } from './checked-last';
 import { noteSort, setNoteSort, type NoteSort } from './note-sort';
+import { dailyTemplate, KEPT_NOTE_TEMPLATES, noteTemplates, savedTemplates, templateBody, templatesNotebook } from './note-templates';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
@@ -1146,7 +1147,11 @@ export function App() {
       const made = findTodayNote(notes.notebooks);
       if (made) { await notes.open(made.path, made.title); return; }
       const book = notes.notebooks.some((nb) => nb.name === JOURNAL) ? JOURNAL : await notes.createNotebook(JOURNAL);
-      if (book) await notes.createPage(book, todayNoteTitle(), `# ${todayNoteTitle()}\n\n`);
+      // From the saved Daily template when there is one, under the day's own heading, so it is found again today.
+      const daily = dailyTemplate(notes.notebooks);
+      const kept = daily?.path ? await window.mobius.notes?.read(daily.path).catch(() => null) : null;
+      const body = kept && 'content' in kept ? fillTemplate(templateBody(kept.content), new Date()) : '';
+      if (book) await notes.createPage(book, todayNoteTitle(), `# ${todayNoteTitle()}\n\n${body}`);
     })(); } },
     { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
     { id: 'tab', label: 'New tab', app: 'browser', keys: 'mod+t', run: () => { closeSettings(); openApp('browser'); newTab(); } },
@@ -1356,7 +1361,7 @@ export function App() {
       commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
-      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn, sort: notesSort },
+      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn, sort: notesSort, isTemplate: isTemplate(notes.page?.path), templates: noteTemplates(notes.notebooks) },
       docs: { hasPage: docs.page !== null, isTemplate: isTemplate(docs.page?.path), templates: templatesIn(docs.notebooks) },
       tasks: { inList: tasks.view.kind === 'list', done: tasksDone },
       calendar: { mode: calendar.mode },
@@ -1414,6 +1419,34 @@ export function App() {
         markdown: () => sendCommand('show-markdown'),
         checkedLast: () => { setCheckedLast(!checkedLastOn); setCheckedLastOn(!checkedLastOn); },
         sortBy: (by) => { setNoteSort(by); setNotesSort(by); },
+        // A new note from a template, in the notebook open now (never Templates itself), dated where it says {{date}}.
+        fromTemplate: (name) => { const t = noteTemplates(notes.notebooks).find((x) => x.name === name); if (!t) return; closeSettings(); openApp('notes'); void (async () => {
+          const read = t.path ? await window.mobius.notes?.read(t.path).catch(() => null) : null;
+          const content = t.content ?? (read && 'content' in read ? read.content : null);
+          if (content === null) { setToast('The template could not be read.'); return; }
+          const here = notes.page && !isTemplate(notes.page.path) ? notes.page.path.split('/')[0] : undefined;
+          const book = here ?? notes.notebooks.find((n) => !isTemplate(`${n.name}/`))?.name ?? (await notes.createNotebook('Notes'));
+          const now = new Date();
+          const made = book ? await notes.createPage(book, fillTemplate(t.title, now), fillTemplate(content, now)) : null;
+          if (!made) setToast(`${t.name} could not be started${book ? ` in ${book}` : ''}.`);
+        })(); },
+        // The Templates notebook, with the kept Meeting and Project put in it to change, and its first template opened.
+        editTemplates: () => { closeSettings(); openApp('notes'); void (async () => {
+          const book = templatesNotebook(notes.notebooks) ?? (await notes.createNotebook(TEMPLATES_FOLDER));
+          if (!book) return;
+          const saved = savedTemplates(notes.notebooks);
+          for (const t of KEPT_NOTE_TEMPLATES) {
+            if (!saved.some((s) => s.name.toLocaleLowerCase() === t.name.toLocaleLowerCase())) await notes.createPage(book, t.name, t.content);
+          }
+          const open = saved[0];
+          if (open?.path) await notes.open(open.path, open.title);
+        })(); },
+        // The open note copied into Templates (made if missing), where New from lists it.
+        saveAsTemplate: () => { const page = notes.page; if (!page || isTemplate(page.path)) return; void (async () => {
+          const text = notes.text;
+          const book = templatesNotebook(notes.notebooks) ?? (await notes.createNotebook(TEMPLATES_FOLDER));
+          if (book && await notes.createPage(book, page.title, text)) setToast(`Saved as a template. New from ${templateName(page.title)} is in the Notes menu.`);
+        })(); },
       },
       tasks: {
         newList: () => sendCommand('new-list'),
