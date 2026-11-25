@@ -17,6 +17,9 @@ describe('a notebook’s notes', () => {
     // A to Z without regard to case, and Note 9 before Note 10.
     expect(order('title')).toEqual(['Alpha', 'beta', 'Note 9', 'Note 10']);
   });
+  it('pass over a leading The in a title', () => {
+    expect(sortPages([{ path: 'W/t.md', title: 'The Plan', modified: 1 }, { path: 'W/o.md', title: 'Overview', modified: 2 }, { path: 'W/a.md', title: 'Agenda', modified: 3 }], 'title').map((p) => p.title)).toEqual(['Agenda', 'Overview', 'The Plan']);
+  });
   it('put pinned notes first, in the same order', () => {
     expect(order('title', new Set(['W/d.md', 'W/b.md']))).toEqual(['beta', 'Note 9', 'Alpha', 'Note 10']);
   });

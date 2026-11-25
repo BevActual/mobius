@@ -45,6 +45,10 @@ const notesMenu = async (item: string): Promise<void> => {
   await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Notes', exact: true }).click();
   await shell().getByRole('menu', { name: 'Notes' }).getByRole('menuitem', { name: item }).click();
 };
+const viewMenu = async (item: string): Promise<void> => {
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
+  await shell().getByRole('menu', { name: 'View' }).getByRole('menuitem', { name: item }).click();
+};
 const status = (): Locator => shell().locator('.note-status');
 const file = (...parts: string[]) => path.join(userData, 'workspace', 'notes', ...parts);
 const onDisk = (...parts: string[]) => fs.readFileSync(file(...parts), 'utf8');
@@ -574,9 +578,9 @@ test('a notebook lists its notes by last edit, by when they were made, or by tit
   const work = side().getByRole('region', { name: 'Work' });
   const order = () => work.locator('button.list-row').evaluateAll((rows) => rows.map((r) => r.getAttribute('aria-label')));
   await expect.poll(order).toEqual(['Beta', 'Gamma', 'Alpha']);
-  await notesMenu('Sort by title');
+  await viewMenu('Sort notes by title');
   await expect.poll(order).toEqual(['Alpha', 'Beta', 'Gamma']);
-  await notesMenu('Sort by date created');
+  await viewMenu('Sort notes by date created');
   await expect.poll(order).toEqual(['Beta', 'Alpha', 'Gamma']);
   await work.getByRole('button', { name: 'Pin Gamma' }).click();
   await expect.poll(order).toEqual(['Gamma', 'Beta', 'Alpha']);

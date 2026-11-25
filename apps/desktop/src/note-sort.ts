@@ -24,6 +24,8 @@ export function setNoteSort(by: NoteSort): void {
 export const createdOf = (page: NotePage): number => page.created || page.modified;
 
 const byTitle = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+/** A title as it is sorted: a leading "The" is passed over, as in a library. */
+export const sortTitle = (title: string): string => title.replace(/^the\s+/i, '').trim() || title;
 
 /** The pages in the order `by` says, pinned ones first; ties keep the newest edit first. */
 export function sortPages<T extends NotePage>(pages: readonly T[], by: NoteSort, pinned?: ReadonlySet<string>): T[] {
@@ -31,7 +33,7 @@ export function sortPages<T extends NotePage>(pages: readonly T[], by: NoteSort,
   return [...pages].sort((a, b) => {
     const pin = Number(pinned?.has(b.path) ?? false) - Number(pinned?.has(a.path) ?? false);
     if (pin) return pin;
-    if (by === 'title') return byTitle.compare(a.title, b.title) || b.modified - a.modified;
+    if (by === 'title') return byTitle.compare(sortTitle(a.title), sortTitle(b.title)) || b.modified - a.modified;
     return key(b) - key(a) || byTitle.compare(a.title, b.title);
   });
 }
