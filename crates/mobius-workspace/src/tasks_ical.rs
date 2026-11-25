@@ -1,6 +1,7 @@
 //! Tasks as CalDAV servers keep them: one `VTODO` per task (RFC 5545), read into a [`RemoteTask`] and written back.
 //!
-//! What maps: the words (`SUMMARY`), done (`STATUS:COMPLETED`), the due date and time (`DUE`), a repeat Mobius knows
+//! What maps: the words (`SUMMARY`), done (`STATUS:COMPLETED`), the due date and time (`DUE`), the day it is planned for (`DTSTART`, or
+//! `X-MOBIUS-WHEN:SOMEDAY`), the day it was done (`COMPLETED`), a repeat Mobius knows
 //! (`RRULE`: every day, weekday, week, month or year), the flag (`PRIORITY` 1 to 4, the high ones), notes
 //! (`DESCRIPTION`) and the task it is under (`RELATED-TO`). Everything else in a task, such as categories, alarms or a
 //! repeat Mobius can't show, is kept as it was when a change is written back.
@@ -65,7 +66,7 @@ pub fn todos(text: &str) -> Vec<Todo> {
         let Some((name, params, value)) = split_line(&line) else { continue };
         match (name.as_str(), value.to_ascii_uppercase().as_str()) {
             ("BEGIN", "VTODO") if current.is_none() => {
-                let task = Task { text: String::new(), done: false, due: None, time: None, repeat: None, flagged: false, id: None };
+                let task = Task { text: String::new(), done: false, due: None, time: None, repeat: None, flagged: false, start: None, done_on: None, id: None };
                 current = Some((Todo { uid: String::new(), task: RemoteTask { task, notes: String::new(), parent: None }, order: (None, String::new()) }, None));
                 depth = 0;
                 continue;
@@ -92,7 +93,18 @@ pub fn todos(text: &str) -> Vec<Todo> {
             "UID" => todo.uid = value.trim().to_owned(),
             "SUMMARY" => t.task.text = unescape(&value).replace(['\n', '\r'], " ").trim().to_owned(),
             "STATUS" => t.task.done = t.task.done || value.trim().eq_ignore_ascii_case("COMPLETED"),
-            "COMPLETED" => t.task.done = true,
+            "COMPLETED" => {
+                t.task.done = true;
+                let day = value.trim();
+                t.task.done_on = (day.len() >= 8).then(|| format!("{}-{}-{}", &day[..4], &day[4..6], &day[6..8])).filter(|d| crate::tasks::is_date(d));
+            }
+            // When the person plans to do it: a start day, or Mobius's own Someday.
+            "DTSTART" => {
+                if let Some(w) = parse_when(&params, &value) {
+                    t.task.start.get_or_insert_with(|| w.moment().format("%Y-%m-%d").to_string());
+                }
+            }
+            "X-MOBIUS-WHEN" if value.trim().eq_ignore_ascii_case("SOMEDAY") => t.task.start = Some(crate::tasks::SOMEDAY.into()),
             "DUE" => match parse_when(&params, &value) {
                 Some(When::Day(d)) => t.task.due = Some(d.format("%Y-%m-%d").to_string()),
                 Some(When::At(at)) => {
@@ -129,7 +141,8 @@ fn own_lines(task: &RemoteTask, keep_rule: Option<&str>) -> Vec<String> {
     let mut lines = vec![format!("SUMMARY:{}", escape(&t.text))];
     if t.done {
         lines.push("STATUS:COMPLETED".into());
-        lines.push(format!("COMPLETED:{}", stamp()));
+        let when = t.done_on.as_ref().map_or_else(stamp, |d| format!("{}T120000Z", d.replace('-', "")));
+        lines.push(format!("COMPLETED:{when}"));
         lines.push("PERCENT-COMPLETE:100".into());
     } else {
         lines.push("STATUS:NEEDS-ACTION".into());
@@ -140,6 +153,11 @@ fn own_lines(task: &RemoteTask, keep_rule: Option<&str>) -> Vec<String> {
             Some(time) => lines.push(format!("DUE:{day}T{}00", time.replace(':', ""))),
             None => lines.push(format!("DUE;VALUE=DATE:{day}")),
         }
+    }
+    match t.start.as_deref() {
+        Some(crate::tasks::SOMEDAY) => lines.push("X-MOBIUS-WHEN:SOMEDAY".into()),
+        Some(day) => lines.push(format!("DTSTART;VALUE=DATE:{}", day.replace('-', ""))),
+        None => {}
     }
     match t.repeat.as_deref().and_then(rule_of) {
         Some(rule) => lines.push(format!("RRULE:{rule}")),
@@ -162,7 +180,7 @@ fn own_lines(task: &RemoteTask, keep_rule: Option<&str>) -> Vec<String> {
 /// The calendar object to send for a task: `existing` (what the server had) with Mobius's part of the task replaced and
 /// everything else kept, or a new one.
 pub fn todo_ics(existing: Option<&str>, uid: &str, task: &RemoteTask) -> String {
-    const OWN: [&str; 11] = ["SUMMARY", "STATUS", "COMPLETED", "PERCENT-COMPLETE", "DUE", "RRULE", "PRIORITY", "DESCRIPTION", "RELATED-TO", "LAST-MODIFIED", "DTSTAMP"];
+    const OWN: [&str; 13] = ["SUMMARY", "STATUS", "COMPLETED", "PERCENT-COMPLETE", "DUE", "DTSTART", "X-MOBIUS-WHEN", "RRULE", "PRIORITY", "DESCRIPTION", "RELATED-TO", "LAST-MODIFIED", "DTSTAMP"];
     let Some(existing) = existing.filter(|e| todos(e).iter().any(|t| t.uid == uid)) else {
         let mut lines = vec!["BEGIN:VCALENDAR".to_owned(), "VERSION:2.0".into(), "PRODID:-//Mobius//Tasks//EN".into(), "BEGIN:VTODO".into(), format!("UID:{uid}"), format!("CREATED:{}", stamp())];
         lines.extend(own_lines(task, None));
@@ -265,7 +283,7 @@ mod tests {
         assert_eq!(back.task.notes, "Ask about\nthe tap");
         assert!(back.task.task.done);
 
-        let fresh = todo_ics(None, "new@mobius", &RemoteTask { task: Task { text: "Water plants".into(), done: false, due: None, time: None, repeat: Some("week".into()), flagged: true, id: None }, notes: String::new(), parent: Some("ABC-1".into()) });
+        let fresh = todo_ics(None, "new@mobius", &RemoteTask { task: Task { text: "Water plants".into(), done: false, due: None, time: None, repeat: Some("week".into()), flagged: true, start: None, done_on: None, id: None }, notes: String::new(), parent: Some("ABC-1".into()) });
         let read = &todos(&fresh)[0];
         assert_eq!((read.uid.as_str(), read.task.task.repeat.as_deref(), read.task.task.flagged, read.task.parent.as_deref()), ("new@mobius", Some("week"), true, Some("ABC-1")));
         // A repeat Mobius can't show stays when the task is changed.
@@ -273,5 +291,23 @@ mod tests {
         let mut rent = todos(odd)[0].task.clone();
         rent.task.text = "Pay rent".into();
         assert!(todo_ics(Some(odd), "3", &rent).contains("RRULE:FREQ=MONTHLY;BYMONTHDAY=1"));
+    }
+
+    #[test]
+    fn when_someday_and_the_done_day_go_to_the_server_and_back() {
+        let mut task = todos(APPLE)[0].task.clone();
+        task.task.start = Some("2026-11-18".into());
+        let text = todo_ics(Some(APPLE), "ABC-1", &task);
+        assert!(text.contains("DTSTART;VALUE=DATE:20261118"), "{text}");
+        assert_eq!(todos(&text)[0].task.task.start.as_deref(), Some("2026-11-18"));
+        task.task.start = Some("someday".into());
+        let text = todo_ics(Some(&text), "ABC-1", &task);
+        assert!(text.contains("X-MOBIUS-WHEN:SOMEDAY") && !text.contains("DTSTART"), "{text}");
+        assert_eq!(todos(&text)[0].task.task.start.as_deref(), Some("someday"));
+        task.task.done = true;
+        task.task.done_on = Some("2026-11-25".into());
+        let text = todo_ics(Some(&text), "ABC-1", &task);
+        assert!(text.contains("COMPLETED:20261125T120000Z"), "{text}");
+        assert_eq!(todos(&text)[0].task.task.done_on.as_deref(), Some("2026-11-25"));
     }
 }

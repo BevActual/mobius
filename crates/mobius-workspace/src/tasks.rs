@@ -1,7 +1,8 @@
 //! Tasks: each list is a Markdown file under `<workspace>/tasks`, and each task is a checkbox line in it
 //! (`- [ ] Call the plumber (due 2026-11-12)`), so the lists are ordinary files the person can open anywhere.
 //! A task can carry a time on its due date (`(due 2026-11-12 09:30)`), a repeat (`(every week)`), a flag
-//! (`(flagged)` after it), notes (lines indented under it), and subtasks (checkbox lines indented under it). Lines that are not tasks are kept as they are. Every change is checked against what the window or the agent last
+//! (`(flagged)` after it), the day it is planned for (`(when 2026-11-10)` or `(when someday)`, apart from its due date,
+//! which is its deadline), the day it was done (`(done 2026-11-12)`), notes (lines indented under it), and subtasks (checkbox lines indented under it). Lines that are not tasks are kept as they are. Every change is checked against what the window or the agent last
 //! saw, so a change made elsewhere is never overwritten, and a checkpoint is taken before the agent changes a list.
 use std::fs;
 use std::path::PathBuf;
@@ -34,6 +35,11 @@ pub struct Task {
     /// How it comes back once ticked off: one of [`REPEATS`].
     pub repeat: Option<String>,
     pub flagged: bool,
+    /// When the person plans to do it (`(when 2026-11-12)`), as Things has it: a day, or `someday`. Apart from `due`,
+    /// which is its deadline.
+    pub start: Option<String>,
+    /// The day it was ticked off (`(done 2026-11-12)`), for the Logbook. Only on a done task.
+    pub done_on: Option<String>,
     /// Its id on a CalDAV server, in a list mirrored from one (` (id …)` at the end of the line). Never in the
     /// person's own lists, and never shown.
     pub id: Option<String>,
@@ -100,6 +106,12 @@ pub fn next_due(due: &str, every: &str) -> Option<String> {
     };
     Some(format!("{y2:04}-{m2:02}-{d2:02}"))
 }
+/// A task's When: a day (`YYYY-MM-DD`) or `someday`.
+pub fn is_start(s: &str) -> bool {
+    s == SOMEDAY || is_date(s)
+}
+pub const SOMEDAY: &str = "someday";
+
 /// `YYYY-MM-DD` with a month 1-12 and a day that month can have (29 February in any year: the person decides).
 pub fn is_date(s: &str) -> bool {
     let b = s.as_bytes();
@@ -145,7 +157,22 @@ pub fn parse_line(line: &str) -> Option<Task> {
     }
     // What follows the words, in any order: a due date (with a time or not), a repeat and a flag.
     let (mut due, mut time, mut repeat, mut flagged) = (None, None, None, false);
+    let (mut start, mut done_on): (Option<String>, Option<String>) = (None, None);
     loop {
+        if start.is_none()
+            && let Some((b, w)) = body.strip_suffix(')').and_then(|b| b.rsplit_once(" (when ")).filter(|(_, w)| is_start(w))
+        {
+            body = b.trim_end();
+            start = Some(w.to_owned());
+            continue;
+        }
+        if done_on.is_none()
+            && let Some((b, d)) = body.strip_suffix(')').and_then(|b| b.rsplit_once(" (done ")).filter(|(_, d)| is_date(d))
+        {
+            body = b.trim_end();
+            done_on = Some(d.to_owned());
+            continue;
+        }
         if repeat.is_none()
             && let Some((b, r)) = body.strip_suffix(')').and_then(|b| b.rsplit_once(" (every ")).filter(|(_, r)| REPEATS.contains(r))
         {
@@ -172,7 +199,8 @@ pub fn parse_line(line: &str) -> Option<Task> {
         }
         break;
     }
-    (!body.is_empty()).then(|| Task { text: body.to_owned(), done, due, time, repeat, flagged, id })
+    let done_on = done_on.filter(|_| done);
+    (!body.is_empty()).then(|| Task { text: body.to_owned(), done, due, time, repeat, flagged, start, done_on, id })
 }
 
 pub fn format_line(task: &Task) -> String {
@@ -183,8 +211,10 @@ pub fn format_line(task: &Task) -> String {
     };
     let repeat = task.repeat.as_ref().map(|r| format!(" (every {r})")).unwrap_or_default();
     let flag = if task.flagged { " (flagged)" } else { "" };
+    let start = task.start.as_ref().map(|w| format!(" (when {w})")).unwrap_or_default();
+    let done_on = task.done_on.as_ref().filter(|_| task.done).map(|d| format!(" (done {d})")).unwrap_or_default();
     let id = task.id.as_ref().map(|i| format!(" (id {})", percent_encode(i))).unwrap_or_default();
-    format!("- [{}] {}{due}{repeat}{flag}{id}", if task.done { "x" } else { " " }, task.text)
+    format!("- [{}] {}{start}{due}{repeat}{flag}{done_on}{id}", if task.done { "x" } else { " " }, task.text)
 }
 
 /// An id as written in a line: anything but letters, digits and `@._-:` as `%XX`.
@@ -365,6 +395,8 @@ pub struct Change {
     pub repeat: Option<Option<String>>,
     pub flagged: Option<bool>,
     pub notes: Option<String>,
+    /// Its When: `Some(None)` clears it.
+    pub start: Option<Option<String>>,
 }
 
 pub struct Tasks {
@@ -385,9 +417,9 @@ fn tool_list() -> Vec<Value> {
         json!({ "name": "tasks.list", "description": "Read the person's task lists in the Tasks app: every list with its tasks (done or not, and due dates), or one list.", "capability": "tasks.read",
             "input_schema": { "type": "object", "properties": { "list": { "type": "string", "description": "One list to read. Leave out to read them all." } } } }),
         json!({ "name": "tasks.add", "description": "Add a task to one of the person's lists in the Tasks app. Creates the list if it is not there yet.", "capability": "tasks.write", "resource_arg": "list",
-            "input_schema": { "type": "object", "properties": { "list": list, "text": { "type": "string", "description": "What to do, in a few words." }, "due": { "type": "string", "description": "A due date as YYYY-MM-DD, if there is one." }, "time": { "type": "string", "description": "A time on the due date as HH:MM (24-hour), if it has one. Needs a due date." }, "repeat": { "type": "string", "enum": REPEATS, "description": "How it repeats, if it does: ticking it off moves it to its next day." }, "flagged": { "type": "boolean", "description": "Flag it as important." } }, "required": ["list", "text"] } }),
+            "input_schema": { "type": "object", "properties": { "list": list, "text": { "type": "string", "description": "What to do, in a few words." }, "due": { "type": "string", "description": "A due date as YYYY-MM-DD, if there is one." }, "time": { "type": "string", "description": "A time on the due date as HH:MM (24-hour), if it has one. Needs a due date." }, "repeat": { "type": "string", "enum": REPEATS, "description": "How it repeats, if it does: ticking it off moves it to its next day." }, "flagged": { "type": "boolean", "description": "Flag it as important." }, "when": { "type": "string", "description": "The day the person plans to do it, as YYYY-MM-DD, or someday. Apart from due, which is its deadline." } }, "required": ["list", "text"] } }),
         json!({ "name": "tasks.update", "description": "Change a task in the Tasks app: tick it off (a repeating task moves to its next day instead), untick it, reword it, set or clear its due date, time or repeat, flag or unflag it, or replace its notes. The task is found by its exact words and must be in the list only once.", "capability": "tasks.write", "resource_arg": "list",
-            "input_schema": { "type": "object", "properties": { "list": list, "task": { "type": "string", "description": "The task's exact words now." }, "done": { "type": "boolean" }, "text": { "type": "string", "description": "New words for it." }, "due": { "type": "string", "description": "A new due date as YYYY-MM-DD, or an empty text to clear it (and its time)." }, "time": { "type": "string", "description": "A time on the due date as HH:MM (24-hour), or an empty text to clear it." }, "repeat": { "type": "string", "description": "day, weekday, week, month or year; an empty text stops it repeating." }, "flagged": { "type": "boolean" }, "notes": { "type": "string", "description": "The task's notes, replacing what is there; an empty text clears them." } }, "required": ["list", "task"] } }),
+            "input_schema": { "type": "object", "properties": { "list": list, "task": { "type": "string", "description": "The task's exact words now." }, "done": { "type": "boolean" }, "text": { "type": "string", "description": "New words for it." }, "due": { "type": "string", "description": "A new due date as YYYY-MM-DD, or an empty text to clear it (and its time)." }, "time": { "type": "string", "description": "A time on the due date as HH:MM (24-hour), or an empty text to clear it." }, "repeat": { "type": "string", "description": "day, weekday, week, month or year; an empty text stops it repeating." }, "flagged": { "type": "boolean" }, "notes": { "type": "string", "description": "The task's notes, replacing what is there; an empty text clears them." }, "when": { "type": "string", "description": "The day the person plans to do it as YYYY-MM-DD, or someday; an empty text clears it." } }, "required": ["list", "task"] } }),
     ]
 }
 
@@ -616,11 +648,14 @@ impl Tasks {
     /// Like [`Tasks::add_with`], with a time on the due date and a repeat.
     pub fn add_task(&self, list: &str, text: &str, when: When<'_>, flagged: bool, under: Option<(usize, &str)>) -> Res<Value> {
         let text = clean_text(text)?;
-        let When { due, time, repeat } = when;
+        let When { due, time, repeat, start } = when;
         if let Some(d) = due
             && !is_date(d)
         {
             return Err("a due date is written YYYY-MM-DD".into());
+        }
+        if start.is_some_and(|w| !is_start(w)) {
+            return Err("when is a day written YYYY-MM-DD, or someday".into());
         }
         check_time_and_repeat(due, time, repeat)?;
         let file = self.file(list)?;
@@ -630,7 +665,7 @@ impl Tasks {
             return Err("that list is full".into());
         }
         let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
-        let task = format_line(&Task { text, done: false, due: due.map(str::to_owned), time: time.map(str::to_owned), repeat: repeat.map(str::to_owned), flagged, id: None });
+        let task = format_line(&Task { text, done: false, due: due.map(str::to_owned), time: time.map(str::to_owned), repeat: repeat.map(str::to_owned), flagged, start: start.map(str::to_owned), done_on: None, id: None });
         match under {
             Some((at, expect)) => {
                 found(&lines, at, expect)?;
@@ -671,15 +706,28 @@ impl Tasks {
         if let Some(repeat) = change.repeat {
             task.repeat = repeat;
         }
+        if let Some(start) = change.start {
+            if start.as_deref().is_some_and(|w| !is_start(w)) {
+                return Err("when is a day written YYYY-MM-DD, or someday".into());
+            }
+            task.start = start;
+        }
         check_time_and_repeat(task.due.as_deref(), task.time.as_deref(), task.repeat.as_deref())?;
         // Ticking off a task that repeats moves it to its next day and leaves it open; one with no date starts from today.
         if let Some(done) = change.done {
+            // One planned for a day but with no deadline moves its When instead.
             match (&task.repeat, done && !task.done) {
-                (Some(every), true) => {
-                    let from = task.due.clone().unwrap_or_else(today);
-                    task.due = next_due(&from, every);
+                (Some(every), true) => match (&task.due, task.start.as_deref().filter(|w| is_date(w))) {
+                    (None, Some(planned)) => task.start = next_due(planned, every),
+                    _ => {
+                        let from = task.due.clone().unwrap_or_else(today);
+                        task.due = next_due(&from, every);
+                    }
+                },
+                _ => {
+                    task.done_on = (done && !task.done).then(today).or_else(|| if done { task.done_on.clone() } else { None });
+                    task.done = done;
                 }
-                _ => task.done = done,
             }
         }
         let own: String = lines[line].chars().take_while(|c| c.is_whitespace()).collect();
@@ -827,7 +875,7 @@ impl Tasks {
             "tasks.add" => {
                 let words = text("text").ok_or("text must be text")?;
                 self.checkpoint(&format!("before the agent added a task to {list}"));
-                let when = When { due: text("due").filter(|d| !d.is_empty()), time: text("time").filter(|t| !t.is_empty()), repeat: text("repeat").filter(|r| !r.is_empty()) };
+                let when = When { due: text("due").filter(|d| !d.is_empty()), time: text("time").filter(|t| !t.is_empty()), repeat: text("repeat").filter(|r| !r.is_empty()), start: text("when").filter(|w| !w.is_empty()) };
                 self.add_task(list, words, when, args.get("flagged").and_then(Value::as_bool).unwrap_or(false), None)?
             }
             "tasks.update" => {
@@ -847,6 +895,7 @@ impl Tasks {
                     repeat: text("repeat").map(|r| (!r.is_empty()).then(|| r.to_owned())),
                     flagged: args.get("flagged").and_then(Value::as_bool),
                     notes: text("notes").map(str::to_owned),
+                    start: text("when").map(|w| (!w.is_empty()).then(|| w.to_owned())),
                 };
                 self.checkpoint(&format!("before the agent changed a task in {list}"));
                 let line = usize::try_from(found["line"].as_u64().unwrap_or(0)).unwrap_or(0);
@@ -891,6 +940,8 @@ pub struct When<'a> {
     pub due: Option<&'a str>,
     pub time: Option<&'a str>,
     pub repeat: Option<&'a str>,
+    /// The day it is planned for, or `someday` (see [`Task::start`]).
+    pub start: Option<&'a str>,
 }
 
 fn check_time_and_repeat(due: Option<&str>, time: Option<&str>, repeat: Option<&str>) -> Res<()> {
@@ -939,7 +990,7 @@ fn tasks_of(content: &str) -> Vec<Value> {
                 }
             };
             current = Some((own, out.len()));
-            out.push(json!({ "line": i, "text": t.text, "done": t.done, "due": t.due, "time": t.time, "repeat": t.repeat, "flagged": t.flagged, "notes": "", "parent": parent }));
+            out.push(json!({ "line": i, "text": t.text, "done": t.done, "due": t.due, "time": t.time, "repeat": t.repeat, "flagged": t.flagged, "when": t.start, "doneOn": t.done_on, "notes": "", "parent": parent }));
             continue;
         }
         let owner = match (current, top) {
@@ -1028,7 +1079,7 @@ mod tests {
         tasks.add_with("Home", "Brushes", None, false, Some((2, "Paint the door"))).unwrap();
         tasks.clear_done("Home").unwrap();
         let sent = server.sent.lock().unwrap().clone();
-        assert_eq!(sent[0], "put a@x - [x] Paint the door (due 2026-11-20)");
+        assert_eq!(sent[0], format!("put a@x - [x] Paint the door (due 2026-11-20) (done {})", today()));
         assert!(sent[1].starts_with("new ") && sent[1].ends_with("@mobius - [ ] Brushes under a@x"), "{sent:?}");
         assert_eq!(sent[2..4], ["delete a@x", "delete b@x"]);
         assert!(sent[4].starts_with("delete ") && sent[4].ends_with("@mobius"), "a subtask goes with its task: {sent:?}");
@@ -1082,7 +1133,7 @@ mod tests {
     #[test]
     fn task_lines_read_and_write_the_same_way() {
         let t = parse_line("- [ ] Call the plumber (due 2026-11-12)").unwrap();
-        assert_eq!(t, Task { text: "Call the plumber".into(), done: false, due: Some("2026-11-12".into()), time: None, repeat: None, flagged: false, id: None });
+        assert_eq!(t, Task { text: "Call the plumber".into(), done: false, due: Some("2026-11-12".into()), time: None, repeat: None, flagged: false, start: None, done_on: None, id: None });
         assert_eq!(format_line(&t), "- [ ] Call the plumber (due 2026-11-12)");
         assert!(parse_line("  - [X] Done thing").unwrap().done);
         // Not dates, so they stay part of the words.
@@ -1127,7 +1178,7 @@ mod tests {
         let line = usize::try_from(after["tasks"][0]["line"].as_u64().unwrap()).unwrap();
         tasks.update("Home", line, "Paint the door", Change { done: Some(true), ..Change::default() }).unwrap();
         tasks.update("Home", 3, "Fix the tap", Change { text: Some("Fix the kitchen tap".into()), due: Some(None), ..Change::default() }).unwrap();
-        assert_eq!(fs::read_to_string(&file).unwrap(), "# Home\nSome thoughts.\n- [x] Paint the door\n- [ ] Fix the kitchen tap\n");
+        assert_eq!(fs::read_to_string(&file).unwrap(), format!("# Home\nSome thoughts.\n- [x] Paint the door (done {})\n- [ ] Fix the kitchen tap\n", today()));
         let lists = tasks.lists().unwrap();
         assert_eq!(lists[1], json!({ "name": "Home", "open": 1, "done": 1 }));
         tasks.clear_done("Home").unwrap();
@@ -1178,7 +1229,7 @@ mod tests {
         assert!(added.get("version").is_none());
         tasks.run("tasks.add", &json!({ "list": "Work", "text": "Send report" })).unwrap();
         tasks.run("tasks.update", &json!({ "task": "Book dentist", "done": true, "due": "" })).unwrap();
-        assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Inbox.md")).unwrap(), "# Inbox\n\n- [x] Book dentist\n");
+        assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Inbox.md")).unwrap(), format!("# Inbox\n\n- [x] Book dentist (done {})\n", today()));
         let all: Value = serde_json::from_str(&tasks.run("tasks.list", &json!({})).unwrap()).unwrap();
         assert_eq!(all.as_array().unwrap().iter().map(|l| l["list"].clone()).collect::<Vec<_>>(), [json!("Inbox"), json!("Work")]);
         assert!(!Checkpoints::new(dir.path().join("store")).list(&dir.path().join("work"), 10).unwrap().is_empty());
@@ -1231,7 +1282,7 @@ mod tests {
         assert_eq!(tasks.read("Build").unwrap()["tasks"][0]["notes"], "Code is 4411.\n- [ ] not a task");
 
         let after = tasks.add_with("Build", "Load the packs", None, true, Some((2, "Book the sled"))).unwrap();
-        assert_eq!(after["tasks"][3], json!({ "line": 8, "text": "Load the packs", "done": false, "due": null, "time": null, "repeat": null, "flagged": true, "notes": "", "parent": 2 }));
+        assert_eq!(after["tasks"][3], json!({ "line": 8, "text": "Load the packs", "done": false, "due": null, "time": null, "repeat": null, "flagged": true, "when": null, "doneOn": null, "notes": "", "parent": 2 }));
         assert_eq!(tasks.add_with("Build", "x", None, false, Some((2, "Wrong words"))).unwrap_err(), "changed elsewhere");
     }
 
@@ -1345,6 +1396,41 @@ mod tests {
         assert_eq!(next_due("2026-12-15", "month").as_deref(), Some("2027-01-15"));
         assert_eq!(next_due("2028-02-29", "year").as_deref(), Some("2029-02-28"));
         assert_eq!(next_due("2026-11-12", "fortnight"), None);
+    }
+
+    #[test]
+    fn when_and_the_done_day_are_written_after_the_words() {
+        let t = parse_line("- [ ] Plan the trip (when 2026-11-20) (due 2026-11-28) (flagged)").unwrap();
+        assert_eq!((t.start.as_deref(), t.due.as_deref(), t.flagged), (Some("2026-11-20"), Some("2026-11-28"), true));
+        assert_eq!(format_line(&t), "- [ ] Plan the trip (when 2026-11-20) (due 2026-11-28) (flagged)");
+        assert_eq!(parse_line("- [ ] Learn Italian (when someday)").unwrap().start.as_deref(), Some("someday"));
+        assert_eq!(parse_line("- [ ] Read (when later)").unwrap().text, "Read (when later)");
+        let done = parse_line("- [x] Pay (done 2026-11-25)").unwrap();
+        assert_eq!(done.done_on.as_deref(), Some("2026-11-25"));
+        assert_eq!(format_line(&done), "- [x] Pay (done 2026-11-25)");
+        assert_eq!(parse_line("- [ ] Pay (done 2026-11-25)").unwrap().done_on, None, "an open task has no done day");
+    }
+
+    #[test]
+    fn ticking_off_keeps_the_day_and_a_planned_repeat_moves_its_when() {
+        let (dir, tasks) = setup();
+        let file = dir.path().join("work/tasks/Home.md");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "# Home
+
+- [ ] Sweep (when 2026-11-12) (every week)
+- [ ] Pay (when someday)
+").unwrap();
+        tasks.update("Home", 2, "Sweep", Change { done: Some(true), ..Change::default() }).unwrap();
+        tasks.update("Home", 3, "Pay", Change { done: Some(true), ..Change::default() }).unwrap();
+        let today = today();
+        assert_eq!(fs::read_to_string(&file).unwrap(), format!("# Home\n\n- [ ] Sweep (when 2026-11-19) (every week)\n- [x] Pay (when someday) (done {today})\n"));
+        tasks.update("Home", 3, "Pay", Change { done: Some(false), start: Some(Some("2026-12-01".into())), ..Change::default() }).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "# Home\n\n- [ ] Sweep (when 2026-11-19) (every week)\n- [ ] Pay (when 2026-12-01)\n");
+        assert!(tasks.update("Home", 3, "Pay", Change { start: Some(Some("soon".into())), ..Change::default() }).is_err());
+        tasks.run("tasks.update", &json!({ "list": "Home", "task": "Pay", "when": "" })).unwrap();
+        tasks.run("tasks.add", &json!({ "list": "Home", "text": "Learn Italian", "when": "someday" })).unwrap();
+        assert!(fs::read_to_string(&file).unwrap().ends_with("- [ ] Pay\n- [ ] Learn Italian (when someday)\n"));
     }
 
     #[test]
