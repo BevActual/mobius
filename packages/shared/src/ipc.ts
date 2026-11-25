@@ -822,6 +822,22 @@ export interface MobiusBridge {
     deviceRemove?(): Promise<{ ok: true } | { ok: false; error: string }>;
     onDevice?(listener: (status: DeviceVoiceStatus) => void): () => void;
   };
+  /**
+   * A meeting heard from the microphone by Mobius itself, in 16 kHz parts, rather than by the window. Each part is
+   * written down when asked for, with whoever is chosen for listening, and its sound deleted then.
+   */
+  meeting?: {
+    /** Whether meetings are heard here; when not, the window records them itself. */
+    available(): Promise<{ ok: true; here: boolean }>;
+    start(partSeconds?: number): Promise<{ ok: true; device: string } | { ok: false; error: string }>;
+    /** Stops hearing; the last part and the end are sent as events before it answers. */
+    stop(): Promise<{ ok: true } | { ok: false; error: string }>;
+    /** Stops hearing and deletes what was heard. */
+    cancel(): Promise<{ ok: true }>;
+    /** One part's words; `start` and `seconds` place it in the meeting. */
+    transcribe(index: number): Promise<{ ok: true; text: string; start: number; seconds: number; segments?: Array<{ start: number; end: number; text: string }> } | { ok: false; error: string; setup?: boolean }>;
+    onEvent(listener: (event: MeetingEvent) => void): () => void;
+  };
   /** Settings, Usage: the tokens model calls used, kept on this computer, summed per day, gateway, model, app and kind. */
   usage?: {
     /** The rows from `from` to `to` (local days, both included). */
@@ -1906,6 +1922,11 @@ export function parseActivityLimit(value: unknown): number {
 /** A model's name as a server knows it: short, one line, nothing odd. */
 export const LISTEN_WITH = ['device', 'chat', 'local', 'elevenlabs', 'off'] as const;
 export type ListenWith = (typeof LISTEN_WITH)[number];
+/** A meeting heard by Mobius: a part finished, a part that couldn't be kept, or the end. */
+export type MeetingEvent =
+  | { kind: 'part'; index: number; start: number; seconds: number }
+  | { kind: 'problem'; message: string }
+  | { kind: 'ended'; seconds?: number; error?: string };
 /** The Whisper models for listening on this computer: quick, or more accurate for meetings. */
 export const LISTEN_MODELS = ['base.en', 'small.en'] as const;
 export type ListenModel = (typeof LISTEN_MODELS)[number];

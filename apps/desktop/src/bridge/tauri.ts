@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { ClipboardEntry, DeviceVoiceStatus, LauncherAnswer, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo, WindowState } from '@mobius/shared';
+import type { ClipboardEntry, DeviceVoiceStatus, LauncherAnswer, MeetingEvent, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo, WindowState } from '@mobius/shared';
 import { parseLauncherAnswer } from '@mobius/shared';
 import { toListeningWav } from './wav';
 import {
@@ -352,6 +352,14 @@ export function createTauriBridge(): MobiusBridge {
       deviceSetup: (model) => call('voice', 'deviceSetup', model ? [model] : [], () => ({ ok: false as const, error: 'Voice is not available here.' })),
       deviceRemove: () => call('voice', 'deviceRemove', [], () => ({ ok: false as const, error: 'Voice is not available here.' })),
       onDevice: (listener) => on<DeviceVoiceStatus>('mobius:voice-device', listener),
+    },
+    meeting: {
+      available: () => call('meeting', 'available', [], () => ({ ok: true as const, here: false })),
+      start: (partSeconds) => call('meeting', 'start', partSeconds ? [partSeconds] : [], () => ({ ok: false as const, error: 'Not available.' })),
+      stop: () => call('meeting', 'stop', [], () => ({ ok: false as const, error: 'Not available.' })),
+      cancel: () => call('meeting', 'cancel', [], () => ({ ok: true as const })),
+      transcribe: (index) => call('meeting', 'transcribe', [index], () => ({ ok: false as const, error: 'Not available.' })),
+      onEvent: (listener) => on<MeetingEvent>('mobius:meeting', listener),
     },
     comments: {
       list: (app, doc) => call('comments', 'list', [app, doc], () => []),

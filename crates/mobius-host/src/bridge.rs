@@ -326,6 +326,8 @@ pub struct Bridge {
     homeserver: Arc<crate::homeserver::Homeserver>,
     /// Listening on this computer with Whisper, downloaded the first time it is set up in Settings, Voice.
     device_voice: Arc<crate::voice_local::DeviceVoice>,
+    /// A meeting heard from the microphone, in parts the window has written down.
+    meetings: crate::meeting::Meetings,
     photos: mobius_workspace::photos::Photos,
     skills: mobius_workspace::skills::Skills,
     video: mobius_workspace::video::Video,
@@ -542,6 +544,7 @@ impl Bridge {
             music: crate::music::Music::new(emit.clone()),
             homeserver: Arc::new(crate::homeserver::Homeserver::new(data_dir.join("homeserver"), emit.clone())),
             device_voice: Arc::new(crate::voice_local::DeviceVoice::new(data_dir.join("voice"), emit.clone())),
+            meetings: crate::meeting::Meetings::new(data_dir.join("meeting"), emit.clone(), std::env::var_os("MOBIUS_TEST").is_some()),
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter).with_files(),
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
@@ -893,6 +896,16 @@ impl Bridge {
             ("voice", "deviceStatus") => Ok(self.device_voice.status(&self.listen_model(arg(0).as_str()))),
             ("voice", "deviceSetup") => Ok(self.device_voice.setup(&self.listen_model(arg(0).as_str()))),
             ("voice", "deviceRemove") => Ok(self.device_voice.remove(&self.listen_model(None))),
+            // Notes, Record a meeting: the microphone heard here, in parts. Each part is written down with whoever is
+            // chosen for listening when the window asks, and its file deleted then.
+            ("meeting", "available") => Ok(self.meetings.available()),
+            ("meeting", "start") => Ok(self.meetings.start(arg(0).as_u64())),
+            ("meeting", "stop") => Ok(self.meetings.stop()),
+            ("meeting", "cancel") => Ok(self.meetings.cancel()),
+            ("meeting", "transcribe") => Ok(match self.meetings.take(arg(0).as_u64().unwrap_or(u64::MAX)) {
+                Ok((wav, start, seconds)) => crate::meeting::in_meeting(self.listen(&wav, "audio/wav"), start, seconds),
+                Err(error) => json!({ "ok": false, "error": error }),
+            }),
             // Read words aloud with the service chosen for speaking: the window gets the sound, never a key.
             ("voice", "speak") => Ok(self.speak(arg(0).as_str().unwrap_or(""))),
             // Comments on anything in the workspace, kept per document in `.comments/` (see mobius_workspace::comments).
@@ -1047,6 +1060,7 @@ impl Bridge {
     pub fn stop_core(&self) {
         self.homeserver.stop();
         self.device_voice.stop();
+        self.meetings.shut();
         self.core.stop_shared();
     }
 
