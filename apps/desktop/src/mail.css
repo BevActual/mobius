@@ -65,7 +65,33 @@
 /* An email's own HTML is drawn on white, as its sender designed it, in every theme. */
 .mail-html { width: 100%; border: 0; border-radius: var(--radius-panel); background: white; }
 .mail-text { margin: 0; white-space: pre-wrap; word-wrap: break-word; font: inherit; font-size: var(--fs-reading); line-height: 1.6; color: var(--body); }
-.mail-attachments { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+/* A conversation's count after its sender, as Gmail shows it. */
+.mail-row-count { margin-left: var(--sp-1); font-weight: var(--fw-regular); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Done and Later on hover, over the row's time, as Superhuman shows them. */
+.mail-row-end { position: relative; }
+.mail-row-acts { position: absolute; inset: 0 0 0 auto; display: none; align-items: center; gap: 2px; padding-left: var(--sp-1); background: inherit; }
+.mail-row:hover .mail-row-acts { display: inline-flex; }
+.mail-row:hover .mail-row-end > .mail-when { visibility: hidden; }
+.mail-row-act { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-control, 6px); color: var(--body); }
+.mail-row-act:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink); }
+.mail-row-act svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* The conversation's earlier messages, one line each, above the one open. */
+.mail-earlier { margin: 0; padding: 0; list-style: none; border-top: var(--hairline-w) solid var(--line); }
+.mail-earlier > li { border-bottom: var(--hairline-w) solid var(--line); }
+.mail-earlier-head { display: flex; align-items: baseline; gap: var(--sp-2); width: 100%; padding: var(--sp-2) 0; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
+.mail-earlier-head b { font-weight: var(--fw-medium); color: var(--ink); white-space: nowrap; }
+.mail-earlier-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.mail-earlier-text { margin: 0 0 var(--sp-3); }
+/* Attachments as chips: the kind, the name and the size; a click saves to Downloads. */
+.mail-files { display: flex; flex-direction: column; gap: var(--sp-1); }
+.mail-file-list { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+.mail-file { display: inline-flex; align-items: center; gap: var(--sp-2); max-width: 280px; height: 36px; padding: 0 var(--sp-3) 0 var(--sp-1); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--paper); color: var(--ink); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.mail-file:hover { border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+.mail-file-kind { display: inline-grid; place-items: center; min-width: 32px; height: 26px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--body); font-size: 10px; font-weight: var(--fw-semibold); letter-spacing: 0.02em; }
+.mail-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-file-size { color: var(--body); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mail-file-said { margin: 0; min-height: 1.2em; font-size: var(--fs-sm); color: var(--body); }
+.mail-file-said:empty { display: none; }
 
 /* The toolbar's message actions: two groups of 18px line icons. */
 .mail-tools { display: flex; align-items: center; gap: var(--sp-2); }

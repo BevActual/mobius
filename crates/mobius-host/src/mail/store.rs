@@ -786,7 +786,20 @@ pub fn read_message(raw: &[u8]) -> Value {
         "subject": m.subject().unwrap_or(""), "dateMs": m.date().map_or(0, |d| d.to_timestamp() * 1000),
         "text": text, "html": html, "attachments": m.attachments().filter_map(|a| a.attachment_name()).map(str::to_owned).collect::<Vec<_>>(),
         "messageId": m.message_id().unwrap_or(""),
+        // Each attachment's name and size, for its chip; `saveAttachment` takes its place in this list.
+        "files": m.attachments().map(|a| json!({ "name": a.attachment_name().unwrap_or("attachment"), "size": a.contents().len() })).collect::<Vec<_>>(),
     })
+}
+
+/// Kinds of file Mobius does not save from mail: programs and scripts that would run when opened.
+const RUNS: [&str; 17] = ["exe", "msi", "bat", "cmd", "com", "scr", "pif", "ps1", "vbs", "vbe", "js", "jse", "wsf", "hta", "lnk", "reg", "cpl"];
+
+/// A name safe to write in a folder: no path, no characters a file name cannot hold, never empty.
+fn file_name(name: &str) -> String {
+    let base = name.rsplit(['/', '\\']).next().unwrap_or("");
+    let clean: String = base.chars().map(|c| if c.is_control() || "<>:\"|?*".contains(c) { '_' } else { c }).collect();
+    let clean = clean.trim().trim_start_matches('.').trim_end_matches(['.', ' ']).to_owned();
+    if clean.is_empty() { "attachment".to_owned() } else { clean }
 }
 
 impl Mail {
@@ -1225,6 +1238,30 @@ impl Mail {
             })();
             let _ = result;
         }
+    }
+
+    /// Saves a message's attachment (`index` in its `files`) in `folder`, under its own name, or "name (2).ext" when
+    /// that is taken. A program or script is refused. Answers with where it went.
+    pub fn save_attachment(&self, id: &str, index: usize, folder: &Path) -> Res<Value> {
+        let file = self.file_of(id).ok_or("That message is not known.")?;
+        let raw = std::fs::read(&file).map_err(|_| "That message is no longer here.".to_owned())?;
+        let m = MessageParser::default().parse(&raw).ok_or("That message cannot be read.")?;
+        let part = m.attachments().nth(index).ok_or("That attachment is not in the message.")?;
+        let name = file_name(part.attachment_name().unwrap_or("attachment"));
+        let ext = Path::new(&name).extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+        if RUNS.contains(&ext.as_str()) {
+            return Err(format!("Mobius does not save programs from mail (.{ext})."));
+        }
+        std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
+        let (stem, dot) = match name.rsplit_once('.') { Some((s, e)) if !s.is_empty() => (s.to_owned(), format!(".{e}")), _ => (name.clone(), String::new()) };
+        let mut path = folder.join(&name);
+        let mut n = 2;
+        while path.exists() {
+            path = folder.join(format!("{stem} ({n}){dot}"));
+            n += 1;
+        }
+        std::fs::write(&path, part.contents()).map_err(|e| e.to_string())?;
+        Ok(json!({ "ok": true, "path": path.to_string_lossy(), "name": path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or(name) }))
     }
 
     pub fn flag(&self, id: &str, which: &str, on: bool) -> Res<Value> {
@@ -1825,6 +1862,27 @@ mod tests {
         let sent = mail.lock().messages.iter().find(|m| m.mailbox == "sent").cloned().unwrap();
         assert_eq!(sent.subject, "Re: Terrace + lunch for the 13th");
         assert!(mail.drafts().as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_attachment_shows_its_size_and_saves_beside_others_but_never_a_program() {
+        let (mail, _dir) = local_mail();
+        let raw = "From: Rui <rui@example.com>\r\nTo: Ana <ana@example.com>\r\nSubject: Plans\r\nMessage-ID: <p1@example.com>\r\nDate: Mon, 09 Nov 2026 09:00:00 +0000\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b\r\n\r\n--b\r\nContent-Type: text/plain\r\n\r\nThe plans.\r\n--b\r\nContent-Type: application/pdf\r\nContent-Disposition: attachment; filename=\"../plan.pdf\"\r\n\r\nPDFDATA\r\n--b\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=\"run.exe\"\r\n\r\nMZ\r\n--b--\r\n";
+        arrives(&mail, 7, raw);
+        let id = mail.lock().messages.iter().find(|m| m.subject == "Plans").unwrap().id.clone();
+        let file = mail.file_of(&id).unwrap();
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, raw).unwrap();
+        let read = mail.read(&id, false).unwrap();
+        assert_eq!(read["files"][0]["name"], "../plan.pdf");
+        assert_eq!(read["files"][0]["size"], 7);
+        let out = tempfile::tempdir().unwrap();
+        let first = mail.save_attachment(&id, 0, out.path()).unwrap();
+        assert_eq!(first["name"], "plan.pdf", "no path from the name");
+        assert_eq!(std::fs::read(out.path().join("plan.pdf")).unwrap(), b"PDFDATA");
+        assert_eq!(mail.save_attachment(&id, 0, out.path()).unwrap()["name"], "plan (2).pdf");
+        assert!(mail.save_attachment(&id, 1, out.path()).unwrap_err().contains("programs"));
+        assert!(mail.save_attachment(&id, 5, out.path()).is_err());
     }
 
     fn local_mail() -> (Mail, tempfile::TempDir) {
