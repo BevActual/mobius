@@ -3661,6 +3661,11 @@ impl Bridge {
             "list" => Ok(m.list(text(0).unwrap_or("inbox"), text(1).unwrap_or("all"), text(2).unwrap_or(""), 300)),
             "counts" => Ok(m.counts()),
             "read" => text(0).ok_or_else(|| "a message is needed".to_owned()).and_then(|id| m.read(id, true)),
+            // An attachment, saved in the person's Downloads folder.
+            "saveAttachment" => match (text(0), args.get(1).and_then(Value::as_u64).and_then(|n| usize::try_from(n).ok())) {
+                (Some(id), Some(index)) => dirs::download_dir().ok_or_else(|| "There is no Downloads folder.".to_owned()).and_then(|dir| m.save_attachment(id, index, &dir)),
+                _ => Err("a message and an attachment are needed".to_owned()),
+            },
             "flag" => match (text(0), text(1), args.get(2).and_then(Value::as_bool)) {
                 (Some(id), Some(which), Some(on)) => m.flag(id, which, on),
                 _ => Err("that cannot be done".to_owned()),
