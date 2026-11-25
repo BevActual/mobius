@@ -37,7 +37,7 @@ export const TILE_KINDS: readonly { kind: TileKind; name: string; app: AppId; ab
 export const tileKind = (kind: TileKind) => TILE_KINDS.find((k) => k.kind === kind)!;
 
 export const TASKS_SHOW: readonly { id: TasksShow; name: string }[] = [
-  { id: 'today', name: 'Today' }, { id: 'scheduled', name: 'Scheduled' }, { id: 'flagged', name: 'Flagged' }, { id: 'all', name: 'All' },
+  { id: 'today', name: 'Today' }, { id: 'scheduled', name: 'Upcoming' }, { id: 'flagged', name: 'Flagged' }, { id: 'all', name: 'Anytime' },
 ];
 export const CALENDAR_SHOW: readonly { id: CalendarShow; name: string }[] = [{ id: 'today', name: 'Today' }, { id: 'week', name: 'Next 7 days' }];
 

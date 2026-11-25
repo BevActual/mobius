@@ -63,7 +63,7 @@ export function tileContent(tile: Tile, src: ViewSources, now: Date): TileConten
           const due = task.due ? dueLabel(task.due, now) : null;
           return { key: `${list}:${task.line}`, text: task.text, detail: due ? due.text : list, ...(due?.tone === 'late' ? { tone: 'late' as const } : {}), target: { kind: 'app' as const, app: 'tasks' as const } };
         }),
-        empty: { today: 'Nothing due today.', scheduled: 'Nothing has a date yet.', flagged: 'No flagged tasks.', all: 'No open tasks.' }[show],
+        empty: { today: 'Nothing planned or due today.', scheduled: 'Nothing is planned or due after today.', flagged: 'No flagged tasks.', all: 'No open tasks.' }[show],
       };
     }
     case 'calendar': {

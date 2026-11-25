@@ -3551,7 +3551,7 @@ impl Bridge {
                     });
                     // A time on the due date and a repeat ride with the options too.
                     let opt = |k: &str| opts.and_then(|o| o.get(k)).and_then(Value::as_str).filter(|v| !v.is_empty());
-                    let when = mobius_workspace::tasks::When { due: text(2).filter(|d| !d.is_empty()), time: opt("time"), repeat: opt("repeat") };
+                    let when = mobius_workspace::tasks::When { due: text(2).filter(|d| !d.is_empty()), time: opt("time"), repeat: opt("repeat"), start: opt("when") };
                     tasks.add_task(list, words, when, flagged, under)
                 }
                 _ => Err("a list and some words are needed".to_owned()),
@@ -3572,7 +3572,7 @@ impl Bridge {
                         Some(Value::String(v)) => Ok(Some((!v.is_empty()).then(|| v.clone()))),
                         Some(_) => Err(()),
                     };
-                    let (Ok(time), Ok(repeat)) = (cleared("time"), cleared("repeat")) else {
+                    let (Ok(time), Ok(repeat), Ok(start)) = (cleared("time"), cleared("repeat"), cleared("when")) else {
                         return json!({ "ok": false, "message": "a time is written HH:MM and a repeat is a word" });
                     };
                     let change = Change {
@@ -3583,6 +3583,7 @@ impl Bridge {
                         repeat,
                         flagged: change.get("flagged").and_then(Value::as_bool),
                         notes: change.get("notes").and_then(Value::as_str).map(str::to_owned),
+                        start,
                     };
                     tasks.update(list, at, expect, change)
                 }
