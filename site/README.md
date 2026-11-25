@@ -33,6 +33,7 @@ Then open http://localhost:8000. Switch your system between light and dark to se
 - The Download buttons point at `https://github.com/BevActual/mobius/releases/latest`, so they never need a new
   version number. Check the platform line under the hero ("Windows 10 and 11, 64-bit · macOS is on the way") when a
   new platform ships.
+- If an app's features change, edit its entry in `scripts/site-apps.json` and run `python scripts/site-apps.py`.
 - If an app is added, folded or renamed, update the **Every app** section and the count ("23 apps") in the page, its
   description and the facts row.
 
@@ -79,6 +80,7 @@ The addresses of the pages below stay put as the site grows, because Google and 
 | Path | What |
 | --- | --- |
 | `/` | Home page (`index.html`) |
+| `/apps/` | Every app, and a page for each one (`apps/`, written by `scripts/site-apps.py`) |
 | `/download/` | Download and install guide (`download/index.html`) |
 | `/changelog/` | Release notes, newest first (`changelog/index.html`) |
 | `/privacy/` | Privacy policy (`privacy/index.html`) |

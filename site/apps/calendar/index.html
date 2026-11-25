@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calendar · Mobius Workspace</title>
+  <meta name="description" content="Calendar in Mobius Workspace: Your calendars by day, week, month or year.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f3f3f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e0e10" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://mobiusworkspace.com/apps/calendar/">
+  <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="/assets/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/style.css">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Mobius Workspace">
+  <meta property="og:title" content="Calendar · Mobius Workspace">
+  <meta property="og:description" content="Calendar in Mobius Workspace: Your calendars by day, week, month or year.">
+  <meta property="og:url" content="https://mobiusworkspace.com/apps/calendar/">
+  <meta property="og:image" content="https://mobiusworkspace.com/assets/social.png">
+</head>
+<body>
+<!-- Written by scripts/site-apps.py from scripts/site-apps.json. Edit those, not this file. -->
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-calendar" viewBox="0 0 20 20"><rect x="3.5" y="4.5" width="13" height="12" rx="2"/><path d="M3.5 8.5h13M7 3v3M13 3v3M7 11.5h2M11 11.5h2M7 14h2"/></symbol>
+    <symbol id="i-tasks" viewBox="0 0 20 20"><rect x="3.5" y="4" width="5" height="5" rx="1"/><path d="m4.8 6.5 1 1 1.6-2M11 6.5h5.5M11 13.5h5.5"/><rect x="3.5" y="11" width="5" height="5" rx="1"/></symbol>
+    <symbol id="i-sheets" viewBox="0 0 20 20"><rect x="3.5" y="4" width="13" height="12" rx="2"/><path d="M3.5 8h13M3.5 12h13M8 4v12"/></symbol>
+    <symbol id="i-files" viewBox="0 0 20 20"><path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/></symbol>
+    <symbol id="i-notes" viewBox="0 0 20 20"><rect x="4.5" y="4" width="11" height="13" rx="1.5"/><path d="M7.5 2.5v3M10 2.5v3M12.5 2.5v3M7.5 9.5h5M7.5 12.5h3.5"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10.5" rx="2"/><path d="m3.5 6 6.5 5 6.5-5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 20 20"><path d="M10 3.5v9M6.5 9 10 12.5 13.5 9M4 15.5h12"/></symbol>
+    <symbol id="i-github" viewBox="0 0 16 16"><path fill="currentColor" stroke="none" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/" aria-label="Mobius Workspace, home"><img src="/assets/mark.svg" alt="" width="24" height="24"><span>Mobius</span></a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="/#how">How it works</a>
+      <a href="/apps/">Apps</a>
+      <a href="/#ai">Your AI</a>
+      <a href="/#open">Open source</a>
+    </nav>
+    <div class="nav-end">
+      <a class="icon-link" href="https://github.com/BevActual/mobius" aria-label="Mobius on GitHub"><svg class="ico gh"><use href="#i-github"/></svg></a>
+      <a class="btn btn-ink btn-sm" href="/download/">Download</a>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="app-page">
+  <section class="app-hero">
+    <div class="wrap">
+      <p class="crumbs"><a href="/apps/">Apps</a><span aria-hidden="true">/</span>Write and plan</p>
+      <div class="app-title"><span class="app-tile lg"><svg class="ico"><use href="#i-calendar"/></svg></span><h1>Calendar</h1></div>
+      <p class="app-tagline">Your calendars by day, week, month or year.</p>
+      <p class="sub">See your time at a glance, with a soft colour for each calendar and a red line for now. Tasks due at a time sit right beside your events.</p>
+    </div>
+    <div class="wrap-wide">
+      <figure class="window app-shot"><picture><source media="(prefers-color-scheme: dark)" srcset="/assets/shots/calendar-dark.webp"><img src="/assets/shots/calendar-light.webp" width="1600" height="1000" alt="A week in Calendar."></picture></figure>
+    </div>
+  </section>
+
+  <section class="app-section">
+    <div class="wrap">
+      <h2 class="app-h2">What you can do</h2>
+      <ul class="app-features">
+        <li><h3>Your calendars together</h3><p>Use Mobius&#x27;s own calendars, subscribed calendar links and CalDAV accounts such as iCloud, Fastmail and Nextcloud.</p></li>
+        <li><h3>Quick events</h3><p>Type an event in plain words, like &quot;Lunch fri 1pm&quot;, or sweep across the hours to make one.</p></li>
+        <li><h3>Tasks on the calendar</h3><p>Tasks due at a time show at their hour as a thin line you can tick off.</p></li>
+        <li><h3>Invites and answers</h3><p>Invite people with names from your address book, and see who is going, maybe or not going.</p></li>
+        <li><h3>Record a meeting</h3><p>Start recording from an event, and its page in Notes names the event and who is on it.</p></li>
+        <li><h3>Year view</h3><p>See the whole year on one screen, with a dot under each day that has events.</p></li>
+      </ul>
+      <div class="app-notes"><div class="app-note mob"><img src="/assets/mark.svg" alt="" width="18" height="18"><p><b>With Mobius</b>Events Mobius adds or suggests are drawn dashed until you Keep, Discard or Try another, and the Mobius panel tells you how much free time is left today.</p></div><div class="app-note"><svg class="ico"><use href="#i-files"/></svg><p><b>Where it's kept</b>Your calendars are .ics files in your workspace that other calendar apps can open.</p></div></div>
+    </div>
+  </section>
+
+  <section class="app-section">
+    <div class="wrap">
+      <h2 class="app-h2">Works well with</h2>
+      <div class="app-grid"><a class="app-card" href="/apps/tasks/"><span class="app-tile"><svg class="ico"><use href="#i-tasks"/></svg></span><span><b>Tasks</b>Lists of things to do, with dates and repeats.</span></a><a class="app-card" href="/apps/notes/"><span class="app-tile"><svg class="ico"><use href="#i-notes"/></svg></span><span><b>Notes</b>Quick pages, saved as you type.</span></a><a class="app-card" href="/apps/mail/"><span class="app-tile"><svg class="ico"><use href="#i-mail"/></svg></span><span><b>Mail</b>Your mail, sorted, with drafts Mobius writes.</span></a></div>
+    </div>
+  </section>
+  <nav class="wrap app-pager" aria-label="More apps">
+    <a href="/apps/tasks/"><span>Previous</span><svg class="ico"><use href="#i-tasks"/></svg>Tasks</a>
+    <a href="/apps/"><span>All</span>Every app</a>
+    <a href="/apps/sheets/"><span>Next</span><svg class="ico"><use href="#i-sheets"/></svg>Sheets</a>
+  </nav>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <a class="brand" href="/"><img src="/assets/mark.svg" alt="" width="20" height="20"><span>Mobius Workspace</span></a>
+    <nav aria-label="Footer">
+      <a href="/apps/">Apps</a>
+      <a href="/download/">Download</a>
+      <a href="/changelog/">What's new</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="https://github.com/BevActual/mobius">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
