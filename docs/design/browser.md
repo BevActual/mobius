@@ -30,9 +30,16 @@ opens it again in a new tab. Clear history forgets these too.
 
 Ctrl+Shift+C copies the page's address and says "Copied the link", as Arc's Copy URL (Cmd+Shift+C) does.
 
+## Split view (round 2)
+
+As Arc's Split View (resources.arc.net, "Split View"): two tabs side by side in the page panel. A tab's menu has
+**Open in split view** (that tab beside the one showing) and, on a tab in the split, **End split view**; Ctrl+Shift+=
+splits with the tab seen last and, again, ends it. Above each page sits its title (a click makes it the active tab,
+the address bar's) and an End split button that keeps that page. The divider drags, moves 5% with the arrow keys and
+goes back to half on a double click; the share is kept across restarts. Both rows show "split" in the tabs panel. The
+split ends when either page closes or a tab outside it is chosen. The shell places both native pages
+(`browser.showBeside`, `surface.setBesideBounds`).
+
 ## Later
 
-- **Split view** (two pages side by side, as Arc's): the shell can now show a second tab beside the active one
-  (`browser.showBeside`, `surface.setBesideBounds`), and the page clicked last is the active tab. The panel, its
-  divider and keys come next.
 - Separate sign-ins per space.

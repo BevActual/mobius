@@ -111,3 +111,21 @@ test('a closed tab is listed under Recently closed in History and opens again fr
   await shell().keyboard.press('Control+h');
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
 });
+
+test('split view shows two tabs side by side from the tab menu; the divider moves with the arrow keys and End split keeps one page', { tag: '@shell', annotation: { type: 'needs the shell', description: 'the native pages are placed by the shell' } }, async () => {
+  await openIn('/second');
+  await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+  await shell().locator('.tab', { hasText: 'Fixture home' }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Open in split view' }).click();
+  await expect(shell().getByTestId('surface-slot-beside')).toHaveCount(1);
+  await expect(shell().locator('.split-title')).toHaveText(['Second page', 'Fixture home']);
+  await expect(shell().locator('.tab[data-split="true"]')).toHaveCount(2);
+  const divider = shell().getByRole('separator', { name: 'Resize split view' });
+  await divider.focus();
+  await divider.press('ArrowLeft');
+  await expect(divider).toHaveAttribute('aria-valuenow', '45');
+  await shell().getByRole('button', { name: 'End split view, keep Second page' }).click();
+  await expect(shell().getByTestId('surface-slot-beside')).toHaveCount(0);
+  await expect(shell().locator('.tab[data-split="true"]')).toHaveCount(0);
+  await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+});

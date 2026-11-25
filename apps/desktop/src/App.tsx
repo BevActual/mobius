@@ -1183,7 +1183,7 @@ export function App() {
   const readLater = reading.notebooks.flatMap((nb) => nb.pages.map((pg) => ({ path: pg.path, title: pg.title, modified: pg.modified, done: nb.name !== READING_LIST })))
     .sort((x, y) => Number(x.done) - Number(y.done) || y.modified - x.modified).map(({ path, title, done }) => ({ path, title, done }));
   const ownListBody = (id: AppId): ReactNode => {
-    const browserSidebar = <BrowserSidebar tabs={browser.tabs} pin={null} onNewTab={newTab} onAsk={surface.hasPage ? () => { openRight(); setFocusToken((n) => n + 1); } : undefined} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} readLater={readLater} reading={inReader ? (reading.page?.path ?? null) : null} onRead={(a) => { openApp('reader'); void reading.open(a.path, a.title); }} onShowTab={inReader ? () => openApp('browser') : undefined} />;
+    const browserSidebar = <BrowserSidebar tabs={browser.tabs} pin={null} onNewTab={newTab} onAsk={surface.hasPage ? () => { openRight(); setFocusToken((n) => n + 1); } : undefined} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} readLater={readLater} reading={inReader ? (reading.page?.path ?? null) : null} onRead={(a) => { openApp('reader'); void reading.open(a.path, a.title); }} onShowTab={inReader ? () => openApp('browser') : undefined} split={browser.split ?? null} />;
     const list = (() => {
       switch (id) {
         case 'agent':
@@ -1808,7 +1808,7 @@ export function App() {
         return (
           <>
             {cover?.url && <img className="page-cover" src={cover.url} alt="" data-testid="page-cover" />}
-            <BrowserPage onStartPage={onStartPage} hidden={launcherOpen || hubOpen || settingsOpen || menuOverPage || cover !== null || onStartPage} onOpen={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); }} onRead={(path, title) => { openApp('reader'); void reading.open(path, title); }} />
+            <BrowserPage onStartPage={onStartPage} hidden={launcherOpen || hubOpen || settingsOpen || menuOverPage || cover !== null || onStartPage} onOpen={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); }} onRead={(path, title) => { openApp('reader'); void reading.open(path, title); }} split={browser.split ?? null} tabs={browser.tabs} />
           </>
         );
       case 'notes':

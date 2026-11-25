@@ -42,6 +42,7 @@ function TabRow({ tab, onMenu, drag, onShow, reading = false }: { tab: BrowserTa
       className="tab"
       aria-current={tab.active && !reading ? 'page' : undefined}
       data-pinned={tab.pinned ? 'true' : undefined}
+      data-split={splitNow !== null && (splitNow.first === tab.id || splitNow.second === tab.id) ? 'true' : undefined}
       data-drop={drag.over?.id === tab.id ? (drag.over.after ? 'after' : 'before') : undefined}
       data-dragging={drag.dragging === tab.id || undefined}
       draggable={drag.enabled}
@@ -151,12 +152,25 @@ function TabMenu({ tab, x, y, tabs, spaces: sp, pinnedPages, onPinPage, onClose 
     // Favourites, kept across spaces, as Arc's: a tile above Pinned.
     { label: isFavourite(sp, tab.url) ? 'Remove from favourites' : 'Add to favourites', run: () => setSpaces((s) => toggleFavourite(s, { url: tab.url, title: tab.title })), disabled: !web || (!isFavourite(sp, tab.url) && sp.favourites.length >= MAX_FAVOURITES) },
     ...sp.spaces.filter((s) => s.id !== (sp.tabSpace[tab.id] ?? sp.current)).map((s, i) => ({ label: `Move to ${s.name}`, separated: i === 0, run: () => { setSpaces((st) => moveTab(st, tab.id, s.id)); } })),
+    // Split view, as Arc's: this tab beside the one showing (or, on the one showing, end the split).
+    ...(api.showBeside && window.mobius.surface.setBesideBounds ? [splitItem(tab, tabs)] : []),
     { label: 'Close tab', keys: tab.active ? 'Ctrl+W' : undefined, run: () => api.close(tab.id), separated: true },
     { label: 'Close tabs below', run: () => below.forEach((t) => api.close(t.id)), disabled: below.length === 0 },
     { label: 'Close other tabs', run: () => others.forEach((t) => api.close(t.id)), disabled: others.length === 0 },
   ];
   return createPortal(<ContextMenu x={left} y={y} label={tab.title} items={items} onClose={onClose} />, document.body);
 }
+/** The tab menu's split view item: end it on a tab in the split, else open this tab beside the one showing. */
+function splitItem(tab: BrowserTabState, tabs: readonly BrowserTabState[]): ContextMenuItem {
+  const api = window.mobius.browser;
+  const inSplit = splitNow !== null && (splitNow.first === tab.id || splitNow.second === tab.id);
+  if (inSplit) return { label: 'End split view', keys: 'Ctrl+Shift+=', separated: true, run: () => api.showBeside?.(null) };
+  const showing = tabs.find((t) => t.active);
+  return { label: 'Open in split view', separated: true, disabled: tab.active || !showing, run: () => api.showBeside?.(tab.id) };
+}
+/** The split as the shell last said, for menus and keys outside React's state. */
+let splitNow: { first: string; second: string } | null = null;
+
 /** About as wide as the tab menu draws, to keep it clear of the page. */
 const TAB_MENU_W = 210;
 
@@ -244,7 +258,7 @@ function SiteChip({ url, icon, big = false }: { url: string; icon?: string | nul
  */
 export interface ReadLater { path: string; title: string; site?: string; /** Finished (in the Archive): shown only when searching. */ done?: boolean }
 
-export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, onPinPage, onOpenBookmark, readLater = [], reading = null, onRead, onShowTab }: {
+export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, onPinPage, onOpenBookmark, readLater = [], reading = null, onRead, onShowTab, split = null }: {
   tabs: readonly BrowserTabState[]; pin?: ReactNode; onNewTab: () => void; onAsk?: () => void; downloads: DownloadEntry[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onOpenBookmark: (url: string) => void;
   /** Read later (Safari's Reading List): articles kept in reader mode, newest first. */
   readLater?: readonly ReadLater[];
@@ -253,7 +267,10 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
   onRead?: (item: ReadLater) => void;
   /** A tab was chosen: back from reader mode to the page. */
   onShowTab?: () => void;
+  /** The two tabs showing side by side, if any (Arc's Split View). */
+  split?: { first: string; second: string } | null;
 }) {
+  splitNow = split;
   useSpacesSync(tabs);
   const sp = useSpaces();
   const [menu, setMenu] = useState<{ tab: BrowserTabState; x: number; y: number } | null>(null);
@@ -638,6 +655,14 @@ function useBrowserKeys(active: BrowserTabState | undefined, say: (notice: strin
         if (!active || !/^https?:/.test(active.url)) return;
         e.preventDefault();
         void navigator.clipboard?.writeText(active.url).then(() => say('Copied the link')).catch(() => say('The link could not be copied'));
+      } else if (mod && e.shiftKey && !e.altKey && e.code === 'Equal' && api.showBeside && window.mobius.surface.setBesideBounds) {
+        // Ctrl+Shift+= splits the page with the tab seen last, as Arc's Add Split View; again ends it.
+        e.preventDefault();
+        void api.getState().then((s) => {
+          if (s?.split) { api.showBeside?.(null); return; }
+          const other = besideFor(s?.tabs ?? [], s?.tabs.find((t) => t.active));
+          if (other) api.showBeside?.(other.id); else say('Open another tab to split with');
+        });
       } else if (mod && e.shiftKey && !e.altKey && e.code === 'KeyT') {
         e.preventDefault();
         void api.reopenClosed?.();
@@ -800,12 +825,66 @@ function AddressBar({ active, shownUrl, address, draft, setDraft, setNotice, onS
   );
 }
 
-/** A new tab shows Mobius's own start page; otherwise the native page sits in its slot. */
-export function BrowserPage({ onStartPage, hidden, onOpen, onRead }: { onStartPage: boolean; hidden: boolean; onOpen: (url: string) => void; onRead: (path: string, title: string) => void }) {
+/** Split view's share of the page panel for the first page, kept across restarts. */
+const SPLIT_KEY = 'mobius.browser.split';
+const readRatio = (): number => { try { const v = Number(localStorage.getItem(SPLIT_KEY)); return v >= 0.2 && v <= 0.8 ? v : 0.5; } catch { return 0.5; } };
+
+/**
+ * Split view, as Arc's: two pages side by side in the page panel, each in its own slot, with a divider to drag (or
+ * arrow keys on it) and, above each, its title and End split. The page clicked last is the active tab (the address
+ * bar's); the places stay put. Ends when either page closes or a tab outside the split is chosen.
+ */
+function SplitPage({ split, tabs, hidden }: { split: { first: string; second: string }; tabs: readonly BrowserTabState[]; hidden: boolean }) {
+  const [ratio, setRatio] = useState(readRatio);
+  const box = useRef<HTMLDivElement>(null);
+  const keep = (r: number) => { const v = Math.min(0.8, Math.max(0.2, r)); setRatio(v); try { localStorage.setItem(SPLIT_KEY, String(v)); } catch { /* for this window */ } };
+  const drag = (e: React.PointerEvent) => {
+    const el = box.current;
+    if (!el) return;
+    e.preventDefault();
+    const { left, width } = el.getBoundingClientRect();
+    const move = (ev: PointerEvent) => keep((ev.clientX - left) / width);
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const head = (id: string) => {
+    const tab = tabs.find((t) => t.id === id);
+    return (
+      <div className="split-head" data-active={tab?.active || undefined}>
+        <button type="button" className="split-title" title={tab?.url} onClick={() => window.mobius.browser.activate(id)}>
+          <SiteChip url={tab?.url ?? ''} icon={tab?.icon ?? null} /><span>{tab?.title || 'New tab'}</span>
+        </button>
+        <button type="button" className="split-end" aria-label={`End split view, keep ${tab?.title || 'this page'}`} title="End split view (Ctrl+Shift+=)" onClick={() => { window.mobius.browser.activate(id); window.mobius.browser.showBeside?.(null); }}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        </button>
+      </div>
+    );
+  };
+  return (
+    <div ref={box} className="split-page" style={{ '--split': `${ratio * 100}%` } as React.CSSProperties}>
+      <div className="split-half" data-place="first">{head(split.first)}<div className="split-body"><SurfaceSlot hidden={hidden} /></div></div>
+      <div className="split-divider" role="separator" aria-orientation="vertical" aria-label="Resize split view" aria-valuemin={20} aria-valuemax={80} aria-valuenow={Math.round(ratio * 100)} tabIndex={0}
+        onPointerDown={drag} onDoubleClick={() => keep(0.5)}
+        onKeyDown={(e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); keep(ratio + (e.key === 'ArrowLeft' ? -0.05 : 0.05)); } }} />
+      <div className="split-half" data-place="second">{head(split.second)}<div className="split-body"><SurfaceSlot hidden={hidden} beside /></div></div>
+    </div>
+  );
+}
+
+/** A new tab shows Mobius's own start page; otherwise the native page sits in its slot (two, side by side, in split view). */
+export function BrowserPage({ onStartPage, hidden, onOpen, onRead, split = null, tabs = [] }: { onStartPage: boolean; hidden: boolean; onOpen: (url: string) => void; onRead: (path: string, title: string) => void; split?: { first: string; second: string } | null; tabs?: readonly BrowserTabState[] }) {
+  if (split && window.mobius.surface.setBesideBounds) return <SplitPage split={split} tabs={tabs} hidden={hidden} />;
   return (
     <>
       {onStartPage && <StartPage onOpen={onOpen} onRead={onRead} />}
       <SurfaceSlot hidden={hidden} />
     </>
   );
+}
+
+/** The tab to put beside the active one: the one seen last before it in this space, else the next. */
+function besideFor(tabs: readonly BrowserTabState[], active: BrowserTabState | undefined): BrowserTabState | undefined {
+  const mine = inSpace(spaces, tabs).filter((t) => t.id !== active?.id && /^https?:/.test(t.url));
+  return mine.sort((a, b) => (spaces.seen?.[b.id] ?? 0) - (spaces.seen?.[a.id] ?? 0))[0];
 }

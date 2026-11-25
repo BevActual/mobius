@@ -28,6 +28,7 @@ A full web browser, with Mobius able to read and work on pages for you.
   your tabs. Searching your tabs (Ctrl+Shift+A) also finds pages you visited before, under History.
   History starts with **Recently closed**: tabs you closed, or Today cleared, open again with a click.
 - **Ctrl+Shift+C** copies the page's address.
+- **Split view**: right-click a tab and choose **Open in split view** to show it beside the page you are on, or press **Ctrl+Shift+=**. Drag the divider to resize; **End split view** (or Ctrl+Shift+= again) goes back to one page.
 
 Settings: **Settings › Browser** (allowed sites, local addresses, bookmarks, history).
 
