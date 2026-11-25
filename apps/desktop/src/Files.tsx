@@ -573,6 +573,8 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       if (typing) return;
       if (e.key === 'ArrowLeft') { e.preventDefault(); files.back(); }
       if (e.key === 'ArrowRight') { e.preventDefault(); files.forward(); }
+      // Alt+Up goes up a folder, as in Explorer.
+      if (e.key === 'ArrowUp' && files.place.kind === 'folder' && here) { e.preventDefault(); cameFrom.current = here; files.setPlace({ kind: 'folder', path: here.includes('/') ? here.slice(0, here.lastIndexOf('/')) : '' }); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -880,7 +882,9 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       {peeking && <FilePeekView path={peeking} onClose={() => { setPeeking(null); listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus(); }} onOpen={() => { setPeeking(null); onOpenFile(peeking); }} />}
       <PanelTab id="info" name="Info">{(() => {
         if (picked.size > 1) return <PickedInfo rows={rows.filter((r) => picked.has(r.path))} />;
-        const e = rows.find((x) => x.path === selected) ?? null;
+        // The one row picked (Ctrl+click can leave the keyboard on a row it took out), or none: the folder itself.
+        const one = picked.size === 1 ? [...picked][0] : null;
+        const e = rows.find((x) => x.path === one) ?? null;
         return <FileInfo entry={e} here={here} count={files.entries.length} onOpen={e ? () => open(e.path, e.type) : undefined} onCopyPath={copyPath} />;
       })()}</PanelTab>
     </section>

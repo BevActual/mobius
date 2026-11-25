@@ -123,7 +123,7 @@ Your whole workspace as a drive.
   file wears the icon of the app that opens it. A file Mobius made is dashed until kept; a folder holding such files
   has an indigo dot (hover it for how many).
 - **Select, then open.** A click selects, a double-click or Enter opens: folders in place, files in their own app. The
-  arrow keys move, Backspace goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
+  arrow keys move, Backspace (or Alt+Up) goes up a folder, and Back and Forward (Alt+Left, Alt+Right) walk the folders you visited.
 - **The toolbar** names the open folder with how many items it holds, and has Back, Forward and New folder. The
   **path bar** at the foot shows where the folder is; click any part to go back up.
 - **Search**, at the top of the Places panel, narrows the open folder by name. **Right-click** a row to open (Enter), rename (F2), copy its path
