@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { isVoiceUrl, type ListenWith, type PreferencesSettings, type SpeakWith } from '@mobius/shared';
-import { localStatusText } from './voice-status';
+import { isVoiceUrl, type DeviceVoiceStatus, type ListenModel, type ListenWith, type PreferencesSettings, type SpeakWith } from '@mobius/shared';
+import { deviceText, localStatusText, megabytes } from './voice-status';
 import { settingPath } from './manifest';
 import { Row } from './primitives';
 import { Select } from '../ui';
 import { AdvancedSection, AppearanceSection, RemoveDataRow, SafetySection, Toggle, type SectionProps } from './sections';
 
 const LISTEN: ReadonlyArray<{ id: ListenWith; label: string }> = [
+  { id: 'device', label: 'This computer (free)' },
   { id: 'chat', label: 'Chat server' },
-  { id: 'local', label: 'This computer' },
+  { id: 'local', label: 'Speech server on this computer' },
   { id: 'elevenlabs', label: 'ElevenLabs' },
   { id: 'off', label: 'Off' },
 ];
 const SPEAK: ReadonlyArray<{ id: SpeakWith; label: string }> = [
-  { id: 'local', label: 'This computer' },
+  { id: 'local', label: 'Speech server on this computer' },
   { id: 'elevenlabs', label: 'ElevenLabs' },
   { id: 'off', label: 'Off' },
 ];
@@ -26,6 +27,47 @@ export function chatCannotListen(baseUrl: string): string | null {
   if (url.startsWith('claude-code://') || url.startsWith('chatgpt://')) return 'A plan you sign in to does not turn speech into text here.';
   if (/^https?:\/\/(127\.0\.0\.1|localhost):8080\b/.test(url)) return 'A llama.cpp server does not turn speech into text.';
   return null;
+}
+
+const MODELS: ReadonlyArray<{ id: ListenModel; label: string }> = [
+  { id: 'base.en', label: 'Quick' },
+  { id: 'small.en', label: 'More accurate' },
+];
+
+/** Listening on this computer: set up (a one-time download), its progress, and Remove. */
+function DeviceListening({ model }: { model: ListenModel }) {
+  const [status, setStatus] = useState<DeviceVoiceStatus | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void window.mobius.voice?.deviceStatus?.(model).then((r) => { if (live && r && 'state' in r) setStatus(r); }).catch(() => undefined);
+    const stop = window.mobius.voice?.onDevice?.((next) => { if (next.model === model) setStatus(next); });
+    return () => { live = false; stop?.(); };
+  }, [model]);
+  if (!status) return null;
+  const answer = (r: { ok: false; error: string } | DeviceVoiceStatus | { ok: true } | undefined | null) => {
+    if (r && 'state' in r) setStatus(r);
+    else if (r && 'error' in r) setProblem(r.error);
+  };
+  const setUp = async () => { setProblem(null); answer(await window.mobius.voice?.deviceSetup?.(model).catch(() => null)); };
+  const remove = async () => {
+    setProblem(null);
+    const r = await window.mobius.voice?.deviceRemove?.().catch(() => null);
+    if (r?.ok) setStatus({ ...status, state: 'absent' });
+    else answer(r);
+  };
+  const failed = status.state === 'failed';
+  return (
+    <div className="inline-form device-voice">
+      {status.state === 'downloading' && <progress max={status.total || 1} value={status.done ?? 0} aria-label="Downloading Whisper" />}
+      <p className={failed ? 'field-error' : 'srow-text'} role={failed ? 'alert' : 'status'} data-testid="voice-device">{deviceText(status)}</p>
+      {problem && <p className="field-error" role="alert">{problem}</p>}
+      {status.available && (status.state === 'absent' || failed) && (
+        <button type="button" className="btn" onClick={() => void setUp()}>{failed ? 'Try again' : `Set up (${megabytes(status.bytes)})`}</button>
+      )}
+      {status.state === 'ready' && <button type="button" className="link-btn" onClick={() => void remove()}>Remove from this computer</button>}
+    </div>
+  );
 }
 
 /** A choice of several, as a pop-up. */
@@ -91,7 +133,7 @@ function LocalStatus({ job, url }: { job: 'listen' | 'speak'; url: string }) {
 export function VoiceModelRows({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
   const path = (row: string) => settingPath('model', subpage, row);
   const cannot = preferences.listenWith === 'chat' ? chatCannotListen(settings?.baseUrl ?? '') : null;
-  const listening = preferences.listenWith === 'off' ? null : preferences.listenWith === 'elevenlabs' ? 'ElevenLabs Scribe' : preferences.dictationModel;
+  const listening = preferences.listenWith === 'off' ? null : preferences.listenWith === 'elevenlabs' ? 'ElevenLabs Scribe' : preferences.listenWith === 'device' ? `Whisper ${preferences.listenModel}, on this computer` : preferences.dictationModel;
   const speaking = preferences.speakWith === 'off' ? null : preferences.speakWith === 'elevenlabs' ? 'ElevenLabs' : `${preferences.speakModel}${preferences.speakVoice ? `, ${preferences.speakVoice}` : ''}`;
   return (
     <>
@@ -147,16 +189,30 @@ export function VoiceSection({ subpage, highlight, settings, preferences, onPref
   }
   const cannot = preferences.listenWith === 'chat' ? chatCannotListen(settings?.baseUrl ?? '') : null;
   const local = preferences.listenWith === 'local' || preferences.listenFallback === 'local';
+  const device = preferences.listenWith === 'device' || preferences.listenFallback === 'device';
+  const served = [preferences.listenWith, preferences.listenFallback].some((w) => w === 'chat' || w === 'local');
   return (
     <>
-      <Row path={path('listen-with')} title="Listen with" description="Speech to text: the chat model's server, a speech server on this computer, or ElevenLabs." highlight={highlight === 'listen-with'}>
+      <Row path={path('listen-with')} title="Listen with" description="Speech to text: Whisper on this computer for free, the chat model's server, a speech server you run, or ElevenLabs." highlight={highlight === 'listen-with'}>
         <PopUp label="Listen with" value={preferences.listenWith} options={LISTEN} onChange={(listenWith) => set({ listenWith })} />
         {cannot && <p className="srow-note" role="note">{cannot} Dictation will not work this way: choose This computer or ElevenLabs.</p>}
         {(preferences.listenWith === 'elevenlabs' || preferences.listenFallback === 'elevenlabs') && <p className="srow-text">ElevenLabs needs its key, added in Gateways.</p>}
       </Row>
-      <Row path={path('listen-model')} title="Speech model" description="The model asked for when you dictate." highlight={highlight === 'listen-model'}>
-        <TextField label="Speech model" value={preferences.dictationModel} valid={(v) => v.length >= 1 && v.length <= 200 && !/\n/.test(v)} problem="Use a model name of 1 to 200 characters." onSave={(dictationModel) => set({ dictationModel })} />
-      </Row>
+      {device && (
+        <Row path={path('listen-device')} title="Whisper on this computer" description="Free and private: a one-time download, then nothing you say leaves this computer." highlight={highlight === 'listen-device'}>
+          <DeviceListening model={preferences.listenModel} />
+        </Row>
+      )}
+      {device && (
+        <Row path={path('listen-accuracy')} title="Accuracy" description="Quick suits dictation. More accurate is slower and a larger download, and suits meetings." highlight={highlight === 'listen-accuracy'}>
+          <PopUp label="Accuracy" value={preferences.listenModel} options={MODELS} onChange={(listenModel) => set({ listenModel })} />
+        </Row>
+      )}
+      {served && (
+        <Row path={path('listen-model')} title="Speech model" description="The model asked for when you dictate." highlight={highlight === 'listen-model'}>
+          <TextField label="Speech model" value={preferences.dictationModel} valid={(v) => v.length >= 1 && v.length <= 200 && !/\n/.test(v)} problem="Use a model name of 1 to 200 characters." onSave={(dictationModel) => set({ dictationModel })} />
+        </Row>
+      )}
       {local && (
         <Row path={path('listen-url')} title="Speech server on this computer" description="Its address, in OpenAI's audio format, as faster-whisper serves it." highlight={highlight === 'listen-url'}>
           <TextField label="Listening server address" value={preferences.listenUrl} valid={isVoiceUrl} problem={urlProblem} onSave={(listenUrl) => set({ listenUrl })} />

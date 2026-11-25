@@ -281,7 +281,9 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'Who listens when you dictate, and who speaks answers aloud. Each has its own service and a fallback.',
     subpages: [
       { id: 'listening', label: 'Listening', rows: [
-        row('listen-with', 'Listen with', 'Speech to text: the chat model\'s server, a speech server on this computer, or ElevenLabs.', 'dictation', 'dictate', 'speech to text', 'stt', 'whisper', 'faster-whisper', 'transcribe', 'microphone', 'mic', 'elevenlabs', 'local'),
+        row('listen-with', 'Listen with', 'Speech to text: Whisper on this computer for free, the chat model\'s server, a speech server you run, or ElevenLabs.', 'dictation', 'dictate', 'speech to text', 'stt', 'whisper', 'faster-whisper', 'transcribe', 'microphone', 'mic', 'elevenlabs', 'local'),
+        row('listen-device', 'Whisper on this computer', 'Free and private: a one-time download, then nothing you say leaves this computer.', 'whisper', 'on device', 'offline', 'free', 'private', 'download', 'sherpa-onnx', 'local', 'remove'),
+        row('listen-accuracy', 'Accuracy', 'Quick suits dictation. More accurate is slower and a larger download, and suits meetings.', 'whisper', 'base', 'small', 'model', 'meetings', 'quality'),
         row('listen-model', 'Speech model', 'The model asked for when you dictate.', 'whisper', 'whisper-1', 'model', 'dictation model'),
         row('listen-url', 'Speech server on this computer', 'Its address, in OpenAI\'s audio format, as faster-whisper serves it.', 'url', 'address', 'faster-whisper', 'speech server'),
         row('listen-fallback', 'If that cannot listen', 'What to try next.', 'fallback', 'backup', 'second'),

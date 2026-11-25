@@ -814,6 +814,13 @@ export interface MobiusBridge {
     local?(job: 'listen' | 'speak'): Promise<{ ok: true; ready: boolean; url: string } | { ok: false; error: string }>;
     /** Words read aloud with the service chosen for speaking, as a data: URL of the sound. `setup` when nothing is chosen. */
     speak?(text: string): Promise<{ ok: true; audio: string } | { ok: false; error: string; setup?: boolean }>;
+    /** Listening on this computer, for free: whether the program and a Whisper model (the chosen one when none is named) are here. */
+    deviceStatus?(model?: ListenModel): Promise<DeviceVoiceStatus | { ok: false; error: string }>;
+    /** Downloads the program and the model, checked against their pinned SHA-256s; progress comes through `onDevice`. */
+    deviceSetup?(model?: ListenModel): Promise<DeviceVoiceStatus | { ok: false; error: string }>;
+    /** Takes the program and every model off this computer. */
+    deviceRemove?(): Promise<{ ok: true } | { ok: false; error: string }>;
+    onDevice?(listener: (status: DeviceVoiceStatus) => void): () => void;
   };
   /** Settings, Usage: the tokens model calls used, kept on this computer, summed per day, gateway, model, app and kind. */
   usage?: {
@@ -1897,8 +1904,24 @@ export function parseActivityLimit(value: unknown): number {
 }
 
 /** A model's name as a server knows it: short, one line, nothing odd. */
-export const LISTEN_WITH = ['chat', 'local', 'elevenlabs', 'off'] as const;
+export const LISTEN_WITH = ['device', 'chat', 'local', 'elevenlabs', 'off'] as const;
 export type ListenWith = (typeof LISTEN_WITH)[number];
+/** The Whisper models for listening on this computer: quick, or more accurate for meetings. */
+export const LISTEN_MODELS = ['base.en', 'small.en'] as const;
+export type ListenModel = (typeof LISTEN_MODELS)[number];
+/** Listening on this computer: not set up, downloading, ready, or failed (`offline` when GitHub couldn't be reached). */
+export interface DeviceVoiceStatus {
+  state: 'absent' | 'downloading' | 'ready' | 'failed';
+  model: ListenModel;
+  /** Whether there is a build of the program for this computer at all. */
+  available: boolean;
+  /** What the model takes on disk. */
+  bytes: number;
+  done?: number;
+  total?: number;
+  message?: string;
+  offline?: boolean;
+}
 export const SPEAK_WITH = ['local', 'elevenlabs', 'off'] as const;
 export type SpeakWith = (typeof SPEAK_WITH)[number];
 /** A speech server's address: http or https, one line, no spaces, up to 300 characters. */
@@ -1980,10 +2003,12 @@ export interface PreferencesSettings {
   reasoningEffort: EffortChoice;
   /** The speech-to-text model asked for when dictating, on the same server as the chat model. */
   dictationModel: string;
-  /** Who listens (speech to text): the chat model's server, a speech server on this computer, ElevenLabs, or no one. */
+  /** Who listens (speech to text): Whisper on this computer, the chat model's server, a speech server on this computer, ElevenLabs, or no one. */
   listenWith: ListenWith;
   /** Tried when the first cannot listen. */
   listenFallback: ListenWith;
+  /** The Whisper model for listening on this computer. */
+  listenModel: ListenModel;
   /** The speech server on this computer, in OpenAI's audio format (faster-whisper and the like). */
   listenUrl: string;
   /** Who speaks (text to speech). */
@@ -2041,7 +2066,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, minimizeToTray: false, language: DEFAULT_LANGUAGE, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, minimizeToTray: false, language: DEFAULT_LANGUAGE, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenModel: 'base.en', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -2059,6 +2084,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   dictationModel: (v): v is string => isModelName(v),
   listenWith: oneOf<ListenWith>(...LISTEN_WITH),
   listenFallback: oneOf<ListenWith>(...LISTEN_WITH),
+  listenModel: oneOf<ListenModel>(...LISTEN_MODELS),
   listenUrl: (v): v is string => isVoiceUrl(v),
   speakWith: oneOf<SpeakWith>(...SPEAK_WITH),
   speakFallback: oneOf<SpeakWith>(...SPEAK_WITH),

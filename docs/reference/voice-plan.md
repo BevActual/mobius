@@ -4,6 +4,12 @@ Status: building (Nov 25, 2026). PR A is in two parts: A1 adds `crates/mobius-vo
 writes down a recording with Whisper and Silero VAD, and `.github/workflows/voice.yml`, which builds, signs and
 publishes it. A2 pins what A1's workflow publishes and adds the `device` listener, the downloads and Settings.
 
+A2 (`crates/mobius-host/src/voice_local.rs`): the host downloads the program and the chosen model (base.en, about
+161 MB, or small.en, about 376 MB) from the `voice-0.1.0` prerelease, checks each against its pinned SHA-256, runs the
+program while it's used and stops it after five idle minutes. The window converts recordings to 16 kHz WAV when the
+host asks for one. A new install listens with `device` first and the chat model's server as its fallback; an install
+already in use keeps its choice.
+
 ## Goal
 
 Meeting notes and dictation work out of the box with no account, no key and no cost to anyone. People who want a

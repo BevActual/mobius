@@ -188,6 +188,7 @@ impl DeviceVoice {
             return self.status(model);
         }
         let me = Arc::clone(self);
+        let asked = model.to_owned();
         let model = model.to_owned();
         let spawned = std::thread::Builder::new().name("mobius-voice-setup".into()).spawn(move || {
             let state = match me.fetch_all(&model) {
@@ -201,7 +202,7 @@ impl DeviceVoice {
             self.busy.store(false, Ordering::Release);
             return failed("Mobius could not start setting up listening.");
         }
-        json!({ "state": "downloading", "done": 0, "total": 0 })
+        State::Downloading { done: 0, total: model_bytes(&asked) }.to_json(&asked)
     }
 
     fn fetch_all(&self, model: &str) -> Result<(), Failure> {
