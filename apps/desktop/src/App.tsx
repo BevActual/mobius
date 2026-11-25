@@ -117,6 +117,7 @@ import { contactSheet } from './picture';
 
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
+import { NoteSwitcher } from './NoteSwitcher';
 import { findTodayNote, JOURNAL, liveTitle, statusText, todayNoteTitle } from './notes-state';
 import { checkedLast, setCheckedLast } from './checked-last';
 import { Pane, SplitDivider } from './SplitView';
@@ -1388,6 +1389,7 @@ export function App() {
         newList: () => sendCommand('new-folder'),
       },
       notes: {
+        open: () => sendCommand('open-note'),
         newNotebook: () => sendCommand('new-notebook'),
         today: () => createActions.find((a) => a.id === 'today-note')!.run(),
         pin: () => { if (notes.page) togglePin({ kind: 'note', id: notes.page.path, title: notes.page.title || notes.page.path }); },
@@ -1712,7 +1714,7 @@ export function App() {
           </>
         );
       case 'notes':
-        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} onAsk={startWithMobius} recordToken={meetingToken} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
+        return <><NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} onAsk={startWithMobius} recordToken={meetingToken} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} /><NoteSwitcher notes={notes} active={app === 'notes' && !launcherOpen && !settingsOpen} /></>;
       case 'tasks':
         return <TasksPage tasks={tasks} listPanels={listFor('tasks')} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'docs':

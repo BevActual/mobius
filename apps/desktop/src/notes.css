@@ -254,3 +254,16 @@
 .ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(2) .ui-menu-label { font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
 .ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(3) .ui-menu-label { font-weight: var(--fw-semibold); }
 .ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(5) .ui-menu-label { font-family: var(--font-mono, ui-monospace), monospace; }
+
+/* Open a note (Ctrl+O): a field and a list over the window, as Code's quick open. */
+.note-quick-wrap { position: fixed; inset: 0; z-index: 40; display: flex; justify-content: center; align-items: flex-start; padding-top: 96px; }
+.note-quick { width: min(560px, calc(100% - var(--sp-8))); max-height: 60%; display: flex; flex-direction: column; border-radius: var(--radius-sheet); overflow: hidden; box-shadow: var(--shadow-3); }
+.note-quick input { height: var(--control-h-lg); padding: 0 var(--sp-4); border: 0; border-bottom: var(--hairline-w) solid var(--line); outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-lg); }
+.note-quick ul { list-style: none; margin: 0; padding: var(--sp-1); overflow-y: auto; }
+.note-quick li { display: flex; align-items: center; gap: var(--sp-2); height: var(--row-list); padding: 0 var(--sp-2); border-radius: var(--radius-control); cursor: default; }
+.note-quick li[aria-selected="true"] { background: var(--sel); }
+.note-quick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
+.note-quick li[aria-selected="true"] .note-quick-name { font-weight: var(--fw-medium); }
+.note-quick-where { margin-left: auto; flex-shrink: 0; font-size: var(--fs-xs); color: var(--muted); }
+.note-quick-new svg { width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
+.note-quick-none { color: var(--muted); font-size: var(--fs-sm); }

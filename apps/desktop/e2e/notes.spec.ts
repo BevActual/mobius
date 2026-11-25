@@ -418,6 +418,35 @@ test('a notebook is renamed and a note moved with links following them, and a de
   expect(fs.existsSync(file('.deleted'))).toBe(false);
 });
 
+test('Ctrl+O opens any note by part of its title, and makes one when none has it', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.mkdirSync(file('Home'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Launch brief.md'), '# Launch brief\n\nShip on Friday.\n');
+  fs.writeFileSync(file('Home', 'Groceries.md'), '# Groceries\n\n- [ ] Oats\n');
+  await start();
+  await shell().keyboard.press('Control+o');
+  const box = shell().getByRole('combobox', { name: 'Note to open' });
+  await expect(box).toBeFocused();
+  // With nothing typed, the notes edited last are listed.
+  await expect(shell().getByRole('listbox', { name: 'Notes' }).getByRole('option')).toHaveCount(2);
+  await box.fill('lnch');
+  await expect(shell().getByRole('option', { name: /Launch brief/ })).toHaveAttribute('aria-selected', 'true');
+  await shell().keyboard.press('Enter');
+  await expect(text().locator('h1')).toHaveText('Launch brief');
+  await expect(shell().getByRole('dialog', { name: 'Open a note' })).toHaveCount(0);
+  // A title no note has: the last row makes it, in the notebook that is open.
+  await shell().keyboard.press('Control+o');
+  await box.fill('Standup');
+  await shell().getByRole('option', { name: /New note “Standup”/ }).click();
+  await expect.poll(() => fs.existsSync(file('Work', 'Standup.md'))).toBe(true);
+  await expect(text().locator('h1')).toHaveText('Standup');
+  // Escape closes it and leaves the note as it was.
+  await shell().keyboard.press('Control+o');
+  await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('dialog', { name: 'Open a note' })).toHaveCount(0);
+  await expect(text().locator('h1')).toHaveText('Standup');
+});
+
 test('[[ links another note, the link opens it, and that note lists where it is linked from', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   fs.mkdirSync(file('Home'), { recursive: true });
