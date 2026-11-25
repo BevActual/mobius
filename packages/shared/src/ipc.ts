@@ -142,6 +142,8 @@ export interface NotePage { path: string; title: string; modified: number; previ
 export interface Notebook { name: string; pages: NotePage[] }
 export interface NoteContent { path: string; content: string; modified: number }
 export interface NoteHit { path: string; title: string; notebook: string; line: string }
+/** A page or notebook in the Trash. `from` is the page's path or the notebook's name; `pages` counts a notebook's pages. */
+export interface DeletedNote { id: string; kind: 'page' | 'notebook'; title: string; from: string; deletedMs: number; pages?: number }
 /** A refused notes call. `conflict` means the page changed elsewhere (the assistant) since it was read. */
 /** Where Music's engine is playing, and the levels, left and right in dB, by track id then `master`. */
 /** A recorded take: its file (relative to the song's folder), the beat it starts on, how far into the file that beat
@@ -1381,6 +1383,19 @@ export interface MobiusBridge {
     createPage(notebook: string, title: string): Promise<NoteContent | NotesFailure>;
     remove(path: string): Promise<{ ok: true } | NotesFailure>;
     search(query: string): Promise<NoteHit[] | NotesFailure>;
+    /** The notebook under a new name; links to its pages from other pages are written to it. */
+    renameNotebook?(from: string, to: string): Promise<{ name: string; relinked: string[] } | NotesFailure>;
+    /** The page moved to another notebook with its files, comments and versions; links to it follow it. */
+    move?(path: string, notebook: string): Promise<{ path: string; relinked: string[] } | NotesFailure>;
+    /** The page, or a whole notebook, moved to the Trash, where it is kept 30 days. */
+    trash?(path: string): Promise<{ id: string; path: string } | NotesFailure>;
+    trashNotebook?(name: string): Promise<{ id: string; name: string } | NotesFailure>;
+    /** What is in the Trash, newest first. */
+    deleted?(): Promise<DeletedNote[] | NotesFailure>;
+    /** Puts it back where it was (a number added if the name was taken meanwhile). */
+    restore?(id: string): Promise<{ kind: 'page'; path: string } | { kind: 'notebook'; name: string } | NotesFailure>;
+    /** One thing in the Trash, or with null everything in it, gone for good. */
+    forget?(id: string | null): Promise<{ ok: true } | NotesFailure>;
     /** The page's earlier versions, newest first: kept as the person typed, and from the workspace checkpoints. */
     versions?(path: string): Promise<NoteVersion[] | NotesFailure>;
     /** Add a file (base64) to the page's files folder; `ref` is the link to put in the page. */

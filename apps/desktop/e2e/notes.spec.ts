@@ -105,10 +105,9 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   await results.getByRole('button', { name: /Groceries/ }).click();
   await expect(text().locator('h1')).toHaveText('Groceries');
   await side().getByRole('searchbox', { name: 'Search notes' }).fill('');
-  // Delete is in the row's menu, then asked once more in the row.
+  // Delete is in the row's menu, and goes to the Trash, so it asks nothing more.
   await side().getByRole('button', { name: 'Groceries', exact: true }).click({ button: 'right' });
-  await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: /^Delete/ }).click();
-  await side().getByRole('button', { name: 'Confirm delete Groceries' }).click();
+  await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: 'Move to Trash' }).click();
   await expect(side().getByRole('button', { name: 'Groceries', exact: true })).toHaveCount(0);
   expect(fs.existsSync(file('Home', 'Groceries.md'))).toBe(false);
   // Opening a page does not rewrite it: the file stays as it was written.
@@ -365,12 +364,58 @@ test('a picture added to a page is kept beside it, linked in its Markdown, and s
   // A page whose picture is not there says so, rather than showing a broken image.
   await side().getByRole('button', { name: 'Missing', exact: true }).click();
   await expect(text().locator('figure[data-missing="true"]')).toBeVisible();
-  // Deleting the page takes its files with it.
+  // Deleting the page takes its files with it (into the Trash).
   await side().getByRole('button', { name: 'Battery', exact: true }).click();
   await side().getByRole('button', { name: 'Battery', exact: true }).click({ button: 'right' });
-  await shell().getByRole('menu', { name: 'Battery' }).getByRole('menuitem', { name: /^Delete/ }).click();
-  await side().getByRole('button', { name: 'Confirm delete Battery' }).click();
+  await shell().getByRole('menu', { name: 'Battery' }).getByRole('menuitem', { name: 'Move to Trash' }).click();
   await expect.poll(() => fs.existsSync(file('Work', 'Battery files'))).toBe(false);
+});
+
+test('a notebook is renamed and a note moved with links following them, and a deleted note comes back from the Trash', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.mkdirSync(file('Home'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nShopping: [the list](../Home/Groceries.md)\n');
+  fs.writeFileSync(file('Home', 'Groceries.md'), '# Groceries\n\n- [ ] Oats\n');
+  await start();
+  // Rename, from the notebook's own menu: the name is typed in place, and the link to its page follows it.
+  await side().getByRole('button', { name: 'Notebook options for Home' }).click();
+  await shell().getByRole('menu', { name: 'Home' }).getByRole('menuitem', { name: /^Rename notebook/ }).click();
+  await side().getByRole('textbox', { name: 'New name for Home' }).fill('Kitchen');
+  await side().getByRole('button', { name: 'Rename', exact: true }).click();
+  await expect(side().getByRole('region', { name: 'Kitchen' })).toBeVisible();
+  await expect.poll(() => fs.existsSync(file('Kitchen', 'Groceries.md'))).toBe(true);
+  expect(fs.existsSync(file('Home'))).toBe(false);
+  expect(onDisk('Work', 'Plan.md')).toBe('# Plan\n\nShopping: [the list](../Kitchen/Groceries.md)\n');
+  // Move to another notebook, from the note's menu: the open note stays open where it now is.
+  await side().getByRole('button', { name: 'Groceries', exact: true }).click();
+  await expect(text().locator('h1')).toHaveText('Groceries');
+  await side().getByRole('button', { name: 'Groceries', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: 'Move to Work' }).click();
+  await expect.poll(() => fs.existsSync(file('Work', 'Groceries.md'))).toBe(true);
+  expect(onDisk('Work', 'Plan.md')).toBe('# Plan\n\nShopping: [the list](Groceries.md)\n');
+  await expect(side().getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Groceries', exact: true })).toBeVisible();
+  await expect(text().locator('h1')).toHaveText('Groceries');
+  // Delete goes to the Trash, and Put back brings the note back where it was, open.
+  await side().getByRole('button', { name: 'Groceries', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: 'Move to Trash' }).click();
+  await expect.poll(() => fs.existsSync(file('Work', 'Groceries.md'))).toBe(false);
+  await expect(shell().getByRole('region', { name: 'No note open' })).toBeVisible();
+  const trash = side().getByRole('region', { name: 'Trash' });
+  await trash.getByRole('button', { name: 'Trash', exact: true }).click();
+  await trash.getByRole('button', { name: 'Groceries', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: 'Put back' }).click();
+  await expect.poll(() => fs.existsSync(file('Work', 'Groceries.md'))).toBe(true);
+  expect(onDisk('Work', 'Groceries.md')).toBe('# Groceries\n\n- [ ] Oats\n');
+  await expect(text().locator('h1')).toHaveText('Groceries');
+  await expect(trash).toHaveCount(0);
+  // A whole notebook goes to the Trash too, and Empty Trash ends it for good.
+  await side().getByRole('button', { name: 'Notebook options for Kitchen' }).click();
+  await shell().getByRole('menu', { name: 'Kitchen' }).getByRole('menuitem', { name: 'Move to Trash' }).click();
+  await expect(side().getByRole('region', { name: 'Kitchen' })).toHaveCount(0);
+  await side().getByRole('region', { name: 'Trash' }).getByRole('button', { name: 'Empty Trash' }).click();
+  await side().getByRole('button', { name: 'Confirm empty Trash' }).click();
+  await expect(side().getByRole('region', { name: 'Trash' })).toHaveCount(0);
+  expect(fs.existsSync(file('.deleted'))).toBe(false);
 });
 
 test('[[ links another note, the link opens it, and that note lists where it is linked from', async () => {

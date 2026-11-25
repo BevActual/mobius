@@ -10,6 +10,8 @@ use crate::checkpoints::Checkpoints;
 
 type Res<T> = Result<T, String>;
 
+mod moves;
+
 pub const FOLDER: &str = "notes";
 pub const MAX_PAGE: usize = 1024 * 1024;
 const MAX_NAME: usize = 80;
@@ -139,7 +141,8 @@ pub fn links_in(content: &str, from: &str) -> Vec<String> {
                 b'`' => in_code = !in_code,
                 b']' if !in_code && bytes.get(i + 1) == Some(&b'(') && !is_picture(line, i) => {
                     if let Some(end) = line[i + 2..].find(')') {
-                        let target = line[i + 2..i + 2 + end].split_whitespace().next().unwrap_or("");
+                        // `<My Plan.md>` keeps its spaces inside the brackets; otherwise the target ends at a space.
+                        let target = moves::target_at(line, i + 2).map_or("", |(a, b)| &line[a..b]);
                         if let Some(page) = page_link(target, notebook)
                             && page != from
                             && !out.contains(&page)
@@ -1242,10 +1245,10 @@ mod tests {
 
     #[test]
     fn links_to_other_pages_are_markdown_links_to_their_files() {
-        let page = "# Plan\n\nSee [the notes](Supplier%20notes.md), [groceries](../Home/Groceries.md) and [again](<Supplier notes.md>).\n\
+        let page = "# Plan\n\nSee [the notes](Supplier%20notes.md), [groceries](../Home/Groceries.md), [again](<Supplier notes.md>) and [the brief](<Launch brief.md>).\n\
             Not [the web](https://x.example/a.md), ![a picture](Plan%20files/a.md), [a file](Plan%20files/q.pdf), `[code](Code.md)`,\n\
             [escape](../../etc/x.md), [self](Plan.md) or [deep](../a/b/c.md).\n```\n[fenced](Fenced.md)\n```\n";
-        assert_eq!(links_in(page, "Work/Plan.md"), vec!["Work/Supplier notes.md", "Home/Groceries.md"]);
+        assert_eq!(links_in(page, "Work/Plan.md"), vec!["Work/Supplier notes.md", "Home/Groceries.md", "Work/Launch brief.md"]);
     }
 
 
