@@ -122,6 +122,7 @@ import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { recentNotes, useNoteQuickOpen } from './note-quick-open';
 import { findTodayNote, JOURNAL, liveTitle, statusText, todayNoteTitle } from './notes-state';
 import { checkedLast, setCheckedLast } from './checked-last';
+import { noteSort, setNoteSort, type NoteSort } from './note-sort';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
@@ -838,6 +839,7 @@ export function App() {
   const [commentFocus, setCommentFocus] = useState<string | null>(null);
   // Notes (marked): Move checked items to the bottom, in the Notes menu.
   const [checkedLastOn, setCheckedLastOn] = useState(checkedLast);
+  const [notesSort, setNotesSort] = useState<NoteSort>(noteSort);
   const commentDoc = inSheets && sheets.data ? `${sheets.data.workbook}/${sheets.data.sheet}` : inMail && mail.open ? mail.open.id : inNotes && notes.page ? notes.page.path : inDocs && docs.page ? docs.page.path : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id) : inCalendar ? 'calendar' : inBrowser ? (active?.url ?? null) : place || appName(app);
   const commentThreads = useCommentThreads(app, commentDoc);
   const openComments = useOpenComments(app);
@@ -1207,7 +1209,7 @@ export function App() {
             />
           );
         case 'notes':
-          return <NotesSidebar synced={syncedIn('notes')} notes={notes} tags pin={null} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />;
+          return <NotesSidebar synced={syncedIn('notes')} notes={notes} sort={notesSort} tags pin={null} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />;
         case 'files':
           return <FilesSidebar files={files} pin={null} />;
         case 'mail':
@@ -1353,7 +1355,7 @@ export function App() {
       commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
-      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn },
+      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn, sort: notesSort },
       docs: { hasPage: docs.page !== null, isTemplate: isTemplate(docs.page?.path), templates: templatesIn(docs.notebooks) },
       tasks: { inList: tasks.view.kind === 'list', done: tasksDone },
       calendar: { mode: calendar.mode },
@@ -1410,6 +1412,7 @@ export function App() {
         clip: () => sendCommand('clip-page'),
         markdown: () => sendCommand('show-markdown'),
         checkedLast: () => { setCheckedLast(!checkedLastOn); setCheckedLastOn(!checkedLastOn); },
+        sortBy: (by) => { setNoteSort(by); setNotesSort(by); },
       },
       tasks: {
         newList: () => sendCommand('new-list'),

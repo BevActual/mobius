@@ -11,6 +11,7 @@ use crate::checkpoints::Checkpoints;
 type Res<T> = Result<T, String>;
 mod find;
 
+mod created;
 mod moves;
 
 pub const FOLDER: &str = "notes";
@@ -402,6 +403,8 @@ impl Notes {
         let mut count = 0;
         let mut dirs: Vec<_> = fs::read_dir(&self.root).map_err(|e| e.to_string())?.filter_map(Result::ok).filter(|e| e.file_type().is_ok_and(|t| t.is_dir())).collect();
         dirs.sort_by_key(|e| e.file_name().to_string_lossy().to_lowercase());
+        let mut made = self.created_times();
+        let known = made.len();
         for dir in dirs {
             let name = dir.file_name().to_string_lossy().into_owned();
             if !notebook_ok(&name) {
@@ -419,7 +422,8 @@ impl Notes {
                 let content = fs::read_to_string(entry.path()).unwrap_or_default();
                 let head: String = content.chars().take(4000).collect();
                 let title = if self.named_by_file { stem.to_owned() } else { title_of(&head, stem) };
-                let mut row = json!({ "path": path, "title": title, "modified": modified_ms(&entry.path()) });
+                let created = *made.entry(path.clone()).or_insert_with(|| created::first_seen(&entry.path()));
+                let mut row = json!({ "path": path, "title": title, "modified": modified_ms(&entry.path()), "created": created });
                 // Markdown pages say how they start and what they are tagged with, for the list; JSON files do not.
                 if self.ext == "md" && !self.named_by_file {
                     row["preview"] = json!(preview_of(&head));
@@ -430,6 +434,9 @@ impl Notes {
             }
             pages.sort_by(|a, b| b["modified"].as_u64().cmp(&a["modified"].as_u64()).then(a["path"].as_str().cmp(&b["path"].as_str())));
             notebooks.push(json!({ "name": name, "pages": pages }));
+        }
+        if made.len() != known {
+            self.keep_created_times(&made);
         }
         Ok(Value::Array(notebooks))
     }

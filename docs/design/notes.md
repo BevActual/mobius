@@ -66,13 +66,16 @@ same window, with "Notes" as a token at the start of the box, so Backspace widen
 ## Sorting
 
 Andrew, 25 November 2026: "lets keep improving notes". Sorting, version history, templates and meeting notes come
-next, in that order.
+next, in that order. Sorting is as built in #890.
 
-- **One place:** View › Sort notes by, with Date edited, Date created and Title, the current one ticked. It applies
-  to every notebook, as in Apple Notes. No sort control is drawn in the panel.
-- **Pinned stays on top** in its own Pinned section whatever the sort, as now.
-- **The row's grey date follows the sort:** the date edited, or the date created under Date created. Title keeps
-  the date edited. Under a date sort the newest is first. Title sorts A to Z, ignoring case and a leading "The".
+- **One place:** View holds three items, Sort notes by date edited, Sort notes by date created and Sort notes by
+  title, with the current one ticked. They show only in Notes, and the choice applies to every notebook, as in Apple
+  Notes. No sort control is drawn in the panel. Later: one Sort notes by submenu, once menus have submenus.
+- **Pinned stays on top:** the Pinned section keeps the chosen order, and pinned notes also come first in their
+  notebook.
+- **The row's grey date follows the sort:** the date created under date created, otherwise the date edited, and the
+  tooltip says "Created" or "Edited" to match. Under a date sort the newest is first. Title sorts A to Z, ignoring
+  case and a leading "The", with numbers in number order.
 
 ## Version history
 

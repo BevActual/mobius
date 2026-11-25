@@ -1,3 +1,4 @@
+import { NOTE_SORTS, type NoteSort } from './note-sort';
 import type { AppId } from './apps';
 import { templateName } from './docs-view';
 
@@ -27,7 +28,7 @@ export interface MenuContext {
     miniOpen: boolean;
     zoom: number;
     browser: { hasPage: boolean; canBack: boolean; canForward: boolean; bookmarked: boolean; pinned: boolean };
-    notes: { hasPage: boolean; pinned: boolean; changed: boolean; checkedLast: boolean };
+    notes: { hasPage: boolean; pinned: boolean; changed: boolean; checkedLast: boolean; sort: NoteSort };
     docs: { hasPage: boolean; isTemplate: boolean; templates: readonly { path: string; title: string }[] };
     tasks: { inList: boolean; done: number };
     calendar: { mode: 'day' | 'week' | 'month' | 'year' };
@@ -51,7 +52,7 @@ export interface MenuContext {
     allApps: () => void;
     launcher: () => void;
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; nextSpace: () => void; previousSpace: () => void; selection: () => void; saveToReader: () => void };
-    notes: { open: () => void; newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void; checkedLast: () => void };
+    notes: { open: () => void; newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void; checkedLast: () => void; sortBy: (by: NoteSort) => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void; fromTemplate: (path: string, title: string) => void; saveAsTemplate: () => void };
     video: { newProject: () => void; showFolder: () => void };
@@ -110,6 +111,8 @@ export function buildMenus(c: MenuContext): Menu[] {
     // their real state: never a generic "Sidebar" or "Agent panel" (docs/design/guide.md, Naming panels).
     item('comments', 'Comments', d.toggleComments, { keys: 'c', checked: s.commenting }),
     separator,
+    // Notes: Sort notes by, as Apple Notes, in View (docs/design/notes.md, Sorting): one of three, the chosen one ticked.
+    ...(c.app === 'notes' && !c.place ? [...NOTE_SORTS.map((o) => item(`sort-${o.id}`, `Sort notes by ${o.label.toLowerCase()}`, () => d.notes.sortBy(o.id), { checked: s.notes.sort === o.id })), separator] : []),
     item('zoom-in', 'Zoom in', () => d.zoom(nextZoom(s.zoom, 1)), { disabled: s.zoom >= ZOOM_STEPS.at(-1)! }),
     item('zoom-out', 'Zoom out', () => d.zoom(nextZoom(s.zoom, -1)), { disabled: s.zoom <= ZOOM_STEPS[0] }),
     item('zoom-reset', 'Actual size', () => d.zoom(1), { disabled: s.zoom === 1 }),

@@ -45,6 +45,11 @@ const notesMenu = async (item: string): Promise<void> => {
   await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Notes', exact: true }).click();
   await shell().getByRole('menu', { name: 'Notes' }).getByRole('menuitem', { name: item }).click();
 };
+const viewMenu = async (item: string): Promise<void> => {
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
+  // A choice that is ticked or not is a menuitemcheckbox, as the sort orders are.
+  await shell().getByRole('menu', { name: 'View' }).getByRole('menuitemcheckbox', { name: item }).click();
+};
 const status = (): Locator => shell().locator('.note-status');
 const file = (...parts: string[]) => path.join(userData, 'workspace', 'notes', ...parts);
 const onDisk = (...parts: string[]) => fs.readFileSync(file(...parts), 'utf8');
@@ -472,6 +477,8 @@ test('Ctrl+O opens the launcher narrowed to Notes: recent notes, a note by its t
   await expect(text().locator('h1')).toHaveText('Standup');
   // Backspace in the empty box widens it to everything again.
   await shell().keyboard.press('Control+o');
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue('');
   await shell().keyboard.press('Backspace');
   await expect(shell().getByRole('combobox', { name: 'Find apps, pages and commands' })).toBeVisible();
   await shell().keyboard.press('Escape');
@@ -562,4 +569,27 @@ test("Today's note makes a dated page in Journal once, and opens that same page 
   await shell().getByRole('option', { name: /Today’s note/ }).first().click();
   await expect(text()).toContainText('Called Veltro.');
   expect(fs.readdirSync(file('Journal')).filter((f) => f.endsWith('.md'))).toEqual([`${day}.md`]);
+});
+
+test('a notebook lists its notes by last edit, by when they were made, or by title, pinned ones first', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  for (const [name, edited] of [['Beta', 3], ['Alpha', 1], ['Gamma', 2]] as const) {
+    fs.writeFileSync(file('Work', `${name}.md`), `# ${name}\n`);
+    const at = new Date(Date.UTC(2026, 10, edited));
+    fs.utimesSync(file('Work', `${name}.md`), at, at);
+  }
+  // When each was made, as Notes keeps it: Gamma first, Beta last.
+  fs.writeFileSync(file('.created.json'), JSON.stringify({ 'Work/Gamma.md': Date.UTC(2026, 9, 1), 'Work/Alpha.md': Date.UTC(2026, 9, 2), 'Work/Beta.md': Date.UTC(2026, 9, 3) }));
+  await start();
+  const work = side().getByRole('region', { name: 'Work' });
+  const order = () => work.locator('button.list-row').evaluateAll((rows) => rows.map((r) => r.getAttribute('aria-label')));
+  await expect.poll(order).toEqual(['Beta', 'Gamma', 'Alpha']);
+  await viewMenu('Sort notes by title');
+  await expect.poll(order).toEqual(['Alpha', 'Beta', 'Gamma']);
+  await viewMenu('Sort notes by date created');
+  await expect.poll(order).toEqual(['Beta', 'Alpha', 'Gamma']);
+  await work.getByRole('button', { name: 'Pin Gamma' }).click();
+  await expect.poll(order).toEqual(['Gamma', 'Beta', 'Alpha']);
+  // The choice is kept for the next visit.
+  expect(await shell().evaluate(() => window.localStorage.getItem('mobius.notes.sort'))).toBe('created');
 });
