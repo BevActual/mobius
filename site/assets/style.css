@@ -150,6 +150,7 @@ h1 { font-size: clamp(46px, 8.4vw, 92px); line-height: 1.0; letter-spacing: -0.0
 .lead { max-width: 640px; margin-top: 24px; font-size: clamp(17px, 2vw, 19.5px); line-height: 1.55; color: var(--ink2); }
 .cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 36px; }
 .fine { margin-top: 16px; font-size: 13.5px; color: var(--ink3); }
+.fine a { color: var(--ink2); }
 @media (max-width: 480px) { .cta { flex-direction: column; align-self: stretch; } .cta .btn { width: 100%; } }
 
 .window {
@@ -423,6 +424,14 @@ main:not(#main) tr:first-child th { border-top: 0; background: var(--sub); }
 main:not(#main) th { font-weight: 600; color: var(--ink); }
 main:not(#main) td { color: var(--ink2); }
 main:not(#main) td:first-child { color: var(--ink); width: 40%; }
+main:not(#main) ol { list-style: decimal; padding-left: 22px; margin: 12px 0; display: grid; gap: 8px; }
+main:not(#main) h3 { font-size: 16px; font-weight: 600; margin: 28px 0 6px; }
+main:not(#main) .page-cta { margin: 28px 0 16px; }
+main:not(#main) .page-cta .btn { color: var(--panel); }
+.release { margin-top: 48px; padding-top: 8px; }
+.release h2 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 0; }
+.release-date { font-size: 15px; font-weight: 500; color: var(--ink3); letter-spacing: 0; }
+.more-releases { margin-top: 48px; }
 main:not(#main) > footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink3); font-size: 14px; }
 main:not(#main) > footer a { color: var(--ink2); }
 @media (max-width: 560px) { main:not(#main) { padding: 28px 16px 56px; } main:not(#main) td:first-child { width: auto; } }

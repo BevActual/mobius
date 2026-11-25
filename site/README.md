@@ -28,6 +28,8 @@ Then open http://localhost:8000. Switch your system between light and dark to se
 
 ### With each release
 
+- Add the version to the top of `changelog/index.html`, in plain words for people who use Mobius, and change the
+  version in the hero's "what's new in 0.1.N" line in `index.html`.
 - The Download buttons point at `https://github.com/BevActual/mobius/releases/latest`, so they never need a new
   version number. Check the platform line under the hero ("Windows 10 and 11, 64-bit · macOS is on the way") when a
   new platform ships.
@@ -77,6 +79,8 @@ The addresses of the pages below stay put as the site grows, because Google and 
 | Path | What |
 | --- | --- |
 | `/` | Home page (`index.html`) |
+| `/download/` | Download and install guide (`download/index.html`) |
+| `/changelog/` | Release notes, newest first (`changelog/index.html`) |
 | `/privacy/` | Privacy policy (`privacy/index.html`) |
 | `/assets/` | Stylesheet, script, font, mark and pictures shared by every page |
 
