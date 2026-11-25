@@ -168,8 +168,8 @@ export function useDailyLauncherSources(d: Daily): void {
       }];
     },
     commands: () => [
-      { id: 'today', label: 'Due today', detail: 'Tasks', run: () => d.tasksView('today') },
-      { id: 'scheduled', label: 'Scheduled tasks', detail: 'Tasks', run: () => d.tasksView('scheduled') },
+      { id: 'today', label: 'Today’s tasks', detail: 'Tasks', run: () => d.tasksView('today') },
+      { id: 'scheduled', label: 'Upcoming tasks', detail: 'Tasks', run: () => d.tasksView('scheduled') },
       { id: 'flagged', label: 'Flagged tasks', detail: 'Tasks', run: () => d.tasksView('flagged') },
     ],
   });

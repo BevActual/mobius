@@ -48,7 +48,7 @@ Checked 24 November 2026; pull requests not merged yet are marked (open).
 | Browser | Yes | #783 | Nothing for the look |
 | Settings | Yes | #786, #863, #873, #872, #875, #877 | Nothing for the look; the Accounts page and Back and Forward follow [their spec](settings-accounts.md) |
 | Calendar | Yes | #798, #800, #862, #901 | Nothing for the look; what is Later is in [its spec](calendar.md) |
-| Tasks | Yes | #801 | Part B: When and Deadline, Things-style views |
+| Tasks | Yes | #801, this pull request | Nothing for the look; what is Later is in [its spec](tasks.md) |
 | Notes | Yes | #804, #862, #881, #884, this pull request | Notebooks, the Trash, Ctrl+O, note links, citations, sorting, version history, templates and meeting notes follow [its spec](notes.md); History as a panel is on hold |
 | Docs | Yes | #809, #862, #899 | Nothing for the look; what is Later is in [its spec](docs.md) |
 | Files | Yes | #865 | Screens from a PC check |

@@ -190,7 +190,7 @@ function appMenu(c: MenuContext): Menu | null {
         item('new-list', 'New list', d.tasks.newList),
         separator,
         item('today', 'Today', d.tasks.today),
-        item('scheduled', 'Scheduled', d.tasks.scheduled),
+        item('scheduled', 'Upcoming', d.tasks.scheduled),
         separator,
         item('clear-done', s.tasks.done > 0 ? `Clear ${s.tasks.done} completed` : 'Clear completed', d.tasks.clearDone, { disabled: !s.tasks.inList || s.tasks.done === 0 }),
       ] };

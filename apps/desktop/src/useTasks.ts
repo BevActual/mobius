@@ -148,7 +148,7 @@ export function useTasks() {
     return true;
   }, [refresh, withPending]);
 
-  const add = useCallback(async (list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt; time?: string; repeat?: TaskRepeat }) => {
+  const add = useCallback(async (list: string, text: string, due: string | null, options?: { flagged?: boolean; under?: TaskAt; time?: string; repeat?: TaskRepeat; when?: string }) => {
     if (!(list in live.current)) await refresh();
     return settle(await api?.add(list, text, due, options));
   }, [api, settle, refresh]);

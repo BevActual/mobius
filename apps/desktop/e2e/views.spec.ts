@@ -39,7 +39,7 @@ const shell = () => mobius!.shell;
 const file = () => path.join(userData, 'workspace', 'views', 'Views', 'Today.json');
 const saved = () => JSON.parse(fs.readFileSync(file(), 'utf8')) as { tiles: Tile[] };
 const page = (): Locator => shell().getByRole('region', { name: 'Today' });
-/** A tile, by what it reads out: its name, then what it holds ("Tasks · All: 2 to do"). */
+/** A tile, by what it reads out: its name, then what it holds ("Tasks · Anytime: 2 to do"). */
 const tile = (name: RegExp): Locator => page().getByRole('listitem', { name });
 
 async function start(replies: ModelReply[] = []): Promise<void> {
@@ -50,13 +50,13 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Views');
   await shell().keyboard.press('Enter');
   await shell().getByRole('button', { name: 'Today', exact: true }).click();
-  await expect(tile(/^Tasks · All: 2 to do$/)).toBeVisible();
+  await expect(tile(/^Tasks · Anytime: 2 to do$/)).toBeVisible();
 }
 
 test('a view shows live tiles from the apps, and tiles are added, resized, moved and removed, kept as JSON', async () => {
   await start();
   // Live: the tasks and the note are there, and a row opens its app.
-  await expect(tile(/^Tasks · All/)).toContainText('Buy tulip bulbs');
+  await expect(tile(/^Tasks · Anytime/)).toContainText('Buy tulip bulbs');
   await expect(tile(/^Notes/)).toContainText('Garden');
   await tile(/^Notes/).getByRole('button', { name: /Garden/ }).click();
   await expect(shell().locator('.ProseMirror').first()).toContainText('Plant the tulips', { timeout: 10_000 });
@@ -71,12 +71,12 @@ test('a view shows live tiles from the apps, and tiles are added, resized, moved
   await expect(tile(/^Mail/)).toContainText('Add a mail account in Mail.');
 
   // The tile's menu makes it wide, changes what it shows and moves it.
-  await tile(/^Tasks · All/).hover();
-  await tile(/^Tasks · All/).getByRole('button', { name: 'More for Tasks · All' }).click();
+  await tile(/^Tasks · Anytime/).hover();
+  await tile(/^Tasks · Anytime/).getByRole('button', { name: 'More for Tasks · Anytime' }).click();
   await shell().getByRole('menuitem', { name: 'Make wide' }).click();
   await expect.poll(() => saved().tiles[0]).toEqual({ id: 't1', kind: 'tasks', size: 'wide', show: 'all' });
-  await tile(/^Tasks · All/).hover();
-  await tile(/^Tasks · All/).getByRole('button', { name: 'More for Tasks · All' }).click();
+  await tile(/^Tasks · Anytime/).hover();
+  await tile(/^Tasks · Anytime/).getByRole('button', { name: 'More for Tasks · Anytime' }).click();
   await shell().getByRole('menuitem', { name: 'Move later' }).click();
   await expect.poll(() => saved().tiles.map((t) => t.id)).toEqual(['t2', 't1', 't3']);
 
@@ -122,7 +122,7 @@ test('Mobius adding tiles shows them dashed, to keep or discard', async () => {
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('week ahead');
   await expect(tile(/^Calendar · Next 7 days/)).toHaveAttribute('data-proposed', 'true');
-  await expect(tile(/^Tasks · All/)).not.toHaveAttribute('data-proposed', 'true');
+  await expect(tile(/^Tasks · Anytime/)).not.toHaveAttribute('data-proposed', 'true');
   const change = page().getByRole('group', { name: "Mobius's change" });
   await expect(change).toContainText('Mobius changed one tile here');
   await change.getByRole('button', { name: 'Discard' }).click();

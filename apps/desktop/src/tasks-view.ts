@@ -8,23 +8,41 @@ export const DEFAULT_LIST_NAME = 'Inbox';
 export function tasksIn(markdown: string): ReadonlySet<string> {
   const found = new Set<string>();
   for (const line of markdown.split(/\r?\n/)) {
-    const m = /^\s*[-*] \[[ xX]\] (.*?)(?:\s+\((?:due \d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?|every (?:day|weekday|week|month|year)|flagged)\))*\s*$/.exec(line);
+    const m = /^\s*[-*] \[[ xX]\] (.*?)(?:\s+\((?:due \d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?|when (?:\d{4}-\d{2}-\d{2}|someday)|done \d{4}-\d{2}-\d{2}|every (?:day|weekday|week|month|year)|flagged)\))*\s*$/.exec(line);
     if (m && m[1]) found.add(m[1]);
   }
   return found;
 }
 
 export type DueTone = 'late' | 'today' | 'soon' | 'later';
-export type SmartView = 'today' | 'scheduled' | 'flagged' | 'all' | 'completed';
+/** The views across every list, as Things has them. The ids are the ones tiles and menus already keep: Upcoming is
+ *  `scheduled`, Anytime is `all` and the Logbook is `completed`. */
+export type SmartView = 'today' | 'scheduled' | 'all' | 'someday' | 'flagged' | 'completed';
 
-/** The views across every list, in the order the sidebar shows them. */
+/** The views across every list, in the order the panel shows them. */
 export const SMART_VIEWS: readonly { id: SmartView; name: string }[] = [
   { id: 'today', name: 'Today' },
-  { id: 'scheduled', name: 'Scheduled' },
-  { id: 'all', name: 'All' },
+  { id: 'scheduled', name: 'Upcoming' },
+  { id: 'all', name: 'Anytime' },
+  { id: 'someday', name: 'Someday' },
   { id: 'flagged', name: 'Flagged' },
-  { id: 'completed', name: 'Completed' },
+  { id: 'completed', name: 'Logbook' },
 ];
+export const SOMEDAY = 'someday';
+/** The day a task is planned for, when it is a day (not Someday). */
+export const planDay = (t: TaskItem): string | null => (t.when && t.when !== SOMEDAY ? t.when : null);
+/** Is it in Today: planned for today or before, or with a deadline today or past. */
+export const isToday = (t: TaskItem, today: string): boolean => {
+  const plan = planDay(t);
+  return (plan !== null && plan <= today) || (t.due !== null && t.due <= today);
+};
+/** The day Upcoming shows an open task under: the day it is planned for, or else its deadline, when that is after today. */
+export function upcomingDay(t: TaskItem, today: string): string | null {
+  if (isToday(t, today)) return null;
+  const plan = planDay(t);
+  if (plan !== null) return plan;
+  return t.due !== null && t.due > today ? t.due : null;
+}
 export const smartName = (id: SmartView): string => SMART_VIEWS.find((v) => v.id === id)?.name ?? 'Today';
 export interface Located { list: string; task: TaskItem }
 
@@ -52,30 +70,37 @@ export function splitDone(tasks: TaskItem[]): { open: TaskItem[]; done: TaskItem
 }
 
 /**
- * Tasks from every list for a view: due today or late (Today) or with any date (Scheduled), earliest first; flagged
- * (Flagged); every open one, list by list (All); or every done one (Completed). Only Completed shows done tasks.
+ * Tasks from every list for a view, as Things shows them: planned for today or before, or with a deadline today or
+ * past (Today), earliest first; planned or due after today, day by day (Upcoming); every open one not planned for
+ * later or Someday, list by list (Anytime); the ones put off to Someday; flagged (Flagged); or every done one, the most
+ * recently done first (Logbook). Only the Logbook shows done tasks.
  */
 export function smartView(view: SmartView, lists: Record<string, TaskItem[]>, now: Date): Located[] {
   const today = isoDay(now);
   const every: Located[] = Object.entries(lists).flatMap(([list, tasks]) => tasks.map((task) => ({ list, task })));
-  if (view === 'completed') return every.filter((x) => x.task.done);
+  if (view === 'completed') {
+    return every.filter((x) => x.task.done).map((x, i) => ({ x, i }))
+      .sort((a, b) => (b.x.task.doneOn ?? '').localeCompare(a.x.task.doneOn ?? '') || a.i - b.i).map(({ x }) => x);
+  }
   const open = every.filter((x) => !x.task.done);
-  if (view === 'all') return open;
+  if (view === 'all') return open.filter((x) => x.task.when !== SOMEDAY && !((planDay(x.task) ?? '') > today));
+  if (view === 'someday') return open.filter((x) => x.task.when === SOMEDAY);
   if (view === 'flagged') return open.filter((x) => x.task.flagged);
-  const dated = open.filter((x) => x.task.due !== null && (view === 'scheduled' || x.task.due! <= today));
   // Earliest first; on one day, tasks with a time in time order, then the rest.
-  return dated.sort((a, b) => a.task.due!.localeCompare(b.task.due!) || (a.task.time ?? '99').localeCompare(b.task.time ?? '99'));
+  const key = (t: TaskItem) => (view === 'today' ? [planDay(t), t.due].filter((d): d is string => !!d && d <= today).sort()[0]! : upcomingDay(t, today)!);
+  const dated = open.filter((x) => (view === 'today' ? isToday(x.task, today) : upcomingDay(x.task, today) !== null));
+  return dated.sort((a, b) => key(a.task).localeCompare(key(b.task)) || (a.task.time ?? '99').localeCompare(b.task.time ?? '99'));
 }
 
-/** What the Mobius panel's Glance says about the day, across every list: open tasks past their date, open tasks due
- * today, and open flagged tasks. */
+/** What the Mobius panel's Glance says about the day, across every list: open tasks past their deadline, the rest of
+ * Today (planned for today, or due today), and open flagged tasks. */
 export function tasksGlance(lists: Record<string, TaskItem[]>, now: Date): { label: string; value: string }[] {
   const today = isoDay(now);
   const open = Object.values(lists).flat().filter((t) => !t.done);
   const count = (keep: (t: TaskItem) => boolean) => String(open.filter(keep).length);
   return [
     { label: 'Overdue', value: count((t) => t.due !== null && t.due < today) },
-    { label: 'Due today', value: count((t) => t.due === today) },
+    { label: 'Today', value: count((t) => isToday(t, today) && !(t.due !== null && t.due < today)) },
     { label: 'Flagged', value: count((t) => !!t.flagged) },
   ];
 }
@@ -170,17 +195,18 @@ export function parseWhen(text: string, now: Date): { text: string; due: string;
  * Scheduled tasks under day headings, as in Reminders: Overdue, Today, Tomorrow, each weekday of the coming week, then
  * one heading per month. `exact` says the heading names the very day, so the rows need not repeat it. Keeps the order.
  */
-export function byDay(rows: readonly Located[], now: Date): { key: string; label: string; exact: boolean; rows: Located[] }[] {
+export function byDay(rows: readonly Located[], now: Date, dayOf: (t: TaskItem) => string | null = (t) => t.due): { key: string; label: string; exact: boolean; rows: Located[] }[] {
   const out: { key: string; label: string; exact: boolean; rows: Located[] }[] = [];
   for (const r of rows) {
-    if (!r.task.due) continue;
-    const date = parse(r.task.due);
+    const on = dayOf(r.task);
+    if (!on) continue;
+    const date = parse(on);
     const days = dayNumber(date) - dayNumber(now);
     let key: string; let label: string; let exact = true;
     if (days < 0) { key = 'overdue'; label = 'Overdue'; exact = false; }
-    else if (days === 0) { key = r.task.due; label = 'Today'; }
-    else if (days === 1) { key = r.task.due; label = 'Tomorrow'; }
-    else if (days < 7) { key = r.task.due; label = weekdayLabel(date, 'long'); }
+    else if (days === 0) { key = on; label = 'Today'; }
+    else if (days === 1) { key = on; label = 'Tomorrow'; }
+    else if (days < 7) { key = on; label = weekdayLabel(date, 'long'); }
     else {
       key = `${date.getFullYear()}-${date.getMonth()}`; exact = false;
       label = formatWith(date, { month: 'long', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
@@ -190,6 +216,26 @@ export function byDay(rows: readonly Located[], now: Date): { key: string; label
     else out.push({ key, label, exact, rows: [r] });
   }
   return out;
+}
+
+/** The Logbook under the day each was done, most recent first: Today, Yesterday, then the date; Earlier for one
+ *  done before Mobius kept the day. */
+export function byDone(rows: readonly Located[], now: Date): { key: string; label: string; rows: Located[] }[] {
+  const out: { key: string; label: string; rows: Located[] }[] = [];
+  for (const r of rows) {
+    const on = r.task.doneOn ?? '';
+    const days = on ? dayNumber(parse(on)) - dayNumber(now) : null;
+    const label = days === null ? 'Earlier' : days === 0 ? 'Today' : days === -1 ? 'Yesterday' : dayLabel(parse(on), { now });
+    const group = out.find((g) => g.key === (on || 'earlier'));
+    if (group) group.rows.push(r);
+    else out.push({ key: on || 'earlier', label, rows: [r] });
+  }
+  return out;
+}
+
+/** A task's When in words, for its row and Details: Someday, Today, Tomorrow, a weekday this week, else the date. */
+export function whenLabel(when: string, now: Date): string {
+  return when === SOMEDAY ? 'Someday' : dueLabel(when, now).text;
 }
 
 /** A time of day "HH:MM" in the computer's own clock ("16:00" or "4:00 PM"). */

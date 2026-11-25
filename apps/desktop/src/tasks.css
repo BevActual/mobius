@@ -118,6 +118,9 @@ html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list
 .tasks-page .task-meta { flex: none; display: inline-flex; align-items: center; gap: var(--sp-3); margin-left: auto; padding: 0; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 .tasks-page .task-meta .task-list::before { content: none; }
 .task-list { display: inline-flex; align-items: center; }
+/* When it is planned for (Things' When), grey beside the deadline: a day, or Someday. */
+.task-plan { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.inspector-someday { color: var(--ink); }
 .task-list .list-dot { width: var(--sp-4); height: var(--sp-4); }
 .task-list .list-dot::before { width: 6px; height: 6px; }
 .tasks-page .task-due { color: var(--muted); font-weight: var(--fw-regular); }
