@@ -106,7 +106,8 @@ Your calendars by day, week or month.
   Microsoft, their sign-in says it isn't set up yet, and their calendars can still be subscribed to through the private
   iCal address each one gives (see [calendar sign-in](../reference/calendar-sign-in.md)).
 - **The Calendars panel** lists your calendars as plain rows, each with its colour as a dot. Press one to hide its events, and
-  again to show them; **Tasks with due dates** works the same way. Under **From Mobius**, **Suggested events** says how
+  again to show them. A calendar of your own has **⋯** (or right-click it) to **Rename** it or **Delete calendar**,
+  which the Undo pill brings back; **Tasks with due dates** works the same way. Under **From Mobius**, **Suggested events** says how
   many events Mobius suggested or added are waiting for you, and goes to the first.
 - **Tasks due at a time** sit at their hour in Day and Week as a thin line you can tick, beside any event at that hour
   rather than over it; a task due only on a day waits

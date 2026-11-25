@@ -1072,6 +1072,71 @@ impl Calendar {
         Ok(json!({ "name": name }))
     }
 
+    /// A calendar of the person's own, by name: not the default one, which is always there, and not an account's.
+    fn own(&self, name: &str) -> Res<PathBuf> {
+        if name == DEFAULT_CALENDAR {
+            return Err(format!("{DEFAULT_CALENDAR} is always there: it cannot be renamed or deleted"));
+        }
+        if self.mirror(name).is_some() {
+            return Err("that calendar is an account's: it is changed in Settings, Calendar".into());
+        }
+        let file = self.file(name)?;
+        if !file.exists() {
+            return Err("that calendar is not there".into());
+        }
+        Ok(file)
+    }
+
+    /// Renames one of the person's own calendars: its file, and the name inside it.
+    pub fn rename(&self, from: &str, to: &str) -> Res<Value> {
+        let file = self.own(from)?;
+        let to = file_name_for(to.trim());
+        if !calendar_ok(&to) {
+            return Err("that is not a name for a calendar".into());
+        }
+        if self.calendars().iter().any(|c| c.eq_ignore_ascii_case(&to) && !c.eq_ignore_ascii_case(from)) {
+            return Err("there is already a calendar with that name".into());
+        }
+        let (events, mut other) = self.load(from)?;
+        other.retain(|l| !l.to_ascii_uppercase().starts_with("X-WR-CALNAME"));
+        // The new name inside the file first, then the file renamed, so a change of case alone renames it too.
+        fs::write(&file, write(&to, &events, &other)).map_err(|e| e.to_string())?;
+        fs::rename(&file, self.root.join(format!("{to}.ics"))).map_err(|e| e.to_string())?;
+        Ok(json!({ "name": to, "was": from }))
+    }
+
+    fn deleted_root(&self) -> PathBuf {
+        self.root.join(".deleted")
+    }
+
+    /// Deletes one of the person's own calendars: its file is kept aside, so `restore_calendar` can put it back.
+    pub fn remove_calendar(&self, name: &str) -> Res<Value> {
+        let file = self.own(name)?;
+        let (events, _) = self.load(name)?;
+        let id = format!("{}-{}", Utc::now().timestamp_millis(), file_name_for(name));
+        let aside = self.deleted_root().join(format!("{id}.ics"));
+        fs::create_dir_all(self.deleted_root()).map_err(|e| e.to_string())?;
+        fs::rename(&file, &aside).map_err(|e| e.to_string())?;
+        Ok(json!({ "id": id, "name": name, "events": events.len() }))
+    }
+
+    /// Puts a deleted calendar back under its name, unless another has taken it.
+    pub fn restore_calendar(&self, id: &str) -> Res<Value> {
+        if id.is_empty() || id.contains(['/', '\\']) || id.starts_with('.') {
+            return Err("that is not a deleted calendar".into());
+        }
+        let aside = self.deleted_root().join(format!("{id}.ics"));
+        if !aside.is_file() {
+            return Err("that calendar is no longer kept".into());
+        }
+        let name = id.split_once('-').map_or(id, |(_, n)| n).to_owned();
+        if !calendar_ok(&name) || self.calendars().iter().any(|c| c.eq_ignore_ascii_case(&name)) {
+            return Err("there is already a calendar with that name".into());
+        }
+        fs::rename(&aside, self.file(&name)?).map_err(|e| e.to_string())?;
+        Ok(json!({ "name": name }))
+    }
+
     /// The events between two days (both included), from every calendar, in order. Repeating events give one entry
     /// for each time they happen.
     pub fn events(&self, from: &str, to: &str) -> Res<Value> {
@@ -1621,6 +1686,43 @@ mod tests {
         assert_eq!(now["alert"], json!(0));
         assert!(c.add("Calendar", &Draft::from_json(&json!({ "title": "x", "start": "2026-11-21T09:00", "alert": "soon" }))).is_err());
         assert!(c.add("Calendar", &Draft::from_json(&json!({ "title": "x", "start": "2026-11-21T09:00", "alert": 999_999 }))).is_err());
+    }
+
+    #[test]
+    fn a_calendar_of_ones_own_is_renamed_deleted_and_put_back_but_not_the_default() {
+        let (dir, c) = store();
+        c.create("Work").unwrap();
+        c.add("Work", &Draft::from_json(&json!({ "title": "Review", "start": "2026-11-16T10:00" }))).unwrap();
+        let renamed = c.rename("Work", "Office").unwrap();
+        assert_eq!(renamed["name"], "Office");
+        let root = dir.path().join("workspace/calendar");
+        assert!(!root.join("Work.ics").exists());
+        let text = fs::read_to_string(root.join("Office.ics")).unwrap();
+        assert!(text.contains("X-WR-CALNAME:Office") && text.contains("SUMMARY:Review"), "{text}");
+        assert!(c.calendars().contains(&"Office".to_owned()));
+        // A change of case alone.
+        c.rename("Office", "office").unwrap();
+        assert!(c.calendars().contains(&"office".to_owned()));
+        c.rename("office", "Office").unwrap();
+        // Names taken, and the default, are refused.
+        c.create("Home").unwrap();
+        assert!(c.rename("Office", "home").is_err());
+        assert!(c.rename(DEFAULT_CALENDAR, "Mine").is_err());
+        assert!(c.remove_calendar(DEFAULT_CALENDAR).is_err());
+        // A name with a path in it stays a file in the calendar folder.
+        let odd = c.rename("Office", "../x").unwrap();
+        let odd = odd["name"].as_str().unwrap().to_owned();
+        assert!(!odd.contains('/') && root.join(format!("{odd}.ics")).exists(), "{odd}");
+        c.rename(&odd, "Office").unwrap();
+        // Deleted: gone from the list, kept aside, and put back whole.
+        let gone = c.remove_calendar("Office").unwrap();
+        assert_eq!(gone["events"], 1);
+        assert!(!c.calendars().contains(&"Office".to_owned()));
+        let back = c.restore_calendar(gone["id"].as_str().unwrap()).unwrap();
+        assert_eq!(back["name"], "Office");
+        assert_eq!(c.events("2026-11-16", "2026-11-16").unwrap()[0]["calendar"], "Office");
+        assert!(c.restore_calendar(gone["id"].as_str().unwrap()).is_err());
+        assert!(c.restore_calendar("../Office").is_err());
     }
 
     #[test]

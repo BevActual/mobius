@@ -1013,6 +1013,11 @@ export interface MobiusBridge {
     /** Between two days, both included. */
     events(from: string, to: string): Promise<CalendarEvent[] | NotesFailure>;
     create(name: string): Promise<{ name: string } | NotesFailure>;
+    /** One of the person's own calendars (not the default, not an account's) renamed. */
+    rename?(from: string, to: string): Promise<{ name: string; was: string } | NotesFailure>;
+    /** One of the person's own calendars deleted, kept aside under `id` for `restoreCalendar`. */
+    removeCalendar?(name: string): Promise<{ id: string; name: string; events: number } | NotesFailure>;
+    restoreCalendar?(id: string): Promise<{ name: string } | NotesFailure>;
     add(calendar: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
     update(calendar: string, id: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
     /** A repeating event's one time (`occurrence`) or it and the times after it, with `scope`; otherwise all of it. */

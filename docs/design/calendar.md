@@ -35,13 +35,16 @@ As Google Calendar and Fantastical have them: one Alert row in the event, under 
 
 ## A calendar's own menu
 
-As a notebook's in Notes: ⋯ at the trailing edge of a calendar's row in the Calendars panel, and the same menu on
-right-click.
+As a notebook's in Notes: ⋯ at the trailing edge of a calendar's row in the Calendars panel, shown on hover or focus,
+and the same menu on right-click, Shift F10 or the Menu key.
 
-- **Rename** puts the name in a field in place; Enter keeps it and Esc puts it back. The file is renamed with it.
-- **Delete calendar** never asks: the calendar and its events go, and the Undo pill says "Deleted “Work” and 12
-  events", with Undo. A subscribed calendar's menu says Unsubscribe instead, with the same Undo.
-- Later: a colour of the person's choosing, from the content palette.
+- **Only the person's own calendars** have it. The default calendar is always there, and an account's calendars
+  (CalDAV, Google, Outlook, subscriptions) are managed in Settings, Calendar.
+- **Rename** puts the name in a field in place, chosen, with a plain Rename button; Enter keeps it and Esc puts it
+  back. The file is renamed with it, and the name inside it (`X-WR-CALNAME`) follows. A hidden calendar stays hidden.
+- **Delete calendar** never asks: the calendar and its events go, kept aside, and the Undo pill says "Deleted “Work”
+  and 12 events", with Undo.
+- Later: a colour of the person's choosing, from the content palette; Unsubscribe in a subscribed calendar's menu.
 
 ## Done in this round
 
@@ -49,4 +52,4 @@ right-click.
 | --- | --- |
 | The Event panel keeps changes as they are made | Built |
 | Alerts | Built |
-| A calendar's own menu: Rename, Delete with Undo | Next |
+| A calendar's own menu: Rename, Delete with Undo | Built |

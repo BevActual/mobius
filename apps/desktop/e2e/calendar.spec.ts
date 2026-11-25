@@ -518,3 +518,29 @@ test('an event’s alert is kept as a VALARM, changed in its details, and when i
   await pop.getByRole('textbox', { name: 'Title' }).press('Enter');
   await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).not.toContain('VALARM');
 });
+
+test('a calendar of one’s own is renamed in place from its menu, and deleted with Undo; the default one has no menu', async () => {
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nX-WR-CALNAME:Work\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T110000\r\nDTEND:${ics(today())}T120000\r\nSUMMARY:Budget review\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start();
+  const side = () => shell().getByRole('complementary', { name: 'Calendars' });
+  await expect(side().getByRole('button', { name: 'Calendar options for Calendar' })).toHaveCount(0);
+  // Rename, from the row's right-click menu: typed in place; the file and the name inside it follow.
+  await side().getByRole('button', { name: 'Work', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Work' }).getByRole('menuitem', { name: 'Rename' }).click();
+  await side().getByRole('textbox', { name: 'New name for Work' }).fill('Office');
+  await side().getByRole('textbox', { name: 'New name for Work' }).press('Enter');
+  await expect(side().getByRole('button', { name: 'Office', exact: true })).toBeVisible();
+  await expect.poll(() => fs.existsSync(file('Office'))).toBe(true);
+  expect(fs.existsSync(file('Work'))).toBe(false);
+  expect(fs.readFileSync(file('Office'), 'utf8')).toContain('X-WR-CALNAME:Office');
+  await expect(page().getByRole('button', { name: /^Budget review/ }).first()).toBeAttached();
+  // Delete, from its ⋯: no question, and Undo puts it back with its events.
+  await side().getByRole('button', { name: 'Calendar options for Office' }).click();
+  await shell().getByRole('menu', { name: 'Office' }).getByRole('menuitem', { name: 'Delete calendar' }).click();
+  await expect(side().getByRole('button', { name: 'Office', exact: true })).toHaveCount(0);
+  expect(fs.existsSync(file('Office'))).toBe(false);
+  await shell().getByRole('status').filter({ hasText: 'Deleted “Office” and 1 event' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(side().getByRole('button', { name: 'Office', exact: true })).toBeVisible();
+  await expect.poll(() => fs.existsSync(file('Office')) && fs.readFileSync(file('Office'), 'utf8').includes('SUMMARY:Budget review')).toBe(true);
+});

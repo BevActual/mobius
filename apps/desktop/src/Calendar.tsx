@@ -60,15 +60,25 @@ const ALL_DAY_ROWS = 3;
 const MODES: { id: CalendarMode; name: string; keys: string }[] = [{ id: 'day', name: 'Day', keys: 'D' }, { id: 'week', name: 'Week', keys: 'W' }, { id: 'month', name: 'Month', keys: 'M' }, { id: 'year', name: 'Year', keys: 'Y' }];
 
 /** A calendar in the sidebar: a checkbox in its colour, its name; pressed, it is hidden from the grid and pressed again, shown. */
-function CalendarRow({ calendar, name, proposed = false }: { calendar: CalendarState; name: string; proposed?: boolean }) {
+function CalendarRow({ calendar, name, proposed = false, onMenu }: { calendar: CalendarState; name: string; proposed?: boolean; /** A calendar of the person's own: its menu (Rename, Delete), at a place. */ onMenu?: (x: number, y: number) => void }) {
   const shown = !calendar.hidden.has(name);
   return (
-    <li>
-      <button type="button" className="list-row calendar-row" aria-pressed={shown} data-proposed={proposed || undefined} title={shown ? 'Shown in the calendar. Press to hide it.' : 'Hidden. Press to show it.'} onClick={() => calendar.toggle(name)}>
+    <li className="calendar-row-item">
+      <button type="button" className="list-row calendar-row" aria-pressed={shown} data-proposed={proposed || undefined} title={shown ? 'Shown in the calendar. Press to hide it.' : 'Hidden. Press to show it.'} onClick={() => calendar.toggle(name)}
+        {...(onMenu ? {
+          onContextMenu: (e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); },
+          onKeyDown: (e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); onMenu(r.left + 24, r.bottom); } },
+        } : {})}>
         <span className="cal-dot" aria-hidden="true" style={{ ['--swatch' as string]: calendarColor(calendar.calendars, name) }}><svg viewBox="0 0 12 12"><path d="m2.8 6.2 2.1 2.1 4.3-4.6" /></svg></span>
         <span className="ui-side-name">{name}</span>
         {calendar.readOnly(name) && <svg className="cal-lock" viewBox="0 0 20 20" role="img" aria-label="Read only"><rect x="5" y="9" width="10" height="8" rx="1.5" /><path d="M7.5 9V7a2.5 2.5 0 0 1 5 0v2" /></svg>}
       </button>
+      {onMenu && (
+        <button type="button" className="strip-btn cal-row-more" aria-label={`Calendar options for ${name}`} title="Calendar options" aria-haspopup="menu"
+          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onMenu(r.left, r.bottom); }}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01" /></svg>
+        </button>
+      )}
     </li>
   );
 }
@@ -87,7 +97,29 @@ export function CalendarSidebar({ calendar, pin, changed, review = null }: { cal
     if (await calendar.createCalendar(name.trim() || 'Calendar')) { setNaming(false); setName(''); }
   };
   const local = calendar.sources.length > 0 ? calendar.sources.filter((s) => s.account === null).map((s) => s.name) : calendar.calendars;
-  const row = (c: string) => <CalendarRow key={c} calendar={calendar} name={c} proposed={changed?.has(c) ?? false} />;
+  // A calendar of the person's own has a menu: Rename in place, and Delete, which asks nothing as Undo brings it back.
+  const [menu, setMenu] = useState<{ x: number; y: number; name: string } | null>(null);
+  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  const [gone, setGone] = useState<{ id: string; text: string } | null>(null);
+  useEffect(() => { if (!gone) return undefined; const t = window.setTimeout(() => setGone(null), 10_000); return () => window.clearTimeout(t); }, [gone]);
+  const rename = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!renaming) return;
+    const to = renaming.to.trim();
+    if (!to || to === renaming.from || (await calendar.renameCalendar(renaming.from, to))) setRenaming(null);
+  };
+  const remove = async (c: string) => {
+    const done = await calendar.deleteCalendar(c);
+    if (done) setGone({ id: done.id, text: done.events > 0 ? `Deleted “${c}” and ${done.events === 1 ? '1 event' : `${done.events} events`}` : `Deleted “${c}”` });
+  };
+  const row = (c: string) => renaming?.from === c ? (
+    <li key={c} className="notes-rename">
+      <form className="notes-name" onSubmit={(e) => void rename(e)}>
+        <input autoFocus aria-label={`New name for ${c}`} value={renaming.to} maxLength={80} onFocus={(e) => e.currentTarget.select()} onChange={(e) => setRenaming({ from: c, to: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
+        <button type="submit" className="btn">Rename</button>
+      </form>
+    </li>
+  ) : <CalendarRow key={c} calendar={calendar} name={c} proposed={changed?.has(c) ?? false} {...(calendar.ownCalendar(c) ? { onMenu: (x: number, y: number) => setMenu({ x, y, name: c }) } : {})} />;
   // What waits for the person: events Mobius suggested without asking, and those its last turn added or changed.
   const { changed: added } = useCalendarReview(review, calendar.events);
   const waiting = [...calendar.suggestions, ...added].sort((a, b) => a.start.localeCompare(b.start));
@@ -131,6 +163,11 @@ export function CalendarSidebar({ calendar, pin, changed, review = null }: { cal
           </SidebarSection>
         </div>
       )}
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={[
+        { action: 'rename', label: 'Rename', run: () => setRenaming({ from: menu.name, to: menu.name }) },
+        { action: 'delete', label: 'Delete calendar', danger: true, run: () => void remove(menu.name) },
+      ]} />, document.body)}
+      {gone && <UndoToast text={gone.text} onUndo={() => { const id = gone.id; setGone(null); void calendar.restoreCalendar(id); }} onDismiss={() => setGone(null)} />}
     </AppSidebar>
   );
 }

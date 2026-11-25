@@ -123,6 +123,16 @@ export function useCalendar() {
     const made = await settle(await api?.create(name));
     return made?.name ?? null;
   }, [api, settle]);
+  /** One of the person's own calendars: not the default one, which is always there, and not an account's. */
+  const ownCalendar = useCallback((name: string) => name !== 'Calendar' && sources.some((s) => s.name === name && !s.account), [sources]);
+  const renameCalendar = useCallback(async (from: string, to: string) => {
+    const done = await settle(await api?.rename?.(from, to));
+    // A hidden calendar stays hidden under its new name.
+    if (done) setHidden((cur) => { if (!cur.has(from)) return cur; const next = new Set(cur); next.delete(from); next.add(done.name); keepHidden(next); return next; });
+    return done !== null;
+  }, [api, settle]);
+  const deleteCalendar = useCallback(async (name: string) => settle(await api?.removeCalendar?.(name)), [api, settle]);
+  const restoreCalendar = useCallback(async (id: string) => settle(await api?.restoreCalendar?.(id)), [api, settle]);
   const toggle = useCallback((name: string) => setHidden((cur) => {
     const next = new Set(cur);
     if (next.has(name)) next.delete(name); else next.add(name);
@@ -152,7 +162,7 @@ export function useCalendar() {
   const readOnly = useCallback((name: string) => sources.some((s) => s.name === name && s.readOnly), [sources]);
 
   const shown = events.filter((e) => !hidden.has(e.calendar));
-  return { available: api !== undefined, calendars, sources, accounts, suggestions, accept, decline, addAccount, removeAccount, sync, syncing, readOnly, mode, setMode, showDay, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, fresh, refresh, showTasks, toggleTasks, due: showTasks ? due : [], tickTask };
+  return { available: api !== undefined, calendars, sources, accounts, suggestions, accept, decline, addAccount, removeAccount, sync, syncing, readOnly, mode, setMode, showDay, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, ownCalendar, renameCalendar, deleteCalendar, restoreCalendar, fresh, refresh, showTasks, toggleTasks, due: showTasks ? due : [], tickTask };
 }
 
 export type CalendarState = ReturnType<typeof useCalendar>;
