@@ -287,6 +287,7 @@ const SECTIONS: readonly SettingsSection[] = [
         row('listen-model', 'Speech model', 'The model asked for when you dictate.', 'whisper', 'whisper-1', 'model', 'dictation model'),
         row('listen-url', 'Speech server on this computer', 'Its address, in OpenAI\'s audio format, as faster-whisper serves it.', 'url', 'address', 'faster-whisper', 'speech server'),
         row('listen-fallback', 'If that cannot listen', 'What to try next.', 'fallback', 'backup', 'second'),
+        row('meeting-others', 'Hear the other side of calls', 'When you record a meeting, Mobius also hears what this computer plays, so the others on a call are written down too. Headphones keep their voices out of yours.', 'meeting', 'headphones', 'meetings', 'call', 'system audio', 'loopback', 'speakers', 'others', 'record'),
         row('listen-test', 'Try listening', 'Ask the chosen server whether it answers.', 'test', 'check', 'try'),
       ] },
       { id: 'speaking', label: 'Speaking', rows: [

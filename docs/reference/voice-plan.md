@@ -10,6 +10,15 @@ program while it's used and stops it after five idle minutes. The window convert
 host asks for one. A new install listens with `device` first and the chat model's server as its fallback; an install
 already in use keeps its choice.
 
+B and C (`crates/mobius-audio/src/meeting.rs`, `crates/mobius-host/src/meeting.rs`): a meeting is heard by the host,
+not the window, in 16 kHz parts. On Windows the default output device is heard too, through WASAPI loopback, as a
+second track held to the microphone's clock: silence is filled in while nothing plays (loopback sends nothing then)
+and anything running more than a fifth of a second ahead is dropped. Each part's tracks are written down apart and
+merged in time order as "You" and "Others". A line of the microphone's is left out as echo when the other track was
+playing for at least 60% of it and an overlapping line of theirs shares at least half its words. Settings, Voice,
+Listening has "Hear the other side of calls" (on) where it can be heard. The other track is only written down when
+something played in it. Services that give no times get one line per side per part.
+
 ## Goal
 
 Meeting notes and dictation work out of the box with no account, no key and no cost to anyone. People who want a

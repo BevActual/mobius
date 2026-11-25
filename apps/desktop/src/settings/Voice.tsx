@@ -150,6 +150,17 @@ export function VoiceModelRows({ subpage, highlight, settings, preferences, onPr
   );
 }
 
+/** Whether a meeting can hear the computer's own sound here (Windows, for now). */
+function useHearsOthers(): boolean {
+  const [others, setOthers] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void window.mobius.meeting?.available().then((r) => { if (live) setOthers(r.here && r.others === true); }).catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+  return others;
+}
+
 /** Who listens when you dictate, and who speaks answers aloud: each with its own service and a fallback. */
 export function VoiceSection({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
   const path = (row: string) => settingPath('voice', subpage, row);
@@ -191,6 +202,7 @@ export function VoiceSection({ subpage, highlight, settings, preferences, onPref
   const local = preferences.listenWith === 'local' || preferences.listenFallback === 'local';
   const device = preferences.listenWith === 'device' || preferences.listenFallback === 'device';
   const served = [preferences.listenWith, preferences.listenFallback].some((w) => w === 'chat' || w === 'local');
+  const hearsOthers = useHearsOthers();
   return (
     <>
       <Row path={path('listen-with')} title="Listen with" description="Speech to text: Whisper on this computer for free, the chat model's server, a speech server you run, or ElevenLabs." highlight={highlight === 'listen-with'}>
@@ -222,6 +234,11 @@ export function VoiceSection({ subpage, highlight, settings, preferences, onPref
       <Row path={path('listen-fallback')} title="If that cannot listen" description="What to try next." highlight={highlight === 'listen-fallback'}>
         <PopUp label="If that cannot listen" value={preferences.listenFallback} options={LISTEN} onChange={(listenFallback) => set({ listenFallback })} />
       </Row>
+      {hearsOthers && (
+        <Row path={path('meeting-others')} title="Hear the other side of calls" description="When you record a meeting, Mobius also hears what this computer plays, so the others on a call are written down too. Headphones keep their voices out of yours." highlight={highlight === 'meeting-others'}>
+          <Toggle label="Hear the other side of calls" checked={preferences.meetingOthers} onChange={(meetingOthers) => set({ meetingOthers })} />
+        </Row>
+      )}
       <Row path={path('listen-test')} title="Try listening" description="Ask the chosen server whether it answers." highlight={highlight === 'listen-test'}>
         <TestButton job="listen" label="Try listening" />
       </Row>

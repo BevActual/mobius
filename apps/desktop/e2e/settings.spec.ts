@@ -401,6 +401,12 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await expect(page().getByTestId('voice-device')).toBeVisible();
   await expect(page().getByRole('combobox', { name: 'Accuracy' })).toHaveText('Quick');
   await expect(page().getByRole('textbox', { name: 'Speech model' })).toHaveCount(0);
+  // Meetings hear the other side of calls unless it's turned off (offered where the computer's sound can be heard,
+  // and under MOBIUS_TEST).
+  const others = page().getByRole('switch', { name: 'Hear the other side of calls' });
+  await expect(others).toBeChecked();
+  await others.click();
+  await expect(others).not.toBeChecked();
   await choose(page(), 'Listen with', 'Speech server on this computer');
   const address = page().getByRole('textbox', { name: 'Listening server address' });
   await address.fill('ftp://nope');
@@ -428,6 +434,7 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await go('Voice', 'Listening');
   await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveText('Speech server on this computer');
   await expect(page().getByRole('textbox', { name: 'Listening server address' })).toHaveValue('http://127.0.0.1:9/v1');
+  await expect(page().getByRole('switch', { name: 'Hear the other side of calls' })).not.toBeChecked();
   await go('Voice', 'Speaking');
   await expect(page().getByRole('combobox', { name: 'Speak with' })).toHaveText('ElevenLabs');
   await expect(page().getByRole('textbox', { name: 'Voice', exact: true })).toHaveValue('Rachel');

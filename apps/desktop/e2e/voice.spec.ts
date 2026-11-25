@@ -160,7 +160,11 @@ test('a meeting recorded in a note is written down in the page, and Fill in my n
   await expect(page.getByRole('heading', { level: 2 })).toContainText('Meeting');
   await expect(page.getByRole('heading', { name: 'Transcript' })).toBeVisible();
   await expect(page).toContainText('book the terrace for Friday');
-  expect(speech!.heard.filter((h) => h.path === '/v1/audio/transcriptions')).toHaveLength(1);
+  // The computer's own sound (a test tone under MOBIUS_TEST) is heard beside the microphone and written down apart,
+  // so the transcript is in turns.
+  await expect(page).toContainText('You:');
+  await expect(page).toContainText('Others:');
+  expect(speech!.heard.filter((h) => h.path === '/v1/audio/transcriptions')).toHaveLength(2);
   // Filling in the notes and the actions are asked of Mobius in its box, ready to send; nothing went to the model yet.
   await shell().getByRole('button', { name: 'Fill in my notes' }).click();
   await expect(composer()).toHaveValue(/Add each action to Tasks/);
