@@ -26,7 +26,7 @@ describe('links between notes', () => {
     expect(pagesMatching(books, '', 'Work/Plan.md').map((p) => p.title)).toEqual(['Supplier notes', 'Groceries']);
   });
   it('finds the links in a page as the Rust list does', () => {
-    const page = '# Plan\n\nSee [the notes](Supplier%20notes.md), [groceries](../Home/Groceries.md) and [again](<Supplier notes.md>).\nNot [the web](https://x.example/a.md), ![a picture](Plan%20files/a.md), `[code](Code.md)` or [self](Plan.md).\n```\n[fenced](Fenced.md)\n```\n';
-    expect(linksIn(page, 'Work/Plan.md')).toEqual(['Work/Supplier notes.md', 'Home/Groceries.md']);
+    const page = '# Plan\n\nSee [the notes](Supplier%20notes.md), [groceries](../Home/Groceries.md), [again](<Supplier notes.md>) and [the brief](<Launch brief.md>).\nNot [the web](https://x.example/a.md), ![a picture](Plan%20files/a.md), `[code](Code.md)` or [self](Plan.md).\n```\n[fenced](Fenced.md)\n```\n';
+    expect(linksIn(page, 'Work/Plan.md')).toEqual(['Work/Supplier notes.md', 'Home/Groceries.md', 'Work/Launch brief.md']);
   });
 });

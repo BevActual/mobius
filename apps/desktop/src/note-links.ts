@@ -44,7 +44,8 @@ export function pagesMatching(notebooks: readonly Notebook[], query: string, exc
 export function linksIn(text: string, from: string): string[] {
   const plain = text.replace(/^```[\s\S]*?^```/gm, '').replace(/`[^`\n]*`/g, '');
   const out: string[] = [];
-  for (const m of plain.matchAll(/(!?)\[[^\]\n]*\]\(([^)\s]+)[^)\n]*\)/g)) {
+  // A target in angle brackets (`<My Plan.md>`) keeps its spaces.
+  for (const m of plain.matchAll(/(!?)\[[^\]\n]*\]\((<[^>\n]*>|[^)\s]+)[^)\n]*\)/g)) {
     const page = m[1] ? null : pageOfLink(m[2]!, from);
     if (page && page !== from && !out.includes(page)) out.push(page);
   }

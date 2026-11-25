@@ -8,30 +8,30 @@ Where the two disagree, the guide wins.
 
 ## Notebooks and notes in the Notebooks panel
 
-- **One menu per row.** Right-click, Shift F10 or the Menu key opens it; its top items match the row's hover actions.
-  Every item has the guide's standard word and key.
-- **A notebook's menu:** New note, Rename, then Delete. **A note's menu:** Open beside, Pin, Duplicate (Ctrl D),
-  Move to…, then Delete.
-- **Rename** edits the name in the row itself, at the same 28px height: the name is selected, Enter keeps it, Esc
-  puts it back, and clicking away keeps it. A name that is taken shows the row's text in red until it is changed.
-- **Move to…** opens a menu of notebooks under the row, with the current one ticked and dimmed. Dragging a note onto
-  a notebook does the same; the notebook under the pointer takes the `--sel` fill.
-- **Delete** never asks, because nothing is lost: the note or notebook goes to the Trash, and the shared Undo pill
-  says what went ("Moved “Work” and 12 notes to the Trash", Undo). The Delete key does the same on a selected row.
-  The trash glyph on hover goes, since Delete is in the menu and on the key.
+As built in #887, with what is still to come marked Later.
+
+- **A notebook's menu** opens from ⋯ in its heading, beside + (New note): Rename, then Move to Trash. Later:
+  right-click and Shift F10 on the heading open the same menu.
+- **A note's menu** (right-click, Shift F10 or the Menu key): Open, Pin, one Move to {notebook} item per other
+  notebook, then Move to Trash. Later: Open beside, Duplicate (Ctrl D), and dragging a note onto a notebook, which
+  then takes the `--sel` fill.
+- **Rename** puts the name field at the top of the notebook's list, at the panel's control height, with the name
+  selected and a plain Rename button beside it. Enter keeps the name and Esc puts it back. Later: clicking away keeps
+  it, and a name that is taken shows the field's text in red until it is changed.
+- **Move to Trash** never asks, because nothing is lost. The shared Undo pill says what went ("Moved “Work” to the
+  Trash", Undo). Later: the Delete key does the same on a selected row, and the trash glyph on hover goes.
 
 ## The Trash
 
-- **Where:** the last row of the Notebooks panel, after the notebooks and New notebook, with the outline trash glyph
-  and a grey count at its trailing edge. Empty, it shows no count. It has no section heading and no help line; its
-  tooltip says how long deleted notes are kept.
-- **Inside:** the Trash opens like a notebook. Its notes show their title and one grey line, "Deleted 3 days ago",
-  newest first.
-- **A note in the Trash** opens read-only. The tool row holds only **Put back** (a word button, the one action there),
-  and ⋯ holds Delete now…. The page has no banner.
-- **Put back** returns the note to its notebook, or to Notes if that notebook is gone, and the Undo pill says where.
-- **What can't be undone asks first:** Delete now… and Empty Trash… (the Trash row's menu) open a sheet that names
-  what goes ("Delete 4 notes now? This can't be undone.") with Cancel and a red Delete button.
+- **Where:** a folded section called Trash at the end of the Notebooks panel, shown only while something is in it.
+  Its heading's action is Empty Trash (the trash glyph).
+- **Its rows** are grey titles, with one grey line saying where each came from and how long it stays: "From Work ·
+  12 days left", or "Notebook, 4 notes · Goes today". Items stay 30 days.
+- **A row's menu** (click, right-click or Shift F10): Put back, then Delete forever in red. Put back returns the item
+  to where it was.
+- **What can't be undone asks first.** Empty Trash turns into a red Empty button in place, which empties the Trash
+  when pressed and turns back when focus leaves or on Esc. Delete forever acts straight from its red menu item.
+- **Later:** a note in the Trash opens read-only, with Put back as the only tool in the tool row.
 
 ## Ctrl+O: open a note
 
@@ -41,7 +41,7 @@ same window, with "Notes" as a token at the start of the box, so Backspace widen
 - **Empty box:** recent notes, most recent first. **Typing:** matches by title first, then by text.
 - **A row:** the note's title, with the matched words in semibold, and its notebook as a grey word at the trailing
   edge. A match in the text adds one grey line with the words around it.
-- **Keys:** Enter opens the note and Ctrl Enter opens it beside. With no match, the first row is New note “typed
+- **Keys:** Enter opens the note (later, Ctrl Enter opens it beside). With no match, the first row is New note “typed
   words”.
 
 ## Note links

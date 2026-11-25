@@ -872,6 +872,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       <section className="note-editor empty" aria-label="Note">
         <EmptyState app="notes" label="No note open" title={notes.notebooks.some((n) => n.pages.length) ? 'No note open' : 'No notes yet'} line="Choose one on the left, or start a new one." action={{ label: 'New note', run: () => newItemIn(notes, null, 'Notes') }} />
         <EditorContent editor={editor} hidden />
+        {notes.justTrashed && <UndoToast text={notes.justTrashed.text} onUndo={() => void notes.restore(notes.justTrashed!.id)} onDismiss={notes.clearJustTrashed} />}
       </section>
     );
   }
@@ -982,6 +983,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       )}
       {/* Copied, Saved and their failures: the shared pill at the foot of the page, as Restored is, never a line across the top. */}
       {shared && !history && !restored && <UndoToast text={shared} onDismiss={() => setShared(null)} />}
+      {notes.justTrashed && !restored && !shared && <UndoToast text={notes.justTrashed.text} onUndo={() => void notes.restore(notes.justTrashed!.id)} onDismiss={notes.clearJustTrashed} />}
       {restored && !history && <UndoToast text={`Restored the version from ${restored.label}.`} onUndo={() => { notes.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
       {review && !kept && !history && !showingChanges && !working && (
         <div ref={reviewBar} className="note-review" role="status">

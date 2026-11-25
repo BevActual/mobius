@@ -265,3 +265,9 @@
 .ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(2) .ui-menu-label { font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
 .ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(3) .ui-menu-label { font-weight: var(--fw-semibold); }
 .ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(5) .ui-menu-label { font-family: var(--font-mono, ui-monospace), monospace; }
+/* Renaming a notebook: the name field takes the notebook's place at the top of its list, at the panel's control height,
+   with a plain Rename beside it (Enter does the same, Esc puts the name back). */
+.notes-side .notes-rename { list-style: none; }
+.notes-side .notes-rename .notes-name { margin: 0 var(--sp-1) var(--sp-1); }
+/* The Trash's rows read as gone: grey titles, with where each came from and how long it stays in the grey line. */
+.notes-side .ui-side-section[aria-label="Trash"] .ui-side-name { color: var(--muted); }

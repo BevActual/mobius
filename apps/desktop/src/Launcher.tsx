@@ -107,6 +107,12 @@ interface Props {
   again?: number;
   /** For the reference sheet: start in All apps. */
   startIn?: LauncherView;
+  /** Opened already narrowed to one app (Ctrl+O in Notes); `n` changes with each such opening. */
+  scopeTo?: { app: AppId; n: number } | undefined;
+  /** An app's own items with nothing typed, when narrowed to it (Notes: the notes edited last). */
+  recentIn?: (app: AppId) => readonly FoundItem[];
+  /** Narrowed to an app and nothing found: the item that makes one with the typed words (New note “…”). */
+  makeIn?: (app: AppId, text: string) => FoundItem | null;
   /** Ask a question here and show the answer as it comes (launcher-ask.ts). Returns a function that stops listening. */
   askInline?: (question: string, update: (answer: InlineAnswer) => void) => () => void;
   /** Continue in Mobius: open the conversation the inline answer was asked in. */
@@ -243,7 +249,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
 
 export function Launcher({
   open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands = [], pinned, onPinned, waiting = {}, recent, onOpenRecent, find,
-  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home, about, onOpenUrl, clipboard, system,
+  places = {}, inline = false, now, again, startIn = 'start', scopeTo, recentIn, makeIn, onAskAbout, askInline, onContinue, answered, home, about, onOpenUrl, clipboard, system,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   // Where the focus was before it opened, to give it back on close (showModal() did this by itself).
@@ -302,6 +308,13 @@ export function Launcher({
   const [scope, setScope] = useState<AppId | null>(null);
   const [actionsFor, setActionsFor] = useState<LauncherItem | null>(null);
   const switchView = useCallback((to: LauncherView) => { setView(to); setQuery(''); setChosenId(null); setScope(null); setActionsFor(null); }, []);
+  // Opened narrowed (Ctrl+O): each new request narrows it once, so a later plain opening is not narrowed again.
+  const scopedFor = useRef(0);
+  useEffect(() => {
+    if (!open || !scopeTo || scopedFor.current === scopeTo.n) return;
+    scopedFor.current = scopeTo.n;
+    setView('start'); setQuery(''); setChosenId(null); setActionsFor(null); setScope(scopeTo.app);
+  }, [open, scopeTo]);
   const againWas = useRef(again);
   useEffect(() => {
     if (againWas.current === again) return;
@@ -494,9 +507,16 @@ export function Launcher({
     // Narrowed to one app: its items, then its commands; with nothing typed, the app itself first.
     if (scope) {
       const name = appName(scope);
+      const asItem = (item: FoundItem): LauncherItem => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail, fields: item.fields, preview: item.preview, run: item.run });
+      const recentHere = !q ? (recentIn?.(scope) ?? []).slice(0, 20) : [];
+      const foundHere = q ? findNow(typed).filter((item) => item.app === scope).slice(0, 20) : [];
+      // Nothing found for the words: making one with them comes first (Notes: New note “…”).
+      const made = q && foundHere.length === 0 ? makeIn?.(scope, typed.trim()) ?? null : null;
       return [
-        ...(!q ? [{ id: `app-${scope}`, kind: 'app' as const, app: scope, label: `Open ${name}`, run: () => onOpenApp(scope) }] : []),
-        ...(q ? findNow(typed).filter((item) => item.app === scope).slice(0, 20).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail, fields: item.fields, preview: item.preview, run: item.run })) : []),
+        ...(!q && recentHere.length === 0 ? [{ id: `app-${scope}`, kind: 'app' as const, app: scope, label: `Open ${name}`, run: () => onOpenApp(scope) }] : []),
+        ...(made ? [asItem(made)] : []),
+        ...recentHere.map(asItem),
+        ...foundHere.map(asItem),
         ...commands.filter((c) => (c.detail ?? '').includes(name) && has(c.label)).slice(0, 12)
           .map<LauncherItem>((c) => ({ id: `cmd-${c.id}`, kind: 'command', label: c.label, detail: c.detail, run: c.run })),
       ];
@@ -623,7 +643,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [naming, shortcuts, keepShortcuts, actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl, clipboard, system, disk]);
+  }, [naming, shortcuts, keepShortcuts, actionsFor, actionsOf, scope, recentIn, makeIn, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl, clipboard, system, disk]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => {
     const list = text.trim() && !actionsFor && !naming ? rankByChoice(listFor(text), choices, text) : listFor(text);

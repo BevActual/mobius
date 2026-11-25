@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
-import type { NoteHit, NotePage } from '@mobius/shared';
+import type { DeletedNote, NoteHit, NotePage } from '@mobius/shared';
 import { hasTag, onShowTag, tagCounts } from './note-tags';
 import { relativeTime } from './relative-time';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -47,6 +47,11 @@ const LIST_NAME: Record<string, string> = { Notes: 'Notebooks', Slides: 'Decks',
 
 export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'note', items: 'notes', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.', defaultGroup: 'Notes' };
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+/** How long something stays in the Trash before it goes for good (30 days, as moves.rs keeps it). */
+export function trashLeft(deletedMs: number, now: number): string {
+  const days = Math.ceil((deletedMs + 30 * 86_400_000 - now) / 86_400_000);
+  return days <= 1 ? 'Goes today' : `${days} days left`;
+}
 
 /**
  * `tags`: the sidebar has a Tags section (Notes): every `#tag` in the pages, and choosing one lists the pages with it.
@@ -81,6 +86,8 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(t); }, []);
   useEffect(() => setNow(Date.now()), [notes.notebooks]);
+  // The Trash starts folded, and stays as the person left it while it empties and fills again.
+  const [trashOpen, setTrashOpen] = useState(false);
   const [closedSections, setClosedSections] = useState<Set<string>>(new Set());
   const toggleSection = (name: string) => setClosedSections((s) => { const n = new Set(s); if (n.has(name)) n.delete(name); else n.add(name); return n; });
   const [hits, setHits] = useState<NoteHit[] | null>(null);
@@ -90,6 +97,19 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   const [name, setName] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; page: NotePage } | null>(null);
+  // A notebook's own menu (Rename, Move to Trash), the notebook being renamed, and one thing in the Trash's menu.
+  const [bookMenu, setBookMenu] = useState<{ x: number; y: number; name: string } | null>(null);
+  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  const [trashMenu, setTrashMenu] = useState<{ x: number; y: number; item: DeletedNote } | null>(null);
+  const [emptying, setEmptying] = useState(false);
+  const atFocus = () => { const r = (document.activeElement as HTMLElement | null)?.getBoundingClientRect(); return { x: r ? r.left + 24 : 80, y: r ? r.bottom : 80 }; };
+  const rename = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!renaming || !notes.renameNotebook) return;
+    const to = renaming.to.trim();
+    if (!to || to === renaming.from || (await notes.renameNotebook(renaming.from, to))) setRenaming(null);
+  };
+  const bookActions = notes.renameNotebook !== undefined || notes.trashNotebook !== undefined;
   const openNotebook = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name;
   // Long notebooks are drawn in part, and more as the list is scrolled; the open page is always drawn.
   const [rows, setRows] = useState(FIRST_FRAME_ROWS);
@@ -201,10 +221,23 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
             <SidebarSection key={nb.name} title={nb.name} {...fold(`notebook:${nb.name}`)} action={<>
               {synced?.(nb.name)}
               {lead(nb.name)}
+              {bookActions && (
+                <button type="button" className="strip-btn" aria-label={`${cap(words.group)} options for ${nb.name}`} title={`${cap(words.group)} options`} aria-haspopup="menu" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setBookMenu({ x: r.left, y: r.bottom, name: nb.name }); }}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01" /></svg>
+                </button>
+              )}
               <button type="button" className="strip-btn" aria-label={`New ${words.item} in ${nb.name}`} title={`New ${words.item}`} onClick={() => void notes.createPage(nb.name)}>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg>
               </button>
             </>}>
+              {renaming?.from === nb.name && (
+                <li className="notes-rename">
+                  <form className="notes-name" onSubmit={(e) => void rename(e)}>
+                    <input autoFocus aria-label={`New name for ${nb.name}`} value={renaming.to} maxLength={80} onFocus={(e) => e.currentTarget.select()} onChange={(e) => setRenaming({ from: nb.name, to: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
+                    <button type="submit" className="btn">Rename</button>
+                  </form>
+                </li>
+              )}
               {nb.pages.length === 0 && <li className="side-empty">No {words.items} yet.</li>}
               {drawn(nb.pages).map((pg) => pageRow(pg))}
               {rows >= FIRST_ROWS && nb.pages.length > drawn(nb.pages).length && <MoreRows onMore={more} />}
@@ -226,6 +259,22 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
               ))}
             </SidebarSection>
           )}
+          {notes.trashed.length > 0 && (
+            <SidebarSection title="Trash" foldable open={trashOpen} onToggle={setTrashOpen} action={emptying ? (
+              <button type="button" autoFocus className="note-delete confirm" aria-label="Confirm empty Trash" onClick={() => { setEmptying(false); void notes.forget(null); }} onBlur={() => setEmptying(false)} onKeyDown={(e) => { if (e.key === 'Escape') setEmptying(false); }}>Empty</button>
+            ) : (
+              <button type="button" className="strip-btn" aria-label="Empty Trash" title="Empty Trash" onClick={() => setEmptying(true)}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M6 6l.8 10h6.4L14 6" /></svg>
+              </button>
+            )}>
+              {notes.trashed.map((item) => (
+                <SidebarRow key={item.id} label={item.title}
+                  sub={`${item.kind === 'notebook' ? `${cap(words.group)}, ${item.pages === 1 ? `1 ${words.item}` : `${item.pages ?? 0} ${words.items}`}` : `From ${item.from.split('/')[0]}`} · ${trashLeft(item.deletedMs, now)}`}
+                  onSelect={() => setTrashMenu({ ...atFocus(), item })}
+                  onContextMenu={(e) => { e.preventDefault(); setTrashMenu({ x: e.clientX, y: e.clientY, item }); }} />
+              ))}
+            </SidebarSection>
+          )}
           <FromMobius items={notes.notebooks.flatMap((nb) => nb.pages.filter((pg) => changed?.has(pg.path)).map((pg) => ({ key: pg.path, name: pg.title, where: nb.name, current: notes.page?.path === pg.path, onOpen: () => void notes.open(pg.path, pg.title) })))} />
         </>
       )}
@@ -233,7 +282,22 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         <ContextMenu x={menu.x} y={menu.y} label={menu.page.title} onClose={() => setMenu(null)} items={([
           { action: 'open', run: () => void notes.open(menu.page.path, menu.page.title) },
           ...(onPin ? [{ action: pinned?.has(menu.page.path) ? 'unpin' : 'pin', run: () => onPin(menu.page.path, menu.page.title) }] : []),
-          { action: 'delete', label: `Delete ${words.item}…`, danger: true, run: () => setConfirming(menu.page.path) },
+          ...(notes.move ? notes.notebooks.filter((nb) => nb.name !== menu.page.path.split('/')[0]).map((nb, i) => ({ action: 'move', label: `Move to ${nb.name}`, separated: i === 0, run: () => void notes.move?.(menu.page.path, nb.name) })) : []),
+          notes.trash
+            ? { action: 'delete', label: 'Move to Trash', danger: true, run: () => void notes.trash?.(menu.page.path) }
+            : { action: 'delete', label: `Delete ${words.item}…`, danger: true, run: () => setConfirming(menu.page.path) },
+        ] as ContextMenuItem[])} />
+      )}
+      {bookMenu && (
+        <ContextMenu x={bookMenu.x} y={bookMenu.y} label={bookMenu.name} onClose={() => setBookMenu(null)} items={([
+          ...(notes.renameNotebook ? [{ action: 'rename', label: 'Rename', run: () => setRenaming({ from: bookMenu.name, to: bookMenu.name }) }] : []),
+          ...(notes.trashNotebook ? [{ action: 'delete', label: 'Move to Trash', danger: true, run: () => void notes.trashNotebook?.(bookMenu.name) }] : []),
+        ] as ContextMenuItem[])} />
+      )}
+      {trashMenu && (
+        <ContextMenu x={trashMenu.x} y={trashMenu.y} label={trashMenu.item.title} onClose={() => setTrashMenu(null)} items={([
+          { action: 'undo', label: 'Put back', run: () => void notes.restore(trashMenu.item.id) },
+          { action: 'delete', label: 'Delete forever', danger: true, run: () => void notes.forget(trashMenu.item.id) },
         ] as ContextMenuItem[])} />
       )}
     </AppSidebar>
