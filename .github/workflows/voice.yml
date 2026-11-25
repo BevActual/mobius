@@ -4,8 +4,8 @@
 # against the SHA-256 pinned in its own build, never against this release.
 #
 # A pull request that changes the program is linted and tested here on Linux, Windows and macOS, including writing
-# down one recording. Run it by hand (Actions > Voice > Run workflow) to publish: it tests, builds and signs, then
-# prints the SHA-256s to copy into the host's pins.
+# down one recording. Run it by hand (Actions > Voice > Run workflow) to publish: it tests, builds and signs the
+# program, gathers the models, and prints the SHA-256s to copy into the host's pins.
 name: Voice
 
 on:
@@ -137,8 +137,33 @@ jobs:
           path: crates/mobius-voice/${{ steps.pack.outputs.name }}
           retention-days: 7
 
+  # The models, re-published from sherpa-onnx's asr-models release so Mobius downloads only the int8 files it uses
+  # (sherpa-onnx's archives carry full-size copies and test recordings too) and every pin points at this repository.
+  # Whisper (OpenAI) and Silero VAD are MIT. The host pins each file's SHA-256; a file that changed upstream would
+  # fail that check and not be used.
+  models:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and unpack them
+        run: |
+          mkdir out && cd out
+          curl -sSfL -o silero_vad.onnx "$MODELS/silero_vad.onnx"
+          for m in base.en small.en; do
+            curl -sSfL "$MODELS/sherpa-onnx-whisper-$m.tar.bz2" | tar xjf - --wildcards "*/$m-encoder.int8.onnx" "*/$m-decoder.int8.onnx" "*/$m-tokens.txt"
+            for f in sherpa-onnx-whisper-$m/*; do mv "$f" "whisper-$(basename "$f")"; done
+            rmdir "sherpa-onnx-whisper-$m"
+          done
+          ls -la
+          sha256sum *
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voice-models
+          path: out/*
+          retention-days: 7
+
   publish:
-    needs: build
+    needs: [build, models]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -156,7 +181,7 @@ jobs:
           tag="voice-$version"
           cd out
           sha256sum *
-          notes="mobius-voice $version: listening on this computer with Whisper and Silero VAD through sherpa-onnx (Apache-2.0, https://github.com/k2-fsa/sherpa-onnx). Mobius downloads the file for its computer and checks it against the SHA-256 pinned in its own build.
+          notes="mobius-voice $version: listening on this computer with Whisper and Silero VAD through sherpa-onnx (Apache-2.0, https://github.com/k2-fsa/sherpa-onnx). The whisper-* and silero_vad files are the int8 models from sherpa-onnx's asr-models release: Whisper by OpenAI (MIT, https://github.com/openai/whisper) and Silero VAD (MIT, https://github.com/snakers4/silero-vad). Mobius downloads what it needs and checks each file against the SHA-256 pinned in its own build.
 
           $(sha256sum *)"
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
