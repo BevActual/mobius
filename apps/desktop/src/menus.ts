@@ -111,6 +111,8 @@ export function buildMenus(c: MenuContext): Menu[] {
     // their real state: never a generic "Sidebar" or "Agent panel" (docs/design/guide.md, Naming panels).
     item('comments', 'Comments', d.toggleComments, { keys: 'c', checked: s.commenting }),
     separator,
+    // Notes: Sort notes by, as Apple Notes, in View (docs/design/notes.md, Sorting): one of three, the chosen one ticked.
+    ...(c.app === 'notes' && !c.place ? [...NOTE_SORTS.map((o) => item(`sort-${o.id}`, `Sort notes by ${o.label.toLowerCase()}`, () => d.notes.sortBy(o.id), { checked: s.notes.sort === o.id })), separator] : []),
     item('zoom-in', 'Zoom in', () => d.zoom(nextZoom(s.zoom, 1)), { disabled: s.zoom >= ZOOM_STEPS.at(-1)! }),
     item('zoom-out', 'Zoom out', () => d.zoom(nextZoom(s.zoom, -1)), { disabled: s.zoom <= ZOOM_STEPS[0] }),
     item('zoom-reset', 'Actual size', () => d.zoom(1), { disabled: s.zoom === 1 }),
@@ -176,9 +178,6 @@ function appMenu(c: MenuContext): Menu | null {
         separator,
         // A note option, not a text style (panel look review): Apple Notes' Sort checked items, kept for every note.
         item('checked-last', 'Move checked items to the bottom', d.notes.checkedLast, { checked: s.notes.checkedLast }),
-        separator,
-        // Sort Notes By, as Apple Notes: one of three, the chosen one ticked.
-        ...NOTE_SORTS.map((o) => item(`sort-${o.id}`, `Sort by ${o.label.toLowerCase()}`, () => d.notes.sortBy(o.id), { checked: s.notes.sort === o.id })),
       ] };
     case 'tasks':
       return { id: 'app', label: 'Tasks', items: [
