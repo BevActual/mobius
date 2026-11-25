@@ -54,6 +54,7 @@ pub mod mail;
 pub mod chatgpt;
 pub mod key_sign_in;
 pub mod loopback;
+pub mod meeting;
 pub mod mcp_sign_in;
 pub mod mcp_server;
 pub mod awake;
