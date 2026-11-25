@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Notebook } from '@mobius/shared';
-import { noteForSource } from './note-sources';
+import { citeWhenOpen, citedLines, noteForSource, takeCite } from './note-sources';
 
 const page = (path: string, title: string, modified: number) => ({ path, title, modified });
 const notebooks: Notebook[] = [
@@ -20,5 +20,23 @@ describe('the note a fact came from', () => {
   });
   it('is none for another app, a note that is gone, or a bare source', () => {
     for (const source of ['Calendar · Offsite', 'Notes · Budget', 'Notes', 'Notes · ', '']) expect(noteForSource(source, notebooks)).toBeNull();
+  });
+});
+
+describe('the lines a fact was taken from', () => {
+  const lines = ['Offsite planning', 'The offsite is at the lake lodge on March 4.', 'Budget is still open.', 'Lodge holds 8 people.'];
+  it('are the ones holding the most of its words', () => {
+    expect(citedLines(lines, 'The offsite is on March 4')).toEqual([1]);
+    expect(citedLines(lines, '8 people at the lodge')).toEqual([3]);
+  });
+  it('are none when no line holds half of its words, so the wrong line is never tinted', () => {
+    expect(citedLines(lines, 'The catering costs $400 per head')).toEqual([]);
+    expect(citedLines(lines, 'the of a')).toEqual([]);
+  });
+  it('wait for their note once, and only for that note', () => {
+    citeWhenOpen('Work/Offsite.md', 'March 4');
+    expect(takeCite('Home/Garden.md')).toBeNull();
+    expect(takeCite('Work/Offsite.md')).toBe('March 4');
+    expect(takeCite('Work/Offsite.md')).toBeNull();
   });
 });

@@ -5,7 +5,7 @@ import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menus
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, parseLaunchChoice, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, settleBindings, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type CalendarEvent } from '@mobius/shared';
 import { MEETINGS_NOTEBOOK, meetingNote } from './note-insert';
-import { noteForSource } from './note-sources';
+import { citeWhenOpen, noteForSource } from './note-sources';
 import { ClaimSources } from './RichText';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
@@ -1975,9 +1975,10 @@ export function App() {
     : null;
 
   // A fact Mobius took from a note ("Notes · <title>") opens that note from its card.
-  const claimSource = (source: string) => {
+  // Its lines are tinted for a moment when the page shows.
+  const claimSource = (source: string, words: string) => {
     const found = noteForSource(source, notes.notebooks);
-    return found ? { label: 'Open note', open: () => openTarget({ app: 'notes', path: found.page.path, title: found.page.title }) } : null;
+    return found ? { label: 'Open note', open: () => { citeWhenOpen(found.page.path, words); openTarget({ app: 'notes', path: found.page.path, title: found.page.title }); } } : null;
   };
 
   return (

@@ -31,7 +31,7 @@ export const Citations = createContext<((source: string) => { n: number; title: 
  * Where a fact's source can be opened: a note named in `Notes · <title>` opens in Notes. The app provides it, as it
  * knows the notes; without it a source is only shown.
  */
-export const ClaimSources = createContext<((source: string) => { label: string; open: () => void } | null) | null>(null);
+export const ClaimSources = createContext<((source: string, words: string) => { label: string; open: () => void } | null) | null>(null);
 
 function Cite({ n, title, site, url }: { n: number; title: string; site: string; url: string }) {
   return (
@@ -50,7 +50,7 @@ function Claim({ tier, source: given, words, children }: { tier: 'yours' | 'web'
   const [open, setOpen] = useState(false);
   const checks = useContext(ClaimChecks);
   const cite = useContext(Citations)?.(given) ?? null;
-  const place = useContext(ClaimSources)?.(given) ?? null;
+  const place = useContext(ClaimSources)?.(given, words) ?? null;
   const key = claimKey(words, given);
   const checked = tier === 'unsure' && (checks?.checked.has(key) ?? false);
   const shown = checked ? 'Checked by you' : TIERS[tier].name;
