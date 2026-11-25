@@ -77,10 +77,17 @@ impl When {
         self.moment().date()
     }
 
-    fn ics(self, name: &str) -> String {
-        match self {
-            When::Day(d) => format!("{name};VALUE=DATE:{}", d.format("%Y%m%d")),
-            When::At(t) => format!("{name}:{}", t.format("%Y%m%dT%H%M%S")),
+    /// Its line, in the form the file wrote it (see `Event::zone`): a UTC time goes back to UTC, a zoned time keeps
+    /// its `TZID` (read as written, so the wall time is the zone's), and a day is always a date.
+    fn ics(self, name: &str, zone: Option<&str>) -> String {
+        match (self, zone) {
+            (When::Day(d), _) => format!("{name};VALUE=DATE:{}", d.format("%Y%m%d")),
+            (When::At(t), Some("UTC")) => {
+                let utc = Local.from_local_datetime(&t).earliest().map(|l| l.with_timezone(&Utc).naive_utc()).unwrap_or(t);
+                format!("{name}:{}Z", utc.format("%Y%m%dT%H%M%S"))
+            }
+            (When::At(t), Some(tz)) => format!("{name};TZID={}:{}", param_value(tz), t.format("%Y%m%dT%H%M%S")),
+            (When::At(t), None) => format!("{name}:{}", t.format("%Y%m%dT%H%M%S")),
         }
     }
 
@@ -119,6 +126,9 @@ pub struct Event {
     pub organizer: Option<Person>,
     /// Lines of the event Mobius does not use, kept as they were.
     pub extra: Vec<String>,
+    /// How the file wrote its times, so a saved event keeps that form: `Some("UTC")` for times in UTC (`…Z`), the
+    /// `TZID` of a time with a named zone, or None for a floating local time. Times are held as local wall times.
+    pub zone: Option<String>,
 }
 
 /// Someone on an event: an attendee or its organizer, by address.
@@ -346,6 +356,7 @@ fn event_of(lines: &[String]) -> Option<Event> {
     let mut attendees = Vec::new();
     let mut organizer = None;
     let mut extra = Vec::new();
+    let mut zone = None;
     let mut nested = 0;
     for line in lines {
         let upper = line.to_ascii_uppercase();
@@ -363,7 +374,10 @@ fn event_of(lines: &[String]) -> Option<Event> {
         match name.as_str() {
             "UID" => uid = Some(value.trim().to_owned()),
             "SUMMARY" => title = unescape(&value),
-            "DTSTART" => start = parse_when(&params, &value),
+            "DTSTART" => {
+                start = parse_when(&params, &value);
+                zone = time_zone(&params, &value);
+            }
             "DTEND" => end = parse_when(&params, &value),
             "DURATION" => duration = parse_duration(&value),
             "LOCATION" => location = unescape(&value),
@@ -382,8 +396,17 @@ fn event_of(lines: &[String]) -> Option<Event> {
         When::Day(d) => When::Day(d + Duration::days(1)),
         When::At(t) => When::At(t),
     });
-    Some(Event { uid: uid.unwrap_or_else(new_uid), title: if title.trim().is_empty() { "Busy".into() } else { title }, start, end, location, notes, repeat, attendees, organizer, extra })
+    Some(Event { uid: uid.unwrap_or_else(new_uid), title: if title.trim().is_empty() { "Busy".into() } else { title }, start, end, location, notes, repeat, attendees, organizer, extra, zone })
 }
+
+/// The form of a `DTSTART`'s time, for `Event::zone`.
+fn time_zone(params: &[(String, String)], value: &str) -> Option<String> {
+    if value.trim().ends_with('Z') {
+        return Some("UTC".into());
+    }
+    params.iter().find(|(k, _)| k == "TZID").map(|(_, v)| v.clone()).filter(|v| !v.is_empty())
+}
+
 
 /// `PT1H30M`, `P1D`, `P2W`.
 fn parse_duration(value: &str) -> Option<Duration> {
@@ -497,8 +520,8 @@ pub fn write(name: &str, events: &[Event], other: &[String]) -> String {
         if !e.extra.iter().any(|l| l.to_ascii_uppercase().starts_with("DTSTAMP")) {
             lines.push(format!("DTSTAMP:{stamp}"));
         }
-        lines.push(e.start.ics("DTSTART"));
-        lines.push(e.end.ics("DTEND"));
+        lines.push(e.start.ics("DTSTART", e.zone.as_deref()));
+        lines.push(e.end.ics("DTEND", e.zone.as_deref()));
         lines.push(format!("SUMMARY:{}", escape(&e.title)));
         if !e.location.is_empty() {
             lines.push(format!("LOCATION:{}", escape(&e.location)));
@@ -1281,7 +1304,7 @@ impl Calendar {
         let (attendees, organizer) = people_sent(draft, None)?;
         let alert = alert_sent(draft)?;
         let (mut events, other) = self.load(calendar)?;
-        let mut event = Event { uid: new_uid(), title, start, end, location, notes, repeat, attendees, organizer, extra: Vec::new() };
+        let mut event = Event { uid: new_uid(), title, start, end, location, notes, repeat, attendees, organizer, extra: Vec::new(), zone: None };
         if let Some(alert) = alert {
             set_alert(&mut event, alert);
         }
@@ -1364,7 +1387,8 @@ impl Calendar {
             changed.repeat = None;
             if copy.is_none() {
                 changed.extra.retain(|l| !series_line(l));
-                changed.extra.push(shown.ics("RECURRENCE-ID"));
+                let zone = changed.zone.clone();
+                changed.extra.push(shown.ics("RECURRENCE-ID", zone.as_deref()));
             }
             match copy {
                 Some(i) => events[i] = changed.clone(),
@@ -1411,7 +1435,8 @@ impl Calendar {
                 let shown = self.time_of(&events, at, occurrence)?;
                 if scope == Scope::One || shown.moment() > events[at].start.moment() {
                     if scope == Scope::One {
-                        events[at].extra.push(shown.ics("EXDATE"));
+                        let zone = events[at].zone.clone();
+                        events[at].extra.push(shown.ics("EXDATE", zone.as_deref()));
                     } else {
                         end_before(&mut events[at], shown.moment());
                     }
@@ -1775,6 +1800,28 @@ mod tests {
         }
         assert!(written.lines().all(|l| l.len() <= 76), "long lines are folded");
         assert_eq!(c.events("2026-11-12", "2026-11-12").unwrap()[0]["title"], "Stand-up");
+    }
+
+    #[test]
+    fn a_saved_event_keeps_its_times_in_utc_or_its_zone() {
+        let (_d, c) = store();
+        // Google writes times in UTC; Outlook names a zone. A save keeps each as it was, not as a floating local time.
+        let text = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:g\r\nDTSTART:20261125T150000Z\r\nDTEND:20261125T160000Z\r\nSUMMARY:Sync\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:o\r\nDTSTART;TZID=W. Europe Standard Time:20261126T090000\r\nDTEND;TZID=W. Europe Standard Time:20261126T100000\r\nSUMMARY:Review\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        std::fs::create_dir_all(c.root.clone()).unwrap();
+        std::fs::write(c.root.join("Shared.ics"), text).unwrap();
+        c.update("Shared", "g", &Draft { title: Some("Sync, moved".into()), ..Draft::default() }).unwrap();
+        c.update("Shared", "o", &Draft { title: Some("Review, kept".into()), ..Draft::default() }).unwrap();
+        let written = unfold(&std::fs::read_to_string(c.root.join("Shared.ics")).unwrap()).join("\n");
+        for kept in ["DTSTART:20261125T150000Z", "DTEND:20261125T160000Z", "DTSTART;TZID=W. Europe Standard Time:20261126T090000", "DTEND;TZID=W. Europe Standard Time:20261126T100000"] {
+            assert!(written.contains(kept), "{kept} kept in {written}");
+        }
+        // Moved in the app, a UTC event is still written in UTC, at the same moment.
+        let local = Utc.with_ymd_and_hms(2026, 11, 25, 17, 0, 0).unwrap().with_timezone(&Local).naive_local();
+        let at = local.format("%Y-%m-%dT%H:%M").to_string();
+        let end = (local + Duration::hours(1)).format("%Y-%m-%dT%H:%M").to_string();
+        c.update("Shared", "g", &Draft::from_json(&json!({ "start": at, "end": end }))).unwrap();
+        let written = std::fs::read_to_string(c.root.join("Shared.ics")).unwrap();
+        assert!(written.contains("DTSTART:20261125T170000Z"), "{written}");
     }
 
     #[test]

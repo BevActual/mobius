@@ -16,6 +16,8 @@ The guide's one open item for Calendar.
   would be worse than one Save.
 - **A new event keeps Add**, because nothing exists until it is added.
 - **The popover** is as before: a click elsewhere or Enter keeps the change, and Escape takes it back.
+- **A kept change keeps the file's own form of the times**: a time in UTC (as Google writes) stays in UTC, and a time
+  with a named zone (as Outlook writes) keeps its `TZID`, so other apps read the same moment.
 
 ## Alerts
 
