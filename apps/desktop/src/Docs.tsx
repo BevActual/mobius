@@ -40,7 +40,7 @@ import { AppMenu, Button, Dialog, Menu, PanelTab, Segmented, ToolbarControls, To
 import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
-import { publishOutline } from './docs-outline';
+import { publishOutline, toHeading } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
 import { loadSetup, pageRule, saveSetup, textWidth, type PageSetup } from './doc-page-setup';
 import { DOC_MODES, SuggestAdd, SuggestDel, countSuggestions, settleAll, settleSuggestion, suggesting, suggestionAt, type DocMode } from './doc-suggest';
@@ -674,7 +674,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       path,
       items: outlineNow.current.slice(outlineFrom).map((h) => ({ level: h.level, text: h.text })),
       current: current - outlineFrom,
-      go: (i) => { const h = outlineNow.current[i + outlineFrom]; if (h && editor && !editor.isDestroyed) editor.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run(); },
+      go: (i) => { const h = outlineNow.current[i + outlineFrom]; if (h && editor && !editor.isDestroyed) toHeading(editor, h.pos); },
     });
     return undefined;
   }, [inFrame, path, outlineKey, outlineFrom, current, editor]);
@@ -1017,7 +1017,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
               {outline.length === 0 && <span className="doc-outline-empty">Headings show here as you add them.</span>}
               {outline.map((h, i) => (
                 <button key={`${h.pos}:${i}`} type="button" className="doc-outline-item" style={{ paddingLeft: 8 + (h.level - 1) * 12 }} data-level={h.level} aria-current={i === current || undefined}
-                  onClick={() => { editor?.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run(); }}>{h.text || 'Untitled'}</button>
+                  onClick={() => { if (editor) toHeading(editor, h.pos); }}>{h.text || 'Untitled'}</button>
               ))}
             </nav>
           )}
