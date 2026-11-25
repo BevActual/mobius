@@ -22,6 +22,11 @@ A full web browser, with Mobius able to read and work on pages for you.
   asks first, and clicking or typing on a page asks every time. When a page needs a sign-in, you sign in yourself.
 - Pages are shown by the system web view (WebView2) in the installer, or by Chromium (CEF) in a build from source that includes it.
 
+- **History** (Ctrl+H, or History in the Tabs panel's ⋯) shows the pages you visited in the Tabs panel, under Today,
+  Yesterday and each earlier day, with a search. A click goes there in the open tab, a middle-click opens a new tab, and
+  right-click copies the address or removes the page (or Delete on the row). **Clear history…** asks first. Escape or the head goes back to
+  your tabs. Searching your tabs (Ctrl+Shift+A) also finds pages you visited before, under History.
+
 Settings: **Settings › Browser** (allowed sites, local addresses, bookmarks, history).
 
 ## Mail

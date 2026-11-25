@@ -272,3 +272,10 @@
 .browser-side .read-later-icon svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
 /* Read later rows have no buttons at their end, so their titles keep the whole row, under the pointer too. */
 .browser-side .read-later .tab:hover .tab-main, .browser-side .read-later .tab:focus-within .tab-main { padding-right: var(--sp-2); }
+
+/* History in the tabs panel: the way back to the tabs as its head, each visit's time quiet at the row's end. */
+.history-back { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.history-back svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.history-row .tab-title { flex: 1; min-width: 0; }
+.history-when { flex: none; margin-left: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.history-foot { justify-content: flex-start; }

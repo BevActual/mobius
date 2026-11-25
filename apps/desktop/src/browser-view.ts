@@ -1,4 +1,5 @@
 import type { BookmarkEntry, BrowserTabState, HistoryEntry } from '@mobius/shared';
+import { dayLabel } from './dates';
 
 /**
  * The Browser's choices, kept apart from the screen so they can be tested: how an address is shown when the bar is not
@@ -91,4 +92,32 @@ export function nextTabId(tabs: readonly BrowserTabState[], step: 1 | -1): strin
   const at = order.findIndex((t) => t.active);
   const next = order[(Math.max(at, 0) + step + order.length) % order.length];
   return next && next.id !== order[at]?.id ? next.id : null;
+}
+
+/** A day of History: its heading and the pages visited that day, newest first, each page once. */
+export interface HistoryDay { label: string; entries: HistoryEntry[] }
+
+/**
+ * History as browsers show it (Chrome's and Safari's History): under Today, Yesterday, then each earlier day by name,
+ * newest first. A page visited several times in a day is listed once, at its latest visit. `query` keeps only pages
+ * whose title or address has every word typed.
+ */
+export function historyByDay(entries: readonly HistoryEntry[], now: Date, query = ''): HistoryDay[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const start = (ms: number) => { const d = new Date(ms); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+  const today = start(now.getTime());
+  const days: HistoryDay[] = [];
+  const seen = new Set<string>();
+  for (const e of [...entries].sort((a, b) => b.visited - a.visited)) {
+    const hay = `${e.title} ${e.url}`.toLowerCase();
+    if (!words.every((w) => hay.includes(w))) continue;
+    const day = start(e.visited);
+    if (seen.has(`${day}|${e.url}`)) continue;
+    seen.add(`${day}|${e.url}`);
+    const ago = Math.round((today - day) / 86_400_000);
+    const label = ago <= 0 ? 'Today' : ago === 1 ? 'Yesterday' : dayLabel(e.visited, { weekday: 'long', now });
+    const last = days[days.length - 1];
+    if (last && last.label === label) last.entries.push(e); else days.push({ label, entries: [e] });
+  }
+  return days;
 }

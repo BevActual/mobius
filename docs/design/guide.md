@@ -45,7 +45,7 @@ Checked 24 November 2026; pull requests not merged yet are marked (open).
 | Mobius panel | Yes | #771 | Starts closed in every app (Andrew, 24 November; this pull request) |
 | Mail | Yes | #772, this round's PR | Nothing for the look; see [its spec](mail.md) |
 | Music | Yes | #782 | Engine parity work, not look |
-| Browser | Yes | #783 | Nothing for the look |
+| Browser | Yes | #783, this round's PR | Nothing for the look; History and what is Later are in [its spec](browser.md) |
 | Settings | Yes | #786, #863, #873, #872, #875, #877 | Nothing for the look; the Accounts page and Back and Forward follow [their spec](settings-accounts.md) |
 | Calendar | Yes | #798, #800, #862, #901 | Nothing for the look; what is Later is in [its spec](calendar.md) |
 | Tasks | Yes | #801, #903 | Nothing for the look; what is Later is in [its spec](tasks.md) |

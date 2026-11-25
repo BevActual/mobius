@@ -74,3 +74,23 @@ test('Ctrl+Tab and Ctrl+Shift+Tab step through the tabs, going round', { tag: '@
   await shell().keyboard.press('Control+Shift+Tab');
   await expect(current()).toHaveText('Second page');
 });
+
+test('Ctrl+H shows History in the tabs panel by day; a click goes there, a search narrows it, and Escape goes back to the tabs', { tag: '@shell', annotation: { type: 'needs the shell', description: 'pages visited are kept by the shell' } }, async () => {
+  await openIn('/second');
+  await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+  await shell().locator('.tab', { hasText: 'Second page' }).click();
+  await shell().keyboard.press('Control+h');
+  const today = shell().getByRole('list', { name: 'Visited today' });
+  await expect(today.getByRole('button', { name: /Second page/ })).toBeVisible();
+  await expect(today.getByRole('button', { name: /Fixture home/ })).toBeVisible();
+  // A search narrows it to what has every word.
+  await shell().getByRole('searchbox', { name: 'Search history' }).fill('second');
+  await expect(today.getByRole('button')).toHaveCount(1);
+  await shell().getByRole('searchbox', { name: 'Search history' }).fill('');
+  // A click goes there in the tab that is open, as Chrome and Safari do.
+  await today.getByRole('button', { name: /Fixture home/ }).click();
+  await expect(address()).toHaveValue(fixture.origin + '/');
+  // Escape goes back to the tabs: still two, the second now showing the home page.
+  await shell().getByRole('searchbox', { name: 'Search history' }).press('Escape');
+  await expect(titles()).toHaveText(['Fixture home', 'Fixture home']);
+});
