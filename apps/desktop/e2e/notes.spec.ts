@@ -608,3 +608,14 @@ test('a new note starts from a kept template, dated today, and a note saved as a
   await notesMenu('New from Standup');
   await expect.poll(() => fs.readdirSync(file('Work')).filter((f) => f.startsWith('Standup')).length).toBe(2);
 });
+
+test('Edit templates puts the kept ones in Templates to change, and Today\'s note starts from a saved Daily', async () => {
+  fs.mkdirSync(file('Templates'), { recursive: true });
+  fs.writeFileSync(file('Templates', 'Daily.md'), '# Daily\n\n## Top three\n\n- [ ] \n');
+  await start();
+  await notesMenu('Edit templates…');
+  await expect.poll(() => fs.readdirSync(file('Templates')).sort()).toEqual(['Daily.md', 'Meeting.md', 'Project.md']);
+  expect(onDisk('Templates', 'Meeting.md')).toContain('## Next steps');
+  await notesMenu("Today’s note");
+  await expect(text()).toContainText('Top three');
+});

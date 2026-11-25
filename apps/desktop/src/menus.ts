@@ -52,7 +52,7 @@ export interface MenuContext {
     allApps: () => void;
     launcher: () => void;
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; nextSpace: () => void; previousSpace: () => void; selection: () => void; saveToReader: () => void };
-    notes: { open: () => void; newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void; checkedLast: () => void; sortBy: (by: NoteSort) => void; fromTemplate: (name: string) => void; saveAsTemplate: () => void };
+    notes: { open: () => void; newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void; checkedLast: () => void; sortBy: (by: NoteSort) => void; fromTemplate: (name: string) => void; saveAsTemplate: () => void; editTemplates: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void; fromTemplate: (path: string, title: string) => void; saveAsTemplate: () => void };
     video: { newProject: () => void; showFolder: () => void };
@@ -172,6 +172,7 @@ function appMenu(c: MenuContext): Menu | null {
         // A new note from a template: the meeting, day and project kept here, and the notes in Templates.
         ...s.notes.templates.slice(0, 12).map((t) => item(`note-template-${t.name}`, `New from ${t.name}`, () => d.notes.fromTemplate(t.name))),
         item('save-note-template', 'Save as template', d.notes.saveAsTemplate, { disabled: !s.notes.hasPage || s.notes.isTemplate }),
+        item('edit-note-templates', 'Edit templates…', d.notes.editTemplates),
         separator,
         item('changes', 'Show what the agent changed', d.notes.changes, { disabled: !s.notes.changed }),
         item('pin-note', s.notes.pinned ? 'Unpin' : 'Pin', d.notes.pin, { disabled: !s.notes.hasPage }),
