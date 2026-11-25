@@ -420,30 +420,9 @@ test('a notebook is renamed and a note moved with links following them, and a de
   const trash = side().getByRole('region', { name: 'Trash' });
   await trash.getByRole('button', { name: 'Trash', exact: true }).click();
   await expect(trash.getByRole('button', { name: 'Trash', exact: true })).toHaveAttribute('aria-expanded', 'true');
-  // While this fails only on Windows: what the Trash shows, what Notes answers for it, and what is on disk.
+  // The Trash folds itself: its rows show once its button says it is open (it was folded a second time, out of step).
   const groceries = trash.getByRole('button', { name: 'Groceries', exact: true });
-  if (!(await groceries.isVisible().catch(() => false))) {
-    await shell().waitForTimeout(1500);
-    const rows = await trash.locator('button').evaluateAll((all) => all.map((b) => `${b.getAttribute('aria-label') ?? ''} | ${b.textContent ?? ''}`));
-    const answered = await shell().evaluate(async () => JSON.stringify(await (window as unknown as { mobius: { notes?: { deleted?: () => Promise<unknown> } } }).mobius.notes?.deleted?.()));
-    const onTrash = (dir: string): string[] => (fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory()
-      ? [`${e.name}/`, ...onTrash(path.join(dir, e.name)).map((f) => `${e.name}/${f}`)]
-      : [e.name === 'entry.json' ? `entry.json ${fs.readFileSync(path.join(dir, e.name), 'utf8')}` : e.name])) : ['(no folder)']);
-    const aria = await trash.ariaSnapshot().catch((e: unknown) => `(no snapshot: ${String(e)})`);
-    // The row and each box around it: what could hide it from the accessibility tree or give it no size.
-    const chain = await trash.locator('button.list-row').first().evaluate((row) => {
-      const out: string[] = [];
-      for (let el: Element | null = row; el && el !== document.body; el = el.parentElement) {
-        const css = getComputedStyle(el);
-        const box = el.getBoundingClientRect();
-        const flags = ['aria-hidden', 'inert', 'hidden', 'data-folded', 'role'].filter((a) => el!.hasAttribute(a)).map((a) => `${a}=${el!.getAttribute(a)}`);
-        out.push(`${el.tagName.toLowerCase()}.${el.className} ${css.display}/${css.visibility}/${css.opacity}/${css.contentVisibility} ${Math.round(box.width)}x${Math.round(box.height)}@${Math.round(box.x)},${Math.round(box.y)} ${flags.join(' ')}`);
-      }
-      return out;
-    }).catch((e: unknown) => [`(no row: ${String(e)})`]);
-    console.log(`[trash diag] aria:\n${aria}\n[trash diag] chain: ${JSON.stringify(chain, null, 1)}`);
-    console.log(`[trash diag] rows: ${JSON.stringify(rows)}\n[trash diag] answered: ${answered}\n[trash diag] on disk: ${JSON.stringify(onTrash(file('.deleted')))}\n[trash diag] Work: ${JSON.stringify(fs.readdirSync(file('Work')))}`);
-  }
+  await expect(groceries).toBeVisible();
   await expect(groceries).toHaveAccessibleDescription(/^From Work · \d+ days left$/);
   await trash.getByRole('button', { name: 'Groceries', exact: true }).click();
   await shell().getByRole('menu', { name: 'Groceries' }).getByRole('menuitem', { name: 'Put back' }).click();
