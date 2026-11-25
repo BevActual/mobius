@@ -44,6 +44,7 @@ import './notes.css';
 import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { fileMarkdown, noteImage, ownMarked, readFile } from './note-files';
+import { KeptLink, keptMarkdown } from './note-kept';
 import { linkTo, linkedFrom, pageOfLink, pagesMatching } from './note-links';
 import { afterPaint } from './ui/frame';
 
@@ -347,7 +348,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   }
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
+      // StarterKit's link, written back with angle brackets round an address with a space (note-kept).
+      StarterKit.configure({ link: false }),
+      KeptLink.configure({ openOnClick: false, autolink: true }),
+      // Front matter, footnotes, HTML and link definitions from other apps, kept as written.
+      ...keptMarkdown,
       TableKit,
       TaskList,
       TaskItem.configure({ nested: true }),
@@ -934,8 +939,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
           {(insertProblem ?? recording.problem ?? meeting.problem) && <span className="review-problem" role="alert">{insertProblem ?? recording.problem ?? meeting.problem}</span>}
         </div>
       )}
-      {shared && !history && <div className="note-restored note-shared" role="status"><span>{shared}</span><button type="button" className="review-btn" onClick={() => setShared(null)}>OK</button></div>}
-      {notes.justTrashed && !restored && <UndoToast text={notes.justTrashed.text} onUndo={() => void notes.restore(notes.justTrashed!.id)} onDismiss={notes.clearJustTrashed} />}
+      {/* Copied, Saved and their failures: the shared pill at the foot of the page, as Restored is, never a line across the top. */}
+      {shared && !history && !restored && <UndoToast text={shared} onDismiss={() => setShared(null)} />}
+      {notes.justTrashed && !restored && !shared && <UndoToast text={notes.justTrashed.text} onUndo={() => void notes.restore(notes.justTrashed!.id)} onDismiss={notes.clearJustTrashed} />}
       {restored && !history && <UndoToast text={`Restored the version from ${restored.label}.`} onUndo={() => { notes.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
       {review && !kept && !history && !showingChanges && !working && (
         <div ref={reviewBar} className="note-review" role="status">

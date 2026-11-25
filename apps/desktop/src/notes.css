@@ -39,6 +39,15 @@
 .note-page code { padding: 0 var(--sp-1); border-radius: var(--radius-small); background: var(--field); font-family: var(--font-mono); font-size: var(--fs-sm); }
 .note-page pre { padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-panel); background: var(--field); overflow: auto; }
 .note-page pre code { padding: 0; background: none; }
+/* Markdown kept as written (front matter, HTML, link definitions): dimmed, as it is in the file. */
+.note-page pre.note-kept { margin: 0 0 var(--sp-3); padding: var(--sp-2) var(--sp-3); background: none; border: 1px dashed var(--line); color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-sm); white-space: pre-wrap; }
+.note-page code.note-kept-inline { background: none; color: var(--muted); }
+.note-page .note-footnote-ref { color: var(--muted); font-size: 0.75em; padding: 0 1px; }
+.note-page .note-footnote-ref::before { content: '['; }
+.note-page .note-footnote-ref::after { content: ']'; }
+.note-page p.note-footnote { color: var(--muted); font-size: var(--fs-sm); }
+.note-page p.note-footnote::before { content: attr(data-footnote) '. '; }
+.note-page .ProseMirror-selectednode.note-kept, .note-page .ProseMirror-selectednode.note-kept-inline, .note-page .ProseMirror-selectednode.note-footnote-ref { outline: 2px solid var(--accent); outline-offset: 1px; }
 .note-page hr { margin: var(--sp-6) 0; border: 0; border-top: var(--hairline-w) solid var(--line); }
 .note-page ::selection { background: var(--sel); }
 .note-page .is-empty::before { content: attr(data-placeholder); float: left; height: 0; color: var(--muted); pointer-events: none; }
@@ -206,9 +215,6 @@
 .note-history-empty p { margin: 0; }
 .note-history-hint { max-width: 32ch; font-size: var(--fs-sm); }
 .note-history .spacer { flex: 1; }
-/* "Restored" and "Copied": one plain line at the top of the page. */
-.note-restored { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--field); font-size: var(--fs-sm); }
-.note-restored > span { flex: 1; }
 
 /* ── Notebooks: the panel of notebooks and their notes ──────────────────────────────────────────────────────────────────────── */
 /* One row height for every page, the two-line master-list height (56px comfortable, 48px compact): the title with its date at the end, and one grey line under it. Pin and

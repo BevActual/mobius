@@ -1,5 +1,6 @@
 import Image from '@tiptap/extension-image';
 import { Marked, marked } from 'marked';
+import { linkTarget } from './note-kept';
 
 /** A link in a page that points beside it (`Battery%20files/cell.png`), not to the web or another place. */
 export const isPageFile = (src: string) => !!src && !/^[a-z][a-z0-9+.-]*:/i.test(src) && !src.startsWith('/') && !src.startsWith('#');
@@ -47,6 +48,13 @@ export function ownMarked(): typeof marked {
 /** Pictures in a page: kept in Markdown with the link as written (beside the page), shown from the page's files. */
 export function noteImage(page: () => string | undefined, kind: 'notes' | 'docs' = 'notes') {
   return Image.extend({
+    // A picture beside the page whose name has a space is written in angle brackets, as other Markdown readers need.
+    renderMarkdown: (node) => {
+      const src = linkTarget(String(node.attrs?.src ?? ''));
+      const alt = String(node.attrs?.alt ?? '');
+      const title = String(node.attrs?.title ?? '');
+      return title ? `![${alt}](${src} "${title.replace(/"/g, '\\"')}")` : `![${alt}](${src})`;
+    },
     addNodeView() {
       return ({ node }) => {
         const dom = document.createElement('figure');

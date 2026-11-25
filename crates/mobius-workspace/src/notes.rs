@@ -227,7 +227,7 @@ pub fn tags_in(content: &str) -> Vec<String> {
 pub fn preview_of(content: &str) -> String {
     let mut fenced = false;
     let mut titled = false;
-    for line in content.lines() {
+    for line in content.lines().skip(front_matter_lines(content)) {
         let t = line.trim();
         if t.starts_with("```") {
             fenced = !fenced;
@@ -254,6 +254,26 @@ pub fn preview_of(content: &str) -> String {
         }
     }
     String::new()
+}
+
+/// How many lines front matter takes at the top of a page (`---`, `key: value` lines, `---`), else 0: it is the
+/// page's settings for other apps, not its words. The same test as `FRONT_MATTER` in `apps/desktop/src/note-kept.ts`.
+fn front_matter_lines(content: &str) -> usize {
+    let mut lines = content.lines();
+    if lines.next().map(str::trim_end) != Some("---") {
+        return 0;
+    }
+    let Some(first) = lines.next() else { return 0 };
+    let key = first.split_once(':').map(|(k, _)| k.trim_end()).unwrap_or("");
+    if key.is_empty() || !key.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        return 0;
+    }
+    for (i, line) in lines.enumerate() {
+        if matches!(line.trim_end(), "---" | "...") {
+            return i + 3;
+        }
+    }
+    0
 }
 
 /// `**bold**`, `_it_`, `` `code` `` and `[words](link)` as their words.
@@ -987,6 +1007,9 @@ mod tests {
     #[test]
     fn the_preview_is_the_first_line_under_the_title_without_marks() {
         assert_eq!(preview_of("# Plan\n\n- [ ] Call **Sam** about [the packs](https://x.example)\n"), "Call Sam about the packs");
+        // Front matter is the page's settings for other apps, not its words.
+        assert_eq!(preview_of("---\ntitle: Plan\ntags: [a]\n---\n\n# Plan\n\nFirst line.\n"), "First line.");
+        assert_eq!(preview_of("---\n\nAfter a rule.\n"), "After a rule.");
         assert_eq!(preview_of("# Plan\n\n## Week one\n"), "Week one");
         assert_eq!(preview_of("# Plan\n\n1. First `step`\n"), "First step");
         assert_eq!(preview_of("# Plan\n"), "");

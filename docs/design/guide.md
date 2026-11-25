@@ -49,7 +49,7 @@ Checked 24 November 2026; pull requests not merged yet are marked (open).
 | Settings | Yes | #786, #863, #873, #872, #875, #877 | Nothing for the look; the Accounts page and Back and Forward follow [their spec](settings-accounts.md) |
 | Calendar | Yes | #798, #800, #862 | Autosave on the docked event page |
 | Tasks | Yes | #801 | Part B: When and Deadline, Things-style views |
-| Notes | Yes | #804, #862, this pull request | The additions Andrew picks (History and Outline as panels, Undo for Restored) |
+| Notes | Yes | #804, #862, #881, this pull request | Notebooks, the Trash, Ctrl+O, note links and citations follow [its spec](notes.md); History as a panel is on hold |
 | Docs | Yes | #809, #862 | Part B: Editing, Suggesting and Viewing; comment on a selection; Page setup |
 | Files | Yes | #865 | Screens from a PC check |
 | Messages | Spec written | [Its spec](messages.md) | The app work |
