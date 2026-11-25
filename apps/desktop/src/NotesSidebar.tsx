@@ -44,7 +44,7 @@ export function newItemIn(notes: NotesState, group: string | null | undefined, f
   else if (fallback) void notes.createNotebook(fallback).then((made) => { if (made) void notes.createPage(made); });
 }
 /** The list panel's name for each app that uses this list, as the panel's header names it (App.tsx OWN_LIST). */
-const LIST_NAME: Record<string, string> = { Notes: 'Notebooks', Slides: 'Decks', Design: 'Designs', Canvas: 'Boards', Music: 'Songs', Research: 'Reports', Views: 'Dashboards' };
+const LIST_NAME: Record<string, string> = { Notes: 'Notebooks', Docs: 'Documents', Slides: 'Decks', Design: 'Designs', Canvas: 'Boards', Music: 'Songs', Research: 'Reports', Views: 'Dashboards' };
 
 export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'note', items: 'notes', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.', defaultGroup: 'Notes' };
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);

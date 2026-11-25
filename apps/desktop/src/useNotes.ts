@@ -196,7 +196,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     await refresh();
   }, [api, refresh, remembered, remember]);
 
-  // The Trash (Notes only: the other apps keeping pages this way delete for good). Read when the list is, so its
+  // The Trash (Notes and Docs: the other apps keeping pages this way delete for good). Read when the list is, so its
   // section stays true after a delete, a restore, or a change made elsewhere.
   const [trashed, setTrashed] = useState<DeletedNote[]>([]);
   /** What was just moved to the Trash, for the Undo pill ("Moved “Work” and 12 notes to the Trash"). */

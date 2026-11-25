@@ -41,6 +41,7 @@ import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
 import { publishOutline } from './docs-outline';
+import { DocOutlinePanel } from './DocOutlinePanel';
 import './docs.css';
 import { afterPaint } from './ui/frame';
 
@@ -205,7 +206,7 @@ const isHistoryKey = (e: KeyboardEvent) => (e.ctrlKey || e.metaKey) && e.altKey 
  * The format bar in one row, as Notes has it: Aa opens a panel with the styles, marks and lists; the bar keeps what is
  * reached for while writing (checklist, link, insert, and the table's rows and columns while in one), then the
  * document's own things on the right. In Docs it is the window's toolbar (`inFrame`); the wiki keeps it on the page.
- * On the frame, Outline and History are in Document options (they become panels), and when the toolbar is short Checklist gives way
+ * On the frame, Outline (the right dock's panel) and History are in the window's ⋯, and when the toolbar is short Checklist gives way
  * (it is in Aa's lists too) and Writing tools shows only its pen.
  */
 function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = false }: {
@@ -280,7 +281,8 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
       // Mobius's writing tools: on the chosen words, or the whole document when none are chosen.
       ...(onTool ? WRITING_TOOLS.map((t, i) => ({ label: t.label, icon: mobiusIcon, disabled: busy, separated: i === 0, run: () => onTool(t.id, t.id === 'summarise' ? null : selectedText()) })) : []),
       ...(extras.onComments ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments, separated: true }] : []),
-      ...(extras.onHistory ? [{ label: 'Earlier versions…', keys: HISTORY_KEYS, run: extras.onHistory, separated: !extras.onComments }] : []),
+      { label: extras.outline ? 'Hide the outline' : 'Show the outline', run: extras.onOutline, separated: !extras.onComments },
+      ...(extras.onHistory ? [{ label: 'Earlier versions…', keys: HISTORY_KEYS, run: extras.onHistory }] : []),
       extras.font === 'serif'
         ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans') }
         : { label: 'Use a serif font', run: () => extras.onFont('serif') },
@@ -869,6 +871,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       <section className="doc-editor empty" aria-label="Document">
         <EmptyState app="docs" label="No document open" title={docs.notebooks.some((n) => n.pages.length) ? 'No document open' : 'No documents yet'} line="Choose one on the left, or start a new one." action={{ label: 'New document', run: () => newItemIn(docs, null, DEFAULT_FOLDER) }} />
         <EditorContent editor={editor} hidden />
+        {docs.justTrashed && <UndoToast text={docs.justTrashed.text} onUndo={() => void docs.restore(docs.justTrashed!.id)} onDismiss={docs.clearJustTrashed} />}
       </section>
     );
   }
@@ -902,7 +905,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
           ...(own?.attach ? { onFile: () => picker.current?.click() } : {}),
           ...(own?.versions ? { onHistory: () => setHistory(true) } : {}),
           ...(own ? { onShare: (how: ShareHow) => void share(how) } : {}),
-          outline: outlineOpen, onOutline: toggleOutline,
+          outline: inFrame ? inspector.open && inspector.active === 'outline' : outlineOpen,
+          onOutline: inFrame ? () => (inspector.open && inspector.active === 'outline' ? inspector.setOpen(false) : inspector.show('outline')) : toggleOutline,
           comments: openComments, commentsOpen: commentsOpen && (inFrame || commentState.comments.length > 0),
           ...(own && commentState.available ? { onComments: () => setCommentsOpen(!commentsOpen) } : {}),
         }} />
@@ -929,6 +933,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
           )}
         </form>
       )}
+      {/* The outline, as the right dock's Outline panel (as Notes has it), never a column drawn beside the page. */}
+      {inFrame && <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>}
       {/* Comments, as the inspector's Comments panel: each opens its words in the page. Hidden until asked for. */}
       {inFrame && own && commentState.available && (
         <PanelTab id="comments" name="Comments">
@@ -940,30 +946,6 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       )}
       {history && path ? <NoteHistory path={path} text={docs.text} kind="docs" onRestore={restore} onClose={() => setHistory(false)} /> : (
         <div className="doc-body">
-          {/* On the frame (panel look): the outline is its own panel between Documents and the page, as Google Docs has it,
-              there once the document has headings: the heading you are in, in ink, sub-headings one step in. */}
-          {inFrame && outline.length > outlineFrom && (outlineOpen ? (
-            <nav className="doc-outline doc-outline-side" aria-label="Outline">
-              <div className="doc-outline-head">
-                <span className="doc-outline-title">Outline</span>
-                <button type="button" className="strip-btn" aria-label="Hide the outline" title="Hide the outline" onClick={toggleOutline}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m11.5 6-4 4 4 4" /></svg>
-                </button>
-              </div>
-              {outline.slice(outlineFrom).map((h, j) => {
-                const i = j + outlineFrom;
-                const top = Math.min(...outline.slice(outlineFrom).map((o) => o.level));
-                return (
-                  <button key={`${h.pos}:${i}`} type="button" className="doc-outline-item" data-step={Math.min(h.level - top, 2)} aria-current={i === current || undefined}
-                    onClick={() => { editor?.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run(); }}>{h.text || 'Untitled'}</button>
-                );
-              })}
-            </nav>
-          ) : (
-            <button type="button" className="strip-btn doc-outline-show" aria-label="Show the outline" title="Show the outline" onClick={toggleOutline}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M7 10h9M7 14h9" /></svg>
-            </button>
-          ))}
           {outlineOpen && !inFrame && (
             <nav className="doc-outline" aria-label="Outline">
               <span className="doc-outline-title">Outline</span>
@@ -1018,6 +1000,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       {editMenu && createPortal(<ContextMenu x={editMenu.x} y={editMenu.y} label="Edit" items={editItems()} onClose={() => setEditMenu(null)} />, document.body)}
       {composing && <CommentComposer quote={composing.quote} top={composing.top} left={composing.left} add={commentState.add} onDone={() => setComposing(null)}
         {...(onTool ? { onAsk: (quote: string, text: string) => onTool('comment', commentLine({ id: '', quote, text, by: 'you', whenMs: 0, resolved: false }, [])) } : {})} />}
+      {docs.justTrashed && !restored && <UndoToast text={docs.justTrashed.text} onUndo={() => void docs.restore(docs.justTrashed!.id)} onDismiss={docs.clearJustTrashed} />}
       {restored && <UndoToast text={`Restored the version from ${restored.label}`} onUndo={() => { docs.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
       {note && <div className="doc-toast" role="status"><span>{note}</span><button type="button" className="review-btn" onClick={() => setNote(null)}>OK</button></div>}
       {/* On the frame there is no status bar: the count is under the title and whether it is saved is in the toolbar.
