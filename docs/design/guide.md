@@ -53,7 +53,7 @@ Checked 24 November 2026; pull requests not merged yet are marked (open).
 | Docs | Yes | #809, #862, #899 | Nothing for the look; what is Later is in [its spec](docs.md) |
 | Files | Yes | #865, this round's PR | Nothing for the look; see [its spec](files.md) |
 | Messages | Spec written | [Its spec](messages.md) | The app work |
-| Home | No | | Next: its spec is in the Hub's review files |
+| Home | Inbox | This round's PR | The Inbox per [its spec](home.md); the panel look for Home is still to do |
 | Everything else | Frame only | #770 | Each app's own pass, after the seven folded apps move to their new homes |
 
 ## The frame

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { AgentWaiting, ConversationInfo, ScheduleInfo } from '@mobius/shared';
+import type { AgentWaiting, ConversationInfo, MailFollowUp, ScheduleInfo } from '@mobius/shared';
 import type { Activity } from './activity';
 import { describeAction } from './actions';
 import { appName, type AppId, type RecentItem } from './apps';
@@ -7,6 +7,7 @@ import type { DeskRow } from './desk-apps';
 import type { HubTarget } from './search-hub';
 import { agoLabel, deskGreeting, deskQuiet, deskTitle, upcoming, whenLabel } from './desk-view';
 import { APP_ICONS } from './Rail';
+import { useFollowUps, waitingOn } from './mail-follow-ups';
 import './desk.css';
 
 export type { DeskRow } from './desk-apps';
@@ -34,6 +35,8 @@ interface Props {
   /** The last things opened in any app (a note, a message, a document), newest first, for Continue. */
   opened?: readonly RecentItem[];
   onOpenRecent?: (item: RecentItem) => void;
+  /** Replies Mobius drafted in Mail that wait for the person, and where they are looked at. */
+  suggested?: { count: number; onOpen: () => void };
   now?: Date;
 }
 
@@ -74,15 +77,21 @@ const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="
  * place; then what is open in your apps (an app Mobius changed carries its
  * dashed edge until you look); then the last things opened, to continue; then what is scheduled next.
  */
-export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, opened = [], onOpenRecent, now = new Date() }: Props) {
+export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, opened = [], onOpenRecent, suggested, now = new Date() }: Props) {
   const waiting = conversations.filter((c) => c.waiting > 0);
   const working = conversations.filter((c) => c.activity === 'working' && c.waiting === 0);
   const approvals = useFirstApprovals(waiting);
   const next = upcoming(useSchedules(), now);
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
-  const apps = [...rows];
-  for (const app of changed) if (!apps.some((row) => row.app === app)) apps.push({ app, text: 'Changed by Mobius' });
-  const title = deskTitle(now, { waiting: waiting.length, working: working.length, changed: changed.size });
+  // Sent mail whose reminder came with no answer: it waits on the person to nudge or let go.
+  const follow = useFollowUps();
+  const noReply: MailFollowUp[] = follow.due;
+  const drafted = suggested && suggested.count > 0 ? suggested : null;
+  // The Inbox: everything across apps that waits on the person, in one list. What Mobius changed is here, not in
+  // In your apps, so it is said once.
+  const inboxCount = waiting.length + changed.size + noReply.length + (drafted ? 1 : 0);
+  const apps = rows;
+  const title = deskTitle(now, { waiting: inboxCount, working: working.length, changed: 0 });
   // Chats are in the Chats panel; Continue is what was open in the other apps.
   const resume = onOpenRecent ? opened.filter((r) => r.app !== 'agent').slice(0, 5) : [];
   const quiet = waiting.length === 0 && working.length === 0 && changed.size === 0;
@@ -116,9 +125,9 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
           </ul>
         </div>
       )}
-      {(waiting.length > 0 || working.length > 0) && (
-        <div className="desk-group" role="group" aria-label="Now">
-          <h3 className="desk-head">Now</h3>
+      {inboxCount > 0 && (
+        <div className="desk-group" role="group" aria-label="Inbox">
+          <h3 className="desk-head">Inbox <span className="desk-count">{inboxCount}</span></h3>
           <ul className="desk-rows">
             {waiting.map((c) => {
               const ask = approvals[c.id];
@@ -135,6 +144,44 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                 </li>
               );
             })}
+            {[...changed].map((app) => (
+              <li key={`changed:${app}`}>
+                <button type="button" className="desk-row" data-changed aria-label={`${appName(app)}: changed by Mobius while you were away`} onClick={() => onOpenApp(app)}>
+                  <Icon app={app} />
+                  <span className="desk-name">{appName(app)}</span>
+                  <span className="desk-text">Changed by Mobius while you were away</span>
+                  {go('Look')}
+                </button>
+              </li>
+            ))}
+            {drafted && (
+              <li>
+                <button type="button" className="desk-row" data-changed aria-label={`${drafted.count} suggested ${drafted.count === 1 ? 'reply' : 'replies'} in Mail`} onClick={drafted.onOpen}>
+                  <Icon app="mail" />
+                  <span className="desk-name">{drafted.count === 1 ? '1 suggested reply' : `${drafted.count} suggested replies`}</span>
+                  <span className="desk-text">Drafted by Mobius, not sent</span>
+                  {go('Look')}
+                </button>
+              </li>
+            )}
+            {noReply.map((f) => (
+              <li key={`noreply:${f.messageId}`} className="desk-row">
+                <button type="button" className="desk-open" aria-label={`Open ${f.subject || 'the message'}, no reply from ${waitingOn(f.to)}`} disabled={!f.sentId || !onOpenTarget} onClick={() => { if (f.sentId && onOpenTarget) onOpenTarget({ app: 'mail', id: f.sentId }); }}>
+                  <Icon app="mail" />
+                  <span className="desk-name">{f.subject || '(no subject)'}</span>
+                  <span className="desk-text">No reply from {waitingOn(f.to)}</span>
+                  {go('Open')}
+                </button>
+                <button type="button" className="desk-act" disabled={busy.has(f.messageId)} aria-label={`Stop waiting for a reply to ${f.subject || 'this message'}`} onClick={() => hold(f.messageId, () => follow.set(f.messageId, null))}>Stop waiting</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {working.length > 0 && (
+        <div className="desk-group" role="group" aria-label="Working">
+          <h3 className="desk-head">Working</h3>
+          <ul className="desk-rows">
             {working.map((c, i) => (
               <li key={c.id} className="desk-row" data-working aria-label={`${name(c)}: Mobius is working`}>
                 <button type="button" className="desk-open" aria-label={`Open ${name(c)}`} onClick={() => onOpenConversation(c.id)}>
@@ -155,12 +202,12 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
           <ul className="desk-rows">
             {apps.map(({ app, item, text, more, target }) => (
               <li key={app}>
-                <button type="button" className="desk-row" data-changed={changed.has(app) || undefined} data-more={more ? true : undefined} onClick={() => (target && onOpenTarget ? onOpenTarget(target) : onOpenApp(app))}>
+                <button type="button" className="desk-row" data-more={more ? true : undefined} onClick={() => (target && onOpenTarget ? onOpenTarget(target) : onOpenApp(app))}>
                   <Icon app={app} />
                   <span className="desk-name">{appName(app)}</span>
                   {item && <span className="desk-item" title={item}>{item}</span>}
                   <span className="desk-text">
-                    {changed.has(app) && text !== 'Changed by Mobius' ? `${text} · changed by Mobius` : text}
+                    {text}
                     {more && <span className="desk-more">{more}</span>}
                   </span>
                   {go('Open')}
@@ -206,7 +253,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
       )}
       {/* A short day still ends composed: one plain line, not leftover grey. */}
       {/* With nothing at all to show (no chats, nothing connected), only the greeting, the suggestions and Get started. */}
-      {waiting.length === 0 && working.length === 0 && (apps.length > 0 || resume.length > 0 || next.length > 0) && <p className="desk-end">That's everything for today.</p>}
+      {inboxCount === 0 && working.length === 0 && (apps.length > 0 || resume.length > 0 || next.length > 0) && <p className="desk-end">That's everything for today.</p>}
     </section>
   );
 }

@@ -6,13 +6,15 @@ The Agent app is Mobius's home, named **Home** in Go and Ctrl+K. It opens on the
 
 ![The Agent app in Mobius](../readme/apps/agent.png)
 
-- **The desk** opens with one greeting ("Good afternoon"), the date and what is in flight ("1 waiting for you · Mobius
-  is working"), and suggestions to start from. Under it: **Now** (questions and approvals, each answerable in place,
-  and what Mobius is doing, with Stop), **Recent** (the last few conversations, with when each was last active; one
-  press picks it up again), **In your apps** (the one thing in each worth a look: your next event, the first task due, who wrote your newest
-  mail, the note or doc you edited last; one press opens it, and an app Mobius changed carries a dashed edge until you
-  look) and **Next**
-  (what is scheduled).
+- **The desk** opens with one greeting ("Good afternoon"), the date and what is in flight ("3 waiting for you · Mobius
+  is working"), and suggestions to start from, just above where you type. Under it:
+  - **Inbox**: everything across your apps that waits on you, in one list. Chats with a question or an approval
+    (answered in place, with Allow), apps Mobius changed while you were away (the row goes once you look), replies Mobius drafted in Mail,
+    and mail you sent with no reply by the day you chose (open it, or Stop waiting).
+  - **Working**: what Mobius is doing now, with Stop.
+  - **In your apps**: the one thing in each worth a look (your next event, the first task due, who wrote your newest
+    mail, the note or doc you edited last); one press opens it.
+  - **Continue**: the last things you opened in other apps. **Next**: what is scheduled.
 - **The Chats panel** starts with a search, then your conversations (grouped by agent once you have more than one),
   what is scheduled, and the ones you archived. **New conversation** (Ctrl+N) at its head starts one. **Agents** and
   [Activity](#activity) open from **Go** or Ctrl+K.
