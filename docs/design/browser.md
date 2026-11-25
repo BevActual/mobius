@@ -19,6 +19,17 @@ and Edge's History (Ctrl+H) and Safari's History sidebar are the references; Arc
 - **Searching tabs** (Ctrl+Shift+A) also lists up to eight pages visited before under History, after Bookmarks,
   leaving out what is already open or bookmarked, as Arc's and Chrome's search do.
 
+## Recently closed (round 2)
+
+As Chrome's History › Recently closed and Arc's Archived Tabs (resources.arc.net, "Archived Tabs"): each web tab that
+closes, by you or by Today clearing itself, is remembered (the last 25, on this computer). History opens with the ten
+latest under **Recently closed**, above the days; one Today closed says "Cleared by Today" in place of its time. A click
+opens it again in a new tab. Clear history forgets these too.
+
+## Copy the address (round 2)
+
+Ctrl+Shift+C copies the page's address and says "Copied the link", as Arc's Copy URL (Cmd+Shift+C) does.
+
 ## Later
 
 - **Split view** (two pages side by side, as Arc's): it needs the shell to place two web views in the page panel, so it

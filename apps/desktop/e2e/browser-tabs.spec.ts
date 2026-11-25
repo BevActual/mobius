@@ -94,3 +94,20 @@ test('Ctrl+H shows History in the tabs panel by day; a click goes there, a searc
   await shell().getByRole('searchbox', { name: 'Search history' }).press('Escape');
   await expect(titles()).toHaveText(['Fixture home', 'Fixture home']);
 });
+
+test('a closed tab is listed under Recently closed in History and opens again from there; Ctrl+Shift+C copies the address', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
+  await openIn('/second');
+  await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+  await shell().locator('.tab', { hasText: 'Second page' }).click();
+  // Ctrl+Shift+C copies the page's address and says so, as Arc's Copy URL.
+  await shell().locator('.tab', { hasText: 'Second page' }).press('Control+Shift+c');
+  await expect(shell().locator('.notice[role=status]')).toHaveText('Copied the link');
+  await shell().getByRole('button', { name: 'Close Second page' }).click();
+  await expect(titles()).toHaveText(['Fixture home']);
+  await shell().keyboard.press('Control+h');
+  const closed = shell().getByRole('list', { name: 'Recently closed' });
+  await closed.getByRole('button', { name: /Second page/ }).click();
+  await expect(closed).toHaveCount(0);
+  await shell().keyboard.press('Control+h');
+  await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+});

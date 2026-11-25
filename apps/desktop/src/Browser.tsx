@@ -174,13 +174,41 @@ function setSpaces(next: SpacesState | ((s: SpacesState) => SpacesState)) {
 const subscribeSpaces = (l: () => void) => { spaceListeners.add(l); return () => { spaceListeners.delete(l); }; };
 export const useSpaces = () => useSyncExternalStore(subscribeSpaces, () => spaces, () => spaces);
 
+/**
+ * Recently closed tabs, as Chrome's History › Recently closed and Arc's Archived Tabs: each web tab that leaves the
+ * list, newest first, kept across restarts (the last 25). `cleared` marks one Today closed by itself.
+ */
+export interface ClosedTab { url: string; title: string; closed: number; cleared?: boolean }
+const CLOSED_KEY = 'mobius.browser.closed';
+const CLOSED_MAX = 25;
+let closedTabs: ClosedTab[] = (() => { try { const v = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? '[]') as unknown; return Array.isArray(v) ? (v as ClosedTab[]).slice(0, CLOSED_MAX) : []; } catch { return []; } })();
+const closedListeners = new Set<() => void>();
+function setClosed(next: ClosedTab[]) {
+  closedTabs = next.slice(0, CLOSED_MAX);
+  try { localStorage.setItem(CLOSED_KEY, JSON.stringify(closedTabs)); } catch { /* kept for this window only */ }
+  closedListeners.forEach((l) => l());
+}
+const useClosedTabs = () => useSyncExternalStore((l) => { closedListeners.add(l); return () => { closedListeners.delete(l); }; }, () => closedTabs, () => closedTabs);
+/** Tabs Today is closing by itself: remembered so their row in Recently closed says so. */
+const clearing = new Set<string>();
+
 /** Keeps spaces in step with the tabs, and closes Today tabs left unseen too long (checked now and every ten minutes). */
 function useSpacesSync(tabs: readonly BrowserTabState[]) {
   useEffect(() => { setSpaces((s) => syncSpaces(s, tabs, Date.now())); }, [tabs]);
   const latest = useRef(tabs);
-  latest.current = tabs;
+  // A web tab that has left the list since last time is remembered under Recently closed.
   useEffect(() => {
-    const sweep = () => staleTabs(spaces, latest.current, Date.now()).forEach((id) => window.mobius.browser.close(id));
+    const gone = latest.current.filter((t) => /^https?:/.test(t.url) && !tabs.some((n) => n.id === t.id));
+    if (gone.length > 0) {
+      const now = Date.now();
+      const added = gone.map((t): ClosedTab => ({ url: t.url, title: t.title, closed: now, ...(clearing.has(t.id) ? { cleared: true } : {}) }));
+      gone.forEach((t) => clearing.delete(t.id));
+      setClosed([...added, ...closedTabs.filter((c) => !added.some((a) => a.url === c.url))]);
+    }
+    latest.current = tabs;
+  }, [tabs]);
+  useEffect(() => {
+    const sweep = () => staleTabs(spaces, latest.current, Date.now()).forEach((id) => { clearing.add(id); window.mobius.browser.close(id); });
     sweep();
     const timer = window.setInterval(sweep, 10 * 60_000);
     return () => window.clearInterval(timer);
@@ -463,6 +491,7 @@ function HistoryList({ tabs, onClose }: { tabs: readonly BrowserTabState[]; onCl
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => { field.current?.focus(); }, []);
   const days = historyByDay(history.entries, new Date(), query);
+  const closed = useClosedTabs().filter((c) => sidebarMatch(query, c.title, c.url) && !tabs.some((t) => t.url === c.url)).slice(0, query ? 25 : 10);
   return (
     <div className="browser-side browser-history" onKeyDown={(e) => { if (e.key === 'Escape' && !menu && !clearing) { e.preventDefault(); if (query) setQuery(''); else onClose(); } }}>
       <div className="space-head">
@@ -476,7 +505,24 @@ function HistoryList({ tabs, onClose }: { tabs: readonly BrowserTabState[]; onCl
       </label>
       <div className="tab-lists">
         {!history.enabled && history.entries.length === 0 && <p className="tabs-empty">History is off. Turn it on in Settings › Browser.</p>}
-        {history.enabled && days.length === 0 && <p className="tabs-empty">{query ? 'Nothing matches.' : 'No pages visited yet.'}</p>}
+        {closed.length > 0 && (
+          <section className="ui-side-section">
+            <div className="side-head"><span className="side-title">Recently closed</span></div>
+            <ul className="tabs" role="list" aria-label="Recently closed">
+              {closed.map((c) => (
+                <li key={`${c.url}|${c.closed}`} className="tab">
+                  <button type="button" className="tab-main history-row" title={`Open again: ${c.title || hostOf(c.url)}\n${c.url}`}
+                    onClick={() => { setClosed(closedTabs.filter((x) => x !== c)); void window.mobius.browser.open(c.url); }}>
+                    <SiteChip url={c.url} />
+                    <span className="tab-title">{c.title || hostOf(c.url)}</span>
+                    <span className="history-when">{c.cleared ? 'Cleared by Today' : timeLabel(c.closed)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {history.enabled && days.length === 0 && closed.length === 0 && <p className="tabs-empty">{query ? 'Nothing matches.' : 'No pages visited yet.'}</p>}
         {days.map((d) => (
           <section key={d.label} className="ui-side-section">
             <div className="side-head"><span className="side-title">{d.label}</span></div>
@@ -497,7 +543,7 @@ function HistoryList({ tabs, onClose }: { tabs: readonly BrowserTabState[]; onCl
           </section>
         ))}
       </div>
-      {history.entries.length > 0 && (
+      {(history.entries.length > 0 || closed.length > 0) && (
         <div className="tabs-foot history-foot">
           <button type="button" className="today-clear" onClick={() => setClearing(true)}>Clear history…</button>
         </div>
@@ -508,8 +554,8 @@ function HistoryList({ tabs, onClose }: { tabs: readonly BrowserTabState[]; onCl
         { label: 'Copy address', run: () => void navigator.clipboard?.writeText(menu.entry.url).catch(() => undefined) },
         { label: 'Remove from history', keys: 'Delete', danger: true, separated: true, run: () => window.mobius.history.remove(menu.entry.url) },
       ]} />}
-      <Confirm open={clearing} title="Clear all browsing history?" description="Every page you visited is forgotten on this computer. Open tabs, bookmarks and Read later stay." action="Clear history"
-        onCancel={() => setClearing(false)} onConfirm={() => { setClearing(false); window.mobius.history.clear(); }} />
+      <Confirm open={clearing} title="Clear all browsing history?" description="Every page you visited, and the list of recently closed tabs, is forgotten on this computer. Open tabs, bookmarks and Read later stay." action="Clear history"
+        onCancel={() => setClearing(false)} onConfirm={() => { setClearing(false); window.mobius.history.clear(); setClosed([]); }} />
     </div>
   );
 }
@@ -573,7 +619,7 @@ export interface BrowserChromeProps {
  * reloading Mobius itself), Ctrl+Shift+T reopens the tab closed last, Ctrl+D bookmarks the page and Ctrl+Tab (or
  * Ctrl+Page Down) and Ctrl+Shift+Tab (or Ctrl+Page Up) step through the tabs. Only while the Browser shows.
  */
-function useBrowserKeys(active: BrowserTabState | undefined) {
+function useBrowserKeys(active: BrowserTabState | undefined, say: (notice: string) => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.repeat) return;
@@ -587,6 +633,11 @@ function useBrowserKeys(active: BrowserTabState | undefined) {
       } else if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyR') {
         e.preventDefault();
         if (active?.url) api.reload(active.id);
+      } else if (mod && e.shiftKey && !e.altKey && e.code === 'KeyC' && !editing) {
+        // Ctrl+Shift+C copies the page's address, as Arc's Copy URL does, and says so.
+        if (!active || !/^https?:/.test(active.url)) return;
+        e.preventDefault();
+        void navigator.clipboard?.writeText(active.url).then(() => say('Copied the link')).catch(() => say('The link could not be copied'));
       } else if (mod && e.shiftKey && !e.altKey && e.code === 'KeyT') {
         e.preventDefault();
         void api.reopenClosed?.();
@@ -609,7 +660,7 @@ function useBrowserKeys(active: BrowserTabState | undefined) {
 
 /** Back, forward, reload, bookmark, the selection menu and the address bar, with Find under them. */
 export function BrowserChrome({ onRead, reading = false, shownUrl = null, active, saved, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, onSuggesting, findOpen, finding, onCloseFind }: BrowserChromeProps) {
-  useBrowserKeys(active);
+  useBrowserKeys(active, setNotice);
   // In the toolbar's middle, as the frame has every app's own controls (ui/AppFrame).
   return (
   <ToolbarControls label="Browser">

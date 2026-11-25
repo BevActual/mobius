@@ -26,6 +26,8 @@ A full web browser, with Mobius able to read and work on pages for you.
   Yesterday and each earlier day, with a search. A click goes there in the open tab, a middle-click opens a new tab, and
   right-click copies the address or removes the page (or Delete on the row). **Clear history…** asks first. Escape or the head goes back to
   your tabs. Searching your tabs (Ctrl+Shift+A) also finds pages you visited before, under History.
+  History starts with **Recently closed**: tabs you closed, or Today cleared, open again with a click.
+- **Ctrl+Shift+C** copies the page's address.
 
 Settings: **Settings › Browser** (allowed sites, local addresses, bookmarks, history).
 
