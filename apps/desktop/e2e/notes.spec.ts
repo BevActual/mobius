@@ -598,7 +598,7 @@ test('a new note starts from a kept template, dated today, and a note saved as a
   fs.mkdirSync(file('Work'), { recursive: true });
   fs.writeFileSync(file('Work', 'Standup.md'), '# Standup\n\n## Yesterday\n\n## Today\n');
   await start();
-  await side().getByRole('button', { name: 'Standup' }).click();
+  await side().getByRole('button', { name: 'Standup', exact: true }).click();
   await expect(text()).toContainText('Yesterday');
   await notesMenu('New from Meeting');
   await expect(text()).toContainText('Agenda');
@@ -607,10 +607,10 @@ test('a new note starts from a kept template, dated today, and a note saved as a
   await expect.poll(meeting).toHaveLength(1);
   expect(meeting()[0]).not.toContain('{{');
   // The note open is kept as a template, and New from it starts a note with its words.
-  await side().getByRole('button', { name: 'Standup' }).click();
+  await side().getByRole('button', { name: 'Standup', exact: true }).click();
   await notesMenu('Save as template');
   await expect.poll(() => fs.existsSync(file('Templates', 'Standup.md'))).toBe(true);
-  await side().getByRole('button', { name: 'Standup' }).first().click();
+  await side().getByRole('button', { name: 'Standup', exact: true }).first().click();
   await notesMenu('New from Standup');
   await expect.poll(() => fs.readdirSync(file('Work')).filter((f) => f.startsWith('Standup')).length).toBe(2);
 });
