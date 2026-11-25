@@ -94,16 +94,22 @@ Version history… and the note's ⋯.
 
 ## Templates
 
-- **New from a template** is Notes › New note from template, a submenu under New note: Meeting and Project,
-  then the person's own templates, then Edit templates…. The launcher finds the same ("meeting note"). The + in a
-  notebook's heading stays a blank note, so the quick way stays quick.
-- **A note from a template** opens with its title selected and the cursor ready, like any new note. The template's
-  headings and empty checklists are ordinary text, never placeholders that look like fields.
-- **Daily** is the Today’s note that already exists, not a second item: Today’s note uses the Daily template when
-  there is one, titled with the day ("Tuesday 25 November"), and opening it again that day opens the same note.
-- **Save as template…** is in the note's ⋯ and the Notes menu. It asks for a name in a small sheet (name field,
-  Cancel and Save), and the Undo pill confirms it. Templates are notes in a Templates notebook at the end of the
-  Notebooks panel, so they are edited like any note. Edit templates… opens that notebook.
+As built in #892, with what is still to come marked Later.
+
+- **New from a template** is in the Notes menu, after New notebook: New from Meeting, New from Project, then
+  New from each of the person's own templates by name, then Save as template and Edit templates…. Menus have no
+  submenus yet, so these are flat items, as in Docs. The + in a notebook's heading stays a blank note, so the quick
+  way stays quick. Later: one New note from template submenu, and the launcher finding them ("meeting note").
+- **A note from a template** opens in the notebook that is open, like any new note, with `{{date}}` filled in. The
+  template's headings and empty checklists are ordinary text, never placeholders that look like fields.
+- **Daily** is the Today’s note that already exists, not a second item: Today’s note uses a saved Daily template
+  when there is one, under the day's own heading, and opening it again that day opens the same note. A saved Daily
+  never shows as New from Daily. Later: the day's name as the title ("Tuesday 25 November").
+- **Save as template** copies the open note, under its own title, into a Templates notebook, and a notice says so,
+  in the same words as Docs. Templates are notes there, so they are edited like any note. Edit templates… opens that
+  notebook, with Meeting and Project put in it to change. Later: a small sheet to name the template (name field,
+  Cancel and Save), Save as template in the note's ⋯, Templates kept at the end of the panel, and the notice in
+  shorter words ("Saved “Standup” as a template."), changed in Docs at the same time.
 
 ## Meeting notes
 

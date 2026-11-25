@@ -169,7 +169,7 @@ function appMenu(c: MenuContext): Menu | null {
         item('today-note', 'Today’s note', d.notes.today),
         item('new-notebook', 'New notebook', d.notes.newNotebook),
         separator,
-        // A new note from a template: the meeting, day and project kept here, and the notes in Templates.
+        // A new note from a template: the Meeting and Project kept here, then the notes in Templates (docs/design/notes.md).
         ...s.notes.templates.slice(0, 12).map((t) => item(`note-template-${t.name}`, `New from ${t.name}`, () => d.notes.fromTemplate(t.name))),
         item('save-note-template', 'Save as template', d.notes.saveAsTemplate, { disabled: !s.notes.hasPage || s.notes.isTemplate }),
         item('edit-note-templates', 'Edit templates…', d.notes.editTemplates),
