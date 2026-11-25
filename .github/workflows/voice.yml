@@ -1,0 +1,191 @@
+# mobius-voice: listening on this computer (docs/reference/voice-plan.md). Whisper and Silero VAD through sherpa-onnx
+# (Apache-2.0), as a small program of its own (crates/mobius-voice/Cargo.toml says why). It is not in the installer:
+# Mobius downloads the file for this computer the first time listening on this computer is chosen, and checks it
+# against the SHA-256 pinned in its own build, never against this release.
+#
+# A pull request that changes the program is linted and tested here on Linux, Windows and macOS, including writing
+# down one recording. Run it by hand (Actions > Voice > Run workflow) to publish: it tests, builds and signs the
+# program, gathers the models, and prints the SHA-256s to copy into the host's pins.
+name: Voice
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - crates/mobius-voice/**
+      - .github/workflows/voice.yml
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # sherpa-onnx's own test recordings and the smallest English Whisper, for the test that writes one down.
+  MODELS: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, exe: mobius-voice }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, exe: mobius-voice.exe }
+          - { os: macos-latest, target: aarch64-apple-darwin, exe: mobius-voice }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        working-directory: crates/mobius-voice
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/mobius-voice
+      - name: Lint
+        run: cargo clippy --locked --all-targets --target ${{ matrix.target }} -- -D warnings
+      - name: Fetch the test models
+        run: |
+          mkdir -p "$RUNNER_TEMP/models" && cd "$RUNNER_TEMP/models"
+          curl -sSfL -o whisper.tar.bz2 "$MODELS/sherpa-onnx-whisper-tiny.en.tar.bz2"
+          curl -sSfL -o silero_vad.onnx "$MODELS/silero_vad.onnx"
+          tar xjf whisper.tar.bz2
+          mv silero_vad.onnx sherpa-onnx-whisper-tiny.en/
+      - name: Test, writing down a recording
+        env:
+          MOBIUS_VOICE_MODELS: ${{ runner.temp }}/models/sherpa-onnx-whisper-tiny.en
+        run: cargo test --locked --release --target ${{ matrix.target }} -- --include-ignored
+      - name: Answer once
+        run: |
+          cargo build --locked --release --target ${{ matrix.target }}
+          answer=$(echo '{"id":1,"op":"ping"}' | "target/${{ matrix.target }}/release/${{ matrix.exe }}")
+          echo "$answer"
+          echo "$answer" | grep -q '"ok":true'
+
+  build:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: test
+    permissions:
+      contents: read
+      # Signing in to Azure through OpenID Connect.
+      id-token: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, exe: mobius-voice.exe }
+          - { os: macos-latest, target: aarch64-apple-darwin, exe: mobius-voice }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    # Azure trusts this environment for signing (as the release workflow).
+    environment: release
+    defaults:
+      run:
+        shell: bash
+        working-directory: crates/mobius-voice
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --locked --release --target ${{ matrix.target }}
+
+      - name: Sign in to Azure
+        if: ${{ runner.os == 'Windows' && vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign it
+        if: ${{ runner.os == 'Windows' && vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files: ${{ github.workspace }}\crates\mobius-voice\target\${{ matrix.target }}\release\mobius-voice.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Mobius
+          description-url: https://github.com/${{ github.repository }}
+      - name: Check the signature
+        if: ${{ runner.os == 'Windows' && vars.AZURE_SIGNING_ACCOUNT != '' }}
+        shell: pwsh
+        working-directory: crates/mobius-voice
+        run: |
+          $check = Get-AuthenticodeSignature "target\${{ matrix.target }}\release\mobius-voice.exe"
+          if ($check.Status -ne 'Valid') { throw "The signed mobius-voice does not verify: $($check.Status) $($check.StatusMessage)" }
+          Write-Host "Signed by $($check.SignerCertificate.Subject)"
+
+      - name: Pack it
+        id: pack
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          name="mobius-voice-$version-${{ matrix.target }}.gz"
+          gzip -9 -n -c "target/${{ matrix.target }}/release/${{ matrix.exe }}" > "$name"
+          ls -la "$name"
+          echo "SHA-256 $name: $( (sha256sum "$name" 2>/dev/null || shasum -a 256 "$name") | cut -d' ' -f1)"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pack.outputs.name }}
+          path: crates/mobius-voice/${{ steps.pack.outputs.name }}
+          retention-days: 7
+
+  # The models, re-published from sherpa-onnx's asr-models release so Mobius downloads only the int8 files it uses
+  # (sherpa-onnx's archives carry full-size copies and test recordings too) and every pin points at this repository.
+  # Whisper (OpenAI) and Silero VAD are MIT. The host pins each file's SHA-256; a file that changed upstream would
+  # fail that check and not be used.
+  models:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and unpack them
+        run: |
+          mkdir out && cd out
+          curl -sSfL -o silero_vad.onnx "$MODELS/silero_vad.onnx"
+          for m in base.en small.en; do
+            curl -sSfL "$MODELS/sherpa-onnx-whisper-$m.tar.bz2" | tar xjf - --wildcards "*/$m-encoder.int8.onnx" "*/$m-decoder.int8.onnx" "*/$m-tokens.txt"
+            for f in sherpa-onnx-whisper-$m/*; do mv "$f" "whisper-$(basename "$f")"; done
+            rmdir "sherpa-onnx-whisper-$m"
+          done
+          ls -la
+          sha256sum *
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voice-models
+          path: out/*
+          retention-days: 7
+
+  publish:
+    needs: [build, models]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish as a prerelease that is never Latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/mobius-voice/Cargo.toml | head -1)
+          tag="voice-$version"
+          cd out
+          sha256sum *
+          notes="mobius-voice $version: listening on this computer with Whisper and Silero VAD through sherpa-onnx (Apache-2.0, https://github.com/k2-fsa/sherpa-onnx). The whisper-* and silero_vad files are the int8 models from sherpa-onnx's asr-models release: Whisper by OpenAI (MIT, https://github.com/openai/whisper) and Silero VAD (MIT, https://github.com/snakers4/silero-vad). Mobius downloads what it needs and checks each file against the SHA-256 pinned in its own build.
+
+          $(sha256sum *)"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$tag" -R "$GITHUB_REPOSITORY" --clobber *
+          else
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title "Voice: mobius-voice $version" --notes "$notes" *
+          fi

@@ -14,7 +14,6 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const COPYLEFT = /^(A?GPL|LGPL|SSPL|EUPL|OSL|CPAL|RPL)\b/i;
 /** Never bundled, whatever a manifest says. Matched against the whole name. */
 const NEVER = [/^(matrix-)?synapse$/i, /(^|\/)element-(web|desktop|call)/i, /^@element-hq\/element-/i, /^@vector-im\/element-/i];
@@ -46,9 +45,14 @@ function check(kind, packages) {
   return bad;
 }
 
+/** The main workspace, and mobius-voice, which is its own (Mobius downloads it, so it ships too). */
+const WORKSPACES = ['.', 'crates/mobius-voice'];
+
 function crates() {
-  const out = execFileSync('cargo', ['metadata', '--format-version', '1', '--locked'], { cwd: ROOT, maxBuffer: 256 * 1024 * 1024, encoding: 'utf8' });
-  return JSON.parse(out).packages.filter((p) => p.source !== null).map((p) => ({ name: p.name, version: p.version, license: p.license }));
+  return WORKSPACES.flatMap((dir) => {
+    const out = execFileSync('cargo', ['metadata', '--format-version', '1', '--locked'], { cwd: new URL(`../${dir}/`, import.meta.url), maxBuffer: 256 * 1024 * 1024, encoding: 'utf8' });
+    return JSON.parse(out).packages.filter((p) => p.source !== null).map((p) => ({ name: p.name, version: p.version, license: p.license }));
+  });
 }
 
 function npm() {
