@@ -157,20 +157,13 @@ jobs:
           done
           ls -la
           sha256sum *
-      # Each licence goes beside what it covers. Three are kept in the repository (crates/mobius-voice/licences);
-      # onnxruntime's, which sherpa-onnx's library links inside it, is fetched here and must be the MIT licence. It is
-      # asked of GitHub's API, which finds a repository's licence file whatever its branch or name, rather than from a
-      # fixed raw address (that one answered 404 in run 45574070105).
+      # Each licence goes beside what it covers, all four kept in the repository (crates/mobius-voice/licences says
+      # where each came from). onnxruntime's used to be fetched from GitHub here, but both its raw address and GitHub's
+      # licence API answered 404 from the runner (runs 45574070105 and 45578278630).
       - name: Put the licences beside them
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           cp crates/mobius-voice/licences/LICENSE-*.txt out/
-          gh api repos/microsoft/onnxruntime/license > onnxruntime-licence.json
-          jq -e '.license.spdx_id == "MIT"' onnxruntime-licence.json > /dev/null || { echo "onnxruntime's licence is not the MIT licence; not publishing."; exit 1; }
-          jq -r .content onnxruntime-licence.json | base64 -d > out/LICENSE-onnxruntime.txt
-          grep -q 'Microsoft Corporation' out/LICENSE-onnxruntime.txt
-          rm onnxruntime-licence.json
+          head -1 out/LICENSE-onnxruntime.txt | grep -qx 'MIT License'
           ls -la out/LICENSE-*
       - uses: actions/upload-artifact@v4
         with:
