@@ -259,6 +259,30 @@ const ASKS: [&str; 11] = ["please ", "can you", "could you", "would you", " by m
 /// Words in a subject that mark a sign-in or account-security notice.
 const SECURITY: [&str; 9] = ["sign-in", "signed in", "sign in", "login", "log in", "logged in", "new device", "security", "password"];
 
+/// A prize or reward to claim, in the subject or the text: a scam, or at best an offer. Never mail to answer or keep,
+/// whatever the model says (Nov 25: both models put a look-alike shop's "claim your gift card" in Later).
+const PRIZE: [&str; 9] = ["you have won", "you've won", "you won", "winner", "you were selected", "you've been selected", "you have been selected", "claim your", "sweepstakes"];
+/// Words that say a delivery has already happened, so the notice has nothing left to tell.
+const DELIVERED: [&str; 5] = ["delivered:", "was delivered", "were delivered", "has been delivered", "have been delivered"];
+
+/// The subject and the start of the text, lower-cased, with a space each side for whole-phrase tests.
+fn mail_text(m: &Message) -> String {
+    format!(" {} {} ", m.subject.to_lowercase(), m.preview.to_lowercase())
+}
+
+/// A prize to claim from someone who is not a person the mail names (a colleague's "you won the raffle" is not one),
+/// and not an account-security notice.
+fn prize_offer(m: &Message) -> bool {
+    let subject = m.subject.to_lowercase();
+    !from_a_person(&m.from) && !SECURITY.iter().any(|w| subject.contains(w)) && PRIZE.iter().any(|w| mail_text(m).contains(w))
+}
+
+/// A service saying a delivery already happened, asking nothing.
+fn already_delivered(m: &Message) -> bool {
+    let text = mail_text(m);
+    !from_a_person(&m.from) && !text.contains('?') && DELIVERED.iter().any(|w| text.contains(w))
+}
+
 /// Triage never puts these in Archive, whatever the model sorted: a person's own message that asks something or
 /// answers the person's mail, and a security alert. Unnamed, they go to Later, so nothing that needs the person
 /// hides in Archive.
@@ -274,13 +298,15 @@ fn kept_from_archive(m: &Message) -> bool {
     from_a_person(&m.from) || subject.starts_with("re:") || hay.contains('?') || hay.contains("please") || ASKS.iter().any(|a| hay.contains(a))
 }
 
-/// Written by a person, not a team or a service: the address starts with their own name ("Dana Reyes" at dana@,
-/// "Sam Okafor" at sam.okafor@), where "IT Service Desk" at it@ and "Veltro Cells" at sales@ do not.
+/// Written by a person, not a team or a service: the address starts with their own first name ("Dana Reyes" at dana@,
+/// "Sam Okafor" at sam.okafor@), where "IT Service Desk" at it@, "Veltro Cells" at sales@ and "Walmart Rewards" at
+/// rewards@ do not.
 fn from_a_person(from: &Person) -> bool {
     let local = from.email.split('@').next().unwrap_or("").to_lowercase();
     let first = local.split(['.', '_', '-', '+']).next().unwrap_or("");
     let names: Vec<String> = from.name.split_whitespace().map(|w| w.to_lowercase()).collect();
-    names.len() >= 2 && first.len() >= 2 && names.iter().any(|n| n == first)
+    // The first name, not any word of the name: "Walmart Rewards" at rewards@ is a team, not a person.
+    names.len() >= 2 && first.len() >= 2 && names[0] == first
 }
 
 /// What Triage asks the model about each unread message, on its own. Each group has a one-line rule and examples
@@ -469,6 +495,12 @@ pub fn sort_prompt(m: &Message) -> String {
     if m.category == "transactions" {
         signals.push("looks like a receipt, booking or order");
     }
+    if prize_offer(m) {
+        signals.push("offers a prize or reward to claim");
+    }
+    if already_delivered(m) {
+        signals.push("says a delivery already happened");
+    }
     let signals = if signals.is_empty() { "none".to_owned() } else { signals.join("; ") };
     format!("From: {from}\nSignals: {signals}\nSubject: {}\n\n{}", m.subject, m.preview)
 }
@@ -511,7 +543,13 @@ pub fn sort_needs_chat(m: &Message, answer: &str) -> bool {
 }
 
 fn group_of(m: &Message, s: &Sorted) -> &'static str {
+    // A prize to claim is archived even when the model was taken in by it, and a delivery that already happened,
+    // asking nothing, has nothing left to tell.
+    if prize_offer(m) {
+        return "archive";
+    }
     match s.group.as_str() {
+        "later" if !s.asks && already_delivered(m) => "archive",
         "reply" => "reply",
         "archive" if !s.asks && !kept_from_archive(m) => "archive",
         _ if s.asks => "reply",
@@ -2103,8 +2141,11 @@ mod tests {
         assert!(sort_prompt(&bulk).contains("Signals: bulk mail (unsubscribe or mailing-list header); sender looks like a person\n"));
         let bot = message("GitHub", "notifications@github.com", "PR #412 merged");
         assert!(sort_prompt(&bot).contains("Signals: automated sender (no-reply address)\n"));
-        let plain = message("Prize Desk", "winner@prize-claims.biz", "You have won!");
-        assert!(sort_prompt(&plain).starts_with("From: Prize Desk <winner@prize-claims.biz>\nSignals: none\nSubject: You have won!"));
+        let plain = message("Kim's Store", "hello@kimstore.com", "Spring hours");
+        assert!(sort_prompt(&plain).starts_with("From: Kim's Store <hello@kimstore.com>\nSignals: none\nSubject: Spring hours"));
+        // A team named after its address is not a person.
+        let team = message("Walmart Rewards", "rewards@walmart-winners.net", "Your points");
+        assert!(!sort_prompt(&team).contains("looks like a person"));
         let reply = message("Maya Chen", "maya@gmail.com", "Re: Saturday dinner");
         assert!(sort_prompt(&reply).contains("sender looks like a person; a reply in a thread"));
     }
@@ -2113,9 +2154,12 @@ mod tests {
     fn the_chat_model_is_asked_again_on_signs_in_the_mail_not_the_models_word_alone() {
         let sure = |group: &str, asks: bool| format!(r#"{{"why":"x","group":"{group}","asks_me":{asks},"urgent":false,"sure":true}}"#);
         // Mail to answer that no person wrote: a scam, a tool's notice.
+        let notice = message("Jira", "jira@northwind.atlassian.net", "[MOB-212] assigned to you");
+        assert!(sort_needs_chat(&notice, &sure("reply", true)));
+        assert!(!sort_needs_chat(&notice, &sure("later", false)));
+        // A prize to claim is archived in code, so there is nothing to ask again.
         let prize = message("Prize Desk", "winner@prize-claims.biz", "You have won!");
-        assert!(sort_needs_chat(&prize, &sure("reply", true)));
-        assert!(!sort_needs_chat(&prize, &sure("archive", false)));
+        assert!(!sort_needs_chat(&prize, &sure("reply", true)));
         // Bulk mail kept out of Archive.
         let mut post = message("Nextdoor", "no-reply@nextdoor.com", "Lost cat on Elm Street");
         post.list = true;
@@ -2128,6 +2172,30 @@ mod tests {
         let maya = message("Maya Chen", "maya@gmail.com", "Saturday dinner");
         assert!(!sort_needs_chat(&maya, &sure("reply", true)));
         assert!(sort_needs_chat(&maya, r#"{"why":"x","group":"reply","asks_me":true,"urgent":false,"sure":false}"#));
+    }
+
+    #[test]
+    fn a_prize_to_claim_and_a_delivery_already_made_are_archived_whatever_the_model_says() {
+        let answer = |group: &str, asks: bool| format!(r#"{{"why":"x","group":"{group}","asks_me":{asks},"urgent":false,"sure":true}}"#);
+        let scam = message("Walmart Rewards", "rewards@walmart-winners.net", "Claim your $500 gift card");
+        assert_eq!(sort_group(&scam, &answer("later", false)), Some("archive"));
+        assert_eq!(sort_group(&scam, &answer("reply", true)), Some("archive"));
+        assert!(sort_prompt(&scam).contains("offers a prize or reward to claim"));
+        // A colleague's good news is not a prize offer.
+        let colleague = message("Dana Reyes", "dana@northwind.io", "You won the team raffle");
+        assert_eq!(sort_group(&colleague, &answer("later", false)), Some("later"));
+        // A security notice that mentions a prize is still a security notice.
+        let login = message("Prize Desk", "winner@prize-claims.biz", "New sign-in: claim your reward");
+        assert_eq!(sort_group(&login, &answer("reply", true)), Some("reply"));
+
+        let delivered = message("Amazon", "shipment-tracking@amazon.com", "Delivered: your package");
+        assert_eq!(sort_group(&delivered, &answer("later", false)), Some("archive"));
+        assert!(sort_prompt(&delivered).contains("says a delivery already happened"));
+        // On its way is still Later; a person asking whether it came is still Reply.
+        let coming = message("Amazon", "shipment-tracking@amazon.com", "Arriving tomorrow: your order");
+        assert_eq!(sort_group(&coming, &answer("later", false)), Some("later"));
+        let sam = message("Sam Lee", "sam.lee@gmail.com", "Was the lamp delivered?");
+        assert_eq!(sort_group(&sam, &answer("reply", true)), Some("reply"));
     }
 
     #[test]

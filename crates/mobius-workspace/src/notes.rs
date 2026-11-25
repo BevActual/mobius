@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use crate::checkpoints::Checkpoints;
 
 type Res<T> = Result<T, String>;
+mod find;
 
 mod created;
 mod moves;

@@ -209,8 +209,8 @@ impl Policy {
 /// person to keep, change and send it; what always asks is paying, sending, deleting and running commands), and read
 /// the person's chats (Messages only reads; the person sends), and read what only says something about this computer (the time, the schedules, which browser tabs are open). Deleting files
 /// is a floor, and sending, browsing and running commands are not here, so they still ask.
-const REVERSIBLE: [&str; 21] = [
-    "clock.read", "schedules.read", "files.read", "files.list", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
+const REVERSIBLE: [&str; 22] = [
+    "clock.read", "schedules.read", "files.read", "notes.read", "files.list", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
     "calendar.read", "calendar.write", "contacts.read", "contacts.write", "skills.read", "document.write", "mail.read", "mail.draft", "messages.read", "browser.list",
 ];
 

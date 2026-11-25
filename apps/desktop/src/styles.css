@@ -1380,9 +1380,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* The tiers differ in the line's style, never its colour: a fact not sure is dotted and in italics, to check. */
 .claim[data-tier="unsure"] { text-decoration-style: dotted; text-decoration-thickness: 1.5px; text-decoration-color: var(--ink); font-style: italic; }
 .claim:hover, .claim[aria-expanded="true"], .claim:focus-visible { text-decoration-color: var(--ink); background: var(--soft); }
-.claim-card { position: absolute; left: 0; top: calc(100% + 4px); z-index: 4; width: max-content; max-width: 280px; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: var(--radius-group); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-sm); font-style: normal; white-space: normal; }
+.claim-card { position: absolute; left: 0; top: calc(100% + var(--sp-1)); z-index: var(--z-menu); width: max-content; max-width: 280px; display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-sheet); background: var(--raised); box-shadow: var(--shadow-menu); font-size: var(--fs-sm); font-style: normal; white-space: normal; }
 .claim-card .claim-note { color: var(--muted); font-size: var(--fs-xs); }
-.claim-card .btn { align-self: flex-start; }
+.claim-card .btn { align-self: flex-start; margin-top: var(--sp-1); }
 .msg-gate { font-size: var(--fs-xs); color: #b36b00; }
 
 /* (Journey retired: what Mobius remembers is How I work in the Wiki.) */
