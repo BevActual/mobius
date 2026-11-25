@@ -222,10 +222,10 @@ export interface WikiVersion { checkpoint: string; whenMs: number; content: stri
 /** Someone in an email's From, To or Cc. */
 export interface MailPerson { name: string; email: string }
 /** A message in the Mail app's list. `box` is inbox or sent; `category` is sorted on this computer. */
-export interface MailMessage { id: string; account: string; box: 'inbox' | 'sent'; uid: number; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; seen: boolean; flagged: boolean; preview: string; category: MailCategory; attachments: string[]; /** A kept Get to zero plan said it needs a reply. */ needsReply?: boolean; laterMs?: number | null; archived?: boolean }
+export interface MailMessage { id: string; account: string; box: 'inbox' | 'sent'; uid: number; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; seen: boolean; flagged: boolean; preview: string; category: MailCategory; attachments: string[]; /** A kept Get to zero plan said it needs a reply. */ needsReply?: boolean; laterMs?: number | null; archived?: boolean; /** Its Message-ID and the ones it replies to (References, In-Reply-To), for its conversation. */ messageId?: string; references?: string[] }
 export type MailCategory = 'primary' | 'transactions' | 'updates';
 /** A whole message: its text, and its HTML (shown sandboxed, without loading anything from the web). */
-export interface MailContent { id: string; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; text: string; html: string | null; attachments: string[]; category?: MailCategory }
+export interface MailContent { id: string; from: MailPerson; to: MailPerson[]; cc: MailPerson[]; subject: string; dateMs: number; text: string; html: string | null; attachments: string[]; category?: MailCategory; /** Each attachment's name and size in bytes, in order: `saveAttachment` takes its place here. */ files?: { name: string; size: number }[] }
 /** A draft: the person's, or one Mobius suggested (`by` mobius), which waits as a suggestion until opened. */
 export interface MailDraft {
   /** Send later: when it goes, as you scheduled it. */
@@ -1145,6 +1145,8 @@ export interface MobiusBridge {
     list(box: 'inbox' | 'sent' | 'all', category: MailCategory | 'all', query: string): Promise<MailMessage[] | NotesFailure>;
     counts(): Promise<MailCounts | NotesFailure>;
     read(id: string): Promise<MailContent | NotesFailure>;
+    /** Saves an attachment (its place in `files`) in the Downloads folder; programs are refused. */
+    saveAttachment?(id: string, index: number): Promise<{ ok: true; path: string; name: string } | NotesFailure>;
     flag(id: string, which: 'seen' | 'flagged', on: boolean): Promise<{ ok: true } | NotesFailure>;
     sort(id: string, category: MailCategory): Promise<{ ok: true } | NotesFailure>;
     drafts(): Promise<MailDraft[] | NotesFailure>;

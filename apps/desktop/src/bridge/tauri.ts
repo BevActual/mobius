@@ -423,6 +423,7 @@ export function createTauriBridge(): MobiusBridge {
       list: (box, category, query) => call('mail', 'list', [box, category, query], () => []),
       counts: () => call('mail', 'counts', [], () => ({ primary: 0, transactions: 0, updates: 0, all: 0, drafts: 0, suggested: 0 })),
       read: (id) => call('mail', 'read', [id], () => ({ ok: false as const, message: 'Mail is not available.' })),
+      saveAttachment: (id, index) => call('mail', 'saveAttachment', [id, index], () => ({ ok: false as const, message: 'Mail is not available.' })),
       flag: (id, which, on) => call('mail', 'flag', [id, which, on], () => ({ ok: false as const, message: 'Mail is not available.' })),
       sort: (id, category) => call('mail', 'sort', [id, category], () => ({ ok: false as const, message: 'Mail is not available.' })),
       drafts: () => call('mail', 'drafts', [], () => []),

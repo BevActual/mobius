@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { formatWith } from './dates';
 import { usePreferences } from './usePreferences';
+import { threadKey, threads } from './mail-threads';
 import { isNotesFailure, type MailAccount, type MailCategory, type MailContent, type MailCounts, type MailDraft, type MailMessage } from '@mobius/shared';
 
 /** How long Send waits, with Undo, before the message goes. */
@@ -208,36 +209,56 @@ export function useMail() {
     return null;
   }, [api, refresh]);
 
-  /** The message after this one in the list (or the one before, at the end), to open when this one leaves it. */
-  const after = (id: string): string | null => {
-    const i = messages.findIndex((m) => m.id === id);
-    if (i < 0) return null;
-    return messages[i + 1]?.id ?? messages[i - 1]?.id ?? null;
+  /** The list as conversations, as Gmail and Superhuman show it: one row for each, its latest message on top. */
+  const rows = useMemo(() => threads(messages), [messages]);
+  /** Every message in the list that is in the same conversation as this one (just this one if it is not listed). */
+  const sameThread = (id: string): string[] => {
+    const m = messages.find((x) => x.id === id);
+    if (!m) return [id];
+    const key = threadKey(m);
+    return messages.filter((x) => threadKey(x) === key).map((x) => x.id);
   };
-  /** E: out of the inbox (still in Archive and search), or back in it. The next message opens. */
+  /** The conversation after this one in the list (or the one before, at the end), to open when this one leaves it. */
+  const after = (id: string): string | null => {
+    const i = rows.findIndex((t) => t.messages.some((m) => m.id === id));
+    if (i < 0) return null;
+    return rows[i + 1]?.latest.id ?? rows[i - 1]?.latest.id ?? null;
+  };
+  /**
+   * E: the whole conversation out of the inbox (still in Archive and search), or back in it. The next one opens.
+   * Undo puts back just what this took out.
+   */
   const archive = useCallback(async (id: string, on = true) => {
-    const next = live.current.open?.id === id ? after(id) : null;
+    const ids = sameThread(id);
+    const open = live.current.open?.id;
+    const next = open && ids.includes(open) ? after(id) : null;
     reading.current += 1;
-    const done = await api?.archive?.(id, on);
-    if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
-    setOpen((cur) => (cur?.id === id ? null : cur));
-    setUndo(on ? { text: `Done: “${subjectOf(id)}”`, run: async () => { setUndo(null); await archive(id, false); } } : null);
+    for (const one of ids) {
+      const done = await api?.archive?.(one, on);
+      if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
+    }
+    setOpen((cur) => (cur && ids.includes(cur.id) ? null : cur));
+    setUndo(on ? { text: `Done: “${subjectOf(id)}”`, run: async () => { setUndo(null); for (const one of ids) await api?.archive?.(one, false); await refresh(); } } : null);
     await refresh();
     if (next) await read(next);
-  }, [api, refresh, read, messages]); // eslint-disable-line react-hooks/exhaustive-deps
-  /** H: out of the inbox until `at`, then back at its top (null: back now). The next message opens. */
+  }, [api, refresh, read, messages, rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** H: the whole conversation out of the inbox until `at`, then back at its top (null: back now). The next one opens. */
   const later = useCallback(async (id: string, at: number | null) => {
-    const next = at !== null && live.current.open?.id === id ? after(id) : null;
+    const ids = sameThread(id);
+    const open = live.current.open?.id;
+    const next = at !== null && open && ids.includes(open) ? after(id) : null;
     reading.current += 1;
-    const done = await api?.remind?.(id, at);
-    if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
+    for (const one of ids) {
+      const done = await api?.remind?.(one, at);
+      if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
+    }
     if (at !== null) {
-      setOpen((cur) => (cur?.id === id ? null : cur));
-      setUndo({ text: `“${subjectOf(id)}” comes back ${backAt(at)}`, run: async () => { setUndo(null); await api?.remind?.(id, null); await refresh(); } });
+      setOpen((cur) => (cur && ids.includes(cur.id) ? null : cur));
+      setUndo({ text: `“${subjectOf(id)}” comes back ${backAt(at)}`, run: async () => { setUndo(null); for (const one of ids) await api?.remind?.(one, null); await refresh(); } });
     }
     await refresh();
     if (next) await read(next);
-  }, [api, refresh, read, messages]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, refresh, read, messages, rows]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Send later, as the person chose (null: unschedule). True when it is set. */
   const schedule = useCallback(async (id: string, at: number | null) => {
     const done = await api?.schedule?.(id, at);
@@ -264,7 +285,7 @@ export function useMail() {
 
   // A message waiting out its Undo seconds is not shown as a draft.
   const shownDrafts = useMemo(() => (holding.size === 0 ? drafts : drafts.filter((d) => !holding.has(d.id))), [drafts, holding]);
-  return { available: api !== undefined, loaded, accounts, view, setView, query, setQuery, messages, counts, drafts: shownDrafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, forward, compose, undo, clearUndo, message, refresh, archive, later, schedule };
+  return { available: api !== undefined, loaded, accounts, view, setView, query, setQuery, messages, rows, counts, drafts: shownDrafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, forward, compose, undo, clearUndo, message, refresh, archive, later, schedule };
 }
 
 export type MailState = ReturnType<typeof useMail>;

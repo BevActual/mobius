@@ -36,9 +36,9 @@ const page = (): Locator => shell().locator('.mail-page');
 /** Mobius's sorting of the Inbox, as labels in the sidebar. */
 const labels = (): Locator => shell().getByRole('region', { name: 'Labels' });
 
-async function start(replies: ModelReply[] = []): Promise<void> {
+async function start(replies: ModelReply[] = [], env: Record<string, string> = {}): Promise<void> {
   model = await startModel(replies);
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model', ...env } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   // Wide enough for Mailboxes, which starts hidden in a narrow window.
   await resizeWindow(mobius.app, 1440, 900);
@@ -222,4 +222,47 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await expect(list.getByRole('option')).toHaveCount(0);
   await labels().getByRole('button', { name: /^Primary/ }).click();
   await expect(list.getByRole('option')).toHaveCount(1);
+});
+
+/** Rui's answer to Ana's reply, in the same conversation as RUI, with the lunch menu attached. */
+const RUI_AGAIN = [
+  'From: Rui Almeida <rui@example.com>', 'To: Ana <ana@example.com>', 'Subject: Re: Terrace + lunch for the 13th', 'Message-ID: <t3@example.com>',
+  'In-Reply-To: <t2@example.com>', 'References: <t1@example.com> <t2@example.com>', 'Date: Mon, 09 Nov 2026 10:15:00 +0000',
+  'MIME-Version: 1.0', 'Content-Type: multipart/mixed; boundary="b1"', '',
+  '--b1', 'Content-Type: text/plain; charset=utf-8', '', 'Eight it is. The menu is attached.', '',
+  '--b1', 'Content-Type: application/pdf; name="menu.pdf"', 'Content-Disposition: attachment; filename="menu.pdf"', 'Content-Transfer-Encoding: base64', '',
+  Buffer.from('%PDF-1.4 lunch menu').toString('base64'), '--b1--', '',
+].join('\r\n');
+
+test('a conversation is one row, opens on its latest with the earlier one folded above, and Done takes all of it', async () => {
+  await servers.close();
+  servers = await startMailServers('app-pass', [{ uid: 7, flags: '', raw: RUI }, { uid: 9, flags: '', raw: RUI_AGAIN }]);
+  const downloads = path.join(userData, 'downloads');
+  fs.mkdirSync(downloads, { recursive: true });
+  await start([], { MOBIUS_DOWNLOADS_DIR: downloads });
+  const list = page().getByRole('listbox', { name: 'Messages' });
+  await expect(list.getByRole('option')).toHaveCount(1);
+  const row = list.getByRole('option').first();
+  await expect(row).toContainText('Re: Terrace + lunch for the 13th');
+  await expect(row.locator('.mail-row-count')).toHaveText('2');
+  await row.click();
+  const reader = page().locator('.mail-reader');
+  await expect(reader.locator('.mail-text').last()).toContainText('Eight it is');
+  // The first message sits folded above, one line; a click opens it in place.
+  const earlier = reader.getByRole('list', { name: '1 earlier message in this conversation' });
+  await earlier.getByRole('button', { name: /Rui Almeida/ }).click();
+  await expect(earlier).toContainText('Could you send the headcount by Wednesday?');
+  // The attachment is a chip with its size; a click saves it to Downloads.
+  const chip = reader.getByRole('list', { name: 'Attachments' }).getByRole('button', { name: /menu\.pdf/ });
+  await expect(chip).toContainText('19 bytes');
+  await chip.click();
+  await expect(reader.getByRole('status').filter({ hasText: 'Saved' })).toHaveText('Saved “menu.pdf” to Downloads');
+  expect(fs.readFileSync(path.join(downloads, 'menu.pdf'), 'utf8')).toBe('%PDF-1.4 lunch menu');
+  // Done from the row's hover takes the whole conversation out of the inbox, and Undo puts it all back.
+  await row.hover();
+  await row.locator('[data-act="done"]').click();
+  await expect(list.getByRole('option')).toHaveCount(0);
+  await shell().keyboard.press('z');
+  await expect(list.getByRole('option')).toHaveCount(1);
+  await expect(list.getByRole('option').first().locator('.mail-row-count')).toHaveText('2');
 });

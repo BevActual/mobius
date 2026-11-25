@@ -1261,7 +1261,7 @@ impl Mail {
             n += 1;
         }
         std::fs::write(&path, part.contents()).map_err(|e| e.to_string())?;
-        Ok(json!({ "path": path.to_string_lossy(), "name": path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or(name) }))
+        Ok(json!({ "ok": true, "path": path.to_string_lossy(), "name": path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or(name) }))
     }
 
     pub fn flag(&self, id: &str, which: &str, on: bool) -> Res<Value> {

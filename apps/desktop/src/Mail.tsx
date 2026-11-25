@@ -14,6 +14,7 @@ import { REMIND_AFTER, remindAt, remindDay, useFollowUps, waitingOn } from './ma
 import './mail.css';
 import { AccountDialog } from './MailAccounts';
 import { dayLabel, formatWith, timeLabel, weekdayLabel } from './dates';
+import { earlierIn, fileKind, sizeWords, type Thread } from './mail-threads';
 
 const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
   { id: 'primary', label: 'Primary' },
@@ -406,6 +407,79 @@ function ReplyBox({ mail, content, onDraftReply }: { mail: MailState; content: M
   );
 }
 
+/**
+ * The conversation's earlier messages, above the one open, each one line (who, when, its first words) as Gmail folds
+ * them; a click opens one in place, again folds it.
+ */
+function Earlier({ content }: { content: MailContent }) {
+  const [list, setList] = useState<MailMessage[]>([]);
+  const [shown, setShown] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const api = window.mobius.mail;
+    setShown({});
+    if (!api) { setList([]); return undefined; }
+    let live = true;
+    void api.list('all', 'all', '').then((all) => {
+      if (!live || isNotesFailure(all)) return;
+      const self = all.find((m) => m.id === content.id);
+      setList(self ? earlierIn(all, self) : []);
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, [content.id]);
+  if (list.length === 0) return null;
+  const toggle = async (m: MailMessage) => {
+    if (shown[m.id] !== undefined) { setShown(({ [m.id]: _, ...rest }) => rest); return; }
+    const got = await window.mobius.mail?.read(m.id);
+    if (got && !isNotesFailure(got)) setShown((cur) => ({ ...cur, [m.id]: got.text }));
+  };
+  return (
+    <ol className="mail-earlier" aria-label={`${list.length} earlier message${list.length === 1 ? '' : 's'} in this conversation`}>
+      {list.map((m) => (
+        <li key={m.id}>
+          <button type="button" className="mail-earlier-head" aria-expanded={shown[m.id] !== undefined} onClick={() => void toggle(m)}>
+            <b>{m.box === 'sent' ? 'You' : shownName(m.from)}</b>
+            <span className="mail-earlier-preview">{shown[m.id] === undefined ? m.preview : ''}</span>
+            <span className="mail-when">{when(m.dateMs)}</span>
+          </button>
+          {shown[m.id] !== undefined && <pre className="mail-text mail-earlier-text">{shown[m.id]}</pre>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const KIND_MARK = { pdf: 'PDF', image: 'IMG', sheet: 'XLS', doc: 'DOC', slides: 'PPT', archive: 'ZIP', file: 'FILE' } as const;
+
+/** The message's attachments as chips, as Gmail shows them: what kind, the name and size. A click saves it to Downloads. */
+function Files({ content }: { content: MailContent }) {
+  const [said, setSaid] = useState('');
+  useEffect(() => setSaid(''), [content.id]);
+  const files = content.files ?? content.attachments.map((name) => ({ name, size: -1 }));
+  if (files.length === 0) return null;
+  const save = async (i: number) => {
+    const api = window.mobius.mail;
+    if (!api?.saveAttachment) { setSaid('Saving attachments is not available here.'); return; }
+    const got = await api.saveAttachment(content.id, i);
+    setSaid(isNotesFailure(got) ? got.message : `Saved “${got.name}” to Downloads`);
+  };
+  return (
+    <div className="mail-files">
+      <ul className="mail-file-list" aria-label="Attachments">
+        {files.map((f, i) => (
+          <li key={`${i}-${f.name}`}>
+            <button type="button" className="mail-file" title={`Save ${f.name} to Downloads`} onClick={() => void save(i)}>
+              <span className="mail-file-kind" data-kind={fileKind(f.name)} aria-hidden="true">{KIND_MARK[fileKind(f.name)]}</span>
+              <span className="mail-file-name">{f.name}</span>
+              {f.size >= 0 && <span className="mail-file-size">{sizeWords(f.size)}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="mail-file-said" role="status">{said}</p>
+    </div>
+  );
+}
+
 function Reader({ mail, content, replying, onDraftReply }: { mail: MailState; content: MailContent; replying: MailDraft | null; onDraftReply?: (m: MailContent) => void }) {
   const suggestions = mail.drafts.filter((d) => d.by === 'mobius' && d.replyTo === content.id);
   const kept = mail.drafts.filter((d) => d.by === 'you' && d.replyTo === content.id);
@@ -417,6 +491,7 @@ function Reader({ mail, content, replying, onDraftReply }: { mail: MailState; co
   return (
     <article ref={reader} tabIndex={-1} className="mail-reader" aria-label={content.subject || 'Message'} data-comment-id={content.id} data-comment-label={content.subject || 'Message'}>
       <h1 className="mail-subject">{content.subject || '(no subject)'}</h1>
+      <Earlier content={content} />
       <header className="mail-reader-head">
         <span className="mail-avatar" aria-hidden="true">{initials(content.from.name, content.from.email)}</span>
         <div className="mail-reader-who">
@@ -427,7 +502,7 @@ function Reader({ mail, content, replying, onDraftReply }: { mail: MailState; co
         {content.html && <button type="button" className="btn mail-format" aria-pressed={!showHtml} onClick={() => setShowHtml((s) => !s)}>{showHtml ? 'Plain text' : 'Formatted'}</button>}
       </header>
       {content.html && showHtml ? <HtmlBody html={content.html} /> : <pre className="mail-text">{content.text}</pre>}
-      {content.attachments.length > 0 && <p className="mail-attachments">Attached: {content.attachments.join(', ')}</p>}
+      <Files content={content} />
       {/* What Mobius wrote, and what the person kept, come after the message, where a reply goes. */}
       {suggestions.map((d) => <Suggested key={d.id} mail={mail} draft={d} />)}
       {/* While a reply is being written here, its saved copy is that reply: it is not shown again above it. */}
@@ -456,15 +531,31 @@ function WaitingList({ mail, waiting, onStop }: { mail: MailState; waiting: read
   );
 }
 
-function Row({ m, on, onOpen, onMenu }: { m: MailMessage; on: boolean; onOpen: () => void; onMenu: (x: number, y: number) => void }) {
+/**
+ * One conversation in the list: its latest message, how many there are, unread or flagged if any is. On hover, Done
+ * and Later sit at its end, as in Superhuman; the keyboard has E and H, and the row's menu has both.
+ */
+function Row({ t, on, onOpen, onMenu, onDone, onLater }: { t: Thread; on: boolean; onOpen: () => void; onMenu: (x: number, y: number) => void; onDone?: (() => void) | undefined; onLater?: (() => void) | undefined }) {
+  const m = t.latest;
+  const n = t.messages.length;
   const who = m.box === 'sent' ? `To ${m.to.map(shownName).join(', ')}` : shownName(m.from);
+  const act = (run: () => void) => (e: ReactMouseEvent) => { e.stopPropagation(); e.preventDefault(); run(); };
   return (
-    <button type="button" role="option" aria-selected={on} className="mail-row" data-unread={!m.seen || undefined} data-flagged={m.flagged || undefined} data-id={m.id} onClick={onOpen}
+    <button type="button" role="option" aria-selected={on} className="mail-row" data-unread={t.unread || undefined} data-flagged={t.flagged || undefined} data-id={m.id} data-count={n > 1 ? n : undefined} onClick={onOpen}
       onContextMenu={(e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}
       onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); onMenu(r.left + 16, r.bottom); } }}>
-      <span className="mail-row-who">{who}</span>
+      <span className="mail-row-who">{who}{n > 1 && <span className="mail-row-count" aria-label={`${n} messages`}>{n}</span>}</span>
       <span className="mail-row-what"><span className="mail-row-subject">{m.subject || '(no subject)'}</span>{m.needsReply && <span className="mail-needs-reply"> · Reply</span>}<span className="mail-row-preview">{m.preview}</span></span>
-      <span className="mail-row-end">{m.flagged && <span className="mail-row-flag" role="img" aria-label="Flagged"><Glyph name="flag" filled /></span>}<span className="mail-when">{(m.laterMs ?? 0) > Date.now() ? `Back ${backAt(m.laterMs!)}` : when(m.dateMs)}</span></span>
+      <span className="mail-row-end">
+        {t.flagged && <span className="mail-row-flag" role="img" aria-label="Flagged"><Glyph name="flag" filled /></span>}
+        <span className="mail-when">{(m.laterMs ?? 0) > Date.now() ? `Back ${backAt(m.laterMs!)}` : when(m.dateMs)}</span>
+        {(onDone || onLater) && (
+          <span className="mail-row-acts" aria-hidden="true">
+            {onDone && <span className="mail-row-act" title="Done (E)" data-act="done" onClick={act(onDone)}><svg viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7" /></svg></span>}
+            {onLater && <span className="mail-row-act" title="Later (H)" data-act="later" onClick={act(onLater)}><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" /><path d="M8 5v3l2 1.5" /></svg></span>}
+          </span>
+        )}
+      </span>
     </button>
   );
 }
@@ -613,10 +704,10 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
       // Mail's list. Also from the stage itself, which has the keys once Mail is opened from Ctrl+K.
       const down = e.key === 'ArrowDown' || (e.key === 'j' && !e.shiftKey);
       const up = e.key === 'ArrowUp' || (e.key === 'k' && !e.shiftKey);
-      if ((down || up) && m.view.kind === 'box' && m.messages.length > 0 && onList) {
+      if ((down || up) && m.view.kind === 'box' && m.rows.length > 0 && onList) {
         e.preventDefault();
-        const i = m.open ? m.messages.findIndex((x) => x.id === m.open!.id) : -1;
-        const next = m.messages[i < 0 ? 0 : Math.max(0, Math.min(m.messages.length - 1, i + (down ? 1 : -1)))]!;
+        const i = m.open ? m.rows.findIndex((t) => t.messages.some((x) => x.id === m.open!.id)) : -1;
+        const next = m.rows[i < 0 ? 0 : Math.max(0, Math.min(m.rows.length - 1, i + (down ? 1 : -1)))]!.latest;
         if (next.id !== m.open?.id) void m.read(next.id).then(() => document.querySelector(`.mail-row[data-id="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: 'nearest' }));
         return;
       }
@@ -641,7 +732,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
       </section>
     );
   }
-  const count = v.kind === 'drafts' ? drafts.length : v.kind === 'waiting' ? waiting.length : mail.messages.length;
+  const count = v.kind === 'drafts' ? drafts.length : v.kind === 'waiting' ? waiting.length : mail.rows.length;
   const pickLater = (at: number) => { const id = laterFor; setLaterFor(null); if (id) void mail.later(id, at); };
   return (
     <section className="mail-page" aria-label="Mail" data-open={mail.open || mail.editing ? true : undefined}>
@@ -661,7 +752,12 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
           <WaitingList mail={mail} waiting={waiting} onStop={(f, x, y) => setWaitMenu({ f, x, y })} />
         ) : (
           <div role="listbox" aria-label="Messages" className="mail-list" aria-keyshortcuts="E R Shift+R F U H">
-            {mail.messages.map((m) => <Row key={m.id} m={m} on={mail.open?.id === m.id} onOpen={() => void mail.read(m.id)} onMenu={(x, y) => setRowMenu({ m, x, y })} />)}
+            {mail.rows.map((t) => {
+              const m = t.latest;
+              const inInbox = m.box === 'inbox' && !m.archived;
+              return <Row key={t.key} t={t} on={Boolean(mail.open && t.messages.some((x) => x.id === mail.open!.id))} onOpen={() => void mail.read(m.id)} onMenu={(x, y) => setRowMenu({ m, x, y })}
+                onDone={inInbox ? () => void mail.archive(m.id) : undefined} onLater={inInbox && (m.laterMs ?? 0) <= Date.now() ? () => setLaterFor(m.id) : undefined} />;
+            })}
           </div>
         )}
         {!mail.loaded ? <ListLoading /> : <ListEnd mail={mail} count={count} />}
