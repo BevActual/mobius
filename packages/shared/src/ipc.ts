@@ -828,14 +828,19 @@ export interface MobiusBridge {
    */
   meeting?: {
     /** Whether meetings are heard here; when not, the window records them itself. */
-    available(): Promise<{ ok: true; here: boolean }>;
-    start(partSeconds?: number): Promise<{ ok: true; device: string } | { ok: false; error: string }>;
+    /** Whether meetings are heard here, and whether the computer's own sound (the other side of a call) can be too. */
+    available(): Promise<{ ok: true; here: boolean; others?: boolean }>;
+    /** `others` names what the computer's sound is heard from, when it is (Settings, Voice, Hear the other side of calls). */
+    start(partSeconds?: number): Promise<{ ok: true; device: string; others?: string | null } | { ok: false; error: string }>;
     /** Stops hearing; the last part and the end are sent as events before it answers. */
     stop(): Promise<{ ok: true } | { ok: false; error: string }>;
     /** Stops hearing and deletes what was heard. */
     cancel(): Promise<{ ok: true }>;
-    /** One part's words; `start` and `seconds` place it in the meeting. */
-    transcribe(index: number): Promise<{ ok: true; text: string; start: number; seconds: number; segments?: Array<{ start: number; end: number; text: string }> } | { ok: false; error: string; setup?: boolean }>;
+    /**
+     * One part's words; `start` and `seconds` place it in the meeting. When the other side was heard too, the text is
+     * in turns, "**You:**" and "**Others:**", and each segment says whose it is.
+     */
+    transcribe(index: number): Promise<{ ok: true; text: string; start: number; seconds: number; segments?: Array<{ start: number; end: number; text: string; speaker?: 'You' | 'Others' }> } | { ok: false; error: string; setup?: boolean }>;
     onEvent(listener: (event: MeetingEvent) => void): () => void;
   };
   /** Settings, Usage: the tokens model calls used, kept on this computer, summed per day, gateway, model, app and kind. */
@@ -2030,6 +2035,8 @@ export interface PreferencesSettings {
   listenFallback: ListenWith;
   /** The Whisper model for listening on this computer. */
   listenModel: ListenModel;
+  /** A meeting also hears what the computer plays, the other side of a call, where it can (Windows). */
+  meetingOthers: boolean;
   /** The speech server on this computer, in OpenAI's audio format (faster-whisper and the like). */
   listenUrl: string;
   /** Who speaks (text to speech). */
@@ -2087,7 +2094,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, minimizeToTray: false, language: DEFAULT_LANGUAGE, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenModel: 'base.en', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, minimizeToTray: false, language: DEFAULT_LANGUAGE, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenModel: 'base.en', meetingOthers: true, listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -2106,6 +2113,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   listenWith: oneOf<ListenWith>(...LISTEN_WITH),
   listenFallback: oneOf<ListenWith>(...LISTEN_WITH),
   listenModel: oneOf<ListenModel>(...LISTEN_MODELS),
+  meetingOthers: isFlag,
   listenUrl: (v): v is string => isVoiceUrl(v),
   speakWith: oneOf<SpeakWith>(...SPEAK_WITH),
   speakFallback: oneOf<SpeakWith>(...SPEAK_WITH),

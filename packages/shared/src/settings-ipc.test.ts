@@ -137,7 +137,7 @@ describe('approval mode', () => {
 
 describe('preferences changes', () => {
   it('start with alerts on, sounds on and nothing kept awake', () => {
-    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, minimizeToTray: false, language: 'en', localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', listenWith: 'chat', listenFallback: 'off', listenModel: 'base.en', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' }, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} });
+    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, minimizeToTray: false, language: 'en', localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', listenWith: 'chat', listenFallback: 'off', listenModel: 'base.en', meetingOthers: true, listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' }, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} });
     expect(parsePreferencesPatch({ language: 'en' })).toEqual({ language: 'en' });
     for (const bad of ['EN', 'klingon', '', 1]) expect(parsePreferencesPatch({ language: bad })).toBeNull();
     expect(parsePreferencesPatch({ minimizeToTray: true })).toEqual({ minimizeToTray: true });
@@ -209,6 +209,8 @@ describe('voice choices', () => {
   it('accept the providers each job has, and real speech server addresses', () => {
     expect(parsePreferencesPatch({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' })).toEqual({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' });
     expect(parsePreferencesPatch({ listenWith: 'device', listenModel: 'small.en' })).toEqual({ listenWith: 'device', listenModel: 'small.en' });
+    expect(parsePreferencesPatch({ meetingOthers: false })).toEqual({ meetingOthers: false });
+    expect(parsePreferencesPatch({ meetingOthers: 'no' })).toBeNull();
     for (const bad of [{ listenModel: 'large' }, { speakWith: 'chat' }, { listenWith: 'whisper' }, { listenUrl: 'ftp://x' }, { speakUrl: 'http://a b' }, { speakVoice: 'x'.repeat(101) }]) expect(parsePreferencesPatch(bad), JSON.stringify(bad)).toBeNull();
   });
 });

@@ -74,7 +74,7 @@ fn is_signatures(v: &Value) -> bool {
     v.as_object().is_some_and(|m| m.len() <= 20 && m.iter().all(|(k, s)| !k.is_empty() && k.len() <= 200 && s.as_str().is_some_and(|s| s.chars().count() <= 2000 && !s.contains('\0'))))
 }
 
-static FIELDS: [Field; 29] = [
+static FIELDS: [Field; 30] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -95,6 +95,8 @@ static FIELDS: [Field; 29] = [
     Field { name: "listenWith", default: || json!("chat"), check: |v| one_of(v, &LISTEN_WITH) },
     Field { name: "listenFallback", default: || json!("off"), check: |v| one_of(v, &LISTEN_WITH) },
     Field { name: "listenModel", default: || json!("base.en"), check: |v| one_of(v, &LISTEN_MODELS) },
+    // A meeting also hears what the computer plays, the other side of a call, where it can (voice-plan.md section 2).
+    Field { name: "meetingOthers", default: || json!(true), check: is_flag },
     Field { name: "listenUrl", default: || json!("http://127.0.0.1:8000/v1"), check: is_voice_url },
     Field { name: "speakWith", default: || json!("off"), check: |v| one_of(v, &SPEAK_WITH) },
     Field { name: "speakFallback", default: || json!("off"), check: |v| one_of(v, &SPEAK_WITH) },
@@ -211,6 +213,9 @@ mod voice_tests {
         assert_eq!((p.get()["listenWith"].as_str(), p.get()["listenModel"].as_str()), (Some("device"), Some("small.en")));
         p.set(&json!({ "listenModel": "large" }));
         assert_eq!(p.get()["listenModel"], "small.en", "a model Mobius doesn't have is not saved");
+        assert_eq!(p.get()["meetingOthers"], true);
+        p.set(&json!({ "meetingOthers": false }));
+        assert_eq!(p.get()["meetingOthers"], false);
     }
 }
 

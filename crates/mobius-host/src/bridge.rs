@@ -896,14 +896,30 @@ impl Bridge {
             ("voice", "deviceStatus") => Ok(self.device_voice.status(&self.listen_model(arg(0).as_str()))),
             ("voice", "deviceSetup") => Ok(self.device_voice.setup(&self.listen_model(arg(0).as_str()))),
             ("voice", "deviceRemove") => Ok(self.device_voice.remove(&self.listen_model(None))),
-            // Notes, Record a meeting: the microphone heard here, in parts. Each part is written down with whoever is
-            // chosen for listening when the window asks, and its file deleted then.
+            // Notes, Record a meeting: the microphone heard here, in parts, and the computer's own sound beside it where
+            // that can be heard and isn't turned off in Settings. Each part is written down with whoever is chosen for
+            // listening when the window asks, and its files deleted then.
             ("meeting", "available") => Ok(self.meetings.available()),
-            ("meeting", "start") => Ok(self.meetings.start(arg(0).as_u64())),
+            ("meeting", "start") => {
+                let others = lock(&self.preferences).get()["meetingOthers"] != false;
+                Ok(self.meetings.start(arg(0).as_u64(), others))
+            }
             ("meeting", "stop") => Ok(self.meetings.stop()),
             ("meeting", "cancel") => Ok(self.meetings.cancel()),
             ("meeting", "transcribe") => Ok(match self.meetings.take(arg(0).as_u64().unwrap_or(u64::MAX)) {
-                Ok((wav, start, seconds)) => crate::meeting::in_meeting(self.listen(&wav, "audio/wav"), start, seconds),
+                Ok(part) => {
+                    let you = self.listen(&part.you, "audio/wav");
+                    let heard = match &part.others {
+                        Some(others) => {
+                            // The other track is written down only when something played in it.
+                            let loud = crate::meeting::loud_frames(others);
+                            let theirs = if crate::meeting::anything_played(&loud) { self.listen(others, "audio/wav") } else { json!({ "ok": false, "error": "No speech was heard." }) };
+                            crate::meeting::two_sides(you, theirs, &loud, part.seconds)
+                        }
+                        None => you,
+                    };
+                    crate::meeting::in_meeting(heard, part.start, part.seconds)
+                }
                 Err(error) => json!({ "ok": false, "error": error }),
             }),
             // Read words aloud with the service chosen for speaking: the window gets the sound, never a key.
