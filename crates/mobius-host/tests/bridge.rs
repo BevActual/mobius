@@ -1142,7 +1142,7 @@ fn tasks_are_real_files_the_window_and_the_agent_both_change() {
     let line = added["tasks"][0]["line"].clone();
     let ticked = call(&b, "tasks", "update", json!(["Inbox", line, "Call the plumber", { "done": true, "due": null }]));
     assert_eq!(ticked["tasks"][0]["done"], true);
-    assert_eq!(std::fs::read_to_string(dir.path().join("workspace/tasks/Inbox.md")).unwrap(), "# Inbox\n\n- [x] Call the plumber\n");
+    assert_eq!(std::fs::read_to_string(dir.path().join("workspace/tasks/Inbox.md")).unwrap(), format!("# Inbox\n\n- [x] Call the plumber (done {})\n", chrono::Local::now().format("%Y-%m-%d")));
     // A change to a task that is no longer what the window saw is refused, and says so.
     let stale = call(&b, "tasks", "update", json!(["Inbox", line, "Something else", { "done": false }]));
     assert_eq!((stale["ok"].clone(), stale["conflict"].clone()), (json!(false), json!(true)));

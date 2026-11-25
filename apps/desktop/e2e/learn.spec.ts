@@ -54,7 +54,7 @@ test('Help › Learn Mobius opens lessons beside the page in place of Mobius, an
 
 test('searching lessons finds what an app can do', async () => {
   await openLearn();
-  await learn().getByRole('searchbox', { name: 'Search lessons' }).fill('smart lists');
+  await learn().getByRole('searchbox', { name: 'Search lessons' }).fill('when and deadline');
   await expect(learn().getByRole('list', { name: 'Lessons' }).getByRole('button')).toHaveCount(1);
   await expect(learn().getByRole('list', { name: 'Lessons' })).toContainText('Tasks');
 });

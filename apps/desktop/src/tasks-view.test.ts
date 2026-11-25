@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setLocaleForTests } from './dates';
 import type { TaskItem } from '@mobius/shared';
-import { arrange, byDay, byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, parseWhenAndTime, searchTasks, smartView, splitDone, tasksGlance, tasksIn, timeWords } from './tasks-view';
+import { arrange, byDay, byDone, byList, upcomingDay, whenLabel, dueLabel, LIST_COLORS, listColor, nest, parseWhen, parseWhenAndTime, searchTasks, smartView, splitDone, tasksGlance, tasksIn, timeWords } from './tasks-view';
 
 const t = (text: string, due: string | null = null, done = false, line = 0): TaskItem => ({ line, text, done, due });
 const today = new Date(2026, 10, 6, 15, 0); // 6 November 2026, afternoon
@@ -30,7 +30,39 @@ describe('lists', () => {
   it('Today gathers what is due today or late from every list, earliest first, never done ones', () => {
     const lists = { Inbox: [t('late', '2026-11-01'), t('done', '2026-11-06', true), t('later', '2026-12-01')], Work: [t('today', '2026-11-06'), t('none')] };
     expect(smartView('today', lists, today).map((x) => [x.list, x.task.text])).toEqual([['Inbox', 'late'], ['Work', 'today']]);
-    expect(smartView('scheduled', lists, today).map((x) => x.task.text)).toEqual(['late', 'today', 'later']);
+    expect(smartView('scheduled', lists, today).map((x) => x.task.text)).toEqual(['later']);
+  });
+});
+
+describe('When and Deadline, as Things has them', () => {
+  // 6 November 2026.
+  const w = (text: string, when: string | null, due: string | null = null, extra: Partial<TaskItem> = {}): TaskItem => ({ line: 0, text, done: false, due, when, ...extra });
+  const lists = {
+    Inbox: [w('planned today', '2026-11-06'), w('planned last week', '2026-10-30'), w('planned friday', '2026-11-13'), w('someday', 'someday'), w('free', null)],
+    Work: [w('deadline today', null, '2026-11-06'), w('plan later, due sooner', '2026-11-20', '2026-11-10'), w('someday, due later', 'someday', '2026-12-01'), w('done', '2026-11-06', null, { done: true, doneOn: '2026-11-05' })],
+  };
+  const names = (view: Parameters<typeof smartView>[0]) => smartView(view, lists, today).map((x) => x.task.text);
+  it('Today is what is planned for today or before, and what is due today or past', () => {
+    expect(names('today')).toEqual(['planned last week', 'planned today', 'deadline today']);
+  });
+  it('Upcoming puts each on the day it is planned for, else its deadline', () => {
+    expect(names('scheduled')).toEqual(['planned friday', 'plan later, due sooner', 'someday, due later']);
+    expect(upcomingDay(lists.Work[1]!, '2026-11-06')).toBe('2026-11-20');
+    expect(byDay(smartView('scheduled', lists, today), today, (t) => upcomingDay(t, '2026-11-06')).map((g) => g.label)).toEqual(['November', 'December']);
+  });
+  it('Anytime leaves out what is planned for later and Someday; Someday holds those', () => {
+    expect(names('all')).toEqual(['planned today', 'planned last week', 'free', 'deadline today']);
+    expect(names('someday')).toEqual(['someday', 'someday, due later']);
+  });
+  it('the Logbook lists the latest done first, under the day it was done', () => {
+    const book = { A: [w('old', null, null, { done: true }), w('mon', null, null, { done: true, doneOn: '2026-11-02' }), w('today', null, null, { done: true, doneOn: '2026-11-06' })], B: [w('yday', null, null, { done: true, doneOn: '2026-11-05' })] };
+    const rows = smartView('completed', book, today);
+    expect(rows.map((x) => x.task.text)).toEqual(['today', 'yday', 'mon', 'old']);
+    expect(byDone(rows, today).map((g) => [g.label, g.rows.length])).toEqual([['Today', 1], ['Yesterday', 1], ['2 Nov', 1], ['Earlier', 1]]);
+  });
+  it('says When in words', () => {
+    expect(whenLabel('someday', today)).toBe('Someday');
+    expect(whenLabel('2026-11-07', today)).toBe('Tomorrow');
   });
 });
 
@@ -44,7 +76,7 @@ describe('what a list had before a turn', () => {
 
 describe('the views across every list', () => {
   const lists = { Inbox: [{ ...t('flag', null), flagged: true }, t('plain'), t('old', null, true)], Work: [{ ...t('flag done', null, true), flagged: true }, t('report', '2026-11-20')] };
-  it('Flagged, All and Completed', () => {
+  it('Flagged, Anytime and the Logbook', () => {
     expect(smartView('flagged', lists, today).map((x) => x.task.text)).toEqual(['flag']);
     expect(smartView('all', lists, today).map((x) => x.task.text)).toEqual(['flag', 'plain', 'report']);
     expect(smartView('completed', lists, today).map((x) => x.task.text)).toEqual(['old', 'flag done']);
@@ -134,18 +166,19 @@ describe('times and repeats', () => {
   });
   it('knows the words of a task that has a time, a repeat and a flag', () => {
     expect([...tasksIn('- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)\n- [x] Pay (due 2026-11-01)')]).toEqual(['Stand-up', 'Pay']);
+    expect([...tasksIn('- [ ] Plan (when someday)\n- [x] Book (when 2026-11-02) (done 2026-11-03)')]).toEqual(['Plan', 'Book']);
   });
 });
 
 describe('the Glance in the Mobius panel', () => {
-  it('counts open tasks that are overdue, due today and flagged, across every list', () => {
+  it('counts open tasks past their deadline, the rest of Today, and flagged, across every list', () => {
     const t = (line: number, due: string | null, extra: Partial<TaskItem> = {}): TaskItem => ({ line, text: `t${line}`, done: false, due, ...extra });
     const lists = {
-      Inbox: [t(1, '2026-11-12'), t(2, '2026-11-14'), t(3, '2026-11-14', { done: true }), t(4, null, { flagged: true })],
+      Inbox: [t(1, '2026-11-12'), t(2, '2026-11-14'), t(3, '2026-11-14', { done: true }), t(4, null, { flagged: true }), t(5, null, { when: '2026-11-14' })],
       Garden: [t(1, '2026-11-13', { flagged: true }), t(2, '2026-11-20'), t(3, '2026-11-01', { done: true, flagged: true })],
     };
     expect(tasksGlance(lists, new Date(2026, 10, 14, 9))).toEqual([
-      { label: 'Overdue', value: '2' }, { label: 'Due today', value: '1' }, { label: 'Flagged', value: '2' },
+      { label: 'Overdue', value: '2' }, { label: 'Today', value: '2' }, { label: 'Flagged', value: '2' },
     ]);
   });
 });

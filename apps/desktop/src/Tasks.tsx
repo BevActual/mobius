@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
-import { arrange, byDay, byList, DEFAULT_LIST_NAME, TASK_FILTERS, TASK_SORTS, type TaskFilter, type TaskSort, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, tasksGlance, timeWords, type Located, type SmartView } from './tasks-view';
+import { arrange, byDay, byDone, byList, DEFAULT_LIST_NAME, planDay, SOMEDAY, upcomingDay, whenLabel, TASK_FILTERS, TASK_SORTS, type TaskFilter, type TaskSort, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, tasksGlance, timeWords, type Located, type SmartView } from './tasks-view';
 import type { TasksState } from './useTasks';
 import { ChangeBar, ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
@@ -27,6 +27,7 @@ const dragged = (e: DragEvent): Dragged | null => { try { return JSON.parse(e.da
 const isTaskDrag = (e: DragEvent) => e.dataTransfer.types.includes(DRAG);
 const findTask = (tasks: TasksState, d: Dragged) => (tasks.all[d.list] ?? []).find((t) => t.line === d.line && t.text === d.text) ?? null;
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+const DEADLINE_KEYS = MOD === '⌘' ? '⌘⇧D' : 'Ctrl+Shift+D';
 
 /** Moves the keyboard to the task row before or after this one on the page (or back to the add field from the first). */
 function stepRow(from: HTMLElement, by: 1 | -1) {
@@ -68,6 +69,7 @@ function SmartIcon({ id }: { id: SmartView }) {
     today: <><rect x="5" y="6" width="10" height="9" rx="1.5" /><path d="M5 9h10M8 4.5v3M12 4.5v3" /></>,
     scheduled: <><rect x="5" y="6" width="10" height="9" rx="1.5" /><path d="M5 9h10M8 11.5h1M11 11.5h1M8 13.5h1" /></>,
     all: <><path d="M5.5 6.5h9M5.5 10h9M5.5 13.5h9" /></>,
+    someday: <><rect x="4.5" y="5" width="11" height="3" rx="1" /><path d="M5.5 8v6.5h9V8M8.5 11h3" /></>,
     flagged: <path d="M7 15.5V5.2c2.4-1.3 4 1 6.5-.2v5.6c-2.5 1.2-4.1-1.1-6.5.2" />,
     completed: <path d="M6 10.3 8.8 13 14 7.2" />,
   };
@@ -259,6 +261,8 @@ interface RowProps {
   reorder?: boolean;
   /** The heading above already names the day, so the row need not say it again. */
   hideDue?: boolean;
+  /** The view already says when it is planned for (Today, Upcoming, Someday), so the row does not. */
+  hideWhen?: boolean;
 }
 
 /** A task's note on the line under its words: one line, cut short with an ellipsis, the whole of it in the tooltip. */
@@ -266,7 +270,10 @@ function TaskNote({ text }: { text: string }) {
   return <span className="task-note" title={text}>{text}</span>;
 }
 
-function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = false, reorder = false, hideDue = false }: RowProps) {
+/** The task the keyboard just moved (Ctrl+↑/↓): its row takes focus back once it is drawn in its new place. */
+let refocus: { list: string; text: string } | null = null;
+
+function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = false, reorder = false, hideDue = false, hideWhen = false }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [words, setWords] = useState(task.text);
   const [dating, setDating] = useState(false);
@@ -276,6 +283,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const line = useRef<HTMLDivElement>(null);
   const completing = useCompleting(() => stepAway(line.current, () => tasks.complete(list, task)));
   useEffect(() => { if (editing) field.current?.select(); }, [editing]);
+  useEffect(() => { if (refocus?.list === list && refocus.text === task.text) { refocus = null; line.current?.focus(); } }, [list, task.text, task.line]);
   const finish = (keep: boolean) => {
     setEditing(false);
     const next = words.trim();
@@ -286,26 +294,46 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const tick = () => { if (task.done) void tasks.change(list, task, { done: false }); else completing.toggle(); };
   const details = () => tasks.pick(isPicked ? null : { list, text: task.text });
   const setDue = (due: string | null) => void tasks.change(list, task, { due });
+  const setWhen = (when: string | null) => void tasks.change(list, task, { when });
   const remove = () => void stepAway(line.current, () => tasks.remove(list, task));
+  // Up or down past the task above or below it in its own list, with its subtasks (as dragging does).
+  const shift = (by: 1 | -1) => {
+    const tops = nest(tasks.all[list] ?? []).map((n) => n.task);
+    const at = tops.findIndex((t) => t.line === task.line);
+    if (at < 0 || task.parent != null || (by === -1 && at === 0) || (by === 1 && at === tops.length - 1)) return;
+    // The row is drawn again in its new place: the keyboard goes with it (see `refocus`), so the key can be pressed again.
+    refocus = { list, text: task.text };
+    void tasks.move(list, task, list, by === -1 ? tops[at - 1] : tops[at + 2]);
+  };
   // The row's own keys, as in Reminders: arrows between tasks, Space ticks, Enter renames, ⌘I details, Delete deletes.
   const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
     const mod = e.metaKey || e.ctrlKey;
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); stepRow(e.currentTarget, e.key === 'ArrowDown' ? 1 : -1); }
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !mod) { e.preventDefault(); stepRow(e.currentTarget, e.key === 'ArrowDown' ? 1 : -1); }
     else if (e.key === ' ') { e.preventDefault(); tick(); }
     else if (e.key === 'Enter') { e.preventDefault(); setWords(task.text); setEditing(true); }
     else if (mod && e.key.toLowerCase() === 'i') { e.preventDefault(); details(); }
+    // When and Deadline, as Things has them: ⌘T today, ⌘R anytime (no day), ⌘O Someday, ⌘⇧D the deadline; ⌘↑ and ⌘↓ move it.
+    else if (mod && !e.shiftKey && e.key.toLowerCase() === 't') { e.preventDefault(); setWhen(days[0]!.day); }
+    else if (mod && !e.shiftKey && e.key.toLowerCase() === 'r') { e.preventDefault(); setWhen(null); }
+    else if (mod && !e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); setWhen(SOMEDAY); }
+    else if (mod && e.shiftKey && e.key.toLowerCase() === 'd') { e.preventDefault(); setDating(true); }
+    else if (mod && reorder && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); shift(e.key === 'ArrowDown' ? 1 : -1); }
     else if (e.key === 'Delete' || (e.key === 'Backspace' && mod)) { e.preventDefault(); remove(); }
     else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left + 40, y: r.bottom - 4 }); }
   };
   const days = quickDays(now);
+  const plan = planDay(task);
   const others = tasks.lists.filter((l) => l.name !== list);
   const menuItems = [
     { label: task.done ? 'Mark not done' : 'Mark done', keys: 'Space', run: tick },
     { label: 'Rename', keys: 'Enter', run: () => { setWords(task.text); setEditing(true); } },
     { label: isPicked ? 'Hide details' : 'Show details', keys: `${MOD}I`, run: details },
-    ...days.map((q, i) => ({ label: `Due ${q.label.toLowerCase()}`, separated: i === 0, disabled: task.due === q.day, run: () => setDue(q.day) })),
-    ...(task.due ? [{ label: 'No due date', run: () => setDue(null) }] : []),
+    ...days.map((q, i) => ({ label: `Do ${q.label.toLowerCase()}`, separated: i === 0, keys: i === 0 ? `${MOD}T` : undefined, disabled: plan === q.day, run: () => setWhen(q.day) })),
+    { label: 'Someday', keys: `${MOD}O`, disabled: task.when === SOMEDAY, run: () => setWhen(SOMEDAY) },
+    ...(task.when ? [{ label: 'Anytime', keys: `${MOD}R`, run: () => setWhen(null) }] : []),
+    ...days.map((q, i) => ({ label: `Deadline ${q.label.toLowerCase()}`, separated: i === 0, disabled: task.due === q.day, run: () => setDue(q.day) })),
+    ...(task.due ? [{ label: 'No deadline', run: () => setDue(null) }] : []),
     { label: task.flagged ? 'Unflag' : 'Flag', separated: true, run: () => void tasks.change(list, task, { flagged: !task.flagged }) },
     ...others.map((l, i) => ({ label: `Move to ${l.name}`, separated: i === 0, run: () => void tasks.move(list, task, l.name) })),
     { label: 'Delete', danger: true, separated: true, keys: 'Delete', run: remove },
@@ -342,20 +370,21 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
         </div>
         {/* The trailing edge, as in Linear: the subtask count, the list (in views across lists), the flag, then the
             due date in tabular figures, grey unless overdue. */}
-        {((task.due && (!hideDue || task.time || task.repeat)) || task.repeat || showList || subtasks.length > 0 || task.flagged) && (
+        {((task.due && (!hideDue || task.time || task.repeat)) || task.repeat || showList || subtasks.length > 0 || task.flagged || (task.when && !hideWhen)) && (
           <span className="task-meta">
             {subtasks.length > 0 && <span className="task-subcount" title={`${subsDone} of ${subtasks.length} subtasks done`}>{subsDone}/{subtasks.length}</span>}
             {showList && <span className="task-list"><span className="list-dot" data-color={listColor(list)} aria-hidden="true" />{list}</span>}
             {task.flagged && <span className="task-flagged" role="img" aria-label="Flagged" title="Flagged"><FlagGlyph /></span>}
+            {task.when && !hideWhen && <span className="task-plan" title={task.when === SOMEDAY ? 'Put off to Someday' : `Planned for ${whenLabel(task.when, now)}`}>{whenLabel(task.when, now)}</span>}
             {task.due ? <Due due={task.due} time={task.time} repeat={task.repeat} now={now} dayShown={!hideDue} /> : task.repeat && <Due due="" repeat={task.repeat} now={now} dayShown={false} />}
           </span>
         )}
         <span className="task-tools">
           {dating ? (
-            <input type="date" className="task-date" aria-label={`Due date for ${task.text}`} autoFocus defaultValue={task.due ?? ''}
+            <input type="date" className="task-date" aria-label={`Deadline for ${task.text}`} autoFocus defaultValue={task.due ?? ''}
               onChange={(e) => { setDating(false); void tasks.change(list, task, { due: e.target.value || null }); }} onBlur={() => setDating(false)} onKeyDown={(e) => { if (e.key === 'Escape') setDating(false); }} />
           ) : (
-            <button type="button" className="strip-btn task-tool-date" aria-label={`Set a due date for ${task.text}`} title={task.due ? "Change the due date" : "Due date"} onClick={() => setDating(true)}>
+            <button type="button" className="strip-btn task-tool-date" aria-label={`Set a deadline for ${task.text}`} title={task.due ? `Change the deadline (${DEADLINE_KEYS})` : `Deadline (${DEADLINE_KEYS})`} onClick={() => setDating(true)}>
               {/* Dated, the button is the date itself, where the date was, so the row's edge does not grow on hover. */}
               {task.due && !hideDue ? <Due due={task.due} time={task.time} now={now} /> : <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="12" rx="1.5" /><path d="M3.5 8h13M7 3v3M13 3v3" /></svg>}
             </button>
@@ -460,11 +489,24 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
       <textarea className="task-inspector-title" aria-label="Task" rows={2} value={title} maxLength={500} onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))} onBlur={keepTitle} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} />
       <textarea className="task-inspector-notes" aria-label="Notes" placeholder="Add notes" rows={2} value={notes} maxLength={4000} onChange={(e) => setNotes(e.target.value)} onBlur={keepNotes} />
       <section className="inspector-group" aria-label="When">
+        {/* When it is planned for, as Things has it, apart from its deadline: a day, or Someday. */}
         <div className="inspector-row">
-          <span className="inspector-label">Due</span>
+          <span className="inspector-label">When</span>
+          {task.when === SOMEDAY
+            ? <span className="inspector-someday">Someday</span>
+            : <span className="inspector-date"><DateField label="When" hideLabel placeholder="Anytime" value={task.when ? dayOf(task.when) : null}
+                onChange={(day) => void tasks.change(list, task, { when: day ? isoDay(day) : null })} /></span>}
+        </div>
+        <div className="inspector-chips" role="group" aria-label="When">
+          {quickDays(now).map((q) => <button key={q.label} type="button" className="chip" aria-pressed={task.when === q.day} onClick={() => void tasks.change(list, task, { when: q.day })}>{q.label}</button>)}
+          <button type="button" className="chip" aria-pressed={task.when === SOMEDAY} onClick={() => void tasks.change(list, task, { when: SOMEDAY })}>Someday</button>
+          <button type="button" className="chip" aria-pressed={!task.when} onClick={() => void tasks.change(list, task, { when: null })}>Anytime</button>
+        </div>
+        <div className="inspector-row">
+          <span className="inspector-label">Deadline</span>
           {/* The shared date field: words, a month and quick picks; typing "fri 3pm" sets the time too. */}
           <span className="inspector-date" data-tone={task.due ? dueLabel(task.due, now).tone : undefined}>
-            <DateField label="Due date" hideLabel placeholder="None" value={task.due ? dayOf(task.due) : null}
+            <DateField label="Deadline" hideLabel placeholder="None" value={task.due ? dayOf(task.due) : null}
               onChange={(day, time) => void tasks.change(list, task, day ? { due: isoDay(day), ...(time !== null ? { time: clockOf(time) } : {}) } : { due: null, time: null })} />
           </span>
         </div>
@@ -482,11 +524,8 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
           <Select label="Repeat" hideLabel value={task.repeat ?? ''} onChange={(v) => void tasks.change(list, task, { repeat: (v || null) as TaskRepeat | null })}
             choices={[{ value: '', label: 'Never' }, ...REPEATS.map((r) => ({ value: r.id as string, label: r.name }))]} />
         </div>
-        {task.repeat && <p className="inspector-hint">Ticking it off moves it to its next day.</p>}
-        <div className="inspector-chips">
-          {quickDays(now).map((q) => <button key={q.label} type="button" className="chip" aria-pressed={task.due === q.day} onClick={() => void tasks.change(list, task, { due: q.day })}>{q.label}</button>)}
-          {task.due && <button type="button" className="chip" onClick={() => void tasks.change(list, task, { due: null })}>No date</button>}
-        </div>
+        {task.repeat && <p className="inspector-hint">{!task.due && planDay(task) ? 'Ticking it off moves When to its next day.' : 'Ticking it off moves it to its next day.'}</p>}
+        {task.due && <div className="inspector-chips"><button type="button" className="chip" onClick={() => void tasks.change(list, task, { due: null })}>No deadline</button></div>}
       </section>
       <section className="inspector-group">
         <div className="inspector-row inspector-switch">
@@ -534,17 +573,15 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
 
 const saidWords = (said: { due: string; time?: string }, now: Date) => [dueLabel(said.due, now).text, said.time ? timeWords(said.time, now) : ''].filter(Boolean).join(', ');
 
-/** The add field: a date said at the end ("tomorrow", "by fri") becomes the due date, shown as a chip to take back. */
-function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks: TasksState; placeholder: string; target: string; defaultDue: string | null; focusToken: number }) {
+/** The add field: a date said at the end ("tomorrow", "by fri") becomes the deadline, shown as a chip to take back.
+ *  `defaultWhen`: what a task typed here is planned for (today in Today, the day under a day in Upcoming, Someday). */
+function NewTask({ tasks, placeholder, target, defaultWhen, focusToken }: { tasks: TasksState; placeholder: string; target: string; defaultWhen: string | null; focusToken: number }) {
   const [text, setText] = useState('');
   const [due, setDue] = useState('');
   const [literal, setLiteral] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const typing = useRef(text);
   typing.current = text;
-  // A task added where it will not show (Today, for one due tomorrow) says where it went, with a way there.
-  const [went, setWent] = useState<{ text: string; when: string } | null>(null);
-  useEffect(() => { if (!went) return; const t = window.setTimeout(() => setWent(null), 6000); return () => window.clearTimeout(t); }, [went]);
   useEffect(() => { if (focusToken) input.current?.focus(); }, [focusToken]);
   const now = new Date();
   const said = literal || due ? null : parseWhenAndTime(text, now);
@@ -552,14 +589,14 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
     event.preventDefault();
     const words = (said ? said.text : text).trim();
     if (!words) return;
-    const date = due || said?.due || defaultDue;
+    const date = due || said?.due || null;
     // Cleared at once, so the next task can be typed while this one is written; put back only if it was refused and nothing new was typed.
     const typed = { text, due, literal };
     setText(''); setDue(''); setLiteral(false);
     input.current?.focus();
-    const added = await tasks.add(target, words, date, said?.time && date === said.due ? { time: said.time } : undefined);
+    const options = { ...(said?.time && date === said.due ? { time: said.time } : {}), ...(defaultWhen ? { when: defaultWhen } : {}) };
+    const added = await tasks.add(target, words, date, Object.keys(options).length ? options : undefined);
     if (!added && typing.current === '') { setText(typed.text); setDue(typed.due); setLiteral(typed.literal); }
-    if (added && tasks.view.kind === 'smart' && tasks.view.id === 'today' && date && date > isoDay(now)) setWent({ text: words, when: dueLabel(date, now).text });
   };
   return (
     <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>
@@ -567,19 +604,13 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
       <input ref={input} data-bare aria-label="New task" placeholder={placeholder} value={text} maxLength={500} onChange={(e) => { setText(e.target.value); if (!e.target.value) setLiteral(false); }}
         onKeyDown={(e) => { if (e.key === 'ArrowDown') { const first = e.currentTarget.closest('.tasks-main')?.querySelector<HTMLElement>('.task-line[tabindex]'); if (first) { e.preventDefault(); first.focus(); } } }} />
       {said && (
-        <button type="button" className="chip task-when" title={`“${said.phrase}” sets when it is due. Click to keep it as words.`} aria-label={`Due ${saidWords(said, now)}. Keep “${said.phrase}” as words instead`} onClick={() => { setLiteral(true); input.current?.focus(); }}>
+        <button type="button" className="chip task-when" title={`“${said.phrase}” sets its deadline. Click to keep it as words.`} aria-label={`Deadline ${saidWords(said, now)}. Keep “${said.phrase}” as words instead`} onClick={() => { setLiteral(true); input.current?.focus(); }}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="12" rx="1.5" /><path d="M3.5 8h13" /></svg>
           {saidWords(said, now)}
           <span aria-hidden="true" className="chip-x">×</span>
         </button>
       )}
-      <input type="date" className="task-date" aria-label="Due date for the new task" value={due} onChange={(e) => setDue(e.target.value)} />
-      {went && (
-        <p className="task-went" role="status">
-          <span>{`“${went.text}” is due ${went.when}, so it is in Scheduled.`}</span>
-          <button type="button" className="review-btn" onClick={() => { setWent(null); tasks.setView({ kind: 'smart', id: 'scheduled' }); }}>Show</button>
-        </p>
-      )}
+      <input type="date" className="task-date" aria-label="Deadline for the new task" value={due} onChange={(e) => setDue(e.target.value)} />
     </form>
   );
 }
@@ -632,11 +663,11 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
   const ask = onAsk ?? tasks.ask.current ?? undefined;
   // A task typed in Today is due today; anything typed outside a list lands in the Inbox.
   const target = view.kind === 'list' ? view.name : DEFAULT_LIST_NAME;
-  // A group's + (a list in All, a day in Scheduled): the box above adds there until the view changes.
-  const [addTo, setAddTo] = useState<{ list?: string; due?: string; label: string; token: number } | null>(null);
+  // A group's + (a list in Anytime, a day in Upcoming): the box above adds there until the view changes.
+  const [addTo, setAddTo] = useState<{ list?: string; when?: string; label: string; token: number } | null>(null);
   useEffect(() => { setAddTo(null); }, [view]);
-  const addHere = (to: { list?: string; due?: string; label: string }) => setAddTo((cur) => ({ ...to, token: (cur?.token ?? 0) + 1 }));
-  const groupAdd = (to: { list?: string; due?: string; label: string }) => (
+  const addHere = (to: { list?: string; when?: string; label: string }) => setAddTo((cur) => ({ ...to, token: (cur?.token ?? 0) + 1 }));
+  const groupAdd = (to: { list?: string; when?: string; label: string }) => (
     <button type="button" className="tasks-group-add" aria-label={`Add a task ${to.label}`} title={`Add a task ${to.label}`} onClick={() => addHere(to)}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
     </button>
@@ -644,8 +675,10 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
   const proposal = useListReview(review?.conversation ?? null, review && view.kind === 'list' ? view.name : null);
   const picked = tasks.picked;
 
+  // Today, Upcoming and Someday say when each is planned for, so their rows do not.
+  const hideWhen = view.kind === 'smart' && (view.id === 'today' || view.id === 'scheduled' || view.id === 'someday');
   const row = ({ list, task }: Located, opts: { showList: boolean; reorder?: boolean; subtasks?: TaskItem[]; hideDue?: boolean }) => (
-    <TaskRow key={`${list}:${task.line}:${task.text}`} tasks={tasks} list={list} task={task} showList={opts.showList} now={now} reorder={opts.reorder ?? false} subtasks={opts.subtasks ?? []} hideDue={opts.hideDue ?? false}
+    <TaskRow key={`${list}:${task.line}:${task.text}`} tasks={tasks} list={list} task={task} showList={opts.showList} now={now} reorder={opts.reorder ?? false} subtasks={opts.subtasks ?? []} hideDue={opts.hideDue ?? false} hideWhen={hideWhen}
       proposed={review !== null && view.kind === 'list' && proposal.isNew(task.text)} />
   );
 
@@ -718,24 +751,34 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
     else if (open.length === 0) empty = 'All done.';
   } else {
     const rows = smartView(view.id, tasks.all, now);
-    if (view.id === 'all' || view.id === 'completed') {
+    if (view.id === 'all' || view.id === 'someday') {
       body = byList(rows).map((g) => (
         <section key={g.list} className="tasks-group" data-color={listColor(g.list)} aria-label={g.list}>
-          <h2 className="tasks-group-head"><span className="list-dot" data-color={listColor(g.list)} aria-hidden="true" /><button type="button" onClick={() => tasks.setView({ kind: 'list', name: g.list })}>{g.list}</button><span className="tasks-group-count">{g.rows.length}</span>{view.id === 'all' && groupAdd({ list: g.list, label: `to ${g.list}` })}</h2>
-          <ul className="task-items" role="list" aria-label={view.id === 'completed' ? 'Completed' : 'To do'}>{withSubtasks(g.rows).map(({ at, subtasks }) => row(at, { showList: false, subtasks }))}</ul>
+          <h2 className="tasks-group-head"><span className="list-dot" data-color={listColor(g.list)} aria-hidden="true" /><button type="button" onClick={() => tasks.setView({ kind: 'list', name: g.list })}>{g.list}</button><span className="tasks-group-count">{g.rows.length}</span>{groupAdd({ list: g.list, label: `to ${g.list}` })}</h2>
+          <ul className="task-items" role="list" aria-label="To do">{withSubtasks(g.rows).map(({ at, subtasks }) => row(at, { showList: false, subtasks }))}</ul>
+        </section>
+      ));
+    } else if (view.id === 'completed') {
+      // The Logbook: what was done, under the day it was done, the latest first.
+      body = byDone(rows, now).map((g) => (
+        <section key={g.key} className="tasks-group tasks-day" aria-label={g.label}>
+          <h2 className="tasks-group-head">{g.label}<span className="tasks-group-count">{g.rows.length}</span></h2>
+          <ul className="task-items" role="list" aria-label="Completed">{g.rows.map((r) => row(r, { showList: true }))}</ul>
         </section>
       ));
     } else if (view.id === 'scheduled') {
-      body = byDay(rows, now).map((g) => (
-        <section key={g.key} className="tasks-group tasks-day" data-overdue={g.key === 'overdue' || undefined} aria-label={g.label}>
-          <h2 className="tasks-group-head">{g.label}<span className="tasks-group-count">{g.rows.length}</span>{g.exact && groupAdd({ due: g.key, label: `for ${g.label.toLowerCase().startsWith('to') ? g.label.toLowerCase() : g.label}` })}</h2>
-          <ul className="task-items" role="list" aria-label="To do">{g.rows.map((r) => row(r, { showList: true, hideDue: g.exact }))}</ul>
+      // Upcoming: day by day, each task on the day it is planned for, else on its deadline.
+      const today = isoDay(now);
+      body = byDay(rows, now, (t) => upcomingDay(t, today)).map((g) => (
+        <section key={g.key} className="tasks-group tasks-day" aria-label={g.label}>
+          <h2 className="tasks-group-head">{g.label}<span className="tasks-group-count">{g.rows.length}</span>{g.exact && groupAdd({ when: g.key, label: `for ${g.label.toLowerCase().startsWith('to') ? g.label.toLowerCase() : g.label}` })}</h2>
+          <ul className="task-items" role="list" aria-label="To do">{g.rows.map((r) => row(r, { showList: true, hideDue: g.exact && r.task.due === g.key }))}</ul>
         </section>
       ));
     } else {
       body = <ul className="task-items" role="list" aria-label="To do">{arrange(rows, sort, filter, now).map((r) => row(r, { showList: true }))}</ul>;
     }
-    if (rows.length === 0) empty = { today: 'Nothing is due today.', scheduled: 'Nothing has a date yet.', flagged: 'No flagged tasks. Flag one to keep it in sight.', all: 'No open tasks.', completed: 'Nothing is completed yet.' }[view.id];
+    if (rows.length === 0) empty = { today: 'Nothing planned or due today.', scheduled: 'Nothing is planned or due after today.', all: 'No open tasks.', someday: 'Nothing put off to Someday.', flagged: 'No flagged tasks. Flag one to keep it in sight.', completed: 'Nothing is done yet.' }[view.id];
   }
 
   // Until the lists are first read: placeholder rows, not "nothing here" and not a spinner.
@@ -781,8 +824,9 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
           )}
           {query && <p className="tasks-searching">Results for “{query}” <button type="button" className="btn" onClick={() => tasks.setQuery('')}>Clear</button></p>}
           {!query && view.kind === 'smart' && view.id === 'completed' ? null : !query && (
-            <NewTask tasks={tasks} target={addTo?.list ?? target} focusToken={focusToken + newToken + (addTo?.token ?? 0)} defaultDue={addTo?.due ?? (view.kind === 'smart' && view.id === 'today' ? isoDay(now) : null)}
-              placeholder={addTo ? `Add a task ${addTo.label}` : view.kind === 'list' ? `Add to ${view.name}` : view.id === 'today' ? 'Add something for today' : `Add to ${DEFAULT_LIST_NAME}`} />
+            <NewTask tasks={tasks} target={addTo?.list ?? target} focusToken={focusToken + newToken + (addTo?.token ?? 0)}
+              defaultWhen={addTo?.when ?? (view.kind === 'smart' ? (view.id === 'today' ? isoDay(now) : view.id === 'someday' ? SOMEDAY : null) : null)}
+              placeholder={addTo ? `Add a task ${addTo.label}` : view.kind === 'list' ? `Add to ${view.name}` : view.id === 'today' ? 'Add something for today' : view.id === 'someday' ? 'Add something for someday' : `Add to ${DEFAULT_LIST_NAME}`} />
           )}
           {tasks.message && <p className="tasks-message" role="alert">{tasks.message}</p>}
           {body}

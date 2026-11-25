@@ -67,29 +67,35 @@ Longer documents, with an outline and comments.
 ## Tasks
 
 Lists of things to do. Each task is one line: its check, its words in full ink with any note in grey, then at the
-right edge its subtask count, its list (in views across lists), a flag and when it is due, grey unless it is overdue.
+right edge its subtask count, its list (in views across lists), a flag, when it is planned for and its deadline, grey
+unless it is overdue.
 
 ![The Tasks app in Mobius](../readme/apps/tasks.png)
 
-- **The Lists panel** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
-  **My lists**, each with a dot in its colour and how many are open. Hover a list to pin it or open its menu (Rename, Delete).
-  **All** and **Completed** group tasks under each list's name with a count; **Scheduled** groups them under day
-  headings with a count: Overdue (in red), Today, Tomorrow, each day of the coming week, then by month.
+- **When and Deadline**, as in Things: **When** is the day you plan to do a task, or **Someday**; **Deadline** is the
+  day it is due. A date typed at the end of a new task sets the deadline.
+- **The Lists panel** has Search, New list, the views across every list, then **My lists**, each with a dot in its
+  colour and how many are open. Hover a list to pin it or open its menu (Rename, Delete). The views: **Today** (planned
+  for today or before, or due today or overdue), **Upcoming** (what is after today, under day headings for the week, then
+  by month, each task on the day it is planned for, else its deadline), **Anytime** (every open task not planned for
+  later or put off), **Someday**, **Flagged**, and the **Logbook** (what was done, under the day it was done).
 - **Times and repeats**: type a time after the day ("Call Sam tomorrow at 3pm", "Stand-up mon 9:30"; a time on its
   own means today), or set a time and a repeat (every day, weekday, week, month or year) in **Details**. Ticking off
   a repeating task moves it to its next day and leaves it open.
-- **Right-click a task** to tick it, rename it, show its details, set it due today, tomorrow or next week, flag it, move it to another
-  list or delete it.
+- **Right-click a task** to tick it, rename it, show its details, plan it for today, tomorrow, next week or Someday,
+  give it a deadline, flag it, move it to another list or delete it.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
-  the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
+  the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it. As in Things,
+  Ctrl+T plans it for today, Ctrl+R makes it Anytime, Ctrl+O puts it off to Someday, Ctrl+Shift+D sets its deadline, and
+  Ctrl+↑ and Ctrl+↓ move it within its list.
 - **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back. Completed
   tasks fold away under the list; **Clear N completed** in the fold's ⋯ menu (or the window's ⋯ menu) removes them. A list with nothing in it shows one plain line under the add row.
 - **Deleting** a task or a list shows **Undo** at the bottom of the page (Ctrl+Z works too).
-- **The Details panel** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
-  picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional
+- **The Details panel** beside the list holds a task's notes, its When (a date, or Today, Tomorrow, Next week, Someday),
+  its deadline with a time and a repeat, its flag, its list and its subtasks. Dates are written in your computer's regional
   format. Drag tasks to reorder them or move them between lists.
 - Tasks Mobius added are dashed until kept. **Discard** puts the list back as it was before that turn.
-- **Your day** at the top of the Mobius panel counts what is overdue, due today and flagged, across every list.
+- **Your day** at the top of the Mobius panel counts what is overdue, the rest of Today and what is flagged, across every list.
 
 - **Task lists on a server**: connecting a CalDAV account in Calendar (iCloud Reminders, Fastmail, Nextcloud Tasks)
   also brings its task lists into Tasks, under the account's name. Every change goes to the server first, so a list
@@ -97,7 +103,8 @@ right edge its subtask count, its list (in views across lists), a flag and when 
   The lists are read again with the account's calendars. Lists kept on a server are renamed and deleted there.
 
 **Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines, such as
-`- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)`. A list kept on a CalDAV server is mirrored in
+`- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)`; a planned day is `(when 2026-11-14)` or
+`(when someday)`, and a ticked task keeps `(done 2026-11-15)`. A list kept on a CalDAV server is mirrored in
 `calendar-accounts/<account>/tasks-<n>.md` in Mobius's data folder, outside the workspace.
 
 ## Calendar
