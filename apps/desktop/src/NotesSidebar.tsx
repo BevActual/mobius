@@ -82,7 +82,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   }, [changed, allPages]); // eslint-disable-line react-hooks/exhaustive-deps
   const tagList = useMemo(() => (withTags ? tagCounts(allPages) : []), [withTags, allPages]);
   const pinnedPages = useMemo(() => sortPages(allPages.filter((pg) => pinned?.has(pg.path)), sort), [allPages, pinned, sort]);
-  // Each notebook's notes in the order chosen (Notes' Sort Notes By), pinned ones first.
+  // Each notebook's notes in the order chosen in View (Sort notes by …), pinned ones first.
   const sorted = useMemo(() => new Map(notes.notebooks.map((nb) => [nb.name, sort === 'edited' && !pinned?.size ? nb.pages : sortPages(nb.pages, sort, pinned)])), [notes.notebooks, sort, pinned]);
   const pagesOf = (nb: { name: string; pages: NotePage[] }) => sorted.get(nb.name) ?? nb.pages;
   const tagged = useMemo(() => (tag ? allPages.filter((pg) => hasTag(pg.tags, tag)).sort((a, b) => b.modified - a.modified) : []), [tag, allPages]);
