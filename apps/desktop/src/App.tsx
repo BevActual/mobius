@@ -5,6 +5,8 @@ import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menus
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, parseLaunchChoice, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, settleBindings, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type CalendarEvent } from '@mobius/shared';
 import { MEETINGS_NOTEBOOK, meetingNote } from './note-insert';
+import { citeWhenOpen, noteForSource } from './note-sources';
+import { ClaimSources } from './RichText';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, findApp, isAvailable, isInstalled, isListed, setInstalledApps, type AppId, noteOpened, noteRecentItem, recentItems, APPS, COMPACT_APPS } from './apps';
@@ -1972,8 +1974,16 @@ export function App() {
     ? () => { if (!shows('agent')) setChatOpen(true); void conversation.send(TRY_ANOTHER_ASK, []); }
     : null;
 
+  // A fact Mobius took from a note ("Notes · <title>") opens that note from its card.
+  // Its lines are tinted for a moment when the page shows.
+  const claimSource = (source: string, words: string) => {
+    const found = noteForSource(source, notes.notebooks);
+    return found ? { label: 'Open note', open: () => { citeWhenOpen(found.page.path, words); openTarget({ app: 'notes', path: found.page.path, title: found.page.title }); } } : null;
+  };
+
   return (
     <TryAnotherContext.Provider value={tryAnother}>
+    <ClaimSources.Provider value={claimSource}>
     <AppFrame
       openRight={openRight}
       mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
@@ -2151,6 +2161,7 @@ export function App() {
         commands={allCommands} />
       <TooltipLayer />
     </AppFrame>
+    </ClaimSources.Provider>
     </TryAnotherContext.Provider>
   );
 }

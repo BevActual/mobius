@@ -36,6 +36,7 @@ import { changeBlocks, useTallChanges, type ChangeView } from './change-blocks';
 import { usePublishSuggestions } from './Comments';
 import { acceptGroup } from './docs-view';
 import { showTag, tagRanges, tagsIn } from './note-tags';
+import { citedLines, takeCite } from './note-sources';
 import { countWords } from './Docs';
 import { relativeTime } from './relative-time';
 import { timeLabel } from './dates';
@@ -127,6 +128,27 @@ const noteComments = (quotes: () => readonly string[]) => Extension.create({
         apply: (tr, old) => (tr.docChanged || tr.getMeta(commentKey) ? commentDecorations(tr.doc, quotes()) : old),
       },
       props: { decorations: (state) => commentKey.getState(state) },
+    })];
+  },
+});
+
+/** The lines a fact Mobius cited was taken from, tinted for a moment when the note is opened from its card. */
+const citeKey = new PluginKey<DecorationSet>('note-cited');
+const NoteCited = Extension.create({
+  name: 'noteCited',
+  addProseMirrorPlugins() {
+    return [new Plugin<DecorationSet>({
+      key: citeKey,
+      state: {
+        init: () => DecorationSet.empty,
+        apply: (tr, old) => {
+          const set = tr.getMeta(citeKey) as number[] | null | undefined;
+          if (set === null) return DecorationSet.empty;
+          if (set) return DecorationSet.create(tr.doc, set.map((pos) => Decoration.node(pos, pos + (tr.doc.nodeAt(pos)?.nodeSize ?? 0), { class: 'note-cited' })));
+          return tr.docChanged ? DecorationSet.empty : old;
+        },
+      },
+      props: { decorations: (state) => citeKey.getState(state) },
     })];
   },
 });
@@ -370,6 +392,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       changeMarks,
       metaMark,
       FindMarks,
+      NoteCited,
     ],
     content: firstText.current,
     contentType: 'markdown',
@@ -439,6 +462,25 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     known.current = notes.text;
     loadIntoEditor(editor, notes.text, placed.current !== (path ?? null));
     placed.current = path ?? null;
+  }, [editor, notes.text, path, source]);
+  // Opened from a fact Mobius took from this note: the lines it came from are tinted and brought into view.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || source || !path || placed.current !== path || !notes.text) return;
+    const fact = takeCite(path);
+    if (!fact) return;
+    const blocks: { pos: number; text: string }[] = [];
+    editor.state.doc.descendants((node, pos) => {
+      if (!node.isTextblock) return true;
+      // The title names the note, it is not where a fact comes from.
+      if (!(pos === 0 && node.type.name === 'heading')) blocks.push({ pos, text: node.textContent });
+      return false;
+    });
+    const at = citedLines(blocks.map((b) => b.text), fact).map((i) => blocks[i]!.pos);
+    if (!at.length) return;
+    editor.view.dispatch(editor.state.tr.setMeta(citeKey, at));
+    afterPaint(() => { if (!editor.isDestroyed) (editor.view.nodeDOM(at[0]!) as HTMLElement | null)?.scrollIntoView?.({ block: 'center' }); });
+    const t = window.setTimeout(() => { if (!editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(citeKey, null)); }, 2000);
+    return () => window.clearTimeout(t);
   }, [editor, notes.text, path, source]);
   // A page opened from the list takes the cursor, at its end (a new page: under its title).
   useEffect(() => {

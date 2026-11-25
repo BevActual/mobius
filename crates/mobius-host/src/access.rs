@@ -18,7 +18,7 @@ pub(crate) type Grants = &'static [(&'static str, Option<&'static str>)];
 pub(crate) fn capabilities(app: &str) -> (Grants, Grants) {
     match app {
         "browser" => (&[("browser.list", None), ("browser.read", None), ("web.search", None), ("web.read", None)], &[("browser.navigate", None), ("browser.interact", None)]),
-        "notes" => (&[("files.read", Some("notes/*"))], &[("files.write", Some("notes/*"))]),
+        "notes" => (&[("files.read", Some("notes/*")), ("notes.read", None)], &[("files.write", Some("notes/*"))]),
         "docs" => (&[("files.read", Some("docs/*"))], &[("files.write", Some("docs/*"))]),
         "slides" => (&[("files.read", Some("slides/*"))], &[("files.write", Some("slides/*"))]),
         "sheets" => (&[("sheets.read", None), ("files.read", Some("sheets/*"))], &[("sheets.write", None), ("files.write", Some("sheets/*"))]),
@@ -82,6 +82,7 @@ mod tests {
         let r = rules(&json!({ "browser": "follow", "notes": "always", "tasks": "off" }));
         assert_eq!(r["rules"], json!([
             { "capability": "files.read", "resource": "notes/*", "effect": "ask" },
+            { "capability": "notes.read", "effect": "ask" },
             { "capability": "files.write", "resource": "notes/*", "effect": "ask" },
             { "capability": "tasks.read", "effect": "deny" },
             { "capability": "tasks.write", "effect": "deny" },

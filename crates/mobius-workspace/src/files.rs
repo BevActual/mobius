@@ -31,6 +31,8 @@ pub fn tool_descriptions() -> Vec<Value> {
             "input_schema": { "type": "object", "properties": { "path": path("The file, relative to the workspace, such as notes/todo.md") }, "required": ["path"] } }),
         json!({ "name": "files.search", "description": "Find text in the workspace's text files (case-insensitive). Returns the file, line number and line of each match.", "capability": "files.read",
             "input_schema": { "type": "object", "properties": { "query": { "type": "string", "description": "The text to find." }, "path": path("A folder inside the workspace to look in. Defaults to all of it.") }, "required": ["query"] } }),
+        json!({ "name": "notes.search", "description": "Search the person's notes (the Notes app) for words: the notes holding the most of them come first, a word in the title counting for more. Returns each note's path (read it whole with files.read), title, notebook and the lines with the words. Use it before answering a question about what the person wrote, decided or planned, and mark each fact taken from a note as [the fact](trust:yours \"Notes · <the note's title>\"), so they can open the note it came from (when two notes share a title, \"Notes · <notebook> · <title>\").", "capability": "notes.read",
+            "input_schema": { "type": "object", "properties": { "query": { "type": "string", "description": "The words to look for: names, subjects, terms. Common words such as what or did are left out." }, "most": { "type": "integer", "description": "How many notes at most (1 to 20, default 8)." } }, "required": ["query"] } }),
         json!({ "name": "files.write", "description": "Create a text file in the workspace, or replace one completely. A checkpoint is taken first so the person can undo it. Prefer files.edit for small changes to an existing file.", "capability": "files.write", "resource_arg": "path",
             "input_schema": { "type": "object", "properties": { "path": path("The file, relative to the workspace."), "content": { "type": "string", "description": "The whole new content." } }, "required": ["path", "content"] } }),
         json!({ "name": "files.edit", "description": "Change part of a text file: replace one piece of text with another. Fails unless the old text appears exactly once (or replaceAll is true), so it cannot change the wrong place; the spaces and line breaks between its words may differ from the file's. A checkpoint is taken first.", "capability": "files.write", "resource_arg": "path",
@@ -539,6 +541,11 @@ impl Workspace {
     pub fn run(&self, name: &str, args: &Value) -> Res<String> {
         let args = if args.is_object() { args } else { &Value::Null };
         match name {
+            "notes.search" => {
+                let most = args.get("most").and_then(Value::as_u64).map_or(8, |n| n as usize);
+                let notes = crate::notes::Notes::new(&self.root, self.checkpoints.store());
+                notes.find(text_arg(args, "query")?, most).map(|v| v.to_string())
+            }
             "files.list" => {
                 let relative = args.get("path").and_then(Value::as_str).unwrap_or("");
                 let folder = self.inside(relative)?;
