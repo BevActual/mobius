@@ -9,7 +9,7 @@ The Agent app is Mobius's home, named **Home** in Go and Ctrl+K. It opens on the
 - **The desk** opens with one greeting ("Good afternoon"), the date and what is in flight ("3 waiting for you · Mobius
   is working"), and suggestions to start from, just above where you type. Under it:
   - **Inbox**: everything across your apps that waits on you, in one list. Chats with a question or an approval
-    (answered in place, with Allow), apps Mobius changed that you have not kept yet, replies Mobius drafted in Mail,
+    (answered in place, with Allow), apps Mobius changed while you were away (the row goes once you look), replies Mobius drafted in Mail,
     and mail you sent with no reply by the day you chose (open it, or Stop waiting).
   - **Working**: what Mobius is doing now, with Stop.
   - **In your apps**: the one thing in each worth a look (your next event, the first task due, who wrote your newest

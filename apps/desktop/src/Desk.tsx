@@ -146,10 +146,10 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
             })}
             {[...changed].map((app) => (
               <li key={`changed:${app}`}>
-                <button type="button" className="desk-row" data-changed aria-label={`${appName(app)}: Mobius changed it, not kept yet`} onClick={() => onOpenApp(app)}>
+                <button type="button" className="desk-row" data-changed aria-label={`${appName(app)}: changed by Mobius while you were away`} onClick={() => onOpenApp(app)}>
                   <Icon app={app} />
                   <span className="desk-name">{appName(app)}</span>
-                  <span className="desk-text">Changed by Mobius, keep or discard</span>
+                  <span className="desk-text">Changed by Mobius while you were away</span>
                   {go('Look')}
                 </button>
               </li>
@@ -165,8 +165,8 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
               </li>
             )}
             {noReply.map((f) => (
-              <li key={`noreply:${f.messageId}`} className="desk-row" aria-label={`No reply from ${waitingOn(f.to)}: ${f.subject || 'no subject'}`}>
-                <button type="button" className="desk-open" disabled={!f.sentId || !onOpenTarget} onClick={() => { if (f.sentId && onOpenTarget) onOpenTarget({ app: 'mail', id: f.sentId }); }}>
+              <li key={`noreply:${f.messageId}`} className="desk-row">
+                <button type="button" className="desk-open" aria-label={`Open ${f.subject || 'the message'}, no reply from ${waitingOn(f.to)}`} disabled={!f.sentId || !onOpenTarget} onClick={() => { if (f.sentId && onOpenTarget) onOpenTarget({ app: 'mail', id: f.sentId }); }}>
                   <Icon app="mail" />
                   <span className="desk-name">{f.subject || '(no subject)'}</span>
                   <span className="desk-text">No reply from {waitingOn(f.to)}</span>

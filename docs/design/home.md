@@ -11,8 +11,8 @@ and can be answered there.
 At the top of the desk, under the greeting and Get started, with its count beside the heading. It holds, in this order:
 
 - **Chats that need you**: a question, or an approval with **Allow** in the row (was under Now).
-- **Changes not kept**: each app Mobius changed while you were elsewhere, "Changed by Mobius, keep or discard". A press
-  opens the app on its Keep bar. These were a dashed edge on the app's row in In your apps; they are said once now.
+- **Changed while you were away**: each app Mobius changed while you were elsewhere, "Changed by Mobius while you were away". A press
+  opens the app; the row goes once you have looked, as the dashed edge did. These were a dashed edge on the app's row in In your apps; they are said once now.
 - **Suggested replies**: replies Mobius drafted in Mail, one row with the count; a press opens Mail's suggested replies.
 - **No reply yet**: mail sent with Remind if no reply whose day has come with no answer. A press opens the sent
   message; **Stop waiting** lets it go.

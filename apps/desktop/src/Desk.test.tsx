@@ -20,7 +20,7 @@ describe('the Inbox on Home', () => {
     expect(html).toContain('aria-label="Inbox"');
     expect(html).toMatch(/Inbox <span class="desk-count">3<\/span>/);
     expect(html).toContain('Ideas page: needs you');
-    expect(html).toContain('Notes: Mobius changed it, not kept yet');
+    expect(html).toContain('Notes: changed by Mobius while you were away');
     expect(html).toContain('2 suggested replies');
     expect(html).toContain('3 waiting for you');
     // A change is said once: not again under In your apps.
