@@ -32,6 +32,7 @@ Ctrl+Shift+C copies the page's address and says "Copied the link", as Arc's Copy
 
 ## Later
 
-- **Split view** (two pages side by side, as Arc's): it needs the shell to place two web views in the page panel, so it
-  is the Builder's to start.
+- **Split view** (two pages side by side, as Arc's): the shell can now show a second tab beside the active one
+  (`browser.showBeside`, `surface.setBesideBounds`), and the page clicked last is the active tab. The panel, its
+  divider and keys come next.
 - Separate sign-ins per space.

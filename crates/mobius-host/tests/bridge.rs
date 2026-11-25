@@ -307,8 +307,28 @@ mod browser {
         call(&b, "surface", "setBounds", json!([{ "x": 0, "y": 0, "width": 30000, "height": 5 }]));
         call(&b, "surface", "setBounds", json!([{ "x": "0", "y": 0, "width": 5, "height": 5 }]));
         let layouts = engine.layouts.lock().unwrap().clone();
-        let shown: Vec<_> = layouts.iter().filter_map(|(_, b)| *b).collect();
+        let shown: Vec<_> = layouts.iter().flatten().map(|(_, b)| *b).collect();
         assert_eq!(shown, vec![mobius_browser::engine::Bounds { x: 10, y: 21, width: 300, height: 200 }], "only the first, tidied; the rest hide the page");
+    }
+
+    #[test]
+    fn a_tab_can_show_beside_the_active_one_in_its_own_place() {
+        use mobius_browser::engine::Bounds;
+        let (b, engine, br, _e, _d) = with_browser(None);
+        br.open(None);
+        br.open(None);
+        call(&b, "browser", "activate", json!(["tab-1"]));
+        call(&b, "surface", "setBounds", json!([{ "x": 0, "y": 0, "width": 300, "height": 200 }]));
+        call(&b, "surface", "setBesideBounds", json!([{ "x": 300, "y": 0, "width": 300, "height": 200 }]));
+        call(&b, "browser", "showBeside", json!(["tab-2"]));
+        let last = engine.layouts.lock().unwrap().last().cloned().unwrap();
+        assert_eq!(last, vec![("tab-1".to_owned(), Bounds { x: 0, y: 0, width: 300, height: 200 }), ("tab-2".to_owned(), Bounds { x: 300, y: 0, width: 300, height: 200 })]);
+        assert_eq!(call(&b, "browser", "getState", json!([]))["beside"], "tab-2");
+        call(&b, "browser", "showBeside", json!(["not a tab"]));
+        assert_eq!(call(&b, "browser", "getState", json!([]))["beside"], serde_json::Value::Null, "a bad id ends the split");
+        call(&b, "browser", "showBeside", json!(["tab-2"]));
+        call(&b, "browser", "showBeside", json!([null]));
+        assert_eq!(call(&b, "browser", "getState", json!([]))["split"], serde_json::Value::Null);
     }
 
     #[test]

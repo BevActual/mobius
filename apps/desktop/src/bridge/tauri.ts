@@ -146,7 +146,7 @@ export function createTauriBridge(): MobiusBridge {
       getState: () => call('window', 'getState', [], () => NO_WINDOW),
       setTitle: (title) => call('window', 'setTitle', [title], () => undefined),
     },
-    surface: { setBounds: (bounds) => fire('surface', 'setBounds', [bounds]) },
+    surface: { setBounds: (bounds) => fire('surface', 'setBounds', [bounds]), setBesideBounds: (bounds) => fire('surface', 'setBesideBounds', [bounds]) },
     changes: {
       lastTurn: (conversation) => call('changes', 'lastTurn', [conversation], () => ({ checkpoint: null, files: [] })),
       undo: (conversation) => call('changes', 'undo', [conversation], () => refused),
@@ -889,6 +889,7 @@ export function createTauriBridge(): MobiusBridge {
       openPage: (path) => call('browser', 'openPage', [path], () => null),
       pin: (id, pinned) => fire('browser', 'pin', [id, pinned]),
       moveTab: (id, index) => fire('browser', 'moveTab', [id, index]),
+      showBeside: (id) => fire('browser', 'showBeside', [id]),
       getState: () => call('browser', 'getState', [], () => EMPTY_BROWSER),
       onState: (listener) => on<BrowserState>('mobius:browser-state', listener, () => call('browser', 'getState', [], () => EMPTY_BROWSER)),
     },

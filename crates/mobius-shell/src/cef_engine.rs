@@ -87,7 +87,7 @@ mod chromium {
         pub next_call: AtomicI32,
         pub downloads: Mutex<HashMap<PathBuf, DownloadItemCallback>>,
         pub download_paths: Mutex<HashMap<u32, PathBuf>>,
-        pub shown: Mutex<(Option<String>, Option<Bounds>)>,
+        pub shown: Mutex<Vec<(String, Bounds)>>,
         pub window: isize,
         pub scale: Box<dyn Fn() -> f64 + Send + Sync>,
         pub zoom: Mutex<f64>,
@@ -211,6 +211,27 @@ mod chromium {
             }
             fn find_handler(&self) -> Option<FindHandler> {
                 Some(TabFind::new(self.shared.clone(), self.tab.clone()))
+            }
+            fn focus_handler(&self) -> Option<FocusHandler> {
+                Some(TabFocus::new(self.shared.clone(), self.tab.clone()))
+            }
+        }
+    }
+
+    // In split view the page clicked last takes the keys, and becomes the active tab.
+    wrap_focus_handler! {
+        struct TabFocus {
+            shared: Arc<Shared>,
+            tab: String,
+        }
+        impl FocusHandler {
+            fn on_got_focus(&self, _browser: Option<&mut cef::Browser>) {
+                let (shared, id) = (self.shared.clone(), self.tab.clone());
+                later(move || {
+                    if let Some(b) = shared.links.tabs() {
+                        b.focused(&id);
+                    }
+                });
             }
         }
     }
@@ -487,15 +508,16 @@ mod chromium {
             use windows::Win32::Foundation::HWND;
             use windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn};
             use windows::Win32::UI::WindowsAndMessaging::{HWND_TOP, SW_HIDE, SW_SHOW, SWP_NOACTIVATE, SetWindowPos, ShowWindow};
-            let (visible, bounds) = lock(&shared.shown).clone();
+            let shown = lock(&shared.shown).clone();
             let (zoom, scale) = (*lock(&shared.zoom), (shared.scale)());
-            cut_hole_in_interface(shared.window, if visible.is_some() { bounds } else { None }, zoom * scale);
+            let holes: Vec<Bounds> = shown.iter().map(|(_, b)| *b).collect();
+            cut_hole_in_interface(shared.window, &holes, zoom * scale);
             let tabs = lock(&shared.tabs);
             for (id, state) in tabs.iter() {
                 let Some(host) = state.browser.as_ref().and_then(|b| b.host()) else { continue };
                 let handle = HWND(host.window_handle().0.cast());
-                match (visible.as_deref(), bounds) {
-                    (Some(shown), Some(b)) if shown == id => {
+                match shown.iter().find(|(s, _)| s == id).map(|(_, b)| *b) {
+                    Some(b) => {
                         let to_pixels = |v: i32| (f64::from(v) * zoom * scale).round() as i32;
                         // SAFETY: `handle` is the window CEF made for this tab; the calls only move and show it.
                         unsafe {
@@ -536,7 +558,7 @@ mod chromium {
 
     /// The interface's own web view fills the window and is drawn above every other child window, whatever their order. So
     /// the part of it where a page goes is cut away (a window region), and the page shows through. No page: the view is whole again.
-    fn cut_hole_in_interface(parent: isize, hole: Option<Bounds>, scale: f64) {
+    fn cut_hole_in_interface(parent: isize, holes: &[Bounds], scale: f64) {
         use windows::Win32::Foundation::{HWND, LPARAM, RECT};
         use windows::core::BOOL;
         use windows::Win32::Graphics::Gdi::{CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, HGDIOBJ, RGN_DIFF, SetWindowRgn};
@@ -564,10 +586,10 @@ mod chromium {
         let _ = scale;
         // SAFETY: regions are created here and handed to the system (which owns the outer one afterwards); the hole is freed.
         unsafe {
-            let Some(hole) = hole else {
+            if holes.is_empty() {
                 let _ = SetWindowRgn(interface, None, true);
                 return;
-            };
+            }
             let mut client = RECT::default();
             if GetClientRect(interface, &mut client).is_err() {
                 return;
@@ -576,9 +598,12 @@ mod chromium {
             let outer = CreateRectRgn(0, 0, client.right, client.bottom);
             // Rounded like the page itself, so the frame's own (dark) corners show instead of the window's.
             let radius = (PAGE_RADIUS * scale * 2.0).round() as i32;
-            let cut = CreateRoundRectRgn(to_px(hole.x), to_px(hole.y), to_px(hole.x) + to_px(hole.width) + 1, to_px(hole.y) + to_px(hole.height) + 1, radius, radius);
-            CombineRgn(Some(outer), Some(outer), Some(cut), RGN_DIFF);
-            let _ = DeleteObject(HGDIOBJ(cut.0));
+            // One hole per page showing: two in split view.
+            for hole in holes {
+                let cut = CreateRoundRectRgn(to_px(hole.x), to_px(hole.y), to_px(hole.x) + to_px(hole.width) + 1, to_px(hole.y) + to_px(hole.height) + 1, radius, radius);
+                CombineRgn(Some(outer), Some(outer), Some(cut), RGN_DIFF);
+                let _ = DeleteObject(HGDIOBJ(cut.0));
+            }
             SetWindowRgn(interface, Some(outer), true);
         }
     }
@@ -652,7 +677,7 @@ impl CefEngine {
             next_call: AtomicI32::new(1),
             downloads: Mutex::default(),
             download_paths: Mutex::default(),
-            shown: Mutex::new((None, None)),
+            shown: Mutex::new(Vec::new()),
             window,
             scale: Box::new(scale),
             zoom: Mutex::new(1.0),
@@ -801,8 +826,8 @@ impl Engine for CefEngine {
         }
     }
 
-    fn layout(&self, visible: Option<&str>, bounds: Option<Bounds>) {
-        *lock(&self.shared.shown) = (visible.map(str::to_owned), bounds);
+    fn layout(&self, shown: &[(String, Bounds)]) {
+        *lock(&self.shared.shown) = shown.to_vec();
         chromium::apply_layout(&self.shared);
     }
 

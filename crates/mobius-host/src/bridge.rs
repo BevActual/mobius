@@ -973,6 +973,13 @@ impl Bridge {
                 }
                 Ok(Value::Null)
             }
+            // Split view: where the page beside goes.
+            ("surface", "setBesideBounds") => {
+                if let Some(b) = self.browser.get() {
+                    b.set_beside_bounds(parse_bounds(arg(0)));
+                }
+                Ok(Value::Null)
+            }
             ("models", _) => self.models_call(method, args),
             ("test", _) => self.test_call(method, args),
             ("downloads", _) => self.downloads_call(method, arg(0)),
@@ -1188,8 +1195,8 @@ impl Bridge {
             }
             "views" => Ok(match self.browser.get() {
                 Some(b) => {
-                    let shown = b.shown();
-                    Value::Array(b.list().into_iter().map(|(id, url, _, _)| match shown.as_ref().filter(|(s, _)| *s == id) {
+                    let shown = b.showing();
+                    Value::Array(b.list().into_iter().map(|(id, url, _, _)| match shown.iter().find(|(s, _)| *s == id) {
                         Some((_, r)) => {
                             let z = self.zoom();
                             let scaled = |n: i32| (f64::from(n) * z).round();
@@ -1458,6 +1465,11 @@ impl Bridge {
                 if let Some(t) = tab() {
                     b.activate(t);
                 }
+                Value::Null
+            }
+            // Split view: a tab beside the active one, or none to end it.
+            "showBeside" => {
+                b.show_beside(tab());
                 Value::Null
             }
             "close" => {
