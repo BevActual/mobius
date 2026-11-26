@@ -227,7 +227,7 @@ test('a chat a schedule starts is listed as running while it runs', async () => 
   const jobs = shell().getByRole('region', { name: 'Running jobs' });
   await expect(jobs.locator('.running-job')).toHaveCount(1);
   await expect(jobs).toContainText('Working');
-  await expect(jobs.getByRole('status')).toContainText('Also running');
+  await expect(shell().getByRole('status', { name: 'Running jobs status' })).toContainText('Also running');
 });
 
 test('the Inbox gathers tasks due and project updates due, each with Done and Later, as Linear’s', async () => {

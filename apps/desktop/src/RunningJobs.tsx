@@ -33,10 +33,12 @@ export function RunningJobs({ conversations, open, onOpen }: { conversations: re
   // Said politely as it changes: a job that starts, one that now needs you.
   const needing = jobs.filter((c) => jobState(c, background) === 'Needs you');
   const said = jobs.length === 0 ? '' : needing.length > 0 ? `${needing.map((c) => c.title).join(', ')} ${needing.length === 1 ? 'needs' : 'need'} you` : `Also running: ${jobs.map((c) => c.title).join(', ')}`;
-  if (jobs.length === 0) return <span className="sr-only" role="status" />;
+  // One status that stays on the page, its words changing: a live region added with its words already set can go unsaid.
+  const status = <span className="sr-only" role="status" aria-label="Running jobs status">{said}</span>;
   return (
-    <section className="msg-queue running-jobs" aria-label="Running jobs">
-      <span className="sr-only" role="status">{said}</span>
+    <>
+    {status}
+    {jobs.length > 0 && <section className="msg-queue running-jobs" aria-label="Running jobs">
       <div className="msg-queue-head">
         <span className="msg-queue-title" aria-hidden="true">{jobs.length === 1 ? 'Also running' : `Also running · ${jobs.length}`}</span>
       </div>
@@ -52,6 +54,7 @@ export function RunningJobs({ conversations, open, onOpen }: { conversations: re
           </li>
         ))}
       </ul>
-    </section>
+    </section>}
+    </>
   );
 }
