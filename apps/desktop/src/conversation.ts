@@ -12,7 +12,12 @@ export type QuestionStatus = 'open' | 'sending' | 'answered' | 'cancelled';
 /** Said where a turn was stopped: what came before stays, nothing after it was done. */
 export const STOPPED_NOTE = 'Stopped. What was done before this stays; nothing after it was done.';
 
-export type ToolStatus = 'running' | 'waiting' | 'done' | 'failed' | 'declined' | 'cancelled';
+/** `paused`: running when the person took over; `skipped`: not run, because they took over and changed things. */
+export type ToolStatus = 'running' | 'waiting' | 'done' | 'failed' | 'declined' | 'cancelled' | 'paused' | 'skipped';
+/** What the agent tells the model about a call it did not run because the person took over (engine.rs, hand_back). */
+const NOT_RUN_TOOK_OVER = 'Not run: the person took over';
+/** Steps in hand when the person takes over wait as paused; ones that ran meanwhile finish as usual. */
+const pauseRunning = (items: Item[]): Item[] => items.map((i) => (i.kind === 'tool' && i.status === 'running' ? { ...i, status: 'paused' as const } : i));
 
 export type Item =
   | { kind: 'user'; id: string; text: string; attachments?: ContextItem[]; images?: string[]; /** When it was sent, in milliseconds; older conversations have none. */ at?: number; /** The model it was sent to, named under the reply; older conversations have none. */ model?: string }
@@ -107,7 +112,7 @@ const settleStreaming = (items: Item[]): Item[] => items.map((item) => (item.kin
 
 const cancelOpenTools = (items: Item[]): Item[] =>
   items.map((item) =>
-    item.kind === 'tool' && (item.status === 'running' || item.status === 'waiting') ? { ...item, status: 'cancelled' as const }
+    item.kind === 'tool' && (item.status === 'running' || item.status === 'waiting' || item.status === 'paused') ? { ...item, status: 'cancelled' as const }
     : item.kind === 'question' && (item.status === 'open' || item.status === 'sending') ? { ...item, status: 'cancelled' as const }
     : item);
 
@@ -136,7 +141,7 @@ function fromHistory(state: ConversationState, messages: Message[]): Conversatio
           !message.is_error && message.content.startsWith(ANSWERED) ? { ...item, status: 'answered', answer: message.content.slice(ANSWERED.length) } : { ...item, status: 'cancelled' });
       }
     } else {
-      const status: ToolStatus = !message.is_error ? 'done' : message.content.includes('declined') ? 'declined' : message.content === 'cancelled' ? 'cancelled' : 'failed';
+      const status: ToolStatus = !message.is_error ? 'done' : message.content.startsWith(NOT_RUN_TOOK_OVER) ? 'skipped' : message.content.includes('declined') ? 'declined' : message.content === 'cancelled' ? 'cancelled' : 'failed';
       next = updateTool(next, (item) => item.callId === message.call_id, (item) => ({ ...item, status }));
     }
   }
@@ -162,7 +167,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
     case 'switch':
       return initialConversation(action.conversation);
     case 'control':
-      return { ...state, control: action.control };
+      return { ...state, control: action.control, ...(action.control ? { items: pauseRunning(state.items) } : {}) };
     case 'reset-busy':
       return finished({ ...state, items: cancelOpenTools(state.items) }, 'cancelled');
     case 'loaded':
@@ -232,7 +237,8 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
             return updateTool(base, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'running', ...(item.args === undefined && event.arguments !== undefined ? { args: event.arguments } : {}) }));
           }
           // With its arguments, so the row can say what it acted on.
-          return withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running', ...(event.arguments !== undefined ? { args: event.arguments } : {}) }));
+          // A call that comes while the person has control waits, paused, until they hand back.
+          return withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: base.control ? 'paused' : 'running', ...(event.arguments !== undefined ? { args: event.arguments } : {}) }));
         }
         case 'needs_approval': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);
@@ -242,10 +248,10 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         case 'tool_result': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);
           const withTool = known ? base : withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running' }));
-          return updateTool(withTool, (item) => item.callId === event.call_id, (item) => (item.status === 'declined' ? item : { ...item, status: event.is_error ? 'failed' : 'done' }));
+          return updateTool(withTool, (item) => item.callId === event.call_id, (item) => (item.status === 'declined' ? item : { ...item, status: event.is_error ? (item.status === 'paused' ? 'skipped' : 'failed') : 'done' }));
         }
         case 'paused':
-          return { ...base, control: { step: event.step, ...(typeof event.of === 'number' ? { of: event.of } : {}) } };
+          return { ...base, items: pauseRunning(base.items), control: { step: event.step, ...(typeof event.of === 'number' ? { of: event.of } : {}) } };
         case 'resumed':
           return { ...base, control: null };
         case 'context':

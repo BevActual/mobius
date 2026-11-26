@@ -41,6 +41,8 @@ const STATUS_TEXT: Record<ToolStatus, string> = {
   failed: 'Failed',
   declined: 'Declined',
   cancelled: 'Stopped',
+  paused: 'Paused',
+  skipped: 'Not run: you took over',
 };
 
 const MAX_ARGS_SHOWN = 700;
@@ -982,7 +984,8 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             )}
             {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} onShown={onReviewShown} since={(() => { const last = state.items.findLast((item) => item.kind === 'user'); return last?.kind === 'user' ? last.at : undefined; })()} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
-            {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
+            {/* Paused (you have control): the control bar below says so, nothing here claims Mobius is working. */}
+            {state.busy && !state.control && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
               <WorkingIndicator state={state} onStop={onStop} />
             )}
           </div>

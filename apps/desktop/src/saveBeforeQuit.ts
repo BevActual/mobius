@@ -14,3 +14,16 @@ export function saveBeforeQuit(saveNow: () => Promise<unknown>): () => void {
 export async function saveAll(): Promise<void> {
   await Promise.allSettled([...savers].map((save) => save()));
 }
+
+/**
+ * Typing not yet written, saved now: before the person hands a task back to Mobius, so what they typed while they had
+ * control is on disk inside their stretch of the turn, and never counted as Mobius's change.
+ */
+const typed = new Set<() => Promise<unknown>>();
+export function saveTypedOnHandBack(saveNow: () => Promise<unknown>): () => void {
+  typed.add(saveNow);
+  return () => { typed.delete(saveNow); };
+}
+export async function saveTyped(): Promise<void> {
+  await Promise.allSettled([...typed].map((save) => save()));
+}

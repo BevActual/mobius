@@ -454,6 +454,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       setSelection({ text, top: Math.max(8, at.top - box.top - 44), left: Math.min(Math.max(8, at.left - box.left - 40), Math.max(8, box.width - 340)) });
     },
     onBlur: () => setSelection(null),
+    // Clicked into from a text box (Mobius's message box, say), the page has the focus a moment before the browser's
+    // caret follows it: keys typed in that moment went to where the caret still was, and were lost. The caret is put
+    // in the page at once.
+    onFocus: ({ editor: e }) => {
+      const at = window.getSelection()?.anchorNode;
+      if (!at || !e.view.dom.contains(at)) e.view.focus();
+    },
   });
   // The page's text, from the store: put into the editor when it did not come from the editor itself.
   const placed = useRef<string | null>(firstText.current ? path ?? null : null);
@@ -816,6 +823,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     if (!review || !path) return;
     const result = await window.mobius.changes.undoFile(review.conversation, `notes/${path}`).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
     if (!result.ok) setReviewProblem(result.error);
+    // The turn's summary and other reviews read the turn again: this note's change is no longer waiting.
+    else window.dispatchEvent(new CustomEvent(KEPT_EVENT));
     setDiff(null);
     setChanges(null);
   };

@@ -2895,3 +2895,7 @@ button.waiting-row:focus-visible { outline: var(--focus-w) solid var(--ink); out
 .working-pill-stop svg { width: 12px; height: 12px; fill: currentColor; }
 .working-pill[data-needs-you] { border-style: solid; border-color: var(--mobius); color: var(--mobius); }
 .working-pill[data-needs-you] .working-pill-mark { animation: none; }
+.working-pill .working-pill-resume { flex: none; height: 20px; margin-right: 2px; padding: 0 8px; border: 0; border-radius: 10px; background: var(--mobius); color: var(--on-mobius); font: inherit; font-size: var(--fs-xs); font-weight: 500; cursor: pointer; }
+.working-pill .working-pill-resume:hover, .working-pill .working-pill-resume:focus-visible { background: var(--mobius); color: var(--on-mobius); filter: brightness(1.08); }
+.working-pill[data-paused] { border-style: solid; }
+.working-pill[data-paused] .working-pill-mark { animation: none; background: var(--muted); }

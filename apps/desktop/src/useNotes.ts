@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNotesFailure, type DeletedNote, type NoteHit, type Notebook } from '@mobius/shared';
 import { liveTitle, nearestPage, onPageChanged, type SaveStatus } from './notes-state';
-import { saveBeforeQuit } from './saveBeforeQuit';
+import { saveBeforeQuit, saveTypedOnHandBack } from './saveBeforeQuit';
 
 const SAVE_DELAY_MS = 500;
 /** Said when another page is asked for while the open one waits on Keep mine or Use their version. */
@@ -105,6 +105,8 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   }, [api, save]);
   // Quitting (the tray's Quit, or the installer replacing Mobius) waits for an edit not yet written.
   useEffect(() => saveBeforeQuit(keepBeforeGoing), [keepBeforeGoing]);
+  // Handing a task back to Mobius: what was typed is written first (never a copy, as on quitting).
+  useEffect(() => saveTypedOnHandBack(async () => { if (live.current.status === 'unsaved') await save(); else await saving.current; }), [save]);
 
   // Whether a page is being read, so an item offered while one is on its way does not take its place.
   const loading = useRef(0);
