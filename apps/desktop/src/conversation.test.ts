@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent, Message } from '@mobius/shared';
-import { dataOf, MAX_RESULT_SHOWN, findToolArguments, findToolResult, appsSeen, initialConversation, replySources, proposedPlan, reduce, type ConversationState } from './conversation';
+import { STOPPED_NOTE, dataOf, MAX_RESULT_SHOWN, findToolArguments, findToolResult, appsSeen, initialConversation, replySources, proposedPlan, reduce, type ConversationState } from './conversation';
 
 const note = (event: AgentEvent, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.event' as const, params: { conversation: 'main', turn, event } } });
 const delta = (text: string, turn = 1) => ({ type: 'notification' as const, notification: { method: 'agent.delta' as const, params: { conversation: 'main', turn, text } } });
@@ -119,7 +119,9 @@ describe('conversation state', () => {
 
     s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'x', arguments: {} }), note({ kind: 'needs_approval', request_id: 2, call_id: 'c1', tool: 'x', arguments: {}, once_only: false }), note({ kind: 'cancelled' }));
     expect(s.busy).toBe(false);
-    expect(s.items.at(-1)).toMatchObject({ kind: 'tool', status: 'cancelled' });
+    expect(s.items.at(-2)).toMatchObject({ kind: 'tool', status: 'cancelled' });
+    // Said where it stopped, so a stop from the working pill is seen when the panel opens.
+    expect(s.items.at(-1)).toMatchObject({ kind: 'notice', text: STOPPED_NOTE });
   });
 
   it('ignores news about other conversations and other turns', () => {

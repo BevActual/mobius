@@ -9,6 +9,9 @@ const ANSWERED = 'The person answered: ';
 
 export type QuestionStatus = 'open' | 'sending' | 'answered' | 'cancelled';
 
+/** Said where a turn was stopped: what came before stays, nothing after it was done. */
+export const STOPPED_NOTE = 'Stopped. What was done before this stays; nothing after it was done.';
+
 export type ToolStatus = 'running' | 'waiting' | 'done' | 'failed' | 'declined' | 'cancelled';
 
 export type Item =
@@ -254,7 +257,8 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         case 'failed':
           return finished(withItem(base, (id) => ({ kind: 'error', id, text: event.message, failed: true })), 'failed');
         case 'cancelled':
-          return finished({ ...base, items: cancelOpenTools(base.items) }, 'cancelled');
+          // Said in the conversation, so a stop from the working pill (with the panel closed) is seen when it opens.
+          return finished(withItem({ ...base, items: cancelOpenTools(base.items) }, (id) => ({ kind: 'notice', id, text: STOPPED_NOTE })), 'cancelled');
       }
     }
   }
