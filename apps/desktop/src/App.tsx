@@ -13,7 +13,7 @@ import { appName, askAbout, findApp, isAvailable, isInstalled, isListed, setInst
 import { databaseOutline, DEBUG_TEST, noteContext, sheetItem, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
-import { growFrom, morphOut, useMorphIn } from './motion';
+import { morphOut, switchIn, useMorphIn } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
 import { ActivityPage, ActivitySidebar, activitySub, useActivityFeed } from './ActivityApp';
 import { AgentPage, agentWhen, useSchedules, type AgentView } from './AgentPage';
@@ -793,13 +793,14 @@ export function App() {
   const rightWidth = drag?.side === 'right' ? drag.width : fitted.right;
   const rightDock = useRef<HTMLDivElement>(null);
   // Mobius beside the page goes back toward where it is asked from (its corner) before it is put away.
-  // An app opened from the switcher, All apps or the launcher grows out of the tile or row that was clicked.
+  // An app opened from the switcher, All apps or the launcher settles out of the tile or row that was clicked; one
+  // opened from the keyboard only lifts out of a dim (switchIn).
   const shownApp = useRef(app);
   useLayoutEffect(() => {
     if (shownApp.current === app) return;
     shownApp.current = app;
     const stage = document.querySelector<HTMLElement>('.stage');
-    if (stage) growFrom(stage, 'left');
+    if (stage) switchIn(stage);
   }, [app]);
   // Shown again while it was on its way out (a shortcut, Mobius in the sidebar), it stays: a hide
   // still finishing would otherwise close it, since chatOpen never went false and the effect below does not run.

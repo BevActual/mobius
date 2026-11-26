@@ -1,8 +1,9 @@
 import { useSideFolds } from '../side-fold';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Menu, type MenuEntry } from './Menu';
 import { useInspector } from './PanelTabs';
 import { afterPaint } from './frame';
+import { dockIn, dockOut, motionSeen } from '../motion';
 
 /**
  * Panels (docs/design/panel-layouts.md: show, hide, resize). A panel is a named, self-contained piece of an app that
@@ -251,31 +252,72 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
     <Panel key={place.key} place={place} onHide={() => hide(place)} onChoose={choose} />
   ));
 
+  // Each dock slides out of its edge as it opens and back as it closes (dockIn, dockOut); switching app does not.
+  const rightDock = useRef<HTMLDivElement>(null);
+  const bottomDock = useRef<HTMLDivElement>(null);
+  const l = useDockMotion('left', left, leftSize, app, leftDock);
+  const b = useDockMotion('bottom', bottom, bottomSize, app, bottomDock);
+  const r = useDockMotion('right', right, rightSize, app, rightDock);
+  const leaving = (m: DockMotion) => (m.leaving ? { inert: true, 'aria-hidden': true } : {});
+
   return (
     <div className="ui-panels" data-app={app}>
-      {left.length > 0 && (
-        <div ref={leftDock} className="ui-dock" data-dock="left" style={{ width: leftSize }}>
-          {draw(left)}
-          <DockEdge dock="left" size={leftSize} onSize={(n) => resize('left', n)} />
+      {l.panels.length > 0 && (
+        <div ref={leftDock} className="ui-dock" data-dock="left" style={{ width: l.size }} {...leaving(l)}>
+          {draw(l.panels)}
+          <DockEdge dock="left" size={l.size} onSize={(n) => resize('left', n)} />
         </div>
       )}
       <div ref={main} className="ui-panels-main">
         <div className="ui-panels-content">{children}</div>
-        {bottom.length > 0 && (
-          <div className="ui-dock" data-dock="bottom" style={{ height: bottomSize }}>
-            <DockEdge dock="bottom" size={bottomSize} onSize={(n) => resize('bottom', n)} />
-            {draw(bottom)}
+        {b.panels.length > 0 && (
+          <div ref={bottomDock} className="ui-dock" data-dock="bottom" style={{ height: b.size }} {...leaving(b)}>
+            <DockEdge dock="bottom" size={b.size} onSize={(n) => resize('bottom', n)} />
+            {draw(b.panels)}
           </div>
         )}
       </div>
-      {right.length > 0 && (
-        <div className="ui-dock" data-dock="right" style={{ width: rightSize }}>
-          <DockEdge dock="right" size={rightSize} onSize={(n) => resize('right', n)} />
-          {draw(right)}
+      {r.panels.length > 0 && (
+        <div ref={rightDock} className="ui-dock" data-dock="right" style={{ width: r.size }} {...leaving(r)}>
+          <DockEdge dock="right" size={r.size} onSize={(n) => resize('right', n)} />
+          {draw(r.panels)}
         </div>
       )}
     </div>
   );
+}
+
+interface DockMotion { panels: PanelSpec[]; size: number; leaving: boolean }
+
+/**
+ * What a dock draws: its shown panels, or, for the moment it takes to slide back into its edge, the ones just hidden.
+ * Opening a dock slides it out. Neither happens when the app changes (the whole app settles in then) or when the
+ * window is not shown.
+ */
+function useDockMotion(dock: PanelDock, shown: PanelSpec[], size: number, app: string, ref: RefObject<HTMLDivElement | null>): DockMotion {
+  const open = shown.length > 0;
+  const [gone, setGone] = useState<{ panels: PanelSpec[]; size: number } | null>(null);
+  const before = useRef({ app, open, panels: shown, size });
+  useLayoutEffect(() => {
+    const was = before.current;
+    before.current = { app, open, panels: open ? shown : was.panels, size: open ? size : was.size };
+    if (was.app !== app) { setGone(null); return; }
+    if (open && !was.open) {
+      setGone(null);
+      if (ref.current) dockIn(ref.current, dock, size);
+    } else if (!open && was.open && motionSeen()) {
+      setGone({ panels: was.panels, size: was.size });
+    }
+  }, [app, open]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (!gone || !node) return undefined;
+    let live = true;
+    void dockOut(node, dock, gone.size).then(() => { if (live) setGone(null); });
+    return () => { live = false; };
+  }, [gone]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (open) return { panels: shown, size, leaving: false };
+  return gone ? { panels: gone.panels, size: gone.size, leaving: true } : { panels: shown, size, leaving: false };
 }
 
 /** Bring these panels to the front of their tab groups. */
