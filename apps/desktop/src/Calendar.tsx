@@ -760,7 +760,7 @@ const newStart = (anchor: Date) => {
 };
 
 /** Asks which times of a repeating event a change (`change`) or a deletion is for; null when the person cancels. */
-export type AskScope = (verb: 'change' | 'delete', withOne: boolean, start: string) => Promise<RepeatScope | null>;
+export type AskScope = (verb: 'change' | 'delete' | 'answer', withOne: boolean, start: string) => Promise<RepeatScope | null>;
 
 /** The question, as calendars ask it, and the dialog that asks it: this event, this and following events, or all. */
 function useScopeAsk(): [AskScope, ReactNode] {
@@ -780,7 +780,7 @@ function useScopeAsk(): [AskScope, ReactNode] {
   return [ask, <RepeatScopeDialog key="scope" asking={asking} onDone={finish} />];
 }
 
-type Asking = { verb: 'change' | 'delete'; withOne: boolean; start: string };
+type Asking = { verb: 'change' | 'delete' | 'answer'; withOne: boolean; start: string };
 
 function RepeatScopeDialog({ asking, onDone }: { asking: Asking | null; onDone: (scope: RepeatScope | null) => void }) {
   const answer = useRef<HTMLButtonElement>(null);
@@ -788,14 +788,16 @@ function RepeatScopeDialog({ asking, onDone }: { asking: Asking | null; onDone: 
   const shown = useRef<Asking | null>(null);
   if (asking) shown.current = asking;
   const when = shown.current ? formatWith(localDate(shown.current.start), { weekday: 'short', month: 'short', day: 'numeric' }) : '';
-  const choices = SCOPE_CHOICES.filter((c) => asking?.withOne !== false || c.scope !== 'one');
+  // An answer to someone else's invitation is for this time or all of them, as Google Calendar asks: splitting their
+  // series in two would give the later times a new id their calendar could not match.
+  const choices = SCOPE_CHOICES.filter((c) => (asking?.withOne !== false || c.scope !== 'one') && (shown.current?.verb !== 'answer' || c.scope !== 'following'));
   const [scope, setScope] = useState<RepeatScope>('one');
   useEffect(() => { if (asking) setScope(asking.withOne ? 'one' : 'following'); }, [asking]);
   const deleting = shown.current?.verb === 'delete';
   return (
     <Dialog
       open={asking !== null} onOpenChange={(open) => { if (!open) onDone(null); }} className="cal-scope" initialFocus={answer}
-      title={deleting ? 'Delete repeating event' : 'Change repeating event'}
+      title={deleting ? 'Delete repeating event' : shown.current?.verb === 'answer' ? 'Answer repeating invitation' : 'Change repeating event'}
       actions={<><Button onClick={() => onDone(null)}>Cancel</Button><Button ref={answer} kind="primary" danger={deleting} onClick={() => onDone(scope)}>{deleting ? 'Delete' : 'Save'}</Button></>}
     >
       <div role="radiogroup" aria-label="Which times" className="cal-scope-list">
@@ -844,10 +846,10 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   const you = original ? myInvite(original, me) : null;
   const [going, setGoing] = useState(you?.status ?? '');
   const answer = async (status: (typeof GOING)[number]['status']) => {
-    if (!original || !you || status === going) return;
+    if (!original || !you || busy || status === going) return;
     let change: CalendarDraft = { attendees: answeredAs(base.current.attendees ?? original.attendees ?? [], you.email, status) };
     if (original.repeats) {
-      const scope = askScope ? await askScope('change', true, original.start) : 'all';
+      const scope = askScope ? await askScope('answer', true, original.start) : 'all';
       if (!scope) return;
       change = scoped(original, change, scope);
     }
@@ -1010,10 +1012,14 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           </ul>
         )}
         {you && (
-          <div className="cal-going" role="group" aria-label="Going?">
-            <span aria-hidden="true">Going?</span>
-            {GOING.map((g) => <button key={g.status} type="button" className="cal-going-btn" aria-pressed={going === g.status} disabled={busy} onClick={() => void answer(g.status)}>{g.label}</button>)}
-          </div>
+          <>
+            {original?.organizer && <p className="cal-going-from">Invitation from {original.organizer.name || original.organizer.email}</p>}
+            <div className="cal-going" role="group" aria-label="Going?">
+              <span aria-hidden="true">Going?</span>
+              {/* aria-disabled, not disabled, while it is kept: a disabled button would drop the keyboard's focus. */}
+              {GOING.map((g) => <button key={g.status} type="button" className="cal-going-btn" aria-pressed={going === g.status} aria-disabled={busy || undefined} onClick={() => void answer(g.status)}>{g.label}</button>)}
+            </div>
+          </>
         )}
         <div className="cal-editor-group">
           <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={(on) => { setAllDay(on); if (alert !== null && on !== allDay) setAlert(null); }} />

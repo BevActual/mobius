@@ -111,7 +111,7 @@
 .cal-editor-row > .ui-field:has(.ui-select) { flex: 0 1 auto; min-width: 0; }
 .cal-editor-group > .ui-switch-row.cal-editor-row > label > span { width: auto; }
 /* All day as a switch. */
-@media (prefers-reduced-motion: reduce) { .calendar-page .cal-event { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .calendar-page .cal-event, .cal-going-btn { transition: none; } }
 
 /* The mini month in the sidebar. */
 
@@ -246,7 +246,9 @@
 /* Going?: the person's answer to an invitation, as Google Calendar's Yes / No / Maybe, the chosen one filled. */
 .cal-going { display: flex; align-items: center; gap: 6px; padding: 0 2px; font-size: var(--fs-sm); color: var(--muted); }
 .cal-going > span { margin-right: 4px; }
-.cal-going-btn { min-height: 26px; padding: 2px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--ink); font: inherit; cursor: pointer; }
+.cal-going-btn { min-height: 26px; padding: 2px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--ink); font: inherit; cursor: pointer; transition: background-color 140ms ease-out, border-color 140ms ease-out, color 140ms ease-out; }
+.cal-going-btn[aria-disabled="true"] { cursor: progress; }
+.cal-going-from { margin: 0; padding: 0 2px; font-size: var(--fs-sm); color: var(--muted); }
 .cal-going-btn:hover { background: var(--soft); }
 .cal-going-btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: var(--fw-semibold); }
 .cal-going-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
