@@ -83,3 +83,22 @@ button.proj-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--acce
 .proj-loading > span { display: block; height: 10px; border-radius: var(--radius-small); background: var(--sel); }
 .proj-loading > span:nth-child(2) { width: 72%; }
 .proj-loading > span:nth-child(3) { width: 48%; }
+
+/* Status, target day and progress under the project's line, as Linear's project properties: quiet chips set in place. */
+.proj-props { flex-basis: 100%; display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
+.proj-prop { position: relative; display: inline-flex; align-items: center; gap: 6px; height: var(--control-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--ink); font: inherit; font-size: var(--fs-sm); cursor: default; }
+.proj-prop:hover, .proj-prop:focus-within { background: var(--sel); }
+.proj-prop:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.proj-prop > svg:not(.proj-status-icon) { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.proj-target[data-late] { color: var(--danger); }
+.proj-target-field { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: default; }
+.proj-target:has(.proj-target-field:focus-visible) { outline: 2px solid var(--ink); outline-offset: -2px; }
+.proj-clear, .proj-more { padding: 0 var(--sp-1); }
+.proj-progress { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.proj-progress-bar { position: relative; display: block; width: 96px; height: 4px; border-radius: 2px; background: var(--sel); overflow: hidden; }
+.proj-progress-bar > span { position: absolute; inset: 0 auto 0 0; background: var(--ink); border-radius: 2px; }
+.proj-progress-text { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.proj-status-icon { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.proj-status-icon[data-status="started"], .proj-status-icon[data-status="completed"] { stroke: var(--ink); }
+.proj-status-icon .fill { fill: var(--ink); stroke: none; }
+.proj-status-icon[data-status="completed"] .on-fill { stroke: var(--paper); stroke-width: 1.7; }

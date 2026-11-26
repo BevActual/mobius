@@ -1,4 +1,4 @@
-import type { ConversationInfo, ProjectInfo, ProjectLevel } from '@mobius/shared';
+import type { ConversationInfo, ProjectDetails, ProjectInfo, ProjectLevel } from '@mobius/shared';
 
 /**
  * The preview's Projects: two projects kept in memory for as long as the preview is open, with threads, a bot's side
@@ -22,6 +22,7 @@ const PROJECTS: ProjectInfo[] = [
     id: 'p1', name: 'Kestrel P2 build',
     rules: { notes: 'act', sheets: 'act', mail: 'ask' },
     threads: ['main:p2-plan', 'main:p2-cells'],
+    status: 'started', target: (() => { const d = new Date(now + 9 * 24 * hour); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })(), list: 'P2 build',
     sides: [{ conversation: 'scout:p2-sled', parent: 'main:p2-plan', bot: 'scout', botName: 'Scout', ask: 'Find a sled slot on Friday', report: 'Northfield has the long sled free Friday 08:00 to 12:00. I held it until tomorrow noon.' }],
   },
   { id: 'p2', name: 'Hiring', rules: {}, threads: ['main:hire-1'] },
@@ -54,6 +55,14 @@ export const PREVIEW_PROJECTS: Record<string, (...args: never[]) => unknown> = {
     const p = find(id);
     if (!p) return fail('that project is not there');
     if (level === 'follow') delete p.rules[app]; else p.rules[app] = level;
+    return p;
+  }) as never,
+  'projects.setDetails': ((id: string, d: ProjectDetails) => {
+    const p = find(id);
+    if (!p) return fail('that project is not there');
+    if (d.status !== undefined) { if (d.status) p.status = d.status; else delete p.status; }
+    if (d.target !== undefined) { if (d.target) p.target = d.target; else delete p.target; }
+    if (d.list !== undefined) { if (d.list) p.list = d.list; else delete p.list; }
     return p;
   }) as never,
   'projects.addThread': ((id: string, conversation: string) => {

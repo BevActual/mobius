@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConversationInfo, ProjectInfo } from '@mobius/shared';
-import { projectSummary, projectThreads, ruleApps, threadLine } from './projects-view';
+import { progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine } from './projects-view';
 
 const NOW = Date.UTC(2026, 10, 12, 12, 0);
 const MIN = 60_000;
@@ -31,5 +31,23 @@ describe('a project page', () => {
   it('lists rules for the apps added from Abilities, and any app that already has a rule of its own', () => {
     const installed = (id: string) => ['notes', 'mail'].includes(id);
     expect(ruleApps(['notes', 'docs', 'mail', 'video'], { video: 'ask' }, installed)).toEqual(['notes', 'mail', 'video']);
+  });
+});
+
+describe('a project’s status, target and progress', () => {
+  it('names the status, counts progress from the task list, and says when the target has passed', () => {
+    expect(statusName('started')).toBe('In progress');
+    expect(statusName(undefined)).toBe('No status');
+    expect(progressOf({ open: 5, done: 3 })).toEqual({ done: 3, total: 8, percent: 38 });
+    expect(progressOf({ open: 0, done: 0 })).toEqual({ done: 0, total: 0, percent: 0 });
+    expect(progressOf(undefined)).toBeNull();
+    const now = new Date(2026, 10, 26, 15, 0);
+    expect(targetLine('2026-11-26', 'started', now)).toEqual({ text: 'Today', late: false });
+    expect(targetLine('2026-11-27', 'started', now)).toEqual({ text: 'Tomorrow', late: false });
+    expect(targetLine('2026-12-04', 'started', now)).toEqual({ text: 'Dec 4', late: false });
+    expect(targetLine('2027-01-15', 'planned', now)).toEqual({ text: 'Jan 15, 2027', late: false });
+    expect(targetLine('2026-11-20', 'started', now)).toEqual({ text: 'Nov 20', late: true });
+    expect(targetLine('2026-11-20', 'completed', now)).toEqual({ text: 'Nov 20', late: false });
+    expect(targetLine(undefined, 'started', now)).toBeNull();
   });
 });

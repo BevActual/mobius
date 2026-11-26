@@ -329,6 +329,7 @@ export function createTauriBridge(): MobiusBridge {
       list: () => call('projects', 'list', [], () => []),
       create: (name) => call('projects', 'create', [name], () => ({ ok: false as const, message: 'Projects are not available.' })),
       rename: (id, name) => call('projects', 'rename', [id, name], () => ({ ok: false as const, message: 'Projects are not available.' })),
+      setDetails: (id, details) => call('projects', 'setDetails', [id, details], () => ({ ok: false as const, message: 'Projects are not available.' })),
       remove: (id) => call('projects', 'remove', [id], () => ({ ok: false as const, message: 'Projects are not available.' })),
       setRule: (id, app, level) => call('projects', 'setRule', [id, app, level], () => ({ ok: false as const, message: 'Projects are not available.' })),
       addSide: (id, parent, conversation, bot, botName, ask) => call('projects', 'addSide', [id, parent, conversation, bot, botName, ask], () => ({ ok: false as const, message: 'Projects are not available.' })),

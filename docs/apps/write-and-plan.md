@@ -234,6 +234,10 @@ A place for one piece of work.
 
 ![The Projects app in Mobius](../readme/apps/projects.png)
 
+- **Status, target day and progress**, as Linear's projects: under the project's line, set its status (Backlog,
+  Planned, In progress, Paused, Completed or Canceled), its target day (red once it has passed while still open), and
+  link a Tasks list to see how far it has come ("3 of 8 done", with a bar). A project's status mark shows in the
+  Projects panel.
 - **Rules**: how much Mobius may do in each app inside the project (Ask each time, Review changes or Auto). Paying,
   sending, deleting and running commands always ask, whatever a project says.
 - **Threads**: the project's conversations. Move an existing conversation in and the project's rules apply to it.

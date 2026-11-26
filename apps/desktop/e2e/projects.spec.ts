@@ -293,3 +293,30 @@ test('deleting a project keeps its threads, its folder and its memory page', asy
   expect(fs.readFileSync(workspace('projects', 'Kestrel', 'brief.md'), 'utf8')).toBe('brief');
   expect(fs.readFileSync(workspace('wiki', 'Projects', 'Kestrel.md'), 'utf8')).toContain('Builds start on Mondays');
 });
+
+test('a project has a status, a target day and its progress from a Tasks list, as Linear’s projects', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Offsite.md'), '- [x] Book the venue\n- [ ] Send the agenda\n- [ ] Order lunch\n');
+  await start();
+  await openProjects();
+  await newProject('Offsite');
+  const page = shell().getByRole('region', { name: 'Offsite' });
+  const saved = () => JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0];
+  await page.getByRole('button', { name: 'Status: No status' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'In progress' }).click();
+  await expect(page.getByRole('button', { name: 'Status: In progress' })).toBeVisible();
+  await expect.poll(() => saved().status).toBe('started');
+  await page.getByLabel('Target day').fill('2030-05-01');
+  await expect.poll(() => saved().target).toBe('2030-05-01');
+  await expect(page.getByRole('group', { name: 'Project details' })).toContainText('May 1, 2030');
+  await page.getByRole('button', { name: 'Link a task list' }).click();
+  await shell().getByRole('menuitem', { name: 'Offsite' }).click();
+  await expect.poll(() => saved().list).toBe('Offsite');
+  await expect(page.getByRole('meter', { name: 'Progress' })).toHaveAttribute('aria-valuetext', '1 of 3 tasks done');
+  await expect(page.getByRole('group', { name: 'Project details' })).toContainText('1 of 3 done · 33%');
+  await page.getByRole('button', { name: 'Clear the target day' }).click();
+  await expect.poll(() => saved().target).toBeUndefined();
+  // The list opens in Tasks.
+  await page.getByRole('button', { name: 'Offsite', exact: true }).click();
+  await expect(shell().locator('.app[data-app="tasks"]').or(shell().getByRole('region', { name: /Tasks$/ }))).toBeVisible();
+});

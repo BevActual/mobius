@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { conversationIdFor, type Bot, type ConversationInfo, type Message, type ProjectInfo, type ProjectLevel, type WikiChange } from '@mobius/shared';
+import { conversationIdFor, type Bot, type ConversationInfo, type Message, type ProjectDetails, type ProjectInfo, type ProjectLevel, type ProjectStatus, type TaskListInfo, type WikiChange } from '@mobius/shared';
 import { appName, isInstalled, type AppId } from './apps';
 import { APP_ICONS } from './Rail';
 import { ActionIcon, ContextMenu } from './ContextMenu';
-import { AppMenu, AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
+import { AppMenu, AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SideNew } from './SideNew';
-import { projectSummary, projectThreads, ruleApps, threadLine } from './projects-view';
+import { PROJECT_STATUSES, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine } from './projects-view';
 import './projects.css';
 import type { WikiIncoming } from './Wiki';
 import { changeTarget } from './actions';
@@ -60,6 +60,12 @@ export function useProjects() {
     if (!why && r && 'id' in r) { await load(); setOpenId(r.id); }
     return why === null;
   };
+  /** Its status, target day or task list (an empty string clears one). */
+  const setDetails = async (id: string, details: ProjectDetails) => {
+    const r = await api?.setDetails?.(id, details).catch(() => null);
+    setProblem(r ? failed(r) : 'That cannot be set here.');
+    await load();
+  };
   const setRule = async (id: string, app: AppId, level: ProjectLevel | 'follow') => { setProblem(failed(await api?.setRule(id, app, level).catch(() => null))); await load(); };
   const addThread = async (id: string, conversation: string) => { const r = await api?.addThread(id, conversation).catch(() => null); setProblem(failed(r)); await load(); return failed(r) === null; };
   /** A thread leaves the project (with the side threads asked from it); the conversation itself is kept. */
@@ -96,7 +102,7 @@ export function useProjects() {
   const [asking, setAsking] = useState<Asking | null>(null);
   const ask = (id: string, kind: Asking['kind']) => { setOpenId(id); setProblem(null); setAsking({ id, kind }); };
   const open = list.find((p) => p.id === openId) ?? list[0] ?? null;
-  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, addThread, removeThread, askBot, remove, problem, asking, ask, stopAsking: () => setAsking(null) };
+  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, setDetails, addThread, removeThread, askBot, remove, problem, asking, ask, stopAsking: () => setAsking(null) };
 }
 export type ProjectsState = ReturnType<typeof useProjects>;
 
@@ -104,6 +110,76 @@ const Chevron = () => <svg className="proj-chevron" viewBox="0 0 20 20" aria-hid
 const ThreadGlyph = () => <svg className="proj-glyph" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3h0A1.5 1.5 0 0 1 4 11.5z" /></svg>;
 /** An app's line glyph in a row: colour tiles are only for the launcher. */
 const AppTile = ({ app }: { app: string }) => <svg className="proj-glyph" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS[app]}</svg>;
+
+/**
+ * A project's status as Linear draws it: a dashed ring for Backlog, a ring for Planned, a half-filled ring In progress,
+ * two bars Paused, a tick Completed and a cross Canceled. Grey, except the work moving (ink) and done (ink, filled).
+ */
+export function StatusIcon({ status }: { status: ProjectStatus | undefined }) {
+  const ring = <circle cx="10" cy="10" r="6.5" />;
+  return (
+    <svg className="proj-status-icon" data-status={status ?? 'none'} viewBox="0 0 20 20" aria-hidden="true">
+      {(!status || status === 'backlog') && <circle cx="10" cy="10" r="6.5" strokeDasharray="2.6 2.4" />}
+      {status === 'planned' && ring}
+      {status === 'started' && <>{ring}<path className="fill" d="M10 5.5a4.5 4.5 0 0 1 0 9z" /></>}
+      {status === 'paused' && <>{ring}<path d="M8.5 7.5v5M11.5 7.5v5" /></>}
+      {status === 'completed' && <><circle className="fill" cx="10" cy="10" r="7" /><path className="on-fill" d="m7 10.2 2 2 4-4.4" /></>}
+      {status === 'canceled' && <>{ring}<path d="m7.8 7.8 4.4 4.4m0-4.4-4.4 4.4" /></>}
+    </svg>
+  );
+}
+
+/**
+ * Under the project's line, as Linear's project properties: its status, its target day and its progress from a Tasks
+ * list (done out of all, with a bar). Each is set in place; a list opens in Tasks.
+ */
+function ProjectProps({ projects, project, onOpenList }: { projects: ProjectsState; project: ProjectInfo; onOpenList: (list: string) => void }) {
+  const [lists, setLists] = useState<TaskListInfo[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = () => void window.mobius.tasks?.lists().then((got) => { if (live && Array.isArray(got)) setLists(got); }).catch(() => undefined);
+    load();
+    const off = window.mobius.tasks?.onChanged?.(load);
+    return () => { live = false; off?.(); };
+  }, []);
+  const set = (details: ProjectDetails) => void projects.setDetails(project.id, details);
+  const target = targetLine(project.target, project.status, new Date());
+  const linked = project.list ? lists?.find((l) => l.name === project.list) : undefined;
+  const progress = progressOf(linked);
+  const dateField = useRef<HTMLInputElement>(null);
+  return (
+    <div className="proj-props" role="group" aria-label="Project details">
+      <Menu label="Status" entries={PROJECT_STATUSES.map((st) => ({ label: st.name, icon: <StatusIcon status={st.id} />, checked: project.status === st.id, run: () => set({ status: project.status === st.id ? '' : st.id }) }))}
+        trigger={<button type="button" className="proj-prop" aria-label={`Status: ${statusName(project.status)}`}><StatusIcon status={project.status} /><span>{statusName(project.status)}</span></button>} />
+      <label className="proj-prop proj-target" data-late={target?.late || undefined} title={target?.late ? 'The target day has passed' : 'Target day'}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6.5h12v9H4zM4 9h12M7.5 4.5v3M12.5 4.5v3" /></svg>
+        <span>{target ? target.text : 'Target day'}</span>
+        <input ref={dateField} type="date" className="proj-target-field" aria-label="Target day" value={project.target ?? ''} onChange={(e) => set({ target: e.target.value })} onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* the field itself takes the day */ } }} />
+      </label>
+      {project.target && <button type="button" className="proj-prop proj-clear" aria-label="Clear the target day" title="Clear the target day" onClick={() => set({ target: '' })}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 7 6 6m0-6-6 6" /></svg></button>}
+      {project.list ? (
+        <span className="proj-progress">
+          <button type="button" className="proj-prop" title={`Open ${project.list} in Tasks`} onClick={() => onOpenList(project.list!)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M5 10h10M5 14h6" /></svg><span>{project.list}</span>
+          </button>
+          {progress && (
+            <span className="proj-progress-bar" role="meter" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.percent} aria-valuetext={`${progress.done} of ${progress.total} tasks done`}>
+              <span style={{ width: `${progress.percent}%` }} />
+            </span>
+          )}
+          <span className="proj-progress-text">{progress ? `${progress.done} of ${progress.total} done · ${progress.percent}%` : lists ? 'That list is not there' : ''}</span>
+          <Menu label="Task list" align="end" entries={[
+            ...(lists ?? []).filter((l) => l.name !== project.list).map((l) => ({ label: l.name, run: () => set({ list: l.name }) })),
+            { label: 'Unlink the task list', separated: true, run: () => set({ list: '' }) },
+          ]} trigger={<button type="button" className="proj-prop proj-more" aria-label="Change the task list"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6.5 8.5 3.5 3.5 3.5-3.5" /></svg></button>} />
+        </span>
+      ) : lists && lists.length > 0 ? (
+        <Menu label="Link a task list" entries={lists.map((l) => ({ label: l.name, run: () => set({ list: l.name }) }))}
+          trigger={<button type="button" className="proj-prop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M5 10h10M5 14h6" /></svg><span>Link a task list</span></button>} />
+      ) : null}
+    </div>
+  );
+}
 
 /** Keys for a project, shown beside their menu rows and working on a focused sidebar row. */
 const RENAME_KEYS = 'F2';
@@ -146,7 +222,7 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
       <nav aria-label="Projects">
         <SidebarSection title="Projects" {...(pin ? { action: pin } : {})}>
           {shown.map((p) => (
-            <SidebarRow key={p.id} icon={<svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>}
+            <SidebarRow key={p.id} icon={p.status ? <StatusIcon status={p.status} /> : <svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>}
               label={p.name} count={waiting(p)} current={projects.open?.id === p.id} onSelect={() => projects.setOpenId(p.id)}
               onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, project: p }); }} />
           ))}
@@ -215,8 +291,8 @@ export function SideThreads({ projects, conversation, bots, onOpen }: { projects
  * and Rename, the folder, the memory page and Delete are in the toolbar's ⋯. Renaming and the delete check take the
  * line's place.
  */
-function ProjectHead({ projects, project, summary, onNewThread, onOpenFiles, onOpenMemory }: {
-  projects: ProjectsState; project: ProjectInfo; summary: string; onNewThread: () => void; onOpenFiles: () => void; onOpenMemory: () => void;
+function ProjectHead({ projects, project, summary, onNewThread, onOpenFiles, onOpenMemory, onOpenList }: {
+  projects: ProjectsState; project: ProjectInfo; summary: string; onNewThread: () => void; onOpenFiles: () => void; onOpenMemory: () => void; onOpenList: (list: string) => void;
 }) {
   const asking = projects.asking?.id === project.id ? projects.asking.kind : null;
   const [naming, setNaming] = useState(project.name);
@@ -260,7 +336,13 @@ function ProjectHead({ projects, project, summary, onNewThread, onOpenFiles, onO
       </div>
     );
   }
-  return <div className="proj-head">{tools}<p className="proj-summary">{summary}</p></div>;
+  return (
+    <div className="proj-head">
+      {tools}
+      <p className="proj-summary">{summary}</p>
+      <ProjectProps projects={projects} project={project} onOpenList={onOpenList} />
+    </div>
+  );
 }
 
 /** The project's memory page, as Markdown in the Wiki. */
@@ -442,7 +524,7 @@ function OpenProject({ projects, project: p, conversations, incoming, onOpenThre
   return (
     <section className="skills-page project-page" aria-label={p.name}>
       <ProjectHead projects={projects} project={p} summary={projectSummary(p, conversations, made?.length ?? 0, now)}
-        onNewThread={() => onNewThread(p.id)} onOpenFiles={() => onOpenFiles(p)} onOpenMemory={() => onOpenMemory(p)} />
+        onNewThread={() => onNewThread(p.id)} onOpenFiles={() => onOpenFiles(p)} onOpenMemory={() => onOpenMemory(p)} onOpenList={(list) => onOpenMade(`tasks/${list}.md`)} />
       {waiting.length > 0 && (
         <Group label="Waiting on you" heading="Waiting on you" tone="attention">
           <ul className="proj-rows" role="list">

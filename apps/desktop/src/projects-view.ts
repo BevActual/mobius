@@ -1,4 +1,4 @@
-import type { ConversationInfo, ProjectInfo } from '@mobius/shared';
+import type { ConversationInfo, ProjectInfo, ProjectStatus } from '@mobius/shared';
 import { relativeTime } from './relative-time';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -35,4 +35,36 @@ export function projectSummary(project: ProjectInfo, conversations: readonly Con
  */
 export function ruleApps<T extends string>(all: readonly T[], rules: ProjectInfo['rules'], installed: (id: string) => boolean): T[] {
   return all.filter((app) => installed(app) || (rules[app] !== undefined));
+}
+
+/** Linear's project statuses, in their order, with the words shown for each. */
+export const PROJECT_STATUSES: readonly { id: ProjectStatus; name: string }[] = [
+  { id: 'backlog', name: 'Backlog' },
+  { id: 'planned', name: 'Planned' },
+  { id: 'started', name: 'In progress' },
+  { id: 'paused', name: 'Paused' },
+  { id: 'completed', name: 'Completed' },
+  { id: 'canceled', name: 'Canceled' },
+];
+export const statusName = (s: ProjectStatus | undefined) => PROJECT_STATUSES.find((x) => x.id === s)?.name ?? 'No status';
+
+/** How far the project's task list has come, as Linear's progress: done out of all, and the share done (0 to 100). */
+export function progressOf(info: { open: number; done: number } | undefined): { done: number; total: number; percent: number } | null {
+  if (!info) return null;
+  const total = info.open + info.done;
+  return { done: info.done, total, percent: total === 0 ? 0 : Math.round((info.done / total) * 100) };
+}
+
+/**
+ * The target day in words, and whether it has passed while the work is still open: "Dec 4", "Dec 4, 2027" in another
+ * year, "Today", or "Tomorrow".
+ */
+export function targetLine(target: string | undefined, status: ProjectStatus | undefined, now: Date): { text: string; late: boolean } | null {
+  if (!target || !/^\d{4}-\d{2}-\d{2}$/.test(target)) return null;
+  const [y, m, d] = target.split('-').map(Number) as [number, number, number];
+  const day = new Date(y, m - 1, d);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((day.getTime() - today.getTime()) / 86_400_000);
+  const text = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : day.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(y !== now.getFullYear() ? { year: 'numeric' } : {}) });
+  return { text, late: diff < 0 && status !== 'completed' && status !== 'canceled' };
 }

@@ -27,6 +27,32 @@ pub struct Project {
     /// Bots asked from a thread to do something on the side: each in a conversation of its own, reporting back.
     #[serde(default)]
     pub sides: Vec<Side>,
+    /// Where the work stands, as Linear's project statuses: `backlog`, `planned`, `started`, `paused`, `completed` or
+    /// `canceled`. None: not said.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// The day it should be done by (YYYY-MM-DD).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    /// The Tasks list that holds its work; its open and done tasks give the project's progress.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub list: Option<String>,
+}
+
+/// A change to a project's status, target day or task list. An absent field stays; an empty one is cleared.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Details {
+    pub status: Option<String>,
+    pub target: Option<String>,
+    pub list: Option<String>,
+}
+
+pub const STATUSES: [&str; 6] = ["backlog", "planned", "started", "paused", "completed", "canceled"];
+
+fn is_day(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 10 && b[4] == b'-' && b[7] == b'-' && s.chars().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
+        && (1..=12).contains(&s[5..7].parse::<u8>().unwrap_or(0)) && (1..=31).contains(&s[8..10].parse::<u8>().unwrap_or(0))
 }
 
 /// A bot's side thread: what it was asked from which thread, and what it reported back when it finished.
@@ -100,7 +126,7 @@ impl Projects {
             }
             let mut bytes = [0u8; 4];
             let _ = getrandom::fill(&mut bytes);
-            let project = Project { id: format!("p{}", bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()), name, rules: BTreeMap::new(), threads: Vec::new(), sides: Vec::new() };
+            let project = Project { id: format!("p{}", bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()), name, rules: BTreeMap::new(), threads: Vec::new(), sides: Vec::new(), status: None, target: None, list: None };
             all.push(project.clone());
             Ok(project)
         })
@@ -143,6 +169,32 @@ impl Projects {
             } else {
                 p.rules.insert(app.to_owned(), level.to_owned());
             }
+            Ok(p.clone())
+        })
+    }
+
+    /// Its status, target day or task list; an empty value clears that one.
+    pub fn set_details(&self, id: &str, d: &Details) -> Result<Project, String> {
+        if let Some(s) = d.status.as_deref().filter(|s| !s.is_empty()) {
+            if !STATUSES.contains(&s) {
+                return Err("That is not a status.".into());
+            }
+        }
+        if let Some(t) = d.target.as_deref().filter(|t| !t.is_empty()) {
+            if !is_day(t) {
+                return Err("A target is a day (YYYY-MM-DD).".into());
+            }
+        }
+        let list = d.list.as_deref().map(|l| l.split_whitespace().collect::<Vec<_>>().join(" "));
+        if list.as_deref().is_some_and(|l| l.chars().count() > 100 || l.contains(['/', '\\'])) {
+            return Err("That is not a task list.".into());
+        }
+        self.change(|all| {
+            let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;
+            let set = |v: Option<&str>| v.map(|v| (!v.is_empty()).then(|| v.to_owned()));
+            if let Some(v) = set(d.status.as_deref()) { p.status = v; }
+            if let Some(v) = set(d.target.as_deref()) { p.target = v; }
+            if let Some(v) = set(list.as_deref()) { p.list = v; }
             Ok(p.clone())
         })
     }
@@ -247,6 +299,25 @@ pub fn core_rules(project: &Project) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_project_keeps_its_status_target_and_task_list() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = Projects::new(dir.path().join("projects.json"));
+        let id = p.create("Offsite").unwrap().id;
+        let d = |status: Option<&str>, target: Option<&str>, list: Option<&str>| Details { status: status.map(Into::into), target: target.map(Into::into), list: list.map(Into::into) };
+        let got = p.set_details(&id, &d(Some("started"), Some("2026-12-04"), Some(" Offsite  plan "))).unwrap();
+        assert_eq!((got.status.as_deref(), got.target.as_deref(), got.list.as_deref()), (Some("started"), Some("2026-12-04"), Some("Offsite plan")));
+        let got = p.set_details(&id, &d(Some("paused"), None, None)).unwrap();
+        assert_eq!((got.status.as_deref(), got.target.as_deref()), (Some("paused"), Some("2026-12-04")), "an absent field stays");
+        let got = p.set_details(&id, &d(None, Some(""), Some(""))).unwrap();
+        assert_eq!((got.target, got.list), (None, None), "an empty one is cleared");
+        assert!(p.set_details(&id, &d(Some("done"), None, None)).is_err());
+        assert!(p.set_details(&id, &d(None, Some("2026-13-01"), None)).is_err());
+        assert!(p.set_details(&id, &d(None, Some("next week"), None)).is_err());
+        assert!(p.set_details(&id, &d(None, None, Some("a/b"))).is_err());
+        assert_eq!(p.list()[0].status.as_deref(), Some("paused"), "kept on disk");
+    }
 
     #[test]
     fn a_project_keeps_its_name_rules_and_threads() {
