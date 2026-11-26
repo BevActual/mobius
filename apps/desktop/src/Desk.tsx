@@ -157,9 +157,10 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
     await foldAway(row);
     if (!(await inbox!.onDone(item))) {
       // It did not happen: the row comes back, says so, and takes the focus again.
-      unfold(row);
       setSaid(`Couldn't ${item.kind === 'task' ? 'complete' : 'clear'} ${item.name}`);
-      row?.querySelector<HTMLElement>('.desk-open')?.focus();
+      await unfold(row);
+      // After the keyboard's own move to the next row has run.
+      requestAnimationFrame(() => rowOf(item.key)?.querySelector<HTMLElement>('.desk-open')?.focus());
       return;
     }
     kept.done(item.key);

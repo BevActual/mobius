@@ -1389,7 +1389,8 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
       if ((e.ctrlKey || e.metaKey) && k === 'd' && picked) { e.preventDefault(); void copy(picked); return; }
       if (e.metaKey || e.ctrlKey) return;
       if (picked && (e.key === 'Delete' || e.key === 'Backspace')) void drop(picked);
-      else if (picked && e.key === 'Enter') show(picked, where(key!));
+      // Enter on a focused button (an event, a day) presses that button; only Enter elsewhere opens the one picked out.
+      else if (picked && e.key === 'Enter' && !t?.closest('button, a')) show(picked, where(key!));
       else if (key && e.key === 'Escape') setSelected(null);
       else if (k === 't') c.setAnchor(new Date());
       else if (e.key === 'ArrowLeft') c.setAnchor(step(c.mode, c.anchor, -1));

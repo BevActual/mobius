@@ -40,10 +40,13 @@ export function slideIn(view: HTMLElement | null, later: boolean | null): void {
   view.animate([{ opacity: 0.4, transform: `translateX(${later ? 24 : -24}px)` }, { opacity: 1, transform: 'none' }], { duration: GROW_MS, easing: EASE });
 }
 
-/** Puts back a row that was folding away, when what it was for did not happen after all. */
-export function unfold(row: HTMLElement | null): void {
+/** Puts back a row that was folding away, when what it was for did not happen after all: the fold runs back open. */
+export async function unfold(row: HTMLElement | null): Promise<void> {
   if (!row) return;
-  for (const a of row.getAnimations?.() ?? []) a.cancel();
+  const runs = row.getAnimations?.() ?? [];
+  for (const a of runs) a.reverse();
+  await Promise.all(runs.map((a) => a.finished.catch(() => undefined)));
+  for (const a of runs) a.cancel();
   delete row.dataset.leaving;
   row.style.overflow = '';
 }
