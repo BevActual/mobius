@@ -2308,11 +2308,12 @@ impl Bridge {
             return;
         }
         let due = self.schedules.take_due(&chrono::Local::now());
+        for schedule in &due {
+            self.run_schedule(schedule);
+        }
+        // Once their chats have started, so a window reading the list again finds them running.
         if !due.is_empty() {
             (self.emit)("mobius:schedules-changed", Value::Null);
-        }
-        for schedule in due {
-            self.run_schedule(&schedule);
         }
     }
 

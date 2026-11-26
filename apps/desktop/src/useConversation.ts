@@ -99,6 +99,9 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     [refresh],
   );
 
+  // A schedule that fires on its own starts a chat elsewhere: read the list again when one runs.
+  useEffect(() => window.mobius.schedules?.onChange(() => void refresh()), [refresh]);
+
   // Bring back what was said, and anything still waiting for a person, whenever a conversation is opened.
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, id);
