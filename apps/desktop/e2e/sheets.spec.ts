@@ -68,6 +68,31 @@ test('a workbook of CSV sheets shows its formulas worked out, and typing in a ce
   expect(fs.readFileSync(file('Budget'), 'utf8')).toContain('Hotel,14,320,=B2*C2,=D2/0\n');
 });
 
+test('Ask from anywhere on chosen cells: the card sits by them and the question carries their values', async () => {
+  await start([says(['Hotel costs the most.'], 200)]);
+  await cell('A2').click();
+  await cell('B4').click({ modifiers: ['Shift'] });
+  await shell().keyboard.press('Control+Shift+J');
+  const card = shell().getByRole('dialog', { name: 'Ask Mobius about the selection' });
+  await expect(card).toContainText('A2:B4');
+  // By the cells, not up at the name box.
+  const [box, cells] = await Promise.all([card.boundingBox(), cell('B4').boundingBox()]);
+  expect(Math.abs(box!.y - (cells!.y + cells!.height + 8))).toBeLessThan(4);
+  const field = card.getByRole('textbox', { name: 'Ask about the selection' });
+  await field.fill('Which costs most?');
+  await field.press('Enter');
+  await expect(card.getByRole('status', { name: "Mobius's answer" })).toContainText('Hotel costs the most.');
+  const sent = JSON.stringify(model!.requests.at(-1));
+  expect(sent).toContain('Selected cells: A2:B4');
+  expect(sent).toContain('Terrace venue\\t1');
+  // Tab stays in the card; a press outside closes it without acting on what it lands on.
+  for (let i = 0; i < 4; i++) await shell().keyboard.press('Tab');
+  expect(await card.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  await cell('D5').click();
+  await expect(card).toHaveCount(0);
+  await expect(shell().getByRole('textbox', { name: 'Cell contents' })).not.toHaveValue('=SUM(D2:D4)');
+});
+
 test('the open sheet and the chosen cell go with a message, as a chip that can be removed', async () => {
   await start([says(['Trimmed it.']), says(['Without the sheet.'])]);
   await cell('D2').click();

@@ -1353,6 +1353,9 @@ export function App() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || !pressIs('mod+shift+j', event, window.mobius.platform === 'darwin')) return;
+      // Open already: the key takes the keyboard back to its question.
+      const open = document.querySelector<HTMLElement>('.ask-here input');
+      if (open) { event.preventDefault(); open.focus(); return; }
       const picked = pickedNow();
       if (!picked) return;
       event.preventDefault();
