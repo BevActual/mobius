@@ -91,9 +91,9 @@ test('a dock of panels slides back into its edge as it closes and out again as i
   const dock = shell.locator('.ui-dock[data-dock="left"]');
   await expect(dock).toBeVisible();
   await shell.keyboard.press('Control+\\');
-  // Still drawn for a moment, narrowing to nothing and out of reach meanwhile.
-  expect(await dockMotion(shell)).toEqual([{ props: ['opacity', 'width'], duration: 150 }]);
+  // Still drawn for a moment, narrowing to nothing (its gap to the page too) and out of reach meanwhile.
+  expect(await dockMotion(shell)).toEqual([{ props: ['marginRight', 'opacity', 'width'], duration: 150 }]);
   await expect(dock).toHaveCount(0);
   await shell.keyboard.press('Control+\\');
-  expect(await dockMotion(shell)).toEqual([{ props: ['opacity', 'width'], duration: 200 }]);
+  expect(await dockMotion(shell)).toEqual([{ props: ['marginRight', 'opacity', 'width'], duration: 200 }]);
 });
