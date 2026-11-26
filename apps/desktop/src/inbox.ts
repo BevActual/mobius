@@ -60,7 +60,7 @@ export function inboxItems(s: InboxSources, now: Date): InboxItem[] {
     if (!me || me.status !== 'needs-action' || (e.organizer && mine.has(e.organizer.email.toLowerCase()))) continue;
     seen.add(e.id);
     const from = e.organizer?.name || e.organizer?.email || 'Someone';
-    out.push({ key: `invite:${e.id}:${e.start}`, kind: 'invite', app: 'calendar', name: e.title || 'Invitation', text: `Invitation from ${from}`, go: 'Answer', target: { app: 'calendar', date: e.start.slice(0, 10) }, at: start });
+    out.push({ key: `invite:${e.id}:${e.start}`, kind: 'invite', app: 'calendar', name: e.title || 'Invitation', text: `Invitation from ${from}`, go: 'Answer', target: { app: 'calendar', date: e.start.slice(0, 10), event: e.id }, at: start });
   }
   for (const m of s.mail) {
     if (!m.needsReply || m.archived || m.box !== 'inbox') continue;

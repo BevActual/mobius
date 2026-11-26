@@ -473,6 +473,29 @@ export function sameInvitees(a: readonly { email: string }[], b: readonly { emai
 /** An attendee's answer in words, or nothing while it waits. */
 export const answerWord = (status: CalendarAnswer): string => ({ accepted: 'going', declined: 'not going', tentative: 'maybe', 'needs-action': '', '': '' })[status];
 
+/**
+ * The person's own place on an invitation someone else sent: the attendee with one of their addresses, or null when they
+ * are not invited or sent it themselves. As Google Calendar's "Going?", only an invitation from someone else is answered.
+ */
+export function myInvite(event: Pick<CalendarEvent, 'attendees' | 'organizer'>, me: readonly string[]): CalendarPerson | null {
+  const mine = new Set(me.map((e) => e.trim().toLowerCase()).filter(Boolean));
+  if (event.organizer && mine.has(event.organizer.email.toLowerCase())) return null;
+  return event.attendees?.find((a) => mine.has(a.email.toLowerCase())) ?? null;
+}
+
+/** The invited list with one person's answer changed, everyone else's kept, for an update. */
+export function answeredAs(attendees: readonly CalendarPerson[], email: string, status: Exclude<CalendarAnswer, '' | 'needs-action'>): NonNullable<CalendarDraft['attendees']> {
+  const who = email.toLowerCase();
+  return attendees.map((a) => ({ name: a.name, email: a.email, ...(a.email.toLowerCase() === who ? { status } : a.status ? { status: a.status } : {}) }));
+}
+
+/** The answers to an invitation, in Google Calendar's order and words. */
+export const GOING: readonly { status: Exclude<CalendarAnswer, '' | 'needs-action'>; label: string }[] = [
+  { status: 'accepted', label: 'Yes' },
+  { status: 'declined', label: 'No' },
+  { status: 'tentative', label: 'Maybe' },
+];
+
 /** The first video-meeting link in an event's place or notes (Meet, Zoom, Teams, Webex, Whereby, Jitsi), for Join. */
 export function meetingLink(text: string): string | null {
   const found = text.match(/https:\/\/(?:[\w-]+\.)*(?:meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com|webex\.com|whereby\.com|meet\.jit\.si)\/[^\s<>"')]*/i);

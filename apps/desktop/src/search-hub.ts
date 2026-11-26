@@ -22,8 +22,8 @@ export type HubTarget =
   | { app: 'video'; project: string }
   | { app: 'code'; project: string }
   | { app: 'browser'; url: string }
-  /** The calendar, at a day when given (YYYY-MM-DD). */
-  | { app: 'calendar'; date?: string }
+  /** The calendar, at a day when given (YYYY-MM-DD), with an event on that day open when its id is given. */
+  | { app: 'calendar'; date?: string; event?: string }
   /** An app by itself, as it was last left. */
   | { app: 'open'; id: AppId };
 
