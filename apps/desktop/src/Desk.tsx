@@ -158,7 +158,13 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
     if (!(await inbox!.onDone(item))) {
       // It did not happen: the row comes back, says so, and takes the focus again.
       setSaid(`Couldn't ${item.kind === 'task' ? 'complete' : 'clear'} ${item.name}`);
-      await unfold(row);
+      // Ticking it off takes the task out of the list at once and puts a new row back when the write fails: open out
+      // the row that is on the page now, found again over the next frames, not the one that was folded.
+      const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
+      await frame();
+      let back = rowOf(item.key);
+      for (let i = 0; i < 12 && !back?.isConnected; i++) { await frame(); back = rowOf(item.key); }
+      await unfold(back ?? row);
       // After the keyboard's own move to the next row has run.
       requestAnimationFrame(() => rowOf(item.key)?.querySelector<HTMLElement>('.desk-open')?.focus());
       return;
