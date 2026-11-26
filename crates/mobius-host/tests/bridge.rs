@@ -1815,12 +1815,12 @@ fn one_step_of_a_turn_goes_back_on_its_own() {
     assert_eq!(
         steps["steps"],
         json!([
-            { "callId": "s1", "tool": "files.write", "nth": 0, "files": ["notes/A.md"], "undone": false },
-            { "callId": "s2", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false },
-            { "callId": "s1", "tool": "files.write", "nth": 1, "files": ["notes/Old.md"], "undone": false },
-            { "callId": "s4", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false },
+            { "callId": "s1", "tool": "files.write", "nth": 0, "files": ["notes/A.md"], "undone": false, "later": false },
+            { "callId": "s2", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false, "later": true },
+            { "callId": "s1", "tool": "files.write", "nth": 1, "files": ["notes/Old.md"], "undone": false, "later": false },
+            { "callId": "s4", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false, "later": false },
         ]),
-        "the read is not a step that changed anything"
+        "the read is not a step that changed anything; B's first step has nothing left to put back"
     );
     // The third step only: the old note is as it was, the new ones stay.
     let undone = call(&b, "changes", "undoStep", json!(["c-1", "s1", "files.write", 1]));
@@ -1873,6 +1873,8 @@ fn a_step_put_back_leaves_an_earlier_step_on_the_same_file() {
     assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/Plan.md"]));
     std::fs::write(ws.join("notes/Plan.md"), "# Plan\n\nOne. Mine.\n").unwrap();
     assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/Plan.md"]));
+    // The person's edit leaves the first step nothing to put back, and it says so before its Undo is pressed.
+    assert_eq!(call(&b, "changes", "steps", json!(["c-1"]))["steps"][0]["later"], true);
 }
 
 /// A turn that changed no files, then another: the second has a start of its own, so keeping the first (by its start)

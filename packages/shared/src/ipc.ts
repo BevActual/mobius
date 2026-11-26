@@ -1706,7 +1706,11 @@ export interface TurnChanges { checkpoint: string | null; files: string[]; moves
  * One step of the last turn that changed files: its call and tool, the files it changed, and whether it was put back.
  * `nth` counts the turn's earlier calls with the same id and tool: some models number their calls afresh in each answer.
  */
-export interface TurnStep { callId: string; tool: string; nth: number; files: string[]; undone: boolean }
+export interface TurnStep {
+  callId: string; tool: string; nth: number; files: string[]; undone: boolean;
+  /** Every file it changed was changed again since (by a later step, or by the person): its Undo would put nothing back. */
+  later?: boolean;
+}
 export interface AgentFailure { ok: false; error: string }
 
 export interface AgentSettings {

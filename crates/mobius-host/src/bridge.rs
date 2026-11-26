@@ -4682,7 +4682,11 @@ impl Bridge {
                     .into_iter()
                     .filter_map(|(step, before, after)| {
                         let files = self.workspace.changed_between(&before, &after).ok()?;
-                        (!files.is_empty()).then(|| json!({ "callId": step.call, "tool": step.tool, "nth": step.nth, "files": files, "undone": step.undone }))
+                        // Every file it changed was changed again after it (by a later step, or by the person): its Undo
+                        // would put nothing back, and says so before it is pressed.
+                        let since = if step.undone || files.is_empty() { Vec::new() } else { self.workspace.changed_since(&after).unwrap_or_default() };
+                        let later = !step.undone && !files.is_empty() && files.iter().all(|f| since.contains(f));
+                        (!files.is_empty()).then(|| json!({ "callId": step.call, "tool": step.tool, "nth": step.nth, "files": files, "undone": step.undone, "later": later }))
                     })
                     .collect();
                 json!({ "ok": true, "steps": steps })
