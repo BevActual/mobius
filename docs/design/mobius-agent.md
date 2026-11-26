@@ -101,7 +101,8 @@ One shell branch, one PR, in this order, each piece usable on its own:
    and the result lands in Home's Inbox as one row with Keep all and Open.
 
 The visible co-worker (an in-app cursor and pill in each app) comes right after, app by app with the Apps lead, once
-the step list knows where each change is.
+the step list knows where each change is. Its shell part came in the second round: Pause and Resume on the working
+pill, and typing in the app Mobius is working in pauses it at once (it takes over; the keystroke goes through).
 
 Decisions for Andrew, later: whether the morning brief is spoken by default; how often Mobius may look on its own;
 whether conversations move onto items (that changes where old chats appear).

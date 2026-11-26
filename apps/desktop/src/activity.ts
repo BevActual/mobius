@@ -10,6 +10,8 @@ export interface Activity {
   step?: { done: number; total: number };
   /** The person has to do something (allow a tool or answer a question). */
   needsYou: boolean;
+  /** The person paused Mobius (took over): it waits, at this step of its plan, until they resume. */
+  paused?: { step: number; of?: number };
 }
 
 const pathOf = (args: unknown): string => {
@@ -88,6 +90,7 @@ export function activityOf(state: ConversationState): Activity | null {
   const plan = [...state.items].reverse().find((i): i is Extract<Item, { kind: 'plan' }> => i.kind === 'plan');
   const step = plan && plan.items.length > 0 ? { done: plan.items.filter((t) => t.status === 'done').length, total: plan.items.length } : undefined;
   const withStep = (a: Omit<Activity, 'step'>): Activity => (step ? { ...a, step } : a);
+  if (state.control) return withStep({ label: 'Paused', app: null, needsYou: false, paused: state.control });
   const waiting = state.items.find((i): i is Tool => i.kind === 'tool' && i.status === 'waiting');
   if (waiting) return withStep({ label: 'Waiting for you to allow it', app: appOfTool(waiting.name, waiting.args), needsYou: true });
   if (state.items.some((i) => i.kind === 'question' && i.status === 'open')) return withStep({ label: 'Waiting for your answer', app: null, needsYou: true });
@@ -96,6 +99,21 @@ export function activityOf(state: ConversationState): Activity | null {
   const running = [...state.items].reverse().find((i): i is Tool => i.kind === 'tool' && i.status === 'running');
   if (running) return withStep({ label: toolLabel(running.name, running.args), app: appOfTool(running.name, running.args), needsYou: false });
   return withStep({ label: 'Thinking', app: null, needsYou: false });
+}
+
+/**
+ * The app this turn last worked in (its newest tool's), so Mobius counts as at work there while it thinks or writes
+ * between steps. Null when the turn has used no app's tool, or nothing is running.
+ */
+export function appOfTurn(state: ConversationState): AppId | null {
+  if (!state.busy) return null;
+  const from = state.items.findLastIndex((i) => i.kind === 'user') + 1;
+  for (const item of state.items.slice(from).reverse()) {
+    if (item.kind !== 'tool') continue;
+    const app = appOfTool(item.name, item.args);
+    if (app) return app;
+  }
+  return null;
 }
 
 /** Whether a mail.draft answers a message (its replyTo is the id of the one it answers) or is a new email. */

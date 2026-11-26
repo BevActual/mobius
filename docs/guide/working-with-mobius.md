@@ -85,7 +85,8 @@ changes with what Mobius is doing.
   **Earlier chats** to pick up again.
 - **Working.** Mobius's plan as a checklist and each tool it uses as a plain sentence, with **Stop**. With the panel
   closed, a small pill beside the Mobius icon says what it is doing (and *Mobius needs you* when it waits for you);
-  press it to open the panel.
+  press it to open the panel. **Pause** on the pill stops Mobius where it is and leaves the apps to you; it then says
+  *Paused* and where it stopped, with **Resume** to carry on.
 - **Asking.** A question is a card of numbered choices, the first outlined as the suggestion; press its number, or
   type your own answer in the message box. An approval is a dashed card that says what will happen. **Allow once**
   is on the right (it names the action, such as **Send** or **Delete**, for what can't be undone); **Decline** and
@@ -136,7 +137,8 @@ checkpoints live in their own store and never touch a folder's own git history.
 - **Queue.** Messages you send while Mobius is working wait in a queue. Each can be edited or removed.
 - **Take over** (beside Stop). While a task is running you can take control: Mobius pauses at the next safe step and the
   apps are yours. Then **Hand back**, optionally telling it what you changed or what to do next ("I booked it myself;
-  just send the summary"), or **Stop**.
+  just send the summary"), or **Stop**. Starting to type in the app Mobius is working in (the note it is writing, say)
+  takes over at once, so the two of you never write over each other; Resume on the pill, or Hand back, carries on.
 
 ## Signing in to websites
 

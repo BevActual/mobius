@@ -99,3 +99,55 @@ test('a tab Mobius drives says so, becomes Yours on Take over, and is Mobius’s
   await expect(log.locator('.msg.assistant')).toContainText('Done with the page.');
   await expect(tab.locator('.tab-driver')).toHaveCount(0);
 });
+
+test('typing in the note Mobius is working in pauses it; Resume on its pill carries on', async () => {
+  // It reads the note, then takes its time over the next step: meanwhile the person starts typing in that note.
+  const slowStep = { chunks: [
+    { data: { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'call_2', function: { name: 'files-read', arguments: JSON.stringify({ path: 'notes/Work/Plan.md' }) } }] } }] }, pauseMs: 2500 },
+    { data: { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }, pauseMs: 0 },
+  ] };
+  model = await startModel([callsTool('files-read', { path: 'notes/Work/Plan.md' }), slowStep, says(['Carried on.']), says(['Carried on.'])]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  const shell = mobius.shell;
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell.keyboard.press('Enter');
+  await shell.getByRole('complementary', { name: 'Notebooks' }).getByRole('button', { name: 'Plan', exact: true }).click();
+  const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
+  if (!(await composer.isVisible())) await shell.keyboard.press('Control+Shift+M');
+  await expect(composer).toBeEnabled({ timeout: 15_000 });
+  await composer.fill('Tidy my plan');
+  await composer.press('Enter');
+  const log = shell.getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: files.read' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect.poll(() => model!.requests.length).toBe(2);
+
+  // Typing in the message box does not pause it; typing in the note it is working in does, at once.
+  await composer.click();
+  await shell.keyboard.type('a');
+  await shell.waitForTimeout(300);
+  await expect(shell.getByRole('status', { name: 'You have control' })).toHaveCount(0);
+  await composer.fill('');
+  const text = shell.getByRole('textbox', { name: 'Note text' });
+  await text.click();
+  await shell.keyboard.type('x');
+  await expect(shell.getByRole('status').filter({ hasText: 'Paused Mobius while you type' })).toBeVisible();
+  await expect(shell.getByRole('status', { name: 'You have control' })).toBeVisible();
+
+  // With the panel closed, its pill says Paused and offers Resume.
+  await shell.getByRole('button', { name: 'Hide Mobius' }).click();
+  const pill = shell.locator('.working-pill');
+  await expect(pill).toContainText('Paused');
+  await expect(pill.getByRole('button', { name: 'Pause Mobius' })).toHaveCount(0);
+  await shell.waitForTimeout(3000);
+  expect(model.requests).toHaveLength(2);
+  await pill.getByRole('button', { name: 'Resume' }).click();
+  await expect(pill).not.toContainText('Paused');
+  await pill.getByRole('button').first().click();
+  const card = log.getByRole('group', { name: 'Approval needed: files.read' });
+  await card.or(log.locator('.msg.assistant', { hasText: 'Carried on.' })).first().waitFor();
+  if (await card.isVisible()) await card.getByRole('button', { name: 'Allow once' }).click();
+  await expect(log.locator('.msg.assistant')).toContainText('Carried on.');
+  const system = (model.requests[2]!.messages as Array<{ role: string; content: string }>)[0]!.content;
+  expect(system).toContain('The person took over for a while');
+});
