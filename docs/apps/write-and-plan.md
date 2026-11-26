@@ -187,7 +187,16 @@ Spreadsheets with formulas.
   width. Sorting keeps the header and total rows where they are.
 - **Number formats**: show a column's numbers as Number (1,234.50), Currency or Percentage from the % button or the
   column's menu. Currency and grouping follow the computer's region. The CSV keeps the plain number.
-- **Find** with Ctrl+F: matching cells are tinted, and Enter (or Shift+Enter) moves from one to the next.
+- **Find and Replace**: Ctrl+F finds (matching cells are tinted, and Enter or Shift+Enter moves between them), and
+  Ctrl+H adds a Replace field. **Replace** changes the chosen match and goes to the next, and **Replace all**
+  changes every match in one step that Ctrl+Z undoes. Case is ignored, and a formula's text is searched too, as in
+  Excel.
+- **Filter** with Ctrl+Shift+L (or Table > Filter), as Excel's AutoFilter: each header cell gets a funnel. It lists
+  the column's values to tick, with a search, Select all and Sort A to Z / Z to A. Unticked values hide their rows,
+  and the arrows pass over them. A line above the grid says "Showing 2 of 3 rows" with **Clear filters**. The total
+  row always shows. A filter only changes what you see, never the file, and it is kept per sheet on this computer.
+- **Freeze first column** (Table menu) keeps column A beside the row numbers while you scroll across. The header row
+  already stays at the top.
 - Sheets are tabs below the grid. Insert and remove rows and columns; Ctrl+Z undoes any step.
 - **Select cells** and the top of the Mobius panel shows their sum, average and count.
 - **Analyse** mode (**Analyse…** in the Mobius panel, or the composer's Mode menu while you are in Sheets) answers with charts and tables and never

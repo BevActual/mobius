@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { cellName, changedCells, chartData, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, grouped, groupsThousands, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { cellName, changedCells, chartData, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, filterChoices, findCells, formatted, hiddenRows, nextShownRow, replaceIn, grouped, groupsThousands, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
 import { readBefore } from './readBefore';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
@@ -123,6 +123,9 @@ const WIDTHS_KEY = 'mobius.sheets.widths';
 const HEADER_KEY = 'mobius.sheets.header';
 /** Per sheet, kept on this device: how each column shows its numbers (the CSV keeps them plain). */
 const FORMATS_KEY = 'mobius.sheets.formats';
+/** Per sheet, kept on this device: its filter (each filtered column with the values it hides), and a frozen first column. */
+const FILTERS_KEY = 'mobius.sheets.filters';
+const FREEZE_KEY = 'mobius.sheets.freeze';
 function readKept<T>(key: string): Record<string, T> {
   try { const v: unknown = JSON.parse(window.localStorage.getItem(key) ?? '{}'); return typeof v === 'object' && v !== null ? v as Record<string, T> : {}; } catch { return {}; }
 }
@@ -213,6 +216,9 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
   // Find in the sheet (Ctrl+F): what is looked for, and which match is current.
   const [finding, setFinding] = useState<{ query: string; at: number } | null>(null);
   const findInput = useRef<HTMLInputElement>(null);
+  /** Find and Replace (Ctrl+H): what goes in place of a match, while the Replace field shows. */
+  const [replacing, setReplacing] = useState<string | null>(null);
+  const [replaced, setReplaced] = useState<string | null>(null);
   const [suggest, setSuggest] = useState(0);
   const [, setTick] = useState(0);
   // What the panel's Glance shows: worked out below for this render (nothing while there is no sheet), sent after it.
@@ -240,7 +246,14 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
   }, [bodyEl]);
   const [header, setHeader] = useState<boolean | undefined>(undefined);
   const [formats, setFormats] = useState<Record<number, NumberFormat>>({});
+  // Excel's AutoFilter: null while off; on, each filtered column lists the values it hides.
+  const [filters, setFilters] = useState<Record<number, string[]> | null>(null);
+  const [freeze, setFreeze] = useState(false);
+  const [filterPop, setFilterPop] = useState<{ c: number; x: number; y: number } | null>(null);
   useEffect(() => {
+    setFilters(readKept<Record<number, string[]>>(FILTERS_KEY)[place] ?? null);
+    setFreeze(readKept<boolean>(FREEZE_KEY)[place] ?? false);
+    setFilterPop(null);
     setWidths(readKept<Record<string, number>>(WIDTHS_KEY)[place] ?? {});
     setFormats(readKept<Record<number, NumberFormat>>(FORMATS_KEY)[place] ?? {});
     setHeader(readKept<boolean>(HEADER_KEY)[place]);
@@ -349,6 +362,9 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
   const headerOn = header ?? looksLikeHeader(data.values);
   // A last row that adds up the rows above reads as the table's total, set apart as in Numbers.
   const footerAt = hasFooter(data.cells) ? used.rows - 1 : -1;
+  // A filter works on the rows under the header, down to the last (a total row stays in view).
+  const filterTo = footerAt > 0 ? footerAt - 1 : used.rows - 1;
+  const hidden = filters ? hiddenRows(data.values, filters, 1, filterTo) : new Set<number>();
   // A column the person has not sized fits its words, so names and labels are not cut short.
   const fitted = fittedWidths(data.values, headerOn, formats);
   const colWidth = (c: number) => widths[c] ?? fitted[c] ?? COL_W;
@@ -552,6 +568,19 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
     keepFormats(next);
   };
   const setHeaderRow = (on: boolean) => { setHeader(on); writeKept(HEADER_KEY, place, on); };
+  const keepFilters = (next: Record<number, string[]> | null) => { setFilters(next); writeKept(FILTERS_KEY, place, next ?? undefined); };
+  /** Filter on or off (Ctrl+Shift+L), as Excel: it works from the header row, so turning it on makes the first row one. */
+  const toggleFilter = () => {
+    if (filters) { keepFilters(null); setFilterPop(null); return; }
+    if (!headerOn) setHeaderRow(true);
+    keepFilters({});
+  };
+  const setFilter = (c: number, hide: string[]) => {
+    const next = { ...(filters ?? {}) };
+    if (hide.length === 0) delete next[c]; else next[c] = hide;
+    keepFilters(next);
+  };
+  const toggleFreeze = () => { setFreeze(!freeze); writeKept(FREEZE_KEY, place, freeze ? undefined : true); };
   const setWidth = (c: number, w: number | undefined) => {
     setWidths((cur) => {
       const next = { ...cur };
@@ -579,8 +608,10 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
   // ---------- Find ----------
   const matches = finding ? findCells(data.cells, data.values, finding.query) : [];
   const matchKeys = new Set(matches.map((m) => `${m.r}:${m.c}`));
-  const openFind = () => {
+  const openFind = (replace = false) => {
     setFinding((f) => f ?? { query: '', at: 0 });
+    setReplaced(null);
+    if (replace) setReplacing((v) => v ?? ''); 
     afterPaint(() => { findInput.current?.focus(); findInput.current?.select(); });
   };
   const goMatch = (at: number) => {
@@ -589,7 +620,17 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
     setFinding({ ...finding, at: i });
     select(matches[i]!);
   };
-  const closeFind = () => { setFinding(null); grid.current?.focus(); };
+  const closeFind = () => { setFinding(null); setReplacing(null); setReplaced(null); grid.current?.focus(); };
+  /** Replace the match chosen and go to the next (Replace), or every match at once, as one undo step (Replace all). */
+  const replaceNow = (all: boolean) => {
+    if (!finding || replacing === null) return;
+    const at = matches[Math.min(finding.at, matches.length - 1)];
+    const changes = replaceIn(data.cells, finding.query, replacing, all ? undefined : at);
+    setReplaced(all ? (changes.length === 0 ? 'Nothing to replace' : `Replaced ${changes.length === 1 ? 'one cell' : `${changes.length} cells`}`) : null);
+    if (changes.length === 0) return;
+    void apply(changes);
+    if (!all && matches.length > 1) { const next = matches[(finding.at + 1) % matches.length]!; select(next); }
+  };
 
   const onGridKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const mod = e.ctrlKey || e.metaKey;
@@ -600,11 +641,21 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
     }
     const k = e.key;
     if (mod && !e.altKey && !e.shiftKey && k.toLowerCase() === 'f') { openFind(); e.preventDefault(); e.stopPropagation(); return; }
+    if (mod && !e.altKey && !e.shiftKey && k.toLowerCase() === 'h') { openFind(true); e.preventDefault(); e.stopPropagation(); return; }
+    if (mod && e.shiftKey && !e.altKey && k.toLowerCase() === 'l') { toggleFilter(); e.preventDefault(); e.stopPropagation(); return; }
+    // Alt+Down on a header cell opens its filter, as in Excel.
+    if (e.altKey && !mod && k === 'ArrowDown' && filters && headerOn && focus.r === 0 && focus.c < used.cols) {
+      const b = grid.current?.querySelector<HTMLElement>(`[data-cell="0:${focus.c}"] .sheet-filter-btn`)?.getBoundingClientRect();
+      if (b) setFilterPop({ c: focus.c, x: b.left, y: b.bottom + 4 });
+      e.preventDefault();
+      return;
+    }
     const arrows: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
     const go = (p: Pos) => { const q = { r: Math.max(0, Math.min(height + 200, p.r)), c: Math.max(0, Math.min(51, p.c)) }; if (e.shiftKey) setFocus(q); else select(q); };
     if (arrows[k]) {
       const [dr, dc] = arrows[k]!;
-      go(mod ? jump(data.cells, focus.r, focus.c, dr, dc, Math.max(height, used.rows + 1), width - 1) : { r: focus.r + dr, c: focus.c + dc });
+      // Rows a filter hides are passed over, as in Excel.
+      go(mod ? jump(data.cells, focus.r, focus.c, dr, dc, Math.max(height, used.rows + 1), width - 1) : { r: dr ? nextShownRow(focus.r, dr, hidden, height + 200) : focus.r, c: focus.c + dc });
     } else if (k === 'Tab') { select({ r: focus.r, c: Math.max(0, focus.c + (e.shiftKey ? -1 : 1)) }); } else if (k === 'Home') { go(mod ? { r: 0, c: 0 } : { r: focus.r, c: 0 }); } else if (k === 'End') { go(mod ? dataEnd() : { r: focus.r, c: Math.max(0, (data.cells[focus.r]?.length ?? 1) - 1) }); } else if (k === 'PageDown' || k === 'PageUp') { go({ r: focus.r + (k === 'PageDown' ? 20 : -20), c: focus.c }); } else if (k === 'Enter' || k === 'F2') { startEdit(raw(focus.r, focus.c)); } else if (k === 'Delete' || k === 'Backspace') { clearRange(sel); } else if (k === 'Escape') { select(focus); } else if (mod && k.toLowerCase() === 'a') { select({ r: 0, c: 0 }, dataEnd()); } else if (mod && k.toLowerCase() === 'z') { void (e.shiftKey ? redo() : undo()); } else if (mod && k.toLowerCase() === 'y') { void redo(); } else if (mod && k.toLowerCase() === 'd') { fillOver('down'); } else if (mod && k.toLowerCase() === 'r') { fillOver('right'); } else if (e.shiftKey && k === ' ') { select({ r: sel.r0, c: 0 }, { r: sel.r1, c: Math.max(width - 1, used.cols - 1) }); } else if (mod && k === ' ') { select({ r: 0, c: sel.c0 }, { r: Math.max(used.rows - 1, height - 1), c: sel.c1 }); } else if (k.length === 1 && !mod && !e.altKey) {
       // Typing over a cell starts a new value, as in any spreadsheet.
       startEdit(k);
@@ -635,6 +686,8 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
     { label: 'Add column before', run: back(() => void shiftAt('column', sel.c0, true)) },
     { label: 'Add column after', run: back(() => void shiftAt('column', sel.c1 + 1, true)) },
     { label: 'Header row', icon: check(headerOn), separated: true, run: back(() => setHeaderRow(!headerOn)) },
+    { label: 'Filter', icon: check(filters !== null), keys: 'Ctrl+Shift+L', run: back(toggleFilter) },
+    { label: 'Freeze first column', icon: check(freeze), run: back(toggleFreeze) },
     { label: 'Fit column to its contents', run: back(() => fitColumn(focus.c)) },
     { label: `Delete ${rowsWord}`, danger: true, separated: true, run: back(() => void (async () => { for (let r = sel.r1; r >= sel.r0; r--) await shiftAt('row', r, false); })()) },
     { label: `Delete ${colsWord}`, danger: true, run: back(() => void (async () => { for (let c = sel.c1; c >= sel.c0; c--) await shiftAt('column', c, false); })()) },
@@ -729,8 +782,30 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
             <button type="button" className="sheet-tool" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at - 1)}><Icon d="M12.5 5 7.5 10l5 5" /></button>
             <button type="button" className="sheet-tool" aria-label="Next match" title="Next match (Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at + 1)}><Icon d="M7.5 5l5 5-5 5" /></button>
           </span>
+          <button type="button" className="sheet-tool" aria-label="Replace" aria-pressed={replacing !== null} title="Replace (Ctrl+H)" onMouseDown={keep}
+            onClick={() => { const off = replacing !== null; setReplacing(off ? null : ''); setReplaced(null); if (off) findInput.current?.focus(); }}><Icon d="M4 7h9l-2.5-2.5M16 13H7l2.5 2.5" /></button>
           <button type="button" className="btn sheet-find-done" onClick={closeFind}>Done</button>
+          {replacing !== null && (
+            <div className="sheet-replace" role="group" aria-label="Replace">
+              <input type="text" aria-label="Replace with" placeholder="Replace with" value={replacing} spellCheck={false} autoFocus
+                onChange={(e) => { setReplacing(e.target.value); setReplaced(null); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { replaceNow(e.ctrlKey || e.metaKey); e.preventDefault(); }
+                  else if (e.key === 'Escape') { closeFind(); e.preventDefault(); }
+                }} />
+              <button type="button" className="btn" disabled={matches.length === 0} title="Replace this match, then go to the next (Enter)" onClick={() => replaceNow(false)}>Replace</button>
+              <button type="button" className="btn" disabled={matches.length === 0} title="Replace every match (Ctrl+Enter)" onClick={() => replaceNow(true)}>Replace all</button>
+              {replaced && <span className="sheet-find-count" role="status">{replaced}</span>}
+            </div>
+          )}
         </div>
+      )}
+      {hidden.size > 0 && (
+        <p className="sheet-filter-note" role="status">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12l-4.5 5.5V15l-3 1.5v-6z" /></svg>
+          <span>{`Showing ${filterTo - hidden.size} of ${filterTo} rows`}</span>
+          <button type="button" className="btn link" onClick={() => { keepFilters({}); grid.current?.focus(); }}>Clear filters</button>
+        </p>
       )}
       {showReview && !working && (
         <div className="note-review sheet-review" role="status">
@@ -748,10 +823,11 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
         tabIndex={0}
         role="grid"
         aria-label={data.sheet}
-        aria-rowcount={height}
+        aria-rowcount={height - hidden.size}
         aria-colcount={width}
         aria-multiselectable="true"
         data-header={headerOn || undefined}
+        data-freeze={freeze || undefined}
         onKeyDown={onGridKey}
         onCopy={(e) => { if (!edit) copyRange(sel, e); }}
         onCut={(e) => { if (!edit) { copyRange(sel, e); clearRange(sel); } }}
@@ -799,8 +875,8 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
             </tr>
           </thead>
           <tbody>
-            {Array.from({ length: height }, (_, r) => (
-              <tr key={r} className={headerOn && r === 0 ? 'sheet-header-row' : r === footerAt && r > 0 ? 'sheet-footer-row' : undefined}>
+            {Array.from({ length: height }, (_, r) => hidden.has(r) ? null : (
+              <tr key={r} aria-rowindex={r + 1} className={headerOn && r === 0 ? 'sheet-header-row' : r === footerAt && r > 0 ? 'sheet-footer-row' : undefined}>
                 <th
                   scope="row"
                   data-on={(r >= sel.r0 && r <= sel.r1) || undefined}
@@ -855,6 +931,14 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
                       {here
                         ? <input ref={cellInput} className="sheet-cell-input" data-formula={edit.text.startsWith('=') ? true : undefined} style={{ width: Math.max(colWidth(c), textWidth(edit.text) + 24) }} aria-label={`Edit ${cellName(r, c)}`} value={edit.text} spellCheck={false} onChange={(e) => typed(e.target.value, caretOf(e.target))} onSelect={(e) => { const caret = caretOf(e.currentTarget); setEdit((v) => (v && v.caret !== caret ? { ...v, caret } : v)); }} onKeyDown={onEditorKey} onBlur={(e) => { if (e.relatedTarget !== barInput.current) commit(null); }} />
                         : display(r, c)}
+                      {filters && headerOn && r === 0 && c < used.cols && !here && (
+                        <button type="button" className="sheet-filter-btn" tabIndex={-1} aria-haspopup="dialog" data-active={(filters[c]?.length ?? 0) > 0 || undefined}
+                          aria-label={`Filter ${shown(0, c) || columnName(c)}${(filters[c]?.length ?? 0) > 0 ? ', filtered' : ''}`} title={(filters[c]?.length ?? 0) > 0 ? 'Filtered (Alt+Down)' : 'Filter (Alt+Down)'}
+                          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onClick={(e) => { const b = e.currentTarget.getBoundingClientRect(); setFilterPop({ c, x: b.left, y: b.bottom + 4 }); }}>
+                          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12l-4.5 5.5V15l-3 1.5v-6z" /></svg>
+                        </button>
+                      )}
                       {!edit && r === sel.r1 && c === sel.c1 && (
                         <span className="sheet-fill" aria-hidden="true" title="Drag to fill" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); drag.current = 'fill'; setFillTo(null); }} />
                       )}
@@ -866,6 +950,14 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
           </tbody>
         </table>
       </div>
+      {filters && filterPop && createPortal(
+        <FilterPop key={filterPop.c} x={filterPop.x} y={filterPop.y} label={shown(0, filterPop.c) || columnName(filterPop.c)}
+          choices={filterChoices(data.values, filterPop.c, 1, filterTo)} hide={filters[filterPop.c] ?? []}
+          onSort={(asc) => { sortBy(filterPop.c, asc); setFilterPop(null); grid.current?.focus(); }}
+          onApply={(hide) => { setFilter(filterPop.c, hide); setFilterPop(null); grid.current?.focus(); }}
+          onClose={() => { setFilterPop(null); grid.current?.focus(); }} />,
+        document.body,
+      )}
       {(data.charts?.length ?? 0) > 0 && (
         <div className="sheet-charts" role="group" aria-label="Charts">
           {data.charts!.map((c) => {
@@ -991,6 +1083,50 @@ function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode 
         )}
       </div>
       {status && <div className="sheet-status" role="status" aria-label="Selection">{status}</div>}
+    </div>
+  );
+}
+
+/**
+ * A column's filter, as Excel's: sort it, or pick the values to show (each listed once, with a search over them and
+ * Select all), then OK. The values left unticked are the ones hidden.
+ */
+function FilterPop({ x, y, label, choices, hide, onSort, onApply, onClose }: {
+  x: number; y: number; label: string; choices: string[]; hide: readonly string[];
+  onSort: (ascending: boolean) => void; onApply: (hide: string[]) => void; onClose: () => void;
+}) {
+  const [off, setOff] = useState(() => new Set(hide.filter((v) => choices.includes(v))));
+  const [q, setQ] = useState('');
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) onClose(); };
+    window.addEventListener('mousedown', away);
+    return () => window.removeEventListener('mousedown', away);
+  }, [onClose]);
+  const listed = q.trim() ? choices.filter((v) => v.toLowerCase().includes(q.trim().toLowerCase())) : choices;
+  const allOn = listed.every((v) => !off.has(v));
+  const flip = (v: string) => setOff((cur) => { const next = new Set(cur); if (next.has(v)) next.delete(v); else next.add(v); return next; });
+  const flipAll = () => setOff((cur) => { const next = new Set(cur); listed.forEach((v) => { if (allOn) next.add(v); else next.delete(v); }); return next; });
+  const none = choices.every((v) => off.has(v));
+  return (
+    <div ref={box} className="sheet-filter-pop" role="dialog" aria-label={`Filter ${label}`} style={{ top: y, left: Math.max(8, Math.min(x, window.innerWidth - 268)) }}
+      onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } }}>
+      <div className="sheet-filter-sorts">
+        <button type="button" className="btn" onClick={() => onSort(true)}>Sort A to Z</button>
+        <button type="button" className="btn" onClick={() => onSort(false)}>Sort Z to A</button>
+      </div>
+      <input type="search" className="sheet-filter-search" aria-label="Search values" placeholder="Search" value={q} autoFocus onChange={(e) => setQ(e.target.value)} />
+      <ul className="sheet-filter-list" aria-label="Values to show">
+        <li><label><input type="checkbox" checked={allOn} onChange={flipAll} />{q.trim() ? 'Select all shown' : 'Select all'}</label></li>
+        {listed.map((v) => <li key={v}><label><input type="checkbox" checked={!off.has(v)} onChange={() => flip(v)} />{v}</label></li>)}
+        {listed.length === 0 && <li className="sheet-filter-none">No values match.</li>}
+      </ul>
+      <div className="sheet-filter-bar">
+        {hide.length > 0 && <button type="button" className="btn link" onClick={() => onApply([])}>Clear filter</button>}
+        <span className="spacer" />
+        <button type="button" className="btn" onClick={onClose}>Cancel</button>
+        <button type="button" className="btn primary" disabled={none} title={none ? 'Pick at least one value to show' : undefined} onClick={() => onApply([...off])}>OK</button>
+      </div>
     </div>
   );
 }

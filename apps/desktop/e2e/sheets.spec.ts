@@ -236,3 +236,57 @@ test('a chart beside the grid never cuts off a column: it narrows, or goes under
   await resizeWindow(mobius!.app, 1100, 900);
   await expect.poll(whole).toBe(true);
 });
+
+test('filter on the header row, freeze the first column, and find and replace, as Excel', async () => {
+  await start();
+  await cell('A1').click();
+  // Ctrl+Shift+L puts a filter on the header row; a column's filter hides the values left unticked.
+  await shell().keyboard.press('Control+Shift+L');
+  await grid().getByRole('button', { name: 'Filter Item' }).click();
+  const pop = shell().getByRole('dialog', { name: 'Filter Item' });
+  await expect(pop.getByRole('checkbox')).toHaveCount(4);
+  await pop.getByRole('checkbox', { name: 'Hotel' }).uncheck();
+  await pop.getByRole('button', { name: 'OK' }).click();
+  await expect(cell('A2')).toHaveCount(0);
+  await expect(cell('A5')).toHaveText('Total');
+  await expect(shell().getByRole('status').filter({ hasText: 'Showing 2 of 3 rows' })).toBeVisible();
+  await expect(grid().getByRole('button', { name: 'Filter Item, filtered' })).toBeVisible();
+  // The header stays a row of its own: row 3 sits under it, not behind it.
+  const head = (await cell('A1').boundingBox())!;
+  const next = (await cell('A3').boundingBox())!;
+  expect(next.y).toBeGreaterThanOrEqual(head.y + head.height - 1);
+  // Alt+Down on a header cell opens its filter from the keyboard.
+  await cell('B1').click();
+  await shell().keyboard.press('Alt+ArrowDown');
+  await expect(shell().getByRole('dialog', { name: 'Filter Qty' })).toBeVisible();
+  await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('dialog', { name: 'Filter Qty' })).toHaveCount(0);
+  // The arrows pass over a hidden row.
+  await cell('A1').click();
+  await shell().keyboard.press('ArrowDown');
+  await expect(shell().getByLabel('Selected cell')).toHaveText('A3');
+  // The filter is the view's: the file is unchanged. Clear filters shows every row again.
+  expect(fs.readFileSync(file('Budget'), 'utf8')).toContain('Hotel,14,320');
+  await shell().getByRole('button', { name: 'Clear filters' }).click();
+  await expect(cell('A2')).toHaveText('Hotel');
+  await grid().focus();
+  await shell().keyboard.press('Control+Shift+L');
+  await expect(grid().getByRole('button', { name: 'Filter Item' })).toHaveCount(0);
+
+  // Freeze first column, from the Table menu.
+  await shell().getByRole('button', { name: 'Table' }).click();
+  await shell().getByRole('menuitem', { name: /Freeze first column/ }).click();
+  await expect(grid()).toHaveAttribute('data-freeze', 'true');
+
+  // Ctrl+H: Find and Replace; Replace all is one step, and Undo takes it back.
+  await cell('A1').click();
+  await shell().keyboard.press('Control+h');
+  await shell().getByRole('searchbox', { name: 'Find in sheet' }).fill('terrace');
+  await shell().getByRole('textbox', { name: 'Replace with' }).fill('Garden');
+  await shell().getByRole('button', { name: 'Replace all' }).click();
+  await expect(cell('A3')).toHaveText('Garden venue');
+  await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toContain('Garden venue,1,620');
+  await expect(shell().getByRole('status').filter({ hasText: 'Replaced one cell' })).toBeVisible();
+  await shell().getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toContain('Terrace venue,1,620');
+});
