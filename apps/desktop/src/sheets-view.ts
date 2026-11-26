@@ -419,3 +419,56 @@ export function chartData(range: string, values: readonly (readonly string[])[])
   }
   return series.some((s) => s.values.some((v) => v !== null)) ? { categories, series } : null;
 }
+
+/** How an empty cell is listed in a filter, as Excel's "(Blanks)". */
+export const BLANKS = '(Blanks)';
+
+/** The values a column's filter lists: each shown value once, in order (numbers by size), with blanks last. */
+export function filterChoices(values: readonly (readonly string[])[], col: number, from: number, to: number): string[] {
+  const seen = new Set<string>();
+  for (let r = from; r <= to; r++) seen.add((values[r]?.[col] ?? '').trim() || BLANKS);
+  const all = [...seen];
+  const blanks = all.includes(BLANKS);
+  const rest = all.filter((v) => v !== BLANKS);
+  const nums = rest.every((v) => numberIn(v) !== null);
+  rest.sort((a, b) => (nums ? numberIn(a)! - numberIn(b)! : a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })));
+  return blanks ? [...rest, BLANKS] : rest;
+}
+
+/**
+ * The rows a filter hides, as Excel's AutoFilter: each filtered column lists the values it hides, and a row between
+ * `from` and `to` showing one of them in that column is hidden. Rows outside (the header, a total row) always show.
+ */
+export function hiddenRows(values: readonly (readonly string[])[], filters: Readonly<Record<number, readonly string[]>>, from: number, to: number): Set<number> {
+  const out = new Set<number>();
+  const cols = Object.entries(filters).map(([c, hide]) => [Number(c), new Set(hide)] as const).filter(([, hide]) => hide.size > 0);
+  if (cols.length === 0) return out;
+  for (let r = from; r <= to; r++) {
+    if (cols.some(([c, hide]) => hide.has((values[r]?.[c] ?? '').trim() || BLANKS))) out.add(r);
+  }
+  return out;
+}
+
+/** The next row from `r` going `dr` (1 or -1) that is not hidden, within 0 and `max`; `r` itself when there is none. */
+export function nextShownRow(r: number, dr: number, hidden: ReadonlySet<number>, max: number): number {
+  let at = r + dr;
+  while (at >= 0 && at <= max && hidden.has(at)) at += dr;
+  return at < 0 || at > max ? r : at;
+}
+
+/**
+ * Replace, as Excel's Find and Replace (Ctrl+H): every place `query` appears in a cell's contents (a formula's text
+ * too), ignoring case, becomes `by`. `only` limits it to one cell (Replace); without it, every cell (Replace all).
+ */
+export function replaceIn(cells: readonly (readonly string[])[], query: string, by: string, only?: { r: number; c: number }): { row: number; col: number; text: string }[] {
+  const q = query.trim();
+  if (!q) return [];
+  const find = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  const out: { row: number; col: number; text: string }[] = [];
+  cells.forEach((row, r) => row.forEach((text, c) => {
+    if (only && (only.r !== r || only.c !== c)) return;
+    const next = text.replace(find, () => by);
+    if (next !== text) out.push({ row: r, col: c, text: next });
+  }));
+  return out;
+}

@@ -175,3 +175,33 @@
 .sheet-tab-more svg { width: 14px; height: 14px; fill: currentColor; }
 .sheet-tab-wrap:hover .sheet-tab-more, .sheet-tab-wrap:focus-within .sheet-tab-more { display: grid; }
 .sheet-tab-more:hover { background: var(--soft); color: var(--ink); }
+
+/* Filter on the header row (Excel's AutoFilter): a funnel at the right of each header cell, filled while filtered. */
+.sheet-page .sheet-table td:has(> .sheet-filter-btn) { padding-right: 26px; position: relative; }
+.sheet-page .sheet-filter-btn { position: absolute; top: 50%; right: 3px; width: 20px; height: 20px; padding: 0; transform: translateY(-50%); border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: default; display: inline-grid; place-items: center; }
+.sheet-page .sheet-filter-btn:hover { background: var(--sel); color: var(--ink); }
+.sheet-page .sheet-filter-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.sheet-page .sheet-filter-btn[data-active] { color: var(--ink); }
+.sheet-page .sheet-filter-btn[data-active] svg { fill: currentColor; }
+.sheet-page .sheet-filter-note { display: flex; align-items: center; gap: var(--sp-2); margin: 0; padding: var(--sp-1) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); color: var(--muted); font-size: var(--fs-sm); }
+.sheet-page .sheet-filter-note svg { width: 14px; height: 14px; fill: currentColor; }
+.sheet-filter-pop { position: fixed; z-index: 60; width: 260px; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel, 10px); background: var(--panel); box-shadow: var(--shadow-pop, 0 8px 24px rgba(0, 0, 0, 0.18)); font-size: var(--fs-sm); }
+.sheet-filter-sorts { display: flex; gap: var(--sp-1); }
+.sheet-filter-sorts .btn { flex: 1; }
+.sheet-filter-search { height: var(--control-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: var(--field); color: var(--ink); font: inherit; }
+.sheet-filter-list { max-height: 240px; overflow: auto; margin: 0; padding: 0; list-style: none; }
+.sheet-filter-list label { display: flex; align-items: center; gap: var(--sp-2); padding: 3px var(--sp-1); border-radius: 4px; }
+.sheet-filter-list label:hover { background: var(--sel); }
+.sheet-filter-none { padding: var(--sp-1); color: var(--muted); }
+.sheet-filter-bar { display: flex; align-items: center; gap: var(--sp-1); }
+.sheet-filter-bar .spacer { flex: 1; }
+/* Replace, under Find (Ctrl+H). */
+.sheet-page .sheet-find { flex-wrap: wrap; }
+.sheet-page .sheet-replace { flex-basis: 100%; display: flex; align-items: center; gap: var(--sp-2); padding-left: 23px; }
+.sheet-page .sheet-tool[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
+/* Freeze first column: column A stays beside the row numbers while the sheet scrolls across. */
+.sheet-page .sheet-scroll[data-freeze] .sheet-table tr > :nth-child(2) { position: sticky; left: 44px; z-index: 1; }
+/* Its own background only where a cell has none (selected and marked cells keep theirs), so nothing shows through. */
+:where(.sheet-page .sheet-scroll[data-freeze] .sheet-table tbody tr > :nth-child(2)) { background: var(--bg); }
+.sheet-page .sheet-scroll[data-freeze] .sheet-table .sheet-header-row > :nth-child(2) { z-index: 3; }
+.sheet-page .sheet-scroll[data-freeze] .sheet-table thead tr > :nth-child(2) { z-index: 3; background: var(--panel); }
