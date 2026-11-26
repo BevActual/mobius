@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tauri::{Webview, Wry};
-use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_DOWNLOAD_STATE, COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED, COREWEBVIEW2_DOWNLOAD_STATE_IN_PROGRESS, ICoreWebView2DownloadOperation, ICoreWebView2Settings3, ICoreWebView2Settings8, ICoreWebView2_4, COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN, COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN};
+use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_DOWNLOAD_STATE, COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED, COREWEBVIEW2_DOWNLOAD_STATE_IN_PROGRESS, ICoreWebView2DownloadOperation, ICoreWebView2Settings3, ICoreWebView2Settings8, ICoreWebView2_4, ICoreWebView2_8, COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN, COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
-use webview2_com::{AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, FocusChangedEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
+use webview2_com::{AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, FocusChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, ZoomFactorChangedEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
 use windows::core::{Interface, PWSTR};
 use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW, COREWEBVIEW2_PERMISSION_STATE_DENY};
@@ -209,6 +209,59 @@ pub fn watch_focus(webview: &Webview<Wry>, on_focus: Arc<dyn Fn() + Send + Sync>
             }));
             let mut token = 0i64;
             let _ = platform.controller().add_GotFocus(&handler, &mut token);
+        }
+    });
+}
+
+/// Calls `on_audio` with true when the page starts playing sound and false when it stops.
+pub fn watch_audio(webview: &Webview<Wry>, on_audio: Arc<dyn Fn(bool) + Send + Sync>) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            let Ok(core) = platform.controller().CoreWebView2().and_then(|c| c.cast::<ICoreWebView2_8>()) else { return };
+            let handler = IsDocumentPlayingAudioChangedEventHandler::create(Box::new(move |sender, _| {
+                if let Some(core) = sender.and_then(|s| s.cast::<ICoreWebView2_8>().ok()) {
+                    let mut playing = windows::core::BOOL::default();
+                    if core.IsDocumentPlayingAudio(&mut playing).is_ok() {
+                        on_audio(playing.as_bool());
+                    }
+                }
+                Ok(())
+            }));
+            let mut token = 0i64;
+            let _ = core.add_IsDocumentPlayingAudioChanged(&handler, &mut token);
+        }
+    });
+}
+
+/// Calls `on_zoom` with the page's zoom factor each time it changes, whoever changed it.
+pub fn watch_zoom(webview: &Webview<Wry>, on_zoom: Arc<dyn Fn(f64) + Send + Sync>) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            let handler = ZoomFactorChangedEventHandler::create(Box::new(move |sender, _| {
+                if let Some(controller) = sender {
+                    let mut factor = 1.0f64;
+                    if controller.ZoomFactor(&mut factor).is_ok() {
+                        on_zoom(factor);
+                    }
+                }
+                Ok(())
+            }));
+            let mut token = 0i64;
+            let _ = platform.controller().add_ZoomFactorChanged(&handler, &mut token);
+        }
+    });
+}
+
+/// Silences the page, or lets it be heard again.
+pub fn set_muted(webview: &Webview<Wry>, muted: bool) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            if let Ok(core) = platform.controller().CoreWebView2().and_then(|c| c.cast::<ICoreWebView2_8>()) {
+                let _ = core.SetIsMuted(muted);
+            }
         }
     });
 }

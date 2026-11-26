@@ -231,6 +231,22 @@ impl Engine for WebViewEngine {
                             let _ = engine_cdp(&engine_pages, &tab, "Browser.setPermission", json!({ "permission": { "name": name }, "setting": "denied" }));
                         }
                     });
+                    // Ctrl and the mouse wheel zoom the page itself: the tab learns the new factor.
+                    let (zoom_slot, zoom_id) = (self.browser.clone(), id.clone());
+                    crate::cdp::watch_zoom(&webview, Arc::new(move |factor| {
+                        if let Some(b) = weak_browser(&zoom_slot) {
+                            let id = zoom_id.clone();
+                            in_order(move || b.zoomed(&id, factor));
+                        }
+                    }));
+                    // A tab shows a speaker while its page plays sound.
+                    let (audio_slot, audio_id) = (self.browser.clone(), id.clone());
+                    crate::cdp::watch_audio(&webview, Arc::new(move |audible| {
+                        if let Some(b) = weak_browser(&audio_slot) {
+                            let id = audio_id.clone();
+                            in_order(move || b.audible(&id, audible));
+                        }
+                    }));
                     // In split view the page clicked last takes the keys, and becomes the active tab.
                     let (focus_slot, focus_id) = (self.browser.clone(), id.clone());
                     crate::cdp::watch_focus(&webview, Arc::new(move || {
@@ -297,6 +313,21 @@ impl Engine for WebViewEngine {
             let _ = page.close();
         }
         lock(&self.finds).remove(tab);
+    }
+
+    fn zoom_page(&self, tab: &str, factor: f64) {
+        if let Some(page) = self.page(tab) {
+            let _ = page.set_zoom(factor);
+        }
+    }
+
+    fn mute(&self, tab: &str, muted: bool) {
+        #[cfg(windows)]
+        if let Some(page) = self.page(tab) {
+            crate::cdp::set_muted(&page, muted);
+        }
+        #[cfg(not(windows))]
+        let _ = (tab, muted);
     }
 
     fn layout(&self, shown: &[(String, Bounds)]) {

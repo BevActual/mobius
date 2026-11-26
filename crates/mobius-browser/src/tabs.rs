@@ -33,7 +33,15 @@ struct Tab {
     untitled_visit: bool,
     /// Who is using the tab while a task runs: Mobius reading it, Mobius driving it, or the person who took over.
     driver: Option<Driver>,
+    /// How much the page's content is scaled: 1 is its own size.
+    zoom: f64,
+    /// The page is playing sound, and whether the person silenced it.
+    audible: bool,
+    muted: bool,
 }
+
+/// The page zoom a tab may have, as browsers allow it (25% to 500%).
+pub const ZOOM_RANGE: (f64, f64) = (0.25, 5.0);
 
 /// Who is using a tab while a task runs. With none, the tab is simply the person's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,6 +132,7 @@ impl Browser {
                 json!({
                     "id": t.id, "url": url, "title": if t.title.is_empty() { if url.is_empty() { "New tab" } else { url } } else { t.title.as_str() },
                     "loading": t.loading, "canGoBack": t.can_back, "canGoForward": t.can_forward, "pinned": t.pinned, "active": s.active.as_deref() == Some(t.id.as_str()), "icon": t.icon, "driver": t.driver.map(Driver::as_str),
+                    "zoom": t.zoom, "audible": t.audible, "muted": t.muted,
                 })
             })
             .collect();
@@ -142,7 +151,7 @@ impl Browser {
             let mut s = lock(&self.state);
             s.counter += 1;
             let id = format!("tab-{}", s.counter);
-            s.tabs.push(Tab { id: id.clone(), url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false, driver: None });
+            s.tabs.push(Tab { id: id.clone(), url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false, driver: None, zoom: 1.0, audible: false, muted: false });
             id
         };
         self.engine.open(&id, url.unwrap_or(START_PAGE));
@@ -246,6 +255,47 @@ impl Browser {
     pub fn set_beside_bounds(&self, bounds: Option<Bounds>) {
         lock(&self.state).beside_bounds = bounds;
         self.layout();
+    }
+
+    /// Scales a tab's page; the factor is kept within `ZOOM_RANGE` (anything else, or not a number, is refused).
+    pub fn set_zoom(&self, id: &str, factor: f64) {
+        if !factor.is_finite() {
+            return;
+        }
+        let factor = factor.clamp(ZOOM_RANGE.0, ZOOM_RANGE.1);
+        if !self.has_tab(id) {
+            return;
+        }
+        self.update(id, |t| t.zoom = factor);
+        self.engine.zoom_page(id, factor);
+    }
+
+    /// Silences a tab's page, or lets it be heard again.
+    pub fn mute(&self, id: &str, muted: bool) {
+        if !self.has_tab(id) {
+            return;
+        }
+        self.update(id, |t| t.muted = muted);
+        self.engine.mute(id, muted);
+    }
+
+    /// The page's zoom changed on its own (Ctrl and the mouse wheel): the tab says the new factor.
+    pub fn zoomed(&self, id: &str, factor: f64) {
+        if !factor.is_finite() {
+            return;
+        }
+        let changed = lock(&self.state).tabs.iter().any(|t| t.id == id && (t.zoom - factor).abs() > 1e-6);
+        if changed {
+            self.update(id, |t| t.zoom = factor);
+        }
+    }
+
+    /// The engine says whether a tab's page is playing sound now.
+    pub fn audible(&self, id: &str, audible: bool) {
+        let changed = lock(&self.state).tabs.iter().any(|t| t.id == id && t.audible != audible);
+        if changed {
+            self.update(id, |t| t.audible = audible);
+        }
     }
 
     /// A page took the keyboard (the person clicked in it): in a split, it becomes the active tab where it stands.
@@ -719,6 +769,45 @@ mod tests {
         b.activate("tab-3");
         assert_eq!(b.state()["split"], Value::Null, "a tab outside the split ends it");
         assert_eq!(last_layout(&engine), vec![("tab-3".into(), left)]);
+    }
+
+    #[test]
+    fn a_page_can_be_zoomed_within_bounds_and_a_tab_says_so() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        assert_eq!(b.state()["tabs"][0]["zoom"], 1.0);
+        b.set_zoom("tab-1", 1.25);
+        b.set_zoom("tab-1", 9.0);
+        b.set_zoom("tab-1", f64::NAN);
+        b.set_zoom("tab-9", 2.0);
+        assert_eq!(b.state()["tabs"][0]["zoom"], 5.0, "kept within 25% to 500%");
+        let zooms: Vec<String> = engine.calls().into_iter().filter(|c| c.starts_with("zoom")).collect();
+        assert_eq!(zooms, vec!["zoom tab-1 1.25", "zoom tab-1 5"], "nothing for a bad factor or a tab that is not open");
+    }
+
+    #[test]
+    fn a_tab_says_when_its_page_makes_sound_and_can_be_silenced() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        assert_eq!((b.state()["tabs"][0]["audible"].clone(), b.state()["tabs"][0]["muted"].clone()), (json!(false), json!(false)));
+        b.audible("tab-1", true);
+        b.mute("tab-1", true);
+        b.mute("tab-9", true);
+        assert_eq!((b.state()["tabs"][0]["audible"].clone(), b.state()["tabs"][0]["muted"].clone()), (json!(true), json!(true)));
+        assert!(engine.calls().contains(&"mute tab-1 true".to_owned()));
+        assert!(!engine.calls().iter().any(|c| c.contains("tab-9")));
+        b.audible("tab-1", false);
+        assert_eq!(b.state()["tabs"][0]["audible"], false);
+    }
+
+    #[test]
+    fn a_zoom_the_page_made_itself_shows_on_its_tab() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        b.zoomed("tab-1", 1.1);
+        b.zoomed("tab-1", f64::INFINITY);
+        assert_eq!(b.state()["tabs"][0]["zoom"], 1.1);
+        assert!(!engine.calls().iter().any(|c| c.starts_with("zoom")), "the page already has it");
     }
 
     #[test]

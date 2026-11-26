@@ -312,6 +312,21 @@ mod browser {
     }
 
     #[test]
+    fn a_page_can_be_zoomed_and_silenced_and_bad_requests_change_nothing() {
+        let (b, engine, br, _e, _d) = with_browser(None);
+        br.open(None);
+        call(&b, "browser", "setZoom", json!(["tab-1", 1.5]));
+        call(&b, "browser", "setZoom", json!(["tab-1", "2"]));
+        call(&b, "browser", "setZoom", json!(["x", 2]));
+        call(&b, "browser", "mute", json!(["tab-1", true]));
+        call(&b, "browser", "mute", json!(["tab-1", "yes"]));
+        let tab = call(&b, "browser", "getState", json!([]))["tabs"][0].clone();
+        assert_eq!((tab["zoom"].clone(), tab["muted"].clone()), (json!(1.5), json!(true)));
+        let calls: Vec<String> = engine.calls().into_iter().filter(|c| c.starts_with("zoom") || c.starts_with("mute")).collect();
+        assert_eq!(calls, vec!["zoom tab-1 1.5", "mute tab-1 true"]);
+    }
+
+    #[test]
     fn a_tab_can_show_beside_the_active_one_in_its_own_place() {
         use mobius_browser::engine::Bounds;
         let (b, engine, br, _e, _d) = with_browser(None);
