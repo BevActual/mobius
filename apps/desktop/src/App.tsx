@@ -91,6 +91,7 @@ import { changeTarget, toolTarget } from './actions';
 import { eventsOn, isoDay, rangeLabel as calendarRange } from './calendar-view';
 import { Desk } from './Desk';
 import { useBackgroundRuns } from './background';
+import { ASSIGN_EVENT, type Assignment } from './assign';
 import type { SendOptions } from './composer/Composer';
 import { inboxItems } from './inbox';
 import { fitDocks } from './dock-fit';
@@ -1346,6 +1347,21 @@ export function App() {
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
+  // Assign to Mobius, from an item's own menu in any app: the work runs in a chat of its own, in the background, and
+  // lands in Home's Inbox; the open chat and the panel stay as they are.
+  const assignNow = useRef<(a: Assignment) => void>(() => undefined);
+  assignNow.current = (a: Assignment) => {
+    void conversation.assign(a.ask, a.context ?? [], a.app).then((result) => {
+      if ('error' in result) { setToast(`Mobius could not take it: ${result.error}`); return; }
+      handoffs.start(result.id, a.title);
+      setToast('Assigned to Mobius. It will be in your Inbox when done.');
+    });
+  };
+  useEffect(() => {
+    const onAssign = (event: Event) => { const a = (event as CustomEvent<Assignment>).detail; if (a && typeof a.ask === 'string' && a.ask.trim()) assignNow.current(a); };
+    window.addEventListener(ASSIGN_EVENT, onAssign);
+    return () => window.removeEventListener(ASSIGN_EVENT, onAssign);
+  }, []);
   // Starting to type in the app Mobius is working in pauses it; the pill (or the panel) resumes it.
   const stageNode = useCallback(() => document.querySelector<HTMLElement>('.stage'), []);
   usePauseOnTyping(stageNode, activity, appOfTurn(conversation.state), app, conversation.takeOver, setToast);

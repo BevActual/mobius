@@ -81,6 +81,9 @@ it, without opening the panel.
 - **Running jobs.** Background work and schedules are listed under the conversation, each with Stop: no tabs, per the
   layout rule. Built in the third round: every other chat Mobius is working on (handed off, scheduled or left
   running), with Stop and a press to open it.
+- **Assign to Mobius.** Built in the fourth round: Assign to Mobius in a task's menu and on a mail message starts a
+  chat of its own in the background (the open chat stays as it is), listed under Also running, landing in the Inbox.
+  Any app offers it by sending `mobius:assign` (apps/desktop/src/assign.ts) with the ask, a title and its app.
 
 ## Open standards, no account
 

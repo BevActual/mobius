@@ -216,6 +216,27 @@ test('work running in another chat is listed under this one, with Stop', async (
   await expect(composer()).toBeFocused();
 });
 
+test('Assign to Mobius on a task runs it in a chat of its own and lands in the Inbox, leaving the open chat alone', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Fix the tap\n');
+  await start([says(['I found three plumbers ', 'near you.'], 1500)]);
+  await openApp('Tasks');
+  await shell().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Home/ }).click();
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Fix the tap', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
+  await expect(shell().locator('.toast')).toHaveText('Assigned to Mobius. It will be in your Inbox when done.');
+  // The ask names the task and its list, and starts in Tasks.
+  await expect.poll(() => sent()).toContain('Work on this task from my Tasks list \\"Home\\": \\"Fix the tap\\"');
+  // The open chat is not the one it runs in: it is listed under it while it runs.
+  if (!(await composer().isVisible())) await shell().keyboard.press('Control+Shift+M');
+  await expect(log().locator('.msg')).toHaveCount(0);
+  const jobs = shell().getByRole('region', { name: 'Running jobs' });
+  await expect(jobs).toContainText('In the background');
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: 'Open Fix the tap: Finished in the background' })).toBeVisible();
+});
+
 test('a chat a schedule starts is listed as running while it runs', async () => {
   await start([says(['Looking ', 'through it…'], 4000)]);
   await openApp('Agent');
