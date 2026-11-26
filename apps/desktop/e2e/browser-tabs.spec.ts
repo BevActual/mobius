@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { launch, startFixture, type Fixture, type Launched } from './harness';
+import { launch, runInPage, startFixture, type Fixture, type Launched } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -220,4 +220,21 @@ test('Peek shows a page in a card over the tabs; Open as tab keeps it, Escape cl
   await shell().keyboard.press('Escape');
   await expect(peek).toHaveCount(0);
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+});
+
+test('a link to another site in a pinned tab opens in a peek, and the tab itself loads nothing', { tag: '@shell', annotation: { type: 'needs the shell', description: 'the click is caught in the page and the peek placed by the shell' } }, async () => {
+  await address().fill(fixture.origin + '/away');
+  await address().press('Enter');
+  await expect(titles()).toHaveText(['Away page']);
+  await shell().locator('.tab', { hasText: 'Away page' }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Pin tab' }).click();
+  await expect(shell().getByRole('list', { name: 'Pinned tabs' }).locator('.tab-title')).toHaveText(['Away page']);
+  const tab = await shell().evaluate(async () => (await window.mobius.browser.getState()).tabs[0]?.id ?? "");
+  await runInPage(mobius!.app, tab, 'document.getElementById("away").click()');
+  await expect(shell().getByRole('dialog', { name: /^Peek: / })).toBeVisible();
+  await expect(address()).toHaveValue(fixture.origin + '/away');
+  // Only the peek asks for the page: the tab's own request never leaves.
+  await expect.poll(() => fixture.hits.filter((h) => h.includes('peeked')).length).toBeLessThanOrEqual(1);
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  expect(fixture.hits.filter((h) => h.includes('peeked')).length).toBeLessThanOrEqual(1);
 });

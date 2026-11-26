@@ -274,7 +274,8 @@ impl Engine for WebViewEngine {
                     crate::cdp::add_document_script(&webview, LINK_SCRIPT.to_owned(), Box::new(|_| {}));
                     let (link_slot, link_id) = (self.browser.clone(), id.clone());
                     crate::cdp::watch_messages(&webview, Arc::new(move |message: String| {
-                        let Some(url) = serde_json::from_str::<Value>(&message).ok().and_then(|m| m.get("mobiusLink")?.as_str().map(str::to_owned)) else { return };
+                        // The message comes as JSON: a string, `mobius-link:` and the address.
+                        let Some(url) = serde_json::from_str::<String>(&message).ok().and_then(|m| m.strip_prefix(LINK_MESSAGE).map(str::to_owned)) else { return };
                         if let Some(b) = weak_browser(&link_slot) {
                             let id = link_id.clone();
                             in_order(move || b.link_clicked(&id, &url));
@@ -533,6 +534,10 @@ impl WebViewEngine {
 }
 
 /// Moves the selection to the next (or first) match of the text and counts the matches. Case does not matter.
+/// How `LINK_SCRIPT` starts its message.
+#[cfg(windows)]
+const LINK_MESSAGE: &str = "mobius-link:";
+
 /// Tells a pinned tab's documents that they are pinned, for `LINK_SCRIPT`.
 #[cfg(windows)]
 const PINNED_SCRIPT: &str = "window.__mobiusPinned = true;";
@@ -543,6 +548,7 @@ const PINNED_SCRIPT: &str = "window.__mobiusPinned = true;";
 #[cfg(windows)]
 const LINK_SCRIPT: &str = r#"(() => {
   if (window.top !== window) return;
+  const LINK_MESSAGE = 'mobius-link:';
   const site = (host) => host.toLowerCase().replace(/^www\./, '');
   addEventListener('click', (e) => {
     if (window.__mobiusPinned !== true || e.defaultPrevented || e.button !== 0) return;
@@ -556,7 +562,8 @@ const LINK_SCRIPT: &str = r#"(() => {
     if (to.protocol !== 'https:' && to.protocol !== 'http:') return;
     if (site(to.hostname) === site(location.hostname)) return;
     e.preventDefault();
-    window.chrome.webview.postMessage({ mobiusLink: to.href });
+    // A string: Tauri's own handler sees the message first and fails on anything but text, which stops it there.
+    window.chrome.webview.postMessage(LINK_MESSAGE + to.href);
   });
 })();"#;
 
