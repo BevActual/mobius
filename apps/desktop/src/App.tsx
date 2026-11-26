@@ -92,7 +92,7 @@ import { eventsOn, isoDay, rangeLabel as calendarRange } from './calendar-view';
 import { Desk } from './Desk';
 import { useBackgroundRuns } from './background';
 import { ASSIGN_EVENT, type Assignment } from './assign';
-import { AskHere, pickedNow, type Picked } from './AskHere';
+import { AskHere, inlineAnswer, pickedNow, plainAnswer, type Picked } from './AskHere';
 import { hereOf } from './surface';
 import type { SendOptions } from './composer/Composer';
 import { inboxItems } from './inbox';
@@ -1365,13 +1365,23 @@ export function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  const closeAskHere = useCallback(() => {
+  // Words chosen inside one paragraph take the answer as one line; across paragraphs, its paragraphs stay.
+  const fitAnswer = (markdown: string, range: Range): string => {
+    const block = (n: Node) => (n instanceof Element ? n : n.parentElement)?.closest('p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote, pre') ?? null;
+    const at = block(range.startContainer);
+    if (!at || at !== block(range.endContainer)) return plainAnswer(markdown);
+    const after = range.endContainer.nodeType === Node.TEXT_NODE ? (range.endContainer.textContent ?? '').slice(range.endOffset) : '';
+    return inlineAnswer(markdown, after);
+  };
+  // `replace`: the answer takes the place of the chosen words, typed in as the person's own (one Undo takes it back).
+  const closeAskHere = useCallback((replace?: string) => {
     setAskHere((was) => {
       if (was) {
         // The keyboard goes back to where it was, with the words still chosen.
         window.setTimeout(() => {
           if (was.back instanceof HTMLElement && was.back.isConnected) was.back.focus();
           if (was.range) { const s = document.getSelection(); s?.removeAllRanges(); s?.addRange(was.range); }
+          if (replace && was.range) document.execCommand('insertText', false, fitAnswer(replace, was.range));
         }, 0);
       }
       return null;
@@ -1381,6 +1391,9 @@ export function App() {
   // lands in Home's Inbox; the open chat and the panel stay as they are.
   const assignNow = useRef<(a: Assignment) => void>(() => undefined);
   assignNow.current = (a: Assignment) => {
+    // Assigned again while Mobius is still on it: said, not started twice (two runs, two Inbox rows).
+    const already = handoffs.runs.find((r) => r.ask === a.title && conversation.list.some((c) => c.id === r.conversation && (c.activity === 'working' || c.activity === 'needs_you')));
+    if (already) { setToast(`Mobius is already working on ${a.title}${/[.!?…]$/.test(a.title) ? '' : '.'}`); return; }
     void conversation.assign(a.ask, a.context ?? [], a.app).then((result) => {
       if ('error' in result) { setToast(`Mobius could not take it: ${result.error}`); return; }
       handoffs.start(result.id, a.title);
@@ -2309,7 +2322,8 @@ export function App() {
               : [pane];
           })}
           {toast && <div className="toast" role="status">{toast}</div>}
-          {askHere && <AskHere picked={askHere.picked} here={hereOf(surface)} app={app} onClose={closeAskHere}
+          {askHere && <AskHere picked={askHere.picked} here={hereOf(surface)} app={app} onClose={() => closeAskHere()}
+            {...(!askHere.picked.cells && askHere.range && askHere.back instanceof HTMLElement && askHere.back.isContentEditable ? { onReplace: (text: string) => closeAskHere(text) } : {})}
             onContinue={(id) => { setAskHere(null); conversation.select(id); openRight(); setFocusToken((n) => n + 1); }} />}
           {/* An alert, unless the meeting's own nudge is already saying it is starting. */}
           {alerting && !(starting && meetingKey(starting) === meetingKey(alerting.event)) && <UndoToast text={alerting.said} undoLabel="Open" onUndo={() => { const day = new Date(`${alerting.event.start.slice(0, 10)}T12:00:00`); setAlerting(null); closeSettings(); openApp('calendar'); if (!Number.isNaN(day.getTime())) calendar.setAnchor(day); }} onDismiss={() => setAlerting(null)} />}

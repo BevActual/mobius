@@ -141,10 +141,11 @@ checkpoints live in their own store and never touch a folder's own git history.
 - **Ask from anywhere.** Select words in a note or document, or cells in a sheet, and press **Ctrl+Shift+J**. A card
   opens beside them: ask about what you chose and the answer appears there, in Ask mode (Mobius reads and answers,
   changing nothing), without opening the panel. Ask a follow-up in the same card, or **Continue in chat** to carry on
-  in the panel. **Esc** closes it and puts you back where you were, with the words still selected.
+  in the panel. **Replace selection** puts the answer in place of the words you chose (as your own typing, so Undo
+  takes it back), and **Copy** copies it. **Esc** closes it and puts you back where you were, with the words still selected.
 - **Assign to Mobius.** Right-click a task in Tasks, or a message in Mail (or use the open message's ⋯), and choose
   **Assign to Mobius**. It works on it in a chat of its own, in the background, without opening the panel or touching
-  the chat you have open. A task it does as far as it can, ticking it off only when it is finished; a message it reads
+  the chat you have open. Assigning it again while Mobius is still on it says so rather than starting a second run. A task it does as far as it can, ticking it off only when it is finished; a message it reads
   and prepares what it needs (a draft reply, a task, an event), sending nothing. The result lands in Home's Inbox,
   named after the item; one you stopped, or one that went wrong, says so there rather than that it finished.
 - **Take over** (beside Stop). While a task is running you can take control: Mobius pauses at the next safe step and the

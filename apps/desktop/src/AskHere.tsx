@@ -71,18 +71,46 @@ export function placeCard(rect: Picked['rect'], view: { width: number; height: n
  * own, with the answer shown here as it comes. Continue in chat opens that chat in the panel; Esc puts the keyboard
  * back where it was.
  */
-export function AskHere({ picked, here, app, onClose, onContinue }: {
+/** The answer as plain words, for putting in place of the chosen ones: no headings' hashes, bold stars or code ticks. */
+export function plainAnswer(markdown: string): string {
+  return withoutToolTags(markdown)
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/(\*\*|__)(.+?)\1/g, '$2')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1$2')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .trim();
+}
+
+/**
+ * The answer for words chosen inside one line: one line of its own, without a heading of its own, and without a full
+ * stop of its own unless the words chosen ended the line.
+ */
+export function inlineAnswer(markdown: string, after: string): string {
+  const text = withoutToolTags(markdown);
+  // A heading of its own goes, unless it is all there is.
+  const body = text.replace(/^#{1,6}\s+.*$/gm, '').trim() || text;
+  const lines = plainAnswer(body).split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const one = lines.join(' ').replace(/\s+/g, ' ').trim();
+  // The sentence goes on after it (or ends with its own stop): the answer's own stop would sit in its middle.
+  return after.trim() ? one.replace(/[.,;:!?…]+$/, '') : one;
+}
+
+export function AskHere({ picked, here, app, onClose, onContinue, onReplace }: {
   picked: Picked;
   here: Here | null;
   app: string;
   onClose: () => void;
   onContinue: (conversation: string) => void;
+  /** Offered for words in an editor: the answer (as written, in markdown) goes in their place. */
+  onReplace?: (markdown: string) => void;
 }) {
   const [question, setQuestion] = useState('');
   const [asked, setAsked] = useState<string | null>(null);
   const [answer, setAnswer] = useState('');
   const [state, setState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const chat = useRef<string>(conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()));
   const field = useRef<HTMLInputElement>(null);
   const card = useRef<HTMLDivElement>(null);
@@ -146,6 +174,7 @@ export function AskHere({ picked, here, app, onClose, onContinue }: {
     if (!text || state === 'working') return;
     const item = withPicked(here, picked, app);
     setAsked(text);
+    setCopied(false);
     setAnswer('');
     setProblem(null);
     setState('working');
@@ -176,6 +205,9 @@ export function AskHere({ picked, here, app, onClose, onContinue }: {
           : <button type="submit" className="btn primary" disabled={!question.trim()}>Ask</button>}
       </form>
       <div className="ask-here-foot">
+        {onReplace && state === 'done' && shown && <button type="button" className="btn" onClick={() => onReplace(shown)}>Replace selection</button>}
+        {state === 'done' && shown && <button type="button" className="btn ghost" onClick={() => { void navigator.clipboard?.writeText(plainAnswer(shown)).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 2000); }, () => undefined); }}>{copied ? 'Copied' : 'Copy'}</button>}
+        <span className="sr-only" role="status">{copied ? 'Copied the answer' : ''}</span>
         {asked && state !== 'working' && <button type="button" className="btn ghost" onClick={() => onContinue(chat.current)}>Continue in chat</button>}
         <span className="ask-here-keys" aria-hidden="true"><KeyCaps keys="Esc" /> to close</span>
       </div>
