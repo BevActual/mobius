@@ -137,7 +137,11 @@ describe('browser spaces', () => {
     s = syncSpaces({ ...s, current: 's1' }, [...base, tab('f', '', { active: true })], 6, new Set(['f']));
     s = syncSpaces(s, [...base, tab('f', 'https://example.com/typed', { active: true })], 7, new Set(['f']));
     expect(s.tabSpace.f).toBe('s1');
-    expect(s.unplaced).toEqual([]);
+    // A blank tab left open for a while and typed into later stays where it is.
+    s = syncSpaces({ ...s, current: 's1' }, [...base, tab('g', '', { active: true })], 10);
+    s = syncSpaces(s, [...base, tab('g', 'https://example.com/later', { active: true })], 60_000);
+    expect(s.tabSpace.g).toBe('s1');
+    expect(s.unplaced).toEqual({});
     expect(removeRoute(s, 'example.com').routes).toEqual([]);
     expect(removeSpace(s, work).routes).toEqual([]);
     expect(readSpaces(JSON.stringify(s)).routes).toEqual([{ host: 'example.com', space: work }]);

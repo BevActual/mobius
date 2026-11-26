@@ -31,12 +31,16 @@ export interface SpacesState {
   folderUrl?: Record<string, string>;
   /** Air Traffic Control, as Arc's: a site whose links open in a new tab go to this space. */
   routes?: Route[];
-  /** Tabs first seen with no address yet (the shell opens a tab, then loads it): routed by the first address they get. */
-  unplaced?: string[];
+  /** Tabs first seen with no address yet (the shell opens a tab, then loads it), with when: routed by the first address
+   * they get within a few seconds. */
+  unplaced?: Record<string, number>;
 }
 export interface Route { host: string; space: string }
 
 const HOUR = 3_600_000;
+/** How long after a tab opens empty its first address may still route it: a link loads at once; a blank tab left
+ * open and typed into later is the person's. */
+const ROUTE_WINDOW = 10_000;
 export const CLEAR_AFTER = [
   { label: '12 hours', ms: 12 * HOUR },
   { label: 'A day', ms: 24 * HOUR },
@@ -80,13 +84,15 @@ export function syncSpaces(s: SpacesState, tabs: readonly BrowserTabState[], now
   const known = new Set(s.spaces.map((sp) => sp.id));
   const tabSpace: Record<string, string> = {};
   const seen: Record<string, number> = {};
-  const unplaced: string[] = [];
+  const unplaced: Record<string, number> = {};
+  const was = s.unplaced && !Array.isArray(s.unplaced) ? s.unplaced : {};
   for (const t of tabs) {
     const sp = s.tabSpace[t.id];
     // A tab opened on a site with a route (a link from another app or page) goes to that space: by its first address,
     // as the shell opens a tab before loading it. A tab the person opened (New tab), and what they type there, never move.
-    const waiting = s.unplaced?.includes(t.id) === true && !own.has(t.id);
-    if ((sp === undefined || waiting) && t.url === '' && !own.has(t.id)) unplaced.push(t.id);
+    const since = was[t.id];
+    const waiting = since !== undefined && now - since <= ROUTE_WINDOW && !own.has(t.id);
+    if ((sp === undefined || waiting) && t.url === '' && !own.has(t.id)) unplaced[t.id] = since ?? now;
     const routed = (sp === undefined || waiting) && t.url !== '' && !own.has(t.id) ? routeFor(s, t.url) : null;
     tabSpace[t.id] = routed ?? (sp && known.has(sp) ? sp : s.current);
     seen[t.id] = t.active ? now : (s.seen[t.id] ?? now);
@@ -95,7 +101,7 @@ export function syncSpaces(s: SpacesState, tabs: readonly BrowserTabState[], now
   const current = active ? tabSpace[active.id]! : s.current;
   const last = active && s.last?.[current] !== active.id ? { ...s.last, [current]: active.id } : s.last;
   const { tabFolder: keptFolder, folderUrl } = syncFolders(s, tabs);
-  const sameUnplaced = (s.unplaced ?? []).length === unplaced.length && unplaced.every((id, i) => s.unplaced![i] === id);
+  const sameUnplaced = Object.keys(was).length === Object.keys(unplaced).length && Object.entries(unplaced).every(([id, at]) => was[id] === at);
   const same = sameUnplaced && last === s.last && current === s.current && keptFolder === s.tabFolder && folderUrl === s.folderUrl && Object.keys(s.tabSpace).length === ids.size && tabs.every((t) => s.tabSpace[t.id] === tabSpace[t.id] && s.seen[t.id] === seen[t.id]);
   return same ? s : { ...s, current, tabSpace, seen, unplaced, ...(last ? { last } : {}), ...(keptFolder ? { tabFolder: keptFolder } : {}), ...(folderUrl ? { folderUrl } : {}) };
 }

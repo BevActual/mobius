@@ -1126,6 +1126,8 @@ export function App() {
     const typed = draft ?? active.url;
     // Going somewhere from reader mode leaves it, for the page.
     if (inReader) openApp('browser');
+    // An address the person typed is theirs: Air Traffic Control never moves the tab for it.
+    ownTab(active.id);
     const outcome = await window.mobius.browser.navigate(active.id, typed);
     if (outcome === 'ask' && settings?.configured && !conversation.state.busy) {
       // A question is for the agent, not the web.
