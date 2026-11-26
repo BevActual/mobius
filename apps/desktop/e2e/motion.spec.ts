@@ -76,3 +76,24 @@ test('a field shows one soft focus ring: never a ring inside a ring', async () =
   expect(await rings('input[aria-label="Search settings"]')).toBe(1);
   await openSettings(shell);
 });
+
+/** The animations running on the left dock: their keyframes' properties and length. */
+const dockMotion = (shell: Page) => shell.evaluate(() => document.querySelector('.ui-dock[data-dock="left"]')?.getAnimations().map((a) => {
+  const effect = a.effect as KeyframeEffect;
+  return { props: Object.keys(effect.getKeyframes()[0] ?? {}).filter((k) => !['offset', 'computedOffset', 'easing', 'composite'].includes(k)).sort(), duration: effect.getTiming().duration };
+}) ?? null);
+
+test('a dock of panels slides back into its edge as it closes and out again as it opens', async () => {
+  const shell = mobius!.shell;
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell.keyboard.press('Enter');
+  const dock = shell.locator('.ui-dock[data-dock="left"]');
+  await expect(dock).toBeVisible();
+  await shell.keyboard.press('Control+\\');
+  // Still drawn for a moment, narrowing to nothing (its gap to the page too) and out of reach meanwhile.
+  expect(await dockMotion(shell)).toEqual([{ props: ['marginRight', 'opacity', 'width'], duration: 150 }]);
+  await expect(dock).toHaveCount(0);
+  await shell.keyboard.press('Control+\\');
+  expect(await dockMotion(shell)).toEqual([{ props: ['marginRight', 'opacity', 'width'], duration: 200 }]);
+});

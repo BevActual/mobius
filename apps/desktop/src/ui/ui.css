@@ -187,3 +187,10 @@
   animation: ui-busy-rise var(--dur-loop) var(--ease) infinite; animation-delay: calc(var(--i) * var(--dur-loop) / 8);
 }
 @keyframes ui-busy-rise { 0%, 100% { height: var(--sp-1); opacity: 0.35; } 40% { height: var(--sp-3); opacity: 0.9; } }
+/* A dock sliding in or out of its edge (motion.tsx dockIn/dockOut): the panels inside keep their full size, held to
+   the window's edge, so they come in whole while the dock's own size grows. */
+.ui-dock[data-moving] { overflow: hidden; }
+.ui-dock[data-moving][data-dock="left"] > .ui-panel { flex-shrink: 0; width: var(--dock-full); align-self: flex-end; }
+.ui-dock[data-moving][data-dock="right"] > .ui-panel { flex-shrink: 0; width: var(--dock-full); align-self: flex-start; }
+.ui-dock[data-moving][data-dock="bottom"] > .ui-panel { flex: none; height: var(--dock-full); align-self: flex-start; }
+.ui-dock[data-moving] > .ui-dock-edge { display: none; }
