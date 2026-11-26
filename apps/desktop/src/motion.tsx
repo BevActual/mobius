@@ -25,6 +25,9 @@ export function MotionRoot({ children }: { children: ReactNode }) {
 let lastPointer: { x: number; y: number; at: number } | null = null;
 if (typeof window !== 'undefined') {
   window.addEventListener('pointerdown', (event) => { lastPointer = { x: event.clientX, y: event.clientY, at: performance.now() }; }, { capture: true });
+  // A key pressed since then (other than a modifier held for a shortcut) means the keyboard asked: a click a moment
+  // before (Today, then Tab to an event and Enter) is not where it came from.
+  window.addEventListener('keydown', (event) => { if (!['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) lastPointer = null; }, { capture: true });
 }
 
 /** The one timing: what appears grows in at --dur-med's pace and leaves faster; Reduce Motion leaves a fade. */
