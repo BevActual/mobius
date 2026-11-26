@@ -10,9 +10,14 @@ The Agent app is Mobius's home, named **Home** in Go and Ctrl+K. It opens on the
   is working"), and suggestions to start from, just above where you type. Under it:
   - **Inbox**: everything across your apps that waits on you, in one list. Chats with a question or an approval
     (answered in place, with Allow), apps Mobius changed while you were away (the row goes once you look), replies Mobius drafted in Mail,
-    and mail you sent with no reply by the day you chose (open it, or Stop waiting).
+    and mail you sent with no reply by the day you chose (open it, or Stop waiting). As Linear's Inbox, it also
+    gathers tasks due today or overdue, calendar invitations you have not answered, mail Get to zero marked as needing
+    a reply, project updates that are due, and suggested Knowledge changes. Each has **Done** (a task is ticked off;
+    the rest leave the Inbox) and **Later** (later today, tomorrow at 8:00 or next Monday at 8:00, as Linear's
+    snooze). What is set aside folds under "N set aside for later", where **Bring back** returns it. Up and Down (or J
+    and K) move through the rows, E is Done and H is Later until tomorrow. Done and Later are kept on this computer.
   - **Working**: what Mobius is doing now, with Stop.
-  - **In your apps**: the one thing in each worth a look (your next event, the first task due, who wrote your newest
+  - **In your apps**: the one thing in each worth a look (your next event, who wrote your newest
     mail, the note or doc you edited last); one press opens it.
   - **Continue**: the last things you opened in other apps. **Next**: what is scheduled.
 - **The Chats panel** starts with a search, then your conversations (grouped by agent once you have more than one),

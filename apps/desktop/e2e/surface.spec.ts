@@ -167,3 +167,33 @@ test('in Notes, a note suggestion attaches the open note', async () => {
   await expect(log().getByRole('list', { name: 'Attached' })).toContainText('Errands');
   expect(sent()).toContain('call the plumber');
 });
+
+test('the Inbox gathers tasks due and project updates due, each with Done and Later, as Linear’s', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Pay rent (due 2001-01-01)\n- [ ] Call the plumber (due 2001-01-02)\n');
+  fs.writeFileSync(path.join(userData, 'projects.json'), JSON.stringify([{ id: 'p1', name: 'Offsite', rules: {}, threads: [], status: 'started' }]));
+  await start();
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: 'Pay rent: Overdue · Home' })).toBeVisible();
+  await expect(inbox.getByRole('button', { name: 'Offsite: No update yet' })).toBeVisible();
+  // Done on a task ticks it off in Tasks.
+  await inbox.getByRole('button', { name: 'Complete Pay rent' }).click();
+  await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), 'utf8')).toContain('- [x] Pay rent');
+  await expect(inbox.getByRole('button', { name: /^Pay rent/ })).toHaveCount(0);
+  // Later sets an item aside; it folds under a link and can be brought back.
+  await inbox.getByRole('button', { name: 'Later: Offsite' }).click();
+  await shell().getByRole('menuitem', { name: 'Next week' }).click();
+  await expect(inbox.getByRole('button', { name: 'Offsite: No update yet' })).toHaveCount(0);
+  await inbox.getByRole('button', { name: '1 set aside for later' }).click();
+  await inbox.getByRole('button', { name: 'Bring back Offsite' }).click();
+  await expect(inbox.getByRole('button', { name: 'Offsite: No update yet' })).toBeVisible();
+  // From the keyboard: H sets the focused item aside until tomorrow, and the row after it takes focus.
+  await inbox.getByRole('button', { name: /^Call the plumber: / }).focus();
+  await shell().keyboard.press('h');
+  await expect(inbox.getByRole('button', { name: /^Call the plumber: / })).toHaveCount(0);
+  await expect(inbox.getByRole('button', { name: 'Offsite: No update yet' })).toBeFocused();
+  // Opening a project update goes to the project.
+  await inbox.getByRole('button', { name: 'Offsite: No update yet' }).click();
+  await expect(shell().getByRole('region', { name: 'Project updates' })).toBeVisible();
+});

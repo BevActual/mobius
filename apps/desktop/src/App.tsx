@@ -90,6 +90,7 @@ import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
 import { eventsOn, rangeLabel as calendarRange } from './calendar-view';
 import { Desk } from './Desk';
+import { inboxItems } from './inbox';
 import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { agoLabel } from './desk-view';
@@ -1938,7 +1939,8 @@ export function App() {
             desk={(starters) => (
               <Desk
                 starters={starters}
-                rows={deskAppRows({ tabs: browser.tabs, mail: mail.messages, unread: mail.counts.all, dueToday: smartView('today', tasks.all, new Date()), events: calendar.events, notes: notes.notebooks, docs: docs.notebooks }, new Date())}
+                // Tasks due are in the Inbox, each with Done and Later, so In your apps does not say them again.
+                rows={deskAppRows({ tabs: browser.tabs, mail: mail.messages, unread: mail.counts.all, dueToday: [], events: calendar.events, notes: notes.notebooks, docs: docs.notebooks }, new Date())}
                 onOpenTarget={openTarget}
                 changed={changed}
                 activity={activity}
@@ -1949,6 +1951,15 @@ export function App() {
                 opened={recentItems(12)}
                 onOpenRecent={launch.openRecent}
                 suggested={{ count: mail.counts.suggested, onOpen: () => { openApp('mail'); mail.setView({ kind: 'drafts', only: 'mobius' }); } }}
+                inbox={{
+                  items: inboxItems({ dueToday: smartView('today', tasks.all, new Date()), projects: projects.list, suggested: wikiIncoming.waiting, mail: mail.messages, events: calendar.events, me: mail.accounts.map((a) => a.email) }, new Date()),
+                  onOpen: (item) => {
+                    if (item.target) openTarget(item.target);
+                    else if (item.project) { projects.setOpenId(item.project); openApp('projects'); }
+                    else if (item.kind === 'suggested') { setWikiPlace({ kind: 'shared' }); openApp('wiki'); }
+                  },
+                  onDone: async (item) => (item.task ? tasks.complete(item.task.list, item.task.task) : true),
+                }}
                 // First run: once a model answers, mail and calendar are what make its answers about the person's own day.
                 {...(settings?.configured && (mail.accounts.length === 0 || calendar.accounts.length === 0) ? { connect: { mail: mail.accounts.length === 0, calendar: calendar.accounts.length === 0, onMail: () => openSettingsAt('mail'), onCalendar: () => openSettingsAt('calendar') } } : {})}
               />
