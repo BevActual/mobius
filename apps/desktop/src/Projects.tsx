@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { conversationIdFor, type Bot, type ConversationInfo, type Message, type ProjectDetails, type ProjectInfo, type ProjectLevel, type ProjectStatus, type TaskListInfo, type WikiChange } from '@mobius/shared';
+import { conversationIdFor, type Bot, type ConversationInfo, type Message, type ProjectDetails, type ProjectHealth, type ProjectInfo, type ProjectUpdate, type ProjectUpdateText, type ProjectLevel, type ProjectStatus, type TaskListInfo, type WikiChange } from '@mobius/shared';
 import { appName, isInstalled, type AppId } from './apps';
 import { APP_ICONS } from './Rail';
 import { ActionIcon, ContextMenu } from './ContextMenu';
 import { AppMenu, AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SideNew } from './SideNew';
-import { groupByStatus, PROJECT_STATUSES, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine } from './projects-view';
+import { changesSince, draftAsk, groupByStatus, healthName, latestUpdate, parseDraft, PROJECT_HEALTHS, PROJECT_STATUSES, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine, updateDue } from './projects-view';
+import { askInline, type InlineAnswer } from './launcher-ask';
+import { ChangeBar, TryAnotherContext } from './ReviewBar';
+import { MobiusMark } from './MobiusMark';
+import { relativeTime } from './relative-time';
 import './projects.css';
 import type { WikiIncoming } from './Wiki';
 import { changeTarget } from './actions';
@@ -66,6 +70,15 @@ export function useProjects() {
     setProblem(r ? failed(r) : 'That cannot be set here.');
     await load();
   };
+  /** Post an update, change one (`update` is its id) or delete one; true when it was done. */
+  const postUpdate = async (id: string, text: ProjectUpdateText, update?: string) => {
+    const r = await (update ? api?.editUpdate?.(id, update, text) : api?.addUpdate?.(id, text))?.catch(() => null);
+    const why = r ? failed(r) : 'Updates are not available here.';
+    setProblem(why);
+    await load();
+    return why === null;
+  };
+  const removeUpdate = async (id: string, update: string) => { const r = await api?.removeUpdate?.(id, update).catch(() => null); setProblem(r ? failed(r) : 'Updates are not available here.'); await load(); };
   const setRule = async (id: string, app: AppId, level: ProjectLevel | 'follow') => { setProblem(failed(await api?.setRule(id, app, level).catch(() => null))); await load(); };
   const addThread = async (id: string, conversation: string) => { const r = await api?.addThread(id, conversation).catch(() => null); setProblem(failed(r)); await load(); return failed(r) === null; };
   /** A thread leaves the project (with the side threads asked from it); the conversation itself is kept. */
@@ -102,7 +115,7 @@ export function useProjects() {
   const [asking, setAsking] = useState<Asking | null>(null);
   const ask = (id: string, kind: Asking['kind']) => { setOpenId(id); setProblem(null); setAsking({ id, kind }); };
   const open = list.find((p) => p.id === openId) ?? list[0] ?? null;
-  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, setDetails, addThread, removeThread, askBot, remove, problem, asking, ask, stopAsking: () => setAsking(null) };
+  return { available: api !== undefined, list, open, setOpenId, create, rename, setRule, setDetails, postUpdate, removeUpdate, addThread, removeThread, askBot, remove, problem, asking, ask, stopAsking: () => setAsking(null) };
 }
 export type ProjectsState = ReturnType<typeof useProjects>;
 
@@ -133,7 +146,8 @@ export function StatusIcon({ status }: { status: ProjectStatus | undefined }) {
  * Under the project's line, as Linear's project properties: its status, its target day and its progress from a Tasks
  * list (done out of all, with a bar). Each is set in place; a list opens in Tasks.
  */
-function ProjectProps({ projects, project, onOpenList }: { projects: ProjectsState; project: ProjectInfo; onOpenList: (list: string) => void }) {
+/** The Tasks lists, kept current: a project's progress is counted from its own. */
+function useTaskLists() {
   const [lists, setLists] = useState<TaskListInfo[] | null>(null);
   useEffect(() => {
     let live = true;
@@ -142,11 +156,21 @@ function ProjectProps({ projects, project, onOpenList }: { projects: ProjectsSta
     const off = window.mobius.tasks?.onChanged?.(load);
     return () => { live = false; off?.(); };
   }, []);
+  return lists;
+}
+
+/** How far a project has come, from its linked list: null without one (or before the lists are read). */
+const projectProgress = (project: ProjectInfo, lists: readonly TaskListInfo[] | null) => progressOf(project.list ? lists?.find((l) => l.name === project.list) : undefined);
+
+/** A project's health as Linear marks it: a filled dot, green On track, amber At risk, red Off track. */
+const HealthDot = ({ health }: { health: ProjectHealth }) => <span className="proj-health-dot" data-health={health} aria-hidden="true" />;
+
+function ProjectProps({ projects, project, lists, onOpenList }: { projects: ProjectsState; project: ProjectInfo; lists: TaskListInfo[] | null; onOpenList: (list: string) => void }) {
   const set = (details: ProjectDetails) => void projects.setDetails(project.id, details);
   const target = targetLine(project.target, project.status, new Date());
-  const linked = project.list ? lists?.find((l) => l.name === project.list) : undefined;
-  const progress = progressOf(linked);
+  const progress = projectProgress(project, lists);
   const dateField = useRef<HTMLInputElement>(null);
+  const latest = latestUpdate(project);
   return (
     <div className="proj-props" role="group" aria-label="Project details">
       <Menu label="Status" entries={PROJECT_STATUSES.map((st) => ({ label: st.name, icon: <StatusIcon status={st.id} />, checked: project.status === st.id, run: () => set({ status: project.status === st.id ? '' : st.id }) }))}
@@ -177,6 +201,13 @@ function ProjectProps({ projects, project, onOpenList }: { projects: ProjectsSta
         <Menu label="Link a task list" entries={lists.map((l) => ({ label: l.name, run: () => set({ list: l.name }) }))}
           trigger={<button type="button" className="proj-prop"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M5 10h10M5 14h6" /></svg><span>Link a task list</span></button>} />
       ) : null}
+      {/* Its health from the latest update, as Linear shows it beside the project's properties; a click goes to Updates. */}
+      {latest && (
+        <a className="proj-prop proj-health" href="#project-updates" title={`From the update ${relativeTime(latest.at, Date.now()).toLowerCase()}`}
+          onClick={(e) => { e.preventDefault(); document.getElementById('project-updates')?.scrollIntoView({ block: 'start' }); }}>
+          <HealthDot health={latest.health} /><span>{healthName(latest.health)}</span>
+        </a>
+      )}
     </div>
   );
 }
@@ -294,8 +325,8 @@ export function SideThreads({ projects, conversation, bots, onOpen }: { projects
  * and Rename, the folder, the memory page and Delete are in the toolbar's ⋯. Renaming and the delete check take the
  * line's place.
  */
-function ProjectHead({ projects, project, summary, onNewThread, onOpenFiles, onOpenMemory, onOpenList }: {
-  projects: ProjectsState; project: ProjectInfo; summary: string; onNewThread: () => void; onOpenFiles: () => void; onOpenMemory: () => void; onOpenList: (list: string) => void;
+function ProjectHead({ projects, project, summary, lists, onNewThread, onOpenFiles, onOpenMemory, onOpenList }: {
+  projects: ProjectsState; project: ProjectInfo; summary: string; lists: TaskListInfo[] | null; onNewThread: () => void; onOpenFiles: () => void; onOpenMemory: () => void; onOpenList: (list: string) => void;
 }) {
   const asking = projects.asking?.id === project.id ? projects.asking.kind : null;
   const [naming, setNaming] = useState(project.name);
@@ -343,8 +374,144 @@ function ProjectHead({ projects, project, summary, onNewThread, onOpenFiles, onO
     <div className="proj-head">
       {tools}
       <p className="proj-summary">{summary}</p>
-      <ProjectProps projects={projects} project={project} onOpenList={onOpenList} />
+      <ProjectProps projects={projects} project={project} lists={lists} onOpenList={onOpenList} />
     </div>
+  );
+}
+
+/**
+ * Project updates, as Linear's: how the work is going (On track, At risk, Off track) and what to say, with what changed
+ * since the last update (status, target day, progress) added by itself. The latest shows first; the earlier ones fold.
+ * Write with Mobius drafts one from where the project stands and its threads, dashed until kept; Mobius never posts.
+ */
+function ProjectUpdates({ projects, project, progress, threads, onForget }: { projects: ProjectsState; project: ProjectInfo; progress: { done: number; total: number; percent: number } | null; threads: string[]; onForget: (conversation: string) => void }) {
+  const updates = project.updates ?? [];
+  const latest = updates.at(-1);
+  const [writing, setWriting] = useState<{ update?: ProjectUpdate } | null>(null);
+  const [health, setHealth] = useState<ProjectHealth>('on_track');
+  const [text, setText] = useState('');
+  const [draft, setDraft] = useState<InlineAnswer | null>(null);
+  const [earlier, setEarlier] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
+  const stop = useRef<(() => void) | null>(null);
+  useEffect(() => () => stop.current?.(), []);
+  const now = Date.now();
+  const standing = { status: project.status, target: project.target, done: progress?.done, total: progress?.total };
+  const pending = changesSince(latest, standing, new Date(now));
+  const due = updateDue(project, now);
+  // A draft is asked in a conversation of its own, deleted once the draft is kept or dropped: it is not a thread.
+  const forget = onForget;
+  const start = (update?: ProjectUpdate) => {
+    setWriting(update ? { update } : {});
+    setHealth(update?.health ?? latest?.health ?? 'on_track');
+    setText(update?.text ?? '');
+    setDeleting(null);
+    requestAnimationFrame(() => field.current?.focus());
+  };
+  const close = () => { stop.current?.(); if (draft) forget(draft.conversation); setDraft(null); setWriting(null); };
+  const write = () => {
+    stop.current?.();
+    if (draft) forget(draft.conversation);
+    const reports = (project.sides ?? []).filter((x) => x.report).map((x) => `${x.botName}: ${x.report}`);
+    const target = targetLine(project.target, project.status, new Date(now))?.text ?? null;
+    const ask = draftAsk(project, { changes: pending, threads, reports, progress: progress ? `${progress.done} of ${progress.total} tasks done (${progress.percent}%)` : null, target });
+    stop.current = askInline(ask, setDraft, 'projects');
+  };
+  const drafted = draft ? parseDraft(draft.text) : null;
+  const keepDraft = () => {
+    if (!draft || !drafted) return;
+    if (drafted.health) setHealth(drafted.health);
+    setText(drafted.text);
+    stop.current?.();
+    forget(draft.conversation);
+    setDraft(null);
+    requestAnimationFrame(() => field.current?.focus());
+  };
+  const discardDraft = () => { stop.current?.(); if (draft) forget(draft.conversation); setDraft(null); };
+  const post = async () => {
+    if (!text.trim() || !writing) return;
+    const ok = await projects.postUpdate(project.id, { health, text, ...(progress ? { done: progress.done, total: progress.total } : {}) }, writing.update?.id);
+    if (ok) { setWriting(null); setText(''); }
+  };
+  const shown = earlier ? [...updates].reverse() : latest ? [latest] : [];
+  const form = writing && (
+    <form className="proj-update-form" aria-label={writing.update ? 'Edit the update' : 'New update'} onSubmit={(e) => { e.preventDefault(); void post(); }}
+      onKeyDown={(e) => { if (e.key === 'Escape' && !draft) { e.stopPropagation(); close(); } }}>
+      <div className="proj-health-pick" role="radiogroup" aria-label="Health">
+        {PROJECT_HEALTHS.map((h) => (
+          <button key={h.id} type="button" role="radio" aria-checked={health === h.id} className="proj-prop" onClick={() => setHealth(h.id)}><HealthDot health={h.id} /><span>{h.name}</span></button>
+        ))}
+      </div>
+      {draft ? (
+        <section className="proj-update-draft" aria-label="Update drafted by Mobius" aria-busy={draft.state === 'asking'}>
+          {drafted?.health && <p className="proj-update-head"><HealthDot health={drafted.health} /><b>{healthName(drafted.health)}</b></p>}
+          <p className="proj-update-text">{drafted?.text || (draft.state === 'asking' ? 'Mobius is writing…' : '')}</p>
+          {draft.state === 'failed' && <p className="field-error" role="alert">{draft.error ?? 'Mobius could not write it.'}</p>}
+          {draft.state === 'done' && (
+            <TryAnotherContext.Provider value={write}>
+              <ChangeBar who={<span className="proj-update-who"><MobiusMark size={14} />Mobius drafted this</span>} onDiscard={discardDraft} onKeep={keepDraft}
+                keepText="Keep and edit" keepTitle="Put it in the update, to change before you post" discardTitle="Drop this draft" />
+            </TryAnotherContext.Provider>
+          )}
+          {draft.state !== 'done' && <button type="button" className="review-btn" onClick={discardDraft}>{draft.state === 'asking' ? 'Stop' : 'Close'}</button>}
+        </section>
+      ) : (
+        <textarea ref={field} className="proj-update-field" aria-label="Update" rows={4} placeholder="What moved, what is at risk, and what comes next" value={text}
+          onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void post(); } }} />
+      )}
+      {!writing.update && pending.length > 0 && (
+        <ul className="proj-update-changes" aria-label="Added by itself: changes since the last update">{pending.map((c) => <li key={c}>{c}</li>)}</ul>
+      )}
+      <div className="proj-update-bar">
+        {!writing.update && !draft && <button type="button" className="btn" onClick={write}><MobiusMark size={14} />Write with Mobius</button>}
+        <span className="spacer" />
+        <button type="button" className="btn" onClick={close}>Cancel</button>
+        <button type="submit" className="btn primary" disabled={!text.trim() || !!draft} title="Post (Ctrl+Enter)">{writing.update ? 'Save' : 'Post update'}</button>
+      </div>
+      {projects.problem && <p className="field-error" role="alert">{projects.problem}</p>}
+    </form>
+  );
+  return (
+    <Group id="project-updates" label="Project updates" heading="Updates" {...(writing ? {} : { link: { label: 'Write an update', run: () => start() } })}>
+      {form && !writing?.update && form}
+      {!writing && due && (
+        <p className="proj-update-due" role="status">{latest ? `An update is due: the last was ${relativeTime(latest.at, now).toLowerCase()}.` : 'No update yet. Say how this is going.'}</p>
+      )}
+      {updates.length === 0 && !writing && !due && <p className="proj-empty">No updates yet. Post one to say how the work is going.</p>}
+      {shown.map((u) => {
+        const i = updates.indexOf(u);
+        if (writing?.update?.id === u.id) return <div key={u.id}>{form}</div>;
+        const changes = changesSince(updates[i - 1], u, new Date(now));
+        return (
+          <article key={u.id} className="proj-update" aria-label={`${healthName(u.health)} update, ${relativeTime(u.at, now).toLowerCase()}`}>
+            <p className="proj-update-head">
+              <HealthDot health={u.health} /><b>{healthName(u.health)}</b>
+              <span className="proj-update-when">{relativeTime(u.at, now)}{u.edited ? ' · edited' : ''}</span>
+              <span className="spacer" />
+              <Menu label="Update" align="end" entries={[
+                { label: 'Edit update', run: () => start(u) },
+                { label: 'Delete update…', separated: true, run: () => setDeleting(u.id) },
+              ]} trigger={<button type="button" className="proj-prop proj-more" aria-label="More for this update"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h.01M10 10h.01M15 10h.01" /></svg></button>} />
+            </p>
+            <p className="proj-update-text">{u.text}</p>
+            {changes.length > 0 && <ul className="proj-update-changes" aria-label="Changes since the update before">{changes.map((c) => <li key={c}>{c}</li>)}</ul>}
+            {deleting === u.id && (
+              <div className="proj-update-bar" role="alertdialog" aria-label="Delete this update?">
+                <span>Delete this update?</span><span className="spacer" />
+                <button type="button" className="btn" autoFocus onClick={() => setDeleting(null)}>Cancel</button>
+                <button type="button" className="btn danger" onClick={() => { setDeleting(null); void projects.removeUpdate(project.id, u.id); }}>Delete</button>
+              </div>
+            )}
+          </article>
+        );
+      })}
+      {updates.length > 1 && (
+        <button type="button" className="btn link proj-update-more" aria-expanded={earlier} onClick={() => setEarlier((v) => !v)}>
+          {earlier ? 'Show only the latest' : `Show ${updates.length - 1} earlier ${updates.length === 2 ? 'update' : 'updates'}`}
+        </button>
+      )}
+    </Group>
   );
 }
 
@@ -359,9 +526,9 @@ const Loading = ({ label }: { label: string }) => (
 );
 
 /** A section of the page, as in Apple's grouped lists: a heading outside, with one link at its right, and a card. */
-function Group({ label, heading, link, children, tone }: { label: string; heading: string; link?: { label: string; run: () => void; expanded?: boolean }; children: ReactNode; tone?: 'attention' }) {
+function Group({ label, heading, link, children, tone, id }: { label: string; heading: string; link?: { label: string; run: () => void; expanded?: boolean }; children: ReactNode; tone?: 'attention'; id?: string }) {
   return (
-    <section className="proj-group" aria-label={label} data-tone={tone}>
+    <section className="proj-group" aria-label={label} data-tone={tone} id={id}>
       <div className="proj-group-head">
         <h2 className="proj-group-title">{heading}</h2>
         {link && <button type="button" className="btn link" aria-expanded={link.expanded} onClick={link.run}>{link.label}</button>}
@@ -492,8 +659,10 @@ function ProjectRules({ projects, project: p }: { projects: ProjectsState; proje
  * A project as a place: what waits on you, its threads and what they made first, then its memory (a Knowledge page)
  * and its rules (how much Mobius may do in each app there), folded into one line.
  */
-export function ProjectPage({ projects, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles, onOpenMade }: {
+export function ProjectPage({ projects, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles, onOpenMade, onForget }: {
   projects: ProjectsState;
+  /** Delete a conversation Mobius was asked in for a draft, and drop it from the lists. */
+  onForget?: (conversation: string) => void;
   incoming: WikiIncoming;
   conversations: readonly ConversationInfo[];
   onOpenThread: (conversation: string) => void;
@@ -514,11 +683,12 @@ export function ProjectPage({ projects, conversations, incoming, onOpenThread, o
       </section>
     );
   }
-  return <OpenProject key={p.id} {...{ projects, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles, onOpenMade }} project={p} />;
+  return <OpenProject key={p.id} {...{ projects, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles, onOpenMade, onForget }} project={p} />;
 }
 
-function OpenProject({ projects, project: p, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles, onOpenMade }: Parameters<typeof ProjectPage>[0] & { project: ProjectInfo }) {
+function OpenProject({ projects, project: p, conversations, incoming, onOpenThread, onNewThread, onOpenMemory, onOpenFiles, onOpenMade, onForget }: Parameters<typeof ProjectPage>[0] & { project: ProjectInfo }) {
   const made = useMade(p, conversations);
+  const lists = useTaskLists();
   const now = Date.now();
   const threads = projectThreads(p, conversations);
   const waiting = threads.filter((t) => (t.info?.waiting ?? 0) > 0);
@@ -526,7 +696,7 @@ function OpenProject({ projects, project: p, conversations, incoming, onOpenThre
   const [threadMenu, setThreadMenu] = useState<{ x: number; y: number; id: string; title: string } | null>(null);
   return (
     <section className="skills-page project-page" aria-label={p.name}>
-      <ProjectHead projects={projects} project={p} summary={projectSummary(p, conversations, made?.length ?? 0, now)}
+      <ProjectHead projects={projects} project={p} lists={lists} summary={projectSummary(p, conversations, made?.length ?? 0, now)}
         onNewThread={() => onNewThread(p.id)} onOpenFiles={() => onOpenFiles(p)} onOpenMemory={() => onOpenMemory(p)} onOpenList={(list) => onOpenMade(`tasks/${list}.md`)} />
       {waiting.length > 0 && (
         <Group label="Waiting on you" heading="Waiting on you" tone="attention">
@@ -543,6 +713,8 @@ function OpenProject({ projects, project: p, conversations, incoming, onOpenThre
           </ul>
         </Group>
       )}
+      <ProjectUpdates projects={projects} project={p} progress={projectProgress(p, lists)} threads={threads.map((t) => t.info?.title).filter((t): t is string => !!t)}
+        onForget={onForget ?? ((c) => void window.mobius.agent.deleteConversation(c).catch(() => undefined))} />
       <Group label="Chat and threads" heading="Threads">
         {threads.length === 0 && (
           <div className="proj-empty proj-empty-new">

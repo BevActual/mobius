@@ -322,3 +322,57 @@ test('a project has a status, a target day and its progress from a Tasks list, a
   await page.getByRole('button', { name: 'Offsite', exact: true }).click();
   await expect(shell().locator('.app[data-app="tasks"]').or(shell().getByRole('region', { name: /Tasks$/ }))).toBeVisible();
 });
+
+test('a project update says its health, Mobius can draft one, and the next says what changed since, as Linear’s', async () => {
+  await start([says(['At risk\n', 'Catering is late; the venue is booked.'])]);
+  await openProjects();
+  await newProject('Offsite');
+  const page = shell().getByRole('region', { name: 'Offsite' });
+  const updates = page.getByRole('region', { name: 'Project updates' });
+  const saved = () => JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0];
+  await page.getByRole('button', { name: 'Status: No status' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'In progress' }).click();
+  // Work in progress with no update is due one.
+  await expect(updates.getByRole('status')).toHaveText('No update yet. Say how this is going.');
+  await updates.getByRole('button', { name: 'Write an update' }).click();
+  // Mobius drafts it, dashed, with its health; Keep and edit puts it in the update to change before posting.
+  await updates.getByRole('button', { name: 'Write with Mobius' }).click();
+  const draft = updates.getByRole('region', { name: 'Update drafted by Mobius' });
+  await expect(draft).toContainText('Catering is late; the venue is booked.');
+  await expect(draft).toContainText('At risk');
+  await draft.getByRole('button', { name: 'Keep and edit' }).click();
+  await expect(updates.getByRole('textbox', { name: 'Update' })).toHaveValue('Catering is late; the venue is booked.');
+  await expect(updates.getByRole('radio', { name: 'At risk' })).toHaveAttribute('aria-checked', 'true');
+  // The draft was asked in a conversation of its own, gone once it is kept: it is not one of the threads to move here.
+  await expect(page.getByRole('option', { name: /Write a short project update/ })).toHaveCount(0);
+  await updates.getByRole('button', { name: 'Post update' }).click();
+  await expect.poll(() => saved().updates?.map((u: { health: string; text: string; status: string }) => [u.health, u.text, u.status])).toEqual([['at_risk', 'Catering is late; the venue is booked.', 'started']]);
+  await expect(page.getByRole('group', { name: 'Project details' })).toContainText('At risk');
+  await expect(updates.getByRole('status')).toHaveCount(0);
+  // The next update adds what changed since the last by itself.
+  await page.getByLabel('Target day').fill('2030-05-01');
+  await updates.getByRole('button', { name: 'Write an update' }).click();
+  await expect(updates.getByRole('list', { name: /changes since the last update/ })).toHaveText('Target day set to May 1, 2030');
+  await updates.getByRole('radio', { name: 'On track' }).click();
+  await updates.getByRole('textbox', { name: 'Update' }).fill('Catering signed.');
+  await updates.getByRole('textbox', { name: 'Update' }).press('Control+Enter');
+  await expect.poll(() => saved().updates?.length).toBe(2);
+  const newest = updates.getByRole('article').first();
+  await expect(newest).toContainText('On track');
+  await expect(newest.getByRole('list', { name: 'Changes since the update before' })).toHaveText('Target day set to May 1, 2030');
+  // Earlier updates fold under the latest.
+  await expect(updates.getByRole('article')).toHaveCount(1);
+  await updates.getByRole('button', { name: 'Show 1 earlier update' }).click();
+  await expect(updates.getByRole('article')).toHaveCount(2);
+  // An update can be changed or deleted.
+  await newest.getByRole('button', { name: 'More for this update' }).click();
+  await shell().getByRole('menuitem', { name: 'Edit update' }).click();
+  await updates.getByRole('textbox', { name: 'Update' }).fill('Catering signed and paid.');
+  await updates.getByRole('button', { name: 'Save' }).click();
+  await expect.poll(() => saved().updates[1].text).toBe('Catering signed and paid.');
+  await expect(updates.getByRole('article').first()).toContainText('edited');
+  await updates.getByRole('article').first().getByRole('button', { name: 'More for this update' }).click();
+  await shell().getByRole('menuitem', { name: 'Delete update…' }).click();
+  await updates.getByRole('alertdialog', { name: 'Delete this update?' }).getByRole('button', { name: 'Delete' }).click();
+  await expect.poll(() => saved().updates.length).toBe(1);
+});

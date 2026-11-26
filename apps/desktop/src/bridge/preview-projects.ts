@@ -1,4 +1,4 @@
-import type { ConversationInfo, ProjectDetails, ProjectInfo, ProjectLevel } from '@mobius/shared';
+import type { ConversationInfo, ProjectDetails, ProjectInfo, ProjectLevel, ProjectUpdateText } from '@mobius/shared';
 
 /**
  * The preview's Projects: two projects kept in memory for as long as the preview is open, with threads, a bot's side
@@ -23,6 +23,7 @@ const PROJECTS: ProjectInfo[] = [
     rules: { notes: 'act', sheets: 'act', mail: 'ask' },
     threads: ['main:p2-plan', 'main:p2-cells'],
     status: 'started', target: (() => { const d = new Date(now + 9 * 24 * hour); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })(), list: 'P2 build',
+    updates: [{ id: 'u1', at: now - 6 * 24 * hour, health: 'on_track', text: 'Frame welded and checked. Cell quotes are in from two suppliers; we pick one this week.', status: 'started', done: 2, total: 8 }],
     sides: [{ conversation: 'scout:p2-sled', parent: 'main:p2-plan', bot: 'scout', botName: 'Scout', ask: 'Find a sled slot on Friday', report: 'Northfield has the long sled free Friday 08:00 to 12:00. I held it until tomorrow noon.' }],
   },
   { id: 'p2', name: 'Hiring', rules: {}, threads: ['main:hire-1'] },
@@ -39,7 +40,7 @@ const find = (id: string) => PROJECTS.find((p) => p.id === id);
 
 export const PREVIEW_PROJECTS: Record<string, (...args: never[]) => unknown> = {
   'agent.conversations': () => CONVERSATIONS.map((c) => ({ ...c })),
-  'projects.list': () => PROJECTS.map((p) => ({ ...p, threads: [...p.threads], sides: [...(p.sides ?? [])] })),
+  'projects.list': () => PROJECTS.map((p) => ({ ...p, threads: [...p.threads], sides: [...(p.sides ?? [])], updates: p.updates?.map((u) => ({ ...u })) })),
   'projects.create': ((name: string) => {
     const clean = name.trim();
     if (!clean) return fail('a project needs a name');
@@ -63,6 +64,27 @@ export const PREVIEW_PROJECTS: Record<string, (...args: never[]) => unknown> = {
     if (d.status !== undefined) { if (d.status) p.status = d.status; else delete p.status; }
     if (d.target !== undefined) { if (d.target) p.target = d.target; else delete p.target; }
     if (d.list !== undefined) { if (d.list) p.list = d.list; else delete p.list; }
+    return p;
+  }) as never,
+  'projects.addUpdate': ((id: string, u: ProjectUpdateText) => {
+    const p = find(id);
+    if (!p) return fail('that project is not there');
+    if (!u.text.trim()) return fail('An update needs a few words.');
+    const total = u.total && u.total > 0 ? u.total : undefined;
+    p.updates = [...(p.updates ?? []), { id: `u${nextId++}`, at: Date.now(), health: u.health, text: u.text.trim(), status: p.status, target: p.target, done: total ? Math.min(u.done ?? 0, total) : undefined, total }];
+    return p;
+  }) as never,
+  'projects.editUpdate': ((id: string, update: string, u: ProjectUpdateText) => {
+    const up = find(id)?.updates?.find((x) => x.id === update);
+    if (!up) return fail('That update is not there.');
+    if (!u.text.trim()) return fail('An update needs a few words.');
+    Object.assign(up, { health: u.health, text: u.text.trim(), edited: Date.now() });
+    return find(id);
+  }) as never,
+  'projects.removeUpdate': ((id: string, update: string) => {
+    const p = find(id);
+    if (!p?.updates?.some((x) => x.id === update)) return fail('That update is not there.');
+    p.updates = p.updates.filter((x) => x.id !== update);
     return p;
   }) as never,
   'projects.addThread': ((id: string, conversation: string) => {

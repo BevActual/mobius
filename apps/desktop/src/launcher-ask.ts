@@ -59,8 +59,11 @@ export function stepInline(answer: InlineAnswer & { streaming?: string }, n: Age
   }
 }
 
-/** Asks Mobius, read-only and with the quick model, in a new conversation. Returns a function that stops listening. */
-export function askInline(question: string, update: (answer: InlineAnswer) => void): () => void {
+/**
+ * Asks Mobius, read-only and with the quick model, in a new conversation. Returns a function that stops listening.
+ * `app` is where it was asked from (Projects asks this way for a drafted update).
+ */
+export function askInline(question: string, update: (answer: InlineAnswer) => void, app = 'launcher'): () => void {
   const agent = window.mobius?.agent;
   let answer: InlineAnswer & { streaming?: string } = { conversation: conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()), text: '', state: 'asking', sources: [] };
   const show = () => { const { streaming: _, ...shown } = answer; update(shown); };
@@ -70,7 +73,7 @@ export function askInline(question: string, update: (answer: InlineAnswer) => vo
     const next = stepInline(answer, n);
     if (next !== answer) { answer = next; show(); }
   });
-  void agent.send(answer.conversation, question, undefined, { ask: true, quick: true, app: 'launcher' }).then(
+  void agent.send(answer.conversation, question, undefined, { ask: true, quick: true, app }).then(
     (r) => { if (!r.ok) { answer = { ...answer, state: 'failed', error: r.error }; show(); } },
     () => { answer = { ...answer, state: 'failed', error: 'Mobius could not be asked.' }; show(); },
   );

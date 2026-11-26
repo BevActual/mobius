@@ -102,3 +102,29 @@ button.proj-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--acce
 .proj-status-icon[data-status="started"], .proj-status-icon[data-status="completed"] { stroke: var(--ink); }
 .proj-status-icon .fill { fill: var(--ink); stroke: none; }
 .proj-status-icon[data-status="completed"] .on-fill { stroke: var(--paper); stroke-width: 1.7; }
+
+/* Project updates (Linear's): health as a dot, the latest update first, what changed since the last one in grey. */
+.proj-health-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: #3a9a5b; }
+.proj-health-dot[data-health="at_risk"] { background: var(--warning); }
+.proj-health-dot[data-health="off_track"] { background: var(--danger); }
+.proj-health { text-decoration: none; }
+.proj-update { padding: var(--sp-2) 0; border-top: 1px solid var(--line-soft); }
+.proj-update:first-of-type { border-top: 0; }
+.proj-update-head { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-md); }
+.proj-update-when { color: var(--muted); font-size: var(--fs-sm); }
+.proj-update-head .spacer, .proj-update-bar .spacer { flex: 1; }
+.proj-update-text { margin: var(--sp-1) 0 0; white-space: pre-wrap; font-size: var(--fs-md); line-height: 1.5; }
+.proj-update-changes { margin: var(--sp-2) 0 0; padding: 0 0 0 var(--sp-4); color: var(--muted); font-size: var(--fs-sm); }
+.proj-update-due { margin: 0; padding: var(--sp-2) 0; color: var(--warning); font-size: var(--fs-sm); }
+.proj-update-more { margin: var(--sp-1) 0; }
+.proj-update-form { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) 0; }
+.proj-health-pick { display: flex; gap: var(--sp-1); }
+.proj-health-pick [aria-checked="true"] { background: var(--sel); }
+.proj-update-field { width: 100%; box-sizing: border-box; resize: vertical; min-height: 88px; padding: var(--sp-2); border: 1px solid var(--line); border-radius: var(--radius-control); background: none; color: var(--ink); font: inherit; font-size: var(--fs-md); line-height: 1.5; }
+.proj-update-field:focus-visible { outline: 2px solid var(--ink); outline-offset: -1px; }
+/* What Mobius drafted is dashed until kept, as everywhere Mobius proposes. */
+.proj-update-draft { padding: var(--sp-2); border-radius: 9px; outline: 1px dashed color-mix(in srgb, var(--mobius) 70%, transparent); outline-offset: -1px; }
+.proj-update-draft[aria-busy="true"] .proj-update-text { color: var(--muted); }
+.proj-update-who { display: inline-flex; align-items: center; gap: 6px; }
+.proj-update-bar { display: flex; align-items: center; gap: var(--sp-2); }
+.proj-update-bar .btn svg { margin-right: 6px; vertical-align: -2px; }
