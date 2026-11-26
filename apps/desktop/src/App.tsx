@@ -90,6 +90,8 @@ import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
 import { eventsOn, isoDay, rangeLabel as calendarRange } from './calendar-view';
 import { Desk } from './Desk';
+import { useBackgroundRuns } from './background';
+import type { SendOptions } from './composer/Composer';
 import { inboxItems } from './inbox';
 import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
@@ -109,6 +111,7 @@ import { DEFAULT_LIST_NAME, nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
+import { WorkingPill } from './WorkingPill';
 import { findInSources, sourceCommands } from './launcher-sources';
 import { useDailyLauncherSources, useMoreLauncherSources } from './app-launcher';
 import { askInline, selectionNow, type LauncherAbout } from './launcher-ask';
@@ -252,6 +255,8 @@ export function App() {
   const bots = useBots();
   const botIds = useMemo(() => bots.bots.map((bot) => bot.id), [bots.bots]);
   const conversation = useConversation(coreStatus, botIds);
+  // Work handed to Mobius in the background: it lands in Home's Inbox when done.
+  const handoffs = useBackgroundRuns(conversation.list);
   const archive = useArchive(conversation.list);
   const [sideMode, setSideMode] = useState<SideMode>('sessions');
   // Agents app (marked): which agent's page shows while the sidebar is on Agents (null: the one you talk to), and a
@@ -840,6 +845,20 @@ export function App() {
   const waitingNow = conversation.state.items.filter((item) => 'status' in item && item.status === 'waiting').map((item) => ('requestId' in item ? String(item.requestId) : '?')).join(',');
   const lastWaiting = useRef('');
   if (waitingNow) lastWaiting.current = waitingNow;
+  // What the message box sends. "In the background": the panel steps aside while Mobius works, and the result lands
+  // in Home's Inbox, so the person carries on with their own work.
+  const sendAsked = (text: string, items: ContextItem[], options?: SendOptions) => {
+    const { background: away, ...rest } = options ?? {};
+    if (away) {
+      handoffs.start(conversation.state.conversation, (text.trim().split('\n')[0] ?? '').slice(0, 80) || 'Background task');
+      if (rightOpen && app !== 'agent') {
+        hideRight();
+        // The focus goes to the pill that now says what Mobius is doing, not to the page.
+        setTimeout(() => document.querySelector<HTMLElement>('.working-pill-open')?.focus(), 400);
+      }
+    }
+    void conversation.send(expandSlash(text, skills.names), items, Object.keys(rest).length > 0 ? rest : undefined);
+  };
   const toggleMobius = () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } };
   // Ctrl+Shift+M (Cmd on macOS) shows and hides Mobius beside the work, as its button does.
   const mobiusKey = useRef<(() => void) | null>(null);
@@ -1980,6 +1999,12 @@ export function App() {
                   },
                   onDone: async (item) => (item.task ? tasks.complete(item.task.list, item.task.task) : true),
                 }}
+                background={{
+                  items: handoffs.done,
+                  onOpen: (run) => { handoffs.drop(run.conversation); conversation.select(run.conversation); openRight(); },
+                  onKeep: handoffs.keep,
+                  onDone: (run) => handoffs.drop(run.conversation),
+                }}
                 // First run: once a model answers, mail and calendar are what make its answers about the person's own day.
                 {...(settings?.configured && (mail.accounts.length === 0 || calendar.accounts.length === 0) ? { connect: { mail: mail.accounts.length === 0, calendar: calendar.accounts.length === 0, onMail: () => openSettingsAt('mail'), onCalendar: () => openSettingsAt('calendar') } } : {})}
               />
@@ -1987,7 +2012,7 @@ export function App() {
             state={conversation.state}
             settings={settings}
             coreReady={coreStatus === 'ready'}
-            onSend={(text, items, options) => void conversation.send(expandSlash(text, skills.names), items, options)}
+            onSend={sendAsked}
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
@@ -2032,7 +2057,7 @@ export function App() {
             state={conversation.state}
             settings={settings}
             coreReady={coreStatus === 'ready'}
-            onSend={(text, items, options) => void conversation.send(expandSlash(text, skills.names), items, options)}
+            onSend={sendAsked}
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
@@ -2179,6 +2204,8 @@ export function App() {
             ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>
             : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
           {nativeMenus ? menuBar(appMenu) : appMenu && <MenuBar menus={[{ id: 'more', label: 'More', items: entryItems(appMenu.entries, 'more') }]} compact label="More" onOpenChange={setMenuOpen} />}
+          {/* Mobius at work with its panel closed: what it is doing, with Stop; a press shows it. */}
+          {hasRight && !rightOpen && activity && <WorkingPill activity={activity} onOpen={() => { openRight(); setFocusToken((n) => n + 1); }} onStop={conversation.stop} />}
           {hasRight && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
         </>,
       }}

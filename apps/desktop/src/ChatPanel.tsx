@@ -12,7 +12,7 @@ import { ClaimChecks, RichText } from './RichText';
 import { unsureClaims, withoutMarks, withoutToolTags } from './markdown';
 import { ReviewStrip, TurnHistory } from './ReviewStrip';
 import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type AnswerFor, type EffortChoice, FOR_THIS_QUESTION, type TodoItem } from '@mobius/shared';
-import { Composer } from './composer/Composer';
+import { Composer, type SendOptions } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { ActionsList, ActionsSlotContext, actionKey } from './ActionsSlot';
 import { GlanceSlotContext, ResultSlotContext } from './PanelSlots';
@@ -28,6 +28,7 @@ import { activityOf } from './activity';
 import { WorkingIndicator } from './Working';
 import { FirstRunModels } from './settings/ProviderKeys';
 import { SignInForTask } from './SignIn';
+import { TurnStepsContext, useTurnStep, useTurnSteps } from './useTurnSteps';
 
 const STATUS_TEXT: Record<ToolStatus, string> = {
   running: 'Running…',
@@ -278,6 +279,21 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
     if (next) void onDetails(item.callId).then(setDetails, () => setDetails({ result: null, arguments: undefined }));
   };
   const [sending, setSending] = useState(false);
+  // What this step changed, once the turn has ended: it can be put back on its own.
+  const { step, undo } = useTurnStep(item.id);
+  const [undoing, setUndoing] = useState(false);
+  const [undoProblem, setUndoProblem] = useState<string | null>(null);
+  const [putBack, setPutBack] = useState(false);
+  const detailsButton = useRef<HTMLButtonElement>(null);
+  const undoStep = async () => {
+    if (!step) return;
+    setUndoing(true);
+    const problem = await undo(step);
+    setUndoProblem(problem);
+    setUndoing(false);
+    // The Undo button goes: the focus stays on the row, on its Details, and the change is said.
+    if (!problem) { setPutBack(true); queueMicrotask(() => detailsButton.current?.focus()); }
+  };
   const shownArgs = describeArguments(item.args);
   // What a screen reader says for the step: the words shown, never the tool's own name.
   const spoken = (item.status === 'done' ? pastAction(item.name, item.args) : null) ?? plainAction(item.name, item.args);
@@ -299,9 +315,15 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
             ? <button type="button" className="tool-name link-btn" data-plain title={`Open it (${item.name})`} onClick={() => onOpenItem?.(target)}>{said ?? item.name}</button>
             : <span className="tool-name" data-plain={said ? true : undefined} title={item.name}>{said ?? item.name}</span>;
         })()}
-        <span className="tool-status">{STATUS_TEXT[item.status]}</span>
-        {finished && <button type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details: ${spoken}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
+        <span className="tool-status">{step?.undone ? 'Put back' : STATUS_TEXT[item.status]}</span>
+        {item.status === 'done' && step && !step.undone && (
+          <button type="button" className="msg-action tool-undo" disabled={undoing} aria-label={`Undo: ${spoken}`}
+            title={`Put back ${step.files.length === 1 ? 'what this step changed' : `the ${step.files.length} files this step changed`}, as they were before it`} onClick={() => void undoStep()}>Undo</button>
+        )}
+        {step && <span className="sr-only" role="status">{putBack ? `Put back: ${spoken}` : ''}</span>}
+        {finished && <button ref={detailsButton} type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details: ${spoken}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
       </div>
+      {undoProblem && <p className="field-error tool-problem" role="alert">{undoProblem}</p>}
       {open && (
         <div className="tool-details" role="group" aria-label={`Details: ${spoken}`}>
           {!details ? <p className="dl-sub">Loading…</p> : (
@@ -366,7 +388,7 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[]; effort?: 'none' | 'low' | 'medium' | 'high' }) => void;
+  onSend: (text: string, context: ContextItem[], options?: SendOptions) => void;
   /** Show a browser tab to the person (to sign in themselves). */
   onShowTab?: (tab: string) => void;
   onStop: () => void;
@@ -781,8 +803,11 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
     if (item) setContext((items) => (items.some((i) => i.source === item.source && i.text === item.text) ? items : [...items, item].slice(-5)));
     queueMicrotask(() => field.current?.focus());
   }, [incoming]);
+  // Each finished step that changed files can be put back on its own.
+  const turnSteps = useTurnSteps(state.conversation, state.busy, state.items);
 
   return (
+    <TurnStepsContext.Provider value={turnSteps}>
     <Shell variant={variant} empty={state.items.length === 0}>
       <div className="chat-head" data-lead={lead || onPlace ? true : undefined}>
         {lead}
@@ -965,6 +990,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
           {/* On Home the quick starts sit just above the message box, where the hand already is. */}
           {state.items.length === 0 && configured && desk && <div ref={setStarterSlot} className="empty-starters desk-starters" />}
           <Composer
+            offerBackground={variant === 'panel'}
             takeFocus={takeFocus}
             contextUse={state.context}
             {...(onOpenVoice ? { onOpenVoice } : {})}
@@ -1000,6 +1026,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
         </>
       )}
     </Shell>
+    </TurnStepsContext.Provider>
   );
 }
 

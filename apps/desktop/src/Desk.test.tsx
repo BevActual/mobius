@@ -31,4 +31,14 @@ describe('the Inbox on Home', () => {
     expect(html).not.toContain('aria-label="Inbox"');
     expect(html).toContain('aria-label="Working"');
   });
+  it('lists work finished in the background with Keep all, or Done when it changed nothing', () => {
+    const html = render({ background: { items: [
+      { conversation: 'c-1', ask: 'Tidy my notes', at: 1, files: ['notes/A.md', 'notes/B.md'], turn: 'c-1:abc' },
+      { conversation: 'c-2', ask: 'What is due Friday?', at: 2, files: [], turn: null },
+    ], onOpen: noop, onKeep: noop, onDone: noop } });
+    expect(html).toMatch(/Inbox <span class="desk-count">2<\/span>/);
+    expect(html).toContain('Finished in the background · 2 changes to keep');
+    expect(html).toContain('aria-label="Keep all of Tidy my notes"');
+    expect(html).toContain('aria-label="Done with What is due Friday?"');
+  });
 });
