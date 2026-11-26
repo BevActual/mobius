@@ -279,6 +279,17 @@ impl Browser {
         self.engine.mute(id, muted);
     }
 
+    /// The page's zoom changed on its own (Ctrl and the mouse wheel): the tab says the new factor.
+    pub fn zoomed(&self, id: &str, factor: f64) {
+        if !factor.is_finite() {
+            return;
+        }
+        let changed = lock(&self.state).tabs.iter().any(|t| t.id == id && (t.zoom - factor).abs() > 1e-6);
+        if changed {
+            self.update(id, |t| t.zoom = factor);
+        }
+    }
+
     /// The engine says whether a tab's page is playing sound now.
     pub fn audible(&self, id: &str, audible: bool) {
         let changed = lock(&self.state).tabs.iter().any(|t| t.id == id && t.audible != audible);
@@ -787,6 +798,16 @@ mod tests {
         assert!(!engine.calls().iter().any(|c| c.contains("tab-9")));
         b.audible("tab-1", false);
         assert_eq!(b.state()["tabs"][0]["audible"], false);
+    }
+
+    #[test]
+    fn a_zoom_the_page_made_itself_shows_on_its_tab() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        b.zoomed("tab-1", 1.1);
+        b.zoomed("tab-1", f64::INFINITY);
+        assert_eq!(b.state()["tabs"][0]["zoom"], 1.1);
+        assert!(!engine.calls().iter().any(|c| c.starts_with("zoom")), "the page already has it");
     }
 
     #[test]

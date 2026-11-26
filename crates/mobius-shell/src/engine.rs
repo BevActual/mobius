@@ -231,6 +231,14 @@ impl Engine for WebViewEngine {
                             let _ = engine_cdp(&engine_pages, &tab, "Browser.setPermission", json!({ "permission": { "name": name }, "setting": "denied" }));
                         }
                     });
+                    // Ctrl and the mouse wheel zoom the page itself: the tab learns the new factor.
+                    let (zoom_slot, zoom_id) = (self.browser.clone(), id.clone());
+                    crate::cdp::watch_zoom(&webview, Arc::new(move |factor| {
+                        if let Some(b) = weak_browser(&zoom_slot) {
+                            let id = zoom_id.clone();
+                            in_order(move || b.zoomed(&id, factor));
+                        }
+                    }));
                     // A tab shows a speaker while its page plays sound.
                     let (audio_slot, audio_id) = (self.browser.clone(), id.clone());
                     crate::cdp::watch_audio(&webview, Arc::new(move |audible| {
