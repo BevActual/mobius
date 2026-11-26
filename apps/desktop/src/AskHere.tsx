@@ -124,10 +124,11 @@ export function AskHere({ picked, here, app, onClose, onContinue }: {
       window.setTimeout(() => kinds.forEach((k) => document.removeEventListener(k, swallow, true)), 600);
       onClose();
     };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onClose(); } };
+    // Taken first (capture), before an editor that keeps Escape for itself.
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(); } };
     document.addEventListener('pointerdown', away, true);
-    window.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape); };
+    window.addEventListener('keydown', escape, true);
+    return () => { document.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape, true); };
   }, [onClose]);
   // Tab goes round the card's own buttons, not out of it to the page behind.
   const keepIn = (e: ReactKeyboardEvent<HTMLDivElement>) => {

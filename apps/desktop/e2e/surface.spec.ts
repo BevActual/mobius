@@ -327,6 +327,12 @@ test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a ca
   await field.press('Escape');
   await expect(card).toHaveCount(0);
   await expect(note).toBeFocused();
+  // Esc closes it from the note too, though the note keeps Escape for itself.
+  await shell().keyboard.press('Control+Shift+J');
+  await expect(card).toBeVisible();
+  await note.focus();
+  await shell().keyboard.press('Escape');
+  await expect(card).toHaveCount(0);
 });
 
 test('a chat a schedule starts is listed as running while it runs', async () => {
