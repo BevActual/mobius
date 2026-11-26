@@ -14,24 +14,36 @@ const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').ma
  * marked `data-leaving`, so keyboard moves skip it. Resolves when the row may be taken out.
  */
 export function foldAway(row: HTMLElement | null): Promise<void> {
+  // (min-height folds too, or a row with one would only fade and the rows under it would jump.)
   if (!row || typeof row.animate !== 'function') return Promise.resolve();
   if (still()) return Promise.resolve();
   row.dataset.leaving = '';
   const reduce = reduced();
   const style = getComputedStyle(row);
-  const from = { opacity: 1, height: `${row.getBoundingClientRect().height}px`, paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, marginTop: style.marginTop, marginBottom: style.marginBottom };
+  const from = { opacity: 1, minHeight: style.minHeight, height: `${row.getBoundingClientRect().height}px`, paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, marginTop: style.marginTop, marginBottom: style.marginBottom };
   row.style.overflow = 'hidden';
-  const frames = reduce ? [{ opacity: 1 }, { opacity: 0 }] : [from, { opacity: 0, height: '0px', paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px' }];
+  const frames = reduce ? [{ opacity: 1 }, { opacity: 0 }] : [from, { opacity: 0, minHeight: '0px', height: '0px', paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px' }];
   const run = row.animate(frames, { duration: reduce ? FADE_MS : EXIT_MS, easing: reduce ? 'linear' : EASE_EXIT, fill: 'forwards' });
   return run.finished.then(() => undefined, () => undefined);
 }
 
 /**
  * A view moved on in time (Back, Forward, Today) slides in from the side it came from: later from the right, earlier from
- * the left, a short way, as Calendar apps turn their pages. With Reduce Motion it only fades in a little.
+ * the left, a short way, as Calendar apps turn their pages; another view in its place crossfades in. With Reduce Motion
+ * it only fades in a little.
  */
-export function slideIn(view: HTMLElement | null, later: boolean): void {
+export function slideIn(view: HTMLElement | null, later: boolean | null): void {
   if (!view || typeof view.animate !== 'function' || still()) return;
+  // null: not moved in time but another view in its place, which only crossfades in.
+  if (later === null) { view.animate([{ opacity: 0.4 }, { opacity: 1 }], { duration: FADE_MS, easing: EASE }); return; }
   if (reduced()) { view.animate([{ opacity: 0.6 }, { opacity: 1 }], { duration: FADE_MS, easing: 'linear' }); return; }
   view.animate([{ opacity: 0.4, transform: `translateX(${later ? 24 : -24}px)` }, { opacity: 1, transform: 'none' }], { duration: GROW_MS, easing: EASE });
+}
+
+/** Puts back a row that was folding away, when what it was for did not happen after all. */
+export function unfold(row: HTMLElement | null): void {
+  if (!row) return;
+  for (const a of row.getAnimations?.() ?? []) a.cancel();
+  delete row.dataset.leaving;
+  row.style.overflow = '';
 }

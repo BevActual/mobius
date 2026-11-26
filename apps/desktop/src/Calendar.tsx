@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarPerson, CalendarSuggestion, RepeatScope } from '@mobius/shared';
 import { isNotesFailure } from '@mobius/shared';
 import { onCommand } from './commands';
-import { growFrom, useMorphIn } from './motion';
+import { useMorphIn } from './motion';
 import { slideIn } from './app-motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
@@ -980,13 +980,6 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     window.addEventListener('keydown', escape);
     return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape); };
   }, [at, onClose]);
-  // The popover settles in from what was clicked once it has its place; the docked panel has its own motion.
-  const grown = useRef(false);
-  useLayoutEffect(() => {
-    if (grown.current || docked || (at && !place) || !sheet.current) return;
-    grown.current = true;
-    growFrom(sheet.current, place?.side === 'left' ? 'left' : 'right');
-  }, [place, at, docked]);
   // A meeting link in the place or the notes: Join opens it.
   const joinAt = meetingLink(`${where}\n${notes}`);
   // Record meeting is for a meeting: a timed event with people invited or a place to be.
@@ -1218,28 +1211,6 @@ function QuickAdd({ calendar, into: first, choices, onAdded, onClose }: { calend
 type Undoable = { text: string; undo: () => Promise<unknown> };
 
 /** The Calendar app: a day, a week or a month; events to open, drag, stretch and change; new ones swept out or typed in words. */
-/**
- * Moving through time slides the grid the way you went: later comes in from the right, earlier from the left.
- * Switching Day, Week and Month crossfades, as does everything under Reduce Motion.
- */
-function useGridSlide(page: { current: HTMLElement | null }, mode: CalendarMode, first: string) {
-  const was = useRef({ mode, first });
-  useLayoutEffect(() => {
-    const before = was.current;
-    was.current = { mode, first };
-    if (before.mode === mode && before.first === first) return;
-    const grid = page.current?.querySelector<HTMLElement>(':scope > .cal-time, :scope > .cal-month');
-    if (!grid || typeof grid.animate !== 'function') return;
-    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const by = before.mode !== mode || still ? 0 : first > before.first ? 1 : -1;
-    const ms = parseFloat(getComputedStyle(grid).getPropertyValue('--dur-med')) || 0;
-    grid.animate(
-      by === 0 ? [{ opacity: 0.2 }, { opacity: 1 }] : [{ opacity: 0.4, transform: `translateX(${by * 32}px)` }, { opacity: 1, transform: 'none' }],
-      { duration: still ? 160 : Math.max(ms, 1) * 1.25, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
-    );
-  }, [mode, first]); // eslint-disable-line react-hooks/exhaustive-deps
-}
-
 /** The review bar's line: the one event Mobius changed and its day, or how many and from when. */
 function changeSaid(changed: readonly CalendarEvent[], first: CalendarEvent): string {
   const when = formatWith(localDate(first.start), { weekday: 'short', day: 'numeric', month: 'short' });
@@ -1293,14 +1264,15 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
   const days = daysFor(calendar.mode, calendar.anchor);
   const writable = calendar.calendars.filter((c) => !calendar.readOnly(c));
   const into = writable.find((c) => !calendar.hidden.has(c)) ?? writable[0] ?? 'Calendar';
-  // Moved on in time in the same view, the view slides in from the side it came from.
+  // Moving through time slides the view the way you went; switching views crossfades.
   const firstDay = days[0]?.getTime() ?? 0;
   const lastView = useRef({ mode: calendar.mode, from: firstDay });
   useLayoutEffect(() => {
     const was = lastView.current;
     lastView.current = { mode: calendar.mode, from: firstDay };
-    if (was.mode !== calendar.mode || was.from === firstDay) return;
-    slideIn(page.current?.querySelector<HTMLElement>(':scope > .cal-time, :scope > .cal-month, :scope > .cal-year') ?? null, firstDay > was.from);
+    if (was.mode === calendar.mode && was.from === firstDay) return;
+    // Another view (Day, Week, Month, Year) crossfades in its place; the same view moved on in time slides.
+    slideIn(page.current?.querySelector<HTMLElement>(':scope > .cal-time, :scope > .cal-month, :scope > .cal-year') ?? null, was.mode !== calendar.mode ? null : firstDay > was.from);
   }, [calendar.mode, firstDay]); // eslint-disable-line react-hooks/exhaustive-deps
   const create = () => setEditing({ start: newStart(calendar.anchor), allDay: false });
   useEffect(() => { if (newToken) create(); }, [newToken]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1394,7 +1366,6 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
 
   // Keys as in other calendars: T for today, arrows back and forward, D, W and M for the view, N for a new event, Q for a quick one.
   const page = useRef<HTMLElement>(null);
-  useGridSlide(page, calendar.mode, days[0] ? isoDay(days[0]) : '');
   // Quick event, opened by Q or from the Calendar menu.
   const [quick, setQuick] = useState(false);
   const closeQuick = useCallback(() => setQuick(false), []);

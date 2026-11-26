@@ -10,7 +10,7 @@ import { APP_ICONS } from './Rail';
 import { useFollowUps, waitingOn } from './mail-follow-ups';
 import { LATER, laterUntil, sortInbox, trimKept, type InboxItem, type InboxKept } from './inbox';
 import { Menu } from './ui';
-import { foldAway } from './app-motion';
+import { foldAway, unfold } from './app-motion';
 import './desk.css';
 
 export type { DeskRow } from './desk-apps';
@@ -152,8 +152,10 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   // A row that goes folds away first, so the rows under it slide up rather than jump.
   const rowOf = (key: string) => document.querySelector<HTMLElement>(`li[data-key="${CSS.escape(key)}"]`);
   const doneWith = (item: InboxItem) => hold(item.key, async () => {
-    if (!(await inbox!.onDone(item))) return;
-    await foldAway(rowOf(item.key));
+    // Fold first: ticking a task off takes it out of the list at once, which would leave nothing to fold.
+    const row = rowOf(item.key);
+    await foldAway(row);
+    if (!(await inbox!.onDone(item))) { unfold(row); return; }
     kept.done(item.key);
     setSaid(`${item.kind === 'task' ? 'Completed' : 'Done with'} ${item.name}`);
   });
