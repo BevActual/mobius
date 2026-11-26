@@ -1,4 +1,4 @@
-# mobius-voice: listening on this computer (docs/reference/voice-plan.md). Whisper and Silero VAD through sherpa-onnx
+# mobius-voice: listening and speaking on this computer (docs/reference/voice-plan.md). Whisper and Silero VAD through sherpa-onnx
 # (Apache-2.0), as a small program of its own (crates/mobius-voice/Cargo.toml says why). It is not in the installer:
 # Mobius downloads the file for this computer the first time listening on this computer is chosen, and checks it
 # against the SHA-256 pinned in its own build, never against this release.
@@ -22,6 +22,8 @@ env:
   CARGO_TERM_COLOR: always
   # sherpa-onnx's own test recordings and the smallest English Whisper, for the test that writes one down.
   MODELS: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models
+  # Kokoro v1.0 int8 with misaki's word lists, for speaking (sherpa-onnx's tts-models release).
+  KOKORO: https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2
 
 jobs:
   test:
@@ -55,9 +57,11 @@ jobs:
           curl -sSfL -o silero_vad.onnx "$MODELS/silero_vad.onnx"
           tar xjf whisper.tar.bz2
           mv silero_vad.onnx sherpa-onnx-whisper-tiny.en/
-      - name: Test, writing down a recording
+          curl -sSfL "$KOKORO" | tar xjf - --wildcards "*/model.int8.onnx" "*/voices.bin" "*/tokens.txt" "*/lexicon-us-en.txt"
+      - name: Test, writing down a recording and reading a sentence aloud
         env:
           MOBIUS_VOICE_MODELS: ${{ runner.temp }}/models/sherpa-onnx-whisper-tiny.en
+          MOBIUS_KOKORO: ${{ runner.temp }}/models/kokoro-int8-multi-lang-v1_0
         run: cargo test --locked --release --target ${{ matrix.target }} -- --include-ignored
       - name: Answer once
         run: |
@@ -155,6 +159,9 @@ jobs:
             for f in sherpa-onnx-whisper-$m/*; do mv "$f" "whisper-$(basename "$f")"; done
             rmdir "sherpa-onnx-whisper-$m"
           done
+          curl -sSfL "$KOKORO" | tar xjf - --wildcards "*/model.int8.onnx" "*/voices.bin" "*/tokens.txt" "*/lexicon-us-en.txt" "*/lexicon-gb-en.txt"
+          for f in kokoro-int8-multi-lang-v1_0/*; do mv "$f" "kokoro-$(basename "$f")"; done
+          rmdir kokoro-int8-multi-lang-v1_0
           ls -la
           sha256sum *
       # Each licence goes beside what it covers, all four kept in the repository (crates/mobius-voice/licences says
@@ -190,7 +197,7 @@ jobs:
           tag="voice-$version"
           cd out
           sha256sum *
-          notes="mobius-voice $version: listening on this computer with Whisper and Silero VAD through sherpa-onnx (Apache-2.0, https://github.com/k2-fsa/sherpa-onnx). The whisper-* and silero_vad files are the int8 models from sherpa-onnx's asr-models release: Whisper by OpenAI (MIT, https://github.com/openai/whisper) and Silero VAD (MIT, https://github.com/snakers4/silero-vad). sherpa-onnx's library links onnxruntime (MIT, https://github.com/microsoft/onnxruntime). Each licence is beside the files, as LICENSE-*.txt. Mobius downloads what it needs and checks each file against the SHA-256 pinned in its own build.
+          notes="mobius-voice $version: listening on this computer with Whisper and Silero VAD, and speaking with Kokoro, through sherpa-onnx (Apache-2.0, https://github.com/k2-fsa/sherpa-onnx). The kokoro-* files are Kokoro-82M v1.0 int8 (Apache-2.0, https://huggingface.co/hexgrad/Kokoro-82M) with misaki's word lists (Apache-2.0, https://github.com/hexgrad/misaki), from sherpa-onnx's tts-models release. The whisper-* and silero_vad files are the int8 models from sherpa-onnx's asr-models release: Whisper by OpenAI (MIT, https://github.com/openai/whisper) and Silero VAD (MIT, https://github.com/snakers4/silero-vad). sherpa-onnx's library links onnxruntime (MIT, https://github.com/microsoft/onnxruntime). Each licence is beside the files, as LICENSE-*.txt. Mobius downloads what it needs and checks each file against the SHA-256 pinned in its own build.
 
           $(sha256sum *)"
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then

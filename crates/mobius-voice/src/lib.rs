@@ -9,12 +9,21 @@
 //!   "vad":"<silero_vad.onnx>","language":"en"}` answers `{"id":2,"ok":true,"seconds":12.5,"segments":[{"start":0.4,
 //!   "end":3.1,"text":"…"}]}`.
 //!
+//! - `{"id":3,"op":"speak","text":"…","kokoro":{"model":…,"voices":…,"tokens":…,"lexicon":…},"voice":3,"speed":1.0,
+//!   "out":"<where to write the WAV>"}` answers `{"id":3,"ok":true,"seconds":4.2}`. Kokoro through sherpa-onnx, with the
+//!   words turned into its phonemes here (`g2p.rs`), so no GPL phonemizer comes with it.
+//!
 //! A failure answers `{"id":…,"ok":false,"error":"…"}` in words a person can read. The models stay loaded between
 //! requests; Mobius stops the program when it has been idle a few minutes.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sherpa_onnx::{OfflineRecognizer, OfflineRecognizerConfig, VadModelConfig, VoiceActivityDetector, Wave};
+use sherpa_onnx::{GenerationConfig, OfflineRecognizer, OfflineRecognizerConfig, OfflineTts, OfflineTtsConfig, OfflineTtsKokoroModelConfig, VadModelConfig, VoiceActivityDetector, Wave};
+
+pub mod g2p;
+
+/// The most text read in one request: the host sends a long page in parts, so the first is heard soon.
+pub const MAX_SPEAK_CHARS: usize = 4000;
 
 /// What Whisper and the VAD both take.
 pub const SAMPLE_RATE: i32 = 16_000;
@@ -32,6 +41,15 @@ pub struct WhisperFiles {
     pub tokens: String,
 }
 
+/// Kokoro's files, with misaki's word list (both Apache-2.0).
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
+pub struct KokoroFiles {
+    pub model: String,
+    pub voices: String,
+    pub tokens: String,
+    pub lexicon: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(tag = "op", rename_all = "lowercase")]
 pub enum Op {
@@ -42,6 +60,15 @@ pub enum Op {
         vad: String,
         #[serde(default)]
         language: Option<String>,
+    },
+    Speak {
+        text: String,
+        kokoro: KokoroFiles,
+        #[serde(default)]
+        voice: i32,
+        #[serde(default)]
+        speed: Option<f32>,
+        out: String,
     },
 }
 
@@ -95,6 +122,7 @@ pub fn answer(id: &Value, seconds: f32, segments: &[Segment]) -> Value {
 /// The loaded models, kept between requests and loaded again only when Mobius names other files.
 #[derive(Default)]
 pub struct Listener {
+    kokoro: Option<(KokoroFiles, g2p::Lexicon, OfflineTts)>,
     whisper: Option<(WhisperFiles, String, OfflineRecognizer)>,
     vad: Option<(String, VadModelConfig)>,
     cores: usize,
@@ -189,12 +217,60 @@ impl Listener {
         Ok((seconds, out))
     }
 
+    fn speaker(&mut self, files: &KokoroFiles) -> Result<&(KokoroFiles, g2p::Lexicon, OfflineTts), String> {
+        if !matches!(&self.kokoro, Some((f, ..)) if f == files) {
+            self.kokoro = None;
+            for path in [&files.model, &files.voices, &files.tokens, &files.lexicon] {
+                if !std::path::Path::new(path).is_file() {
+                    return Err("A file of the voice is missing. Set up speaking on this computer again in Settings, Capabilities.".to_owned());
+                }
+            }
+            let words = std::fs::read_to_string(&files.lexicon).map_err(|_| "The voice's word list could not be read.".to_owned())?;
+            let mut config = OfflineTtsConfig::default();
+            config.model.kokoro = OfflineTtsKokoroModelConfig { model: Some(files.model.clone()), voices: Some(files.voices.clone()), tokens: Some(files.tokens.clone()), ..OfflineTtsKokoroModelConfig::default() };
+            config.model.num_threads = threads(self.cores);
+            config.max_num_sentences = 1;
+            let tts = OfflineTts::create(&config).ok_or("The voice could not be loaded. Set up speaking on this computer again in Settings, Capabilities.")?;
+            self.kokoro = Some((files.clone(), g2p::Lexicon::parse(&words), tts));
+        }
+        self.kokoro.as_ref().ok_or_else(|| "The voice could not be loaded.".to_owned())
+    }
+
+    /// Read a text aloud into a WAV file: its sentences as Kokoro's phonemes, one voice, at the speed asked.
+    pub fn speak(&mut self, text: &str, files: &KokoroFiles, voice: i32, speed: Option<f32>, out: &str) -> Result<f32, String> {
+        let text: String = text.chars().take(MAX_SPEAK_CHARS).collect();
+        let (_, lexicon, tts) = self.speaker(files)?;
+        let sentences = g2p::sentences(lexicon, &text);
+        if sentences.is_empty() {
+            return Err("There is nothing to read.".to_owned());
+        }
+        if voice < 0 || voice >= tts.num_speakers().max(1) {
+            return Err("That voice is not one this model has.".to_owned());
+        }
+        let config = GenerationConfig {
+            sid: voice,
+            speed: speed.filter(|s| s.is_finite()).unwrap_or(1.0).clamp(0.5, 2.0),
+            phoneme_codepoints: Some(sentences.iter().map(|s| s.chars().map(|c| i32::try_from(u32::from(c)).unwrap_or(0)).collect()).collect()),
+            ..GenerationConfig::default()
+        };
+        let audio = tts.generate_with_config("", &config, None::<fn(&[f32], f32) -> bool>).ok_or("The voice could not read that.")?;
+        if audio.samples().is_empty() || !audio.save(out) {
+            return Err("The voice could not write the sound.".to_owned());
+        }
+        #[allow(clippy::cast_precision_loss)]
+        Ok(audio.samples().len() as f32 / audio.sample_rate().max(1) as f32)
+    }
+
     /// Answer one request.
     pub fn handle(&mut self, request: Request) -> Value {
         match request.op {
             Op::Ping => json!({ "id": request.id, "ok": true, "version": env!("CARGO_PKG_VERSION") }),
             Op::Transcribe { audio, whisper, vad, language } => match self.transcribe(&audio, &whisper, &vad, language.as_deref()) {
                 Ok((seconds, segments)) => answer(&request.id, seconds, &segments),
+                Err(message) => failed(&request.id, &message),
+            },
+            Op::Speak { text, kokoro, voice, speed, out } => match self.speak(&text, &kokoro, voice, speed, &out) {
+                Ok(seconds) => json!({ "id": request.id, "ok": true, "seconds": (f64::from(seconds) * 100.0).round() / 100.0 }),
                 Err(message) => failed(&request.id, &message),
             },
         }
@@ -243,6 +319,44 @@ mod tests {
         let files = WhisperFiles { encoder: "/nowhere/e.onnx".into(), decoder: "/nowhere/d.onnx".into(), tokens: "/nowhere/t.txt".into() };
         let got = Listener::new(2).handle(Request { id: json!(3), op: Op::Transcribe { audio: "/nowhere/a.wav".into(), whisper: files, vad: "/nowhere/v.onnx".into(), language: None } });
         assert_eq!(got["ok"], false);
+    }
+
+    #[test]
+    fn a_speak_request_is_read_and_a_missing_voice_says_how_to_put_it_right() {
+        let r = parse(r#"{"id":4,"op":"speak","text":"Hi","kokoro":{"model":"/nowhere/m","voices":"/nowhere/v","tokens":"/nowhere/t","lexicon":"/nowhere/l"},"voice":3,"out":"/nowhere/o.wav"}"#);
+        let got = r.map(|request| Listener::new(2).handle(request)).unwrap_or_default();
+        assert_eq!(got["ok"], false);
+        assert!(got["error"].as_str().unwrap_or("").contains("Settings"));
+    }
+
+    /// Reads a sentence aloud with Kokoro, then writes it down with Whisper tiny.en to hear that every word was said,
+    /// the plural and the name too. Needs MOBIUS_VOICE_MODELS (as below) and MOBIUS_KOKORO, a folder with
+    /// sherpa-onnx's kokoro-int8-multi-lang-v1_0 files. The build workflow runs it.
+    #[test]
+    #[ignore = "needs the voice and speech models on disk"]
+    fn a_sentence_is_read_aloud_with_every_word_in_it() {
+        let dir = std::env::var("MOBIUS_VOICE_MODELS").unwrap_or_default();
+        let kokoro = std::env::var("MOBIUS_KOKORO").unwrap_or_default();
+        let at = |f: &str| format!("{dir}/{f}");
+        let k = |f: &str| format!("{kokoro}/{f}");
+        let files = KokoroFiles { model: k("model.int8.onnx"), voices: k("voices.bin"), tokens: k("tokens.txt"), lexicon: k("lexicon-us-en.txt") };
+        let out = std::env::temp_dir().join("mobius-voice-speak-test.wav");
+        let out = out.to_string_lossy();
+        let mut listener = Listener::new(4);
+        let seconds = listener.speak("Plant the tulips before the frost, on the 12th of May.", &files, 3, None, &out).unwrap_or_default();
+        assert!(seconds > 1.5, "{seconds}");
+        // Whisper takes 16 kHz; Kokoro writes 24 kHz, so it is resampled for the check.
+        let wave = Wave::read(&out);
+        assert!(wave.is_some(), "no sound written");
+        let resampled = wave.and_then(|w| sherpa_onnx::LinearResampler::create(w.sample_rate(), SAMPLE_RATE).map(|r| r.resample(w.samples(), true))).unwrap_or_default();
+        let wav16 = std::env::temp_dir().join("mobius-voice-speak-test-16k.wav");
+        assert!(sherpa_onnx::write(&wav16.to_string_lossy(), &resampled, SAMPLE_RATE));
+        let whisper = WhisperFiles { encoder: at("tiny.en-encoder.int8.onnx"), decoder: at("tiny.en-decoder.int8.onnx"), tokens: at("tiny.en-tokens.txt") };
+        let (_, segments) = listener.transcribe(&wav16.to_string_lossy(), &whisper, &at("silero_vad.onnx"), None).unwrap_or_default();
+        let words: String = segments.iter().map(|s| s.text.to_lowercase()).collect::<Vec<_>>().join(" ");
+        for w in ["plant", "tulips", "frost", "may"] {
+            assert!(words.contains(w), "{w} missing from {words}");
+        }
     }
 
     /// Writes down sherpa-onnx's own test recording with Whisper tiny.en. Needs the models: set MOBIUS_VOICE_MODELS to

@@ -46,7 +46,7 @@ function check(kind, packages) {
 }
 
 /**
- * What Mobius downloads beside the program rather than builds: the speech models for listening on this computer.
+ * What Mobius downloads beside the program rather than builds: the models for listening and speaking on this computer.
  * Each must be permissive and have its licence text in the repository, which the Voice workflow publishes beside it.
  */
 export const DOWNLOADED = [
@@ -54,6 +54,8 @@ export const DOWNLOADED = [
   { name: 'whisper (OpenAI), base.en and small.en', version: 'int8', license: 'MIT', file: 'crates/mobius-voice/licences/LICENSE-whisper.txt' },
   { name: 'silero-vad', version: 'onnx', license: 'MIT', file: 'crates/mobius-voice/licences/LICENSE-silero-vad.txt' },
   { name: 'onnxruntime (inside sherpa-onnx\'s library)', version: '1.32.0', license: 'MIT', file: 'crates/mobius-voice/licences/LICENSE-onnxruntime.txt' },
+  { name: 'Kokoro-82M v1.0 (hexgrad), int8', version: 'v1.0', license: 'Apache-2.0', file: 'crates/mobius-voice/licences/LICENSE-kokoro.txt' },
+  { name: 'misaki word lists (hexgrad), lexicon-us-en and lexicon-gb-en', version: 'v1.0', license: 'Apache-2.0', file: 'crates/mobius-voice/licences/LICENSE-misaki.txt' },
 ];
 
 function downloaded() {

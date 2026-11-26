@@ -5,7 +5,7 @@
 # pinned in its own build.
 [package]
 name = "mobius-voice"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 publish = false
 license = "MIT"
