@@ -42,7 +42,9 @@ jobs:
           case "$BRANCH" in claude/*) echo "$BRANCH is a Claude session branch; kept."; exit 0 ;; esac
           gone() { gh api -X DELETE "repos/$REPO/git/refs/heads/$1" >/dev/null 2>&1 && echo "Deleted $1" || echo "$1 was not there"; }
           # Only while the branch is still this pull request's: new commits on it mean the next round has started.
-          tip() { gh api "repos/$REPO/git/ref/heads/$1" --jq .object.sha 2>/dev/null; }
+          # Nothing when the branch is gone already (the repository deletes a merged branch itself): its screenshots
+          # still go. A missing branch makes gh print the error's JSON and fail, so only a found commit is used.
+          tip() { local sha; sha=$(gh api "repos/$REPO/git/ref/heads/$1" --jq .object.sha 2>/dev/null) || return 0; echo "$sha"; }
           NOW=$(tip "$BRANCH")
           if [ -n "$NOW" ] && [ "$NOW" != "$HEAD_SHA" ]; then
             echo "$BRANCH has moved on to $NOW since this pull request ($HEAD_SHA); kept with its screenshots."
