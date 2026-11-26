@@ -8,19 +8,20 @@ import { useEffect, useRef } from 'react';
  * The slot lives only while a pane shows the browser, so going away hides the view too: otherwise the page would
  * stay drawn over whichever app took the pane.
  */
-export function SurfaceSlot({ hidden }: { hidden: boolean }) {
+export function SurfaceSlot({ hidden, beside = false }: { hidden: boolean; /** Split view: the second page's place, reported with setBesideBounds. */ beside?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const element = ref.current;
     if (!element) return;
+    const set = (b: { x: number; y: number; width: number; height: number } | null) => (beside ? window.mobius.surface.setBesideBounds?.(b) : window.mobius.surface.setBounds(b));
     if (hidden) {
-      window.mobius.surface.setBounds(null);
+      set(null);
       return;
     }
     const report = () => {
       const { x, y, width, height } = element.getBoundingClientRect();
-      window.mobius.surface.setBounds({ x, y, width, height });
+      set({ x, y, width, height });
     };
     report();
     const observer = new ResizeObserver(report);
@@ -29,9 +30,9 @@ export function SurfaceSlot({ hidden }: { hidden: boolean }) {
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', report);
-      window.mobius.surface.setBounds(null);
+      set(null);
     };
-  }, [hidden]);
+  }, [hidden, beside]);
 
-  return <div ref={ref} className="surface-slot" data-testid="surface-slot" aria-hidden="true" />;
+  return <div ref={ref} className="surface-slot" data-beside={beside || undefined} data-testid={beside ? 'surface-slot-beside' : 'surface-slot'} aria-hidden="true" />;
 }

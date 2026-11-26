@@ -19,9 +19,48 @@ and Edge's History (Ctrl+H) and Safari's History sidebar are the references; Arc
 - **Searching tabs** (Ctrl+Shift+A) also lists up to eight pages visited before under History, after Bookmarks,
   leaving out what is already open or bookmarked, as Arc's and Chrome's search do.
 
+## Recently closed (round 2)
+
+As Chrome's History › Recently closed and Arc's Archived Tabs (resources.arc.net, "Archived Tabs"): each web tab that
+closes, by you or by Today clearing itself, is remembered (the last 25, on this computer). History opens with the ten
+latest under **Recently closed**, above the days; one Today closed says "Cleared by Today" in place of its time. A click
+opens it again in a new tab. Clear history forgets these too.
+
+## Copy the address (round 2)
+
+Ctrl+Shift+C copies the page's address and says "Copied the link", as Arc's Copy URL (Cmd+Shift+C) does.
+
+## Split view (round 2)
+
+As Arc's Split View (resources.arc.net, "Split View"): two tabs side by side in the page panel. A tab's menu has
+**Open in split view** (that tab beside the one showing) and, on a tab in the split, **End split view**; Ctrl+Shift+=
+splits with the tab seen last and, again, ends it. Above each page sits its title (a click makes it the active tab,
+the address bar's) and an End split button that keeps that page. The divider drags, moves 5% with the arrow keys and
+goes back to half on a double click; the share is kept across restarts. Both rows show "split" in the tabs panel. The
+split ends when either page closes or a tab outside it is chosen. The shell places both native pages
+(`browser.showBeside`, `surface.setBesideBounds`).
+
+## Folders of pinned tabs (round 2)
+
+As Arc's Folders (resources.arc.net, "Folders"): pinned tabs can be kept in folders, per space. A tab's menu has
+**New folder with tab** (named in place), **Add to <folder>** and **Remove from folder**; Tabs options has **New
+folder**. A tab put in a folder is pinned, and unpinning one takes it out. A folder opens and closes in place with its
+count beside the name; closed, it still shows the tab you are on, as Arc's does. Folders come back after a restart: each folder tab's address is kept, since the shell restores pinned tabs with new ids. Right-click a folder to rename or
+delete it; deleting keeps its tabs pinned. A search shows the tabs without folders.
+
+## Page zoom (round 2)
+
+As Chrome's zoom (support.google.com/chrome, "Change text, image & video sizes"): Ctrl+= and Ctrl+- step through
+Chrome's levels (25% to 500%), Ctrl+0 goes back to 100%, and each says the new size. The size is kept per site, so the
+site opens at it in every tab and after a restart. Away from 100% the address field shows it; a click resets it. The
+shell sets and keeps each tab's zoom (`browser.setZoom`); a zoom the page reports itself becomes the site's.
+
+## Tab sound (round 2)
+
+As Chrome's and Arc's speaker: a tab playing sound shows a speaker in its row, and a muted tab a crossed one; a click
+on it (its own button, first of the row's buttons and shown at rest too) mutes or unmutes the tab, and the tab's menu has **Mute tab** / **Unmute tab** (`browser.mute`). Only WebView2
+reports sound playing; on Chromium the speaker shows once a tab is muted.
+
 ## Later
 
-- **Split view** (two pages side by side, as Arc's): the shell can now show a second tab beside the active one
-  (`browser.showBeside`, `surface.setBesideBounds`), and the page clicked last is the active tab. The panel, its
-  divider and keys come next.
 - Separate sign-ins per space.
