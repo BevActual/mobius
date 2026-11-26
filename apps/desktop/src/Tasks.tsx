@@ -12,6 +12,7 @@ import { FromMobius } from './FromMobius';
 import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, PanelLayout, type PanelSpec } from './ui';
 import './tasks.css';
 import { foldWhile } from './app-motion';
+import { FADE_MS, GROW_MS } from './motion';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
 
 /** Tasks' Glance (Instrument, "The Mobius panel: slots"): across every list, what is overdue, due today and flagged. */
@@ -228,12 +229,11 @@ function useCompleting(commit: () => Promise<unknown> | void) {
     const li = row.current;
     if (!li || typeof li.animate !== 'function') return finish();
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    const slow = parseFloat(getComputedStyle(li).getPropertyValue('--dur-med')) || 0;
     const frames: Keyframe[] = still
       ? [{ opacity: 1 }, { opacity: 0 }]
-      : [{ height: `${li.offsetHeight}px`, opacity: 1, transform: 'none' }, { height: '0px', opacity: 0, transform: 'translateX(24px)' }];
+      : [{ height: `${li.offsetHeight}px`, minHeight: getComputedStyle(li).minHeight, opacity: 1, transform: 'none' }, { height: '0px', minHeight: '0px', opacity: 0, transform: 'translateX(24px)' }];
     li.style.overflow = 'hidden';
-    const a = li.animate(frames, { duration: still ? 200 : Math.max(slow, 1) * 1.5, easing: 'cubic-bezier(0.2, 0, 0, 1)', fill: 'forwards' });
+    const a = li.animate(frames, { duration: still ? FADE_MS : GROW_MS, easing: 'cubic-bezier(0.2, 0, 0, 1)', fill: 'forwards' });
     a.onfinish = finish;
     a.oncancel = finish;
   };

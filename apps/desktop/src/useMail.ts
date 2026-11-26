@@ -237,7 +237,8 @@ export function useMail() {
       const done = await api?.archive?.(one, on);
       if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
     }
-    setOpen((cur) => (cur && ids.includes(cur.id) ? null : cur));
+    // With a next one to open, the reading pane goes straight to it: closed for a frame first, the list shifts.
+    if (!next) setOpen((cur) => (cur && ids.includes(cur.id) ? null : cur));
     setUndo(on ? { text: `Done: “${subjectOf(id)}”`, run: async () => { setUndo(null); for (const one of ids) await api?.archive?.(one, false); await refresh(); } } : null);
     await refresh();
     if (next) await read(next);
@@ -253,7 +254,7 @@ export function useMail() {
       if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
     }
     if (at !== null) {
-      setOpen((cur) => (cur && ids.includes(cur.id) ? null : cur));
+      if (!next) setOpen((cur) => (cur && ids.includes(cur.id) ? null : cur));
       setUndo({ text: `“${subjectOf(id)}” comes back ${backAt(at)}`, run: async () => { setUndo(null); for (const one of ids) await api?.remind?.(one, null); await refresh(); } });
     }
     await refresh();
