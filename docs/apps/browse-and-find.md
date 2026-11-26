@@ -26,6 +26,12 @@ A full web browser, with Mobius able to read and work on pages for you.
   Yesterday and each earlier day, with a search. A click goes there in the open tab, a middle-click opens a new tab, and
   right-click copies the address or removes the page (or Delete on the row). **Clear history…** asks first. Escape or the head goes back to
   your tabs. Searching your tabs (Ctrl+Shift+A) also finds pages you visited before, under History.
+  History starts with **Recently closed**: tabs you closed, or Today cleared, open again with a click.
+- **Ctrl+Shift+C** copies the page's address.
+- **Folders**: right-click a tab and choose **New folder with tab** to keep pinned tabs together, as in Arc. A folder opens and closes with a click; right-click it to rename or delete it.
+- **Zoom**: Ctrl+= and Ctrl+- zoom the page and Ctrl+0 resets it. Each site keeps its size; the address shows it, and a click resets it.
+- **Sound**: a speaker shows on a tab playing sound. Click it, or choose **Mute tab** from the tab's menu, to mute that tab.
+- **Split view**: right-click a tab and choose **Open in split view** to show it beside the page you are on, or press **Ctrl+Shift+=**. Drag the divider to resize; **End split view** (or Ctrl+Shift+= again) goes back to one page.
 
 Settings: **Settings › Browser** (allowed sites, local addresses, bookmarks, history).
 

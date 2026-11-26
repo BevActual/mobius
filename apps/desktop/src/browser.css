@@ -279,3 +279,45 @@
 .history-row .tab-title { flex: 1; min-width: 0; }
 .history-when { flex: none; margin-left: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 .history-foot { justify-content: flex-start; }
+
+/* Split view, as Arc's: two pages side by side, each with its title and End split above it; the divider drags. */
+.browser-split-page { position: absolute; inset: 0; display: grid; grid-template-columns: var(--split) 8px 1fr; }
+.browser-split-half { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.browser-split-head { display: flex; align-items: center; gap: var(--sp-1); height: 28px; padding: 0 var(--sp-1) 0 var(--sp-2); color: var(--muted); }
+.browser-split-head[data-active] { color: var(--ink); }
+.browser-split-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); cursor: default; }
+.browser-split-head[data-active] .browser-split-title { font-weight: var(--fw-medium); }
+.browser-split-end { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); cursor: default; }
+.browser-split-end:hover { background: var(--sel); color: var(--ink); }
+.browser-split-title:focus-visible, .browser-split-end:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.browser-split-body { position: relative; flex: 1; min-height: 0; }
+.browser-split-divider { cursor: col-resize; display: grid; place-items: center; }
+.browser-split-divider::after { content: ''; width: 2px; height: 32px; border-radius: 1px; background: var(--line); }
+.browser-split-divider:hover::after, .browser-split-divider:focus-visible::after { background: var(--muted); }
+.browser-split-divider:focus-visible { outline: none; }
+.browser-side .tab[data-split="true"] .tab-title::after { content: ' · split'; color: var(--muted); font-weight: var(--fw-regular); }
+.browser-split-title { display: flex; align-items: center; gap: 6px; }
+.browser-split-title > span { overflow: hidden; text-overflow: ellipsis; }
+.browser-split-end svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+
+/* Folders of pinned tabs, as Arc's: a row that opens in place, its tabs indented under it. */
+.browser-side .tab-folders { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+.browser-side .folder-head .tab-main { color: var(--ink); }
+.browser-side .folder-icon, .browser-side .folder-chevron { flex: none; width: var(--sp-4); height: var(--sp-4); fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; color: var(--muted); }
+.browser-side .folder-chevron { transition: transform var(--dur-fast) var(--ease); }
+.browser-side .tab-folder[data-open] .folder-chevron { transform: rotate(90deg); }
+.browser-side .folder-count { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.browser-side .folder-tabs .tab-main { padding-left: calc(var(--sp-2) + var(--sp-4)); }
+.browser-side .folder-rename { flex: 1 1 auto; min-width: 0; height: var(--control-h); margin: 0 var(--sp-1); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: var(--field); box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); font: inherit; font-size: var(--fs-md); color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .browser-side .folder-chevron { transition: none; } }
+
+/* A tab's speaker while it plays sound or is muted, as Chrome's: the first of the row's buttons, shown at rest too. */
+.browser-side .tab[data-sound] .tab-actions { opacity: 1; }
+.browser-side .tab[data-sound]:not(:hover):not(:focus-within) .tab-actions > :not(.tab-sound) { visibility: hidden; }
+.browser-side .tab[data-sound]:not(:hover):not(:focus-within) .tab-main { padding-right: calc(var(--control-h) + var(--sp-2)); }
+.browser-side .tab[data-sound]:hover .tab-main, .browser-side .tab[data-sound]:focus-within .tab-main { padding-right: calc(4 * var(--control-h) + var(--sp-2)); }
+.browser-side .tab .tab-sound svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+/* The page's zoom in the address field when it is not 100%, before the star. */
+.browser-chrome .address-zoom { position: absolute; right: calc(var(--control-h) + 4px); top: 50%; transform: translateY(-50%); height: calc(var(--control-h) - 6px); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: var(--sel); color: var(--ink); font: inherit; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; cursor: default; }
+.browser-chrome .address-zoom:hover { background: var(--side-hover); }
+.browser-chrome .address-zoom:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
