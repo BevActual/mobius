@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LAYOUTS, clock, dropIndex, jumpTarget, layoutOf, moveSlide, movedTo, playOrder, talkMinutes } from './slides-view';
+import { LAYOUTS, clock, dropIndex, jumpTarget, layoutOf, moveSlide, movedTo, playOrder, showSlideWith, slideWith, takeWantedSlide, talkMinutes } from './slides-view';
 import { blankSlide, parseDeck, writeDeck } from './slides-format';
 
 describe('moveSlide', () => {
@@ -75,5 +75,23 @@ describe('playOrder', () => {
   it('leaves skipped slides out of Play', () => {
     const s = blankSlide();
     expect(playOrder([s, { ...s, skip: true }, s])).toEqual([0, 2]);
+  });
+});
+
+describe('slideWith', () => {
+  const deck = parseDeck('# One\n- apples\n\n---\n\n# Two\n- No laptops on day two\nNotes: bring pears\n');
+  it('finds the first slide with the words, in any case, notes included', () => {
+    expect(slideWith(deck, 'NO LAPTOPS')).toBe(1);
+    expect(slideWith(deck, 'pears')).toBe(1);
+    expect(slideWith(deck, 'apples')).toBe(0);
+    expect(slideWith(deck, 'kiwi')).toBeNull();
+    expect(slideWith(deck, '  ')).toBeNull();
+  });
+  it('gives the asked-for slide once, and only for that deck', () => {
+    showSlideWith('a.md', '- No laptops on day two');
+    expect(takeWantedSlide('b.md', deck)).toBeNull();
+    expect(takeWantedSlide('a.md', [])).toBeNull();
+    expect(takeWantedSlide('a.md', deck)).toBe(1);
+    expect(takeWantedSlide('a.md', deck)).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import { readBefore } from './readBefore';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { SLIDE_STYLES, TRANSITIONS, blankSlide, type Transition, changedSlides, parseDeck, writeDeck, type Slide, type SlideStyle } from './slides-format';
-import { LAYOUTS, clock, layoutOf, playOrder, dropIndex, jumpTarget, moveSlide, movedTo, talkMinutes, type Layout } from './slides-view';
+import { LAYOUTS, clock, layoutOf, playOrder, dropIndex, jumpTarget, moveSlide, movedTo, talkMinutes, takeWantedSlide, onSlideWanted, type Layout } from './slides-view';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
@@ -305,6 +305,10 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false, listP
   const slidesPanels = useMemo(() => [...listPanels, ...NOTES_PANEL], [listPanels, NOTES_PANEL]);
   useEffect(() => { setDraft(null); }, [at, path]);
   useEffect(() => setAt(0), [path]);
+  // Opened from Ctrl+K on words inside the deck: show the slide that has them, once the deck has been read.
+  const [askedFor, setAskedFor] = useState(0);
+  useEffect(() => onSlideWanted(() => setAskedFor((n) => n + 1)), []);
+  useEffect(() => { if (!path) return; const i = takeWantedSlide(path, slides); if (i !== null) setAt(i); }, [path, slides, askedFor]);
 
   // Undo and redo for the whole deck; a run of typing in one field undoes together.
   const history = useRef(new Map<string, { undo: string[]; redo: string[]; tag: string; when: number }>());

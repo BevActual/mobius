@@ -77,6 +77,7 @@ test('Ctrl+K finds notes, words inside them and tasks, and opens each in its own
   await shell().getByRole('option', { name: /Buy tulip bulbs/ }).click();
   await onApp('Tasks');
   await expect(shell().locator('.toolbar-sub')).toHaveText('Inbox');
+  await expect(shell().locator('.tasks-page .task-line', { hasText: 'Buy tulip bulbs' })).toBeFocused();
   // Words inside a note, not in its title.
   await find('frost');
   await shell().getByRole('option', { name: /^Garden/ }).click();

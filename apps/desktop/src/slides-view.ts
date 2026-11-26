@@ -1,4 +1,4 @@
-import { blankSlide, type Slide } from './slides-format';
+import { blankSlide, writeSlide, type Slide } from './slides-format';
 
 /**
  * The Slides app's arithmetic, kept apart from the screen so it can be tested: moving a slide in the navigator, the
@@ -76,3 +76,25 @@ export function talkMinutes(slides: readonly Slide[]): number {
 
 /** The slides Play shows, by their number in the deck: every one not marked to skip. */
 export const playOrder = (slides: readonly Slide[]): number[] => slides.flatMap((s, i) => (s.skip ? [] : [i]));
+
+/** The first slide whose text has `words` (any case), or null. */
+export function slideWith(slides: readonly Slide[], words: string): number | null {
+  const want = words.trim().toLowerCase();
+  if (!want) return null;
+  const i = slides.findIndex((s) => writeSlide(s).toLowerCase().includes(want));
+  return i < 0 ? null : i;
+}
+
+/** A deck about to open from Ctrl+K on words inside it: the editor shows the slide with them (see takeWantedSlide). */
+let wanted: { path: string; words: string } | null = null;
+const asked = new Set<() => void>();
+export function showSlideWith(path: string, words: string): void { wanted = { path, words }; for (const tell of asked) tell(); }
+/** Tells `tell` whenever a slide is asked for (a deck already open still moves to it). Returns the way to stop. */
+export function onSlideWanted(tell: () => void): () => void { asked.add(tell); return () => { asked.delete(tell); }; }
+/** The slide asked for on this deck, once: null when none was, or the deck has no slide with the words yet. */
+export function takeWantedSlide(path: string, slides: readonly Slide[]): number | null {
+  if (!wanted || wanted.path !== path) return null;
+  const i = slideWith(slides, wanted.words);
+  if (i !== null) wanted = null;
+  return i;
+}
