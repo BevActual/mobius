@@ -176,6 +176,32 @@ test('when Undo takes away the note Mobius made and it is open, the nearest note
   await expect(shell().getByText(/not there/)).toHaveCount(0);
 });
 
+test("a step's Undo of Mobius's change to the open note takes its review away with it", async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nOne thing.\n');
+  await start([callsTool('files-edit', { path: 'notes/Work/Plan.md', old: 'One thing.', new: 'One better thing.' }), says(['Added it.'])]);
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect(text()).toContainText('One thing.');
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('add another');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await expect(log.locator('.msg.assistant').last()).toHaveText('Added it.');
+  const added = shell().getByRole('button', { name: 'Keep this change' });
+  await expect(added).toBeVisible();
+  await log.getByRole('button', { name: /^Undo: / }).click();
+  await expect.poll(() => onDisk('Work', 'Plan.md')).toBe('# Plan\n\nOne thing.\n');
+  await expect(text()).not.toContainText('better');
+  await expect(added).toHaveCount(0);
+  await expect(side().getByRole('button', { name: /^From Mobius/ })).toHaveCount(0);
+  // What is typed next is the person's own.
+  await text().locator('p', { hasText: 'One thing.' }).click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' Mine.');
+  await expect.poll(() => onDisk('Work', 'Plan.md')).toBe('# Plan\n\nOne thing. Mine.\n');
+  await expect(added).toHaveCount(0);
+});
+
 test('a note written in another app keeps its front matter, footnotes, HTML and links when it is edited here', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   const before = '---\ntitle: Plan\ntags: [launch]\n---\n\n# Plan\n\nBody text.[^1] See [the brief](<Launch brief.md>).\n\n<details>\n<summary>More</summary>\n\nHidden\n\n</details>\n\nPress <kbd>Ctrl</kbd> to start.\n\n[^1]: The source.\n';

@@ -1838,6 +1838,9 @@ fn one_step_of_a_turn_goes_back_on_its_own() {
     assert!(!ws.join("notes/A.md").exists());
     // What was put back is no longer the turn's change: only B, changed twice, is left to review.
     assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/B.md"]));
+    // The person then edits the note put back: it is theirs, and does not come back as the turn's.
+    std::fs::write(ws.join("notes/Old.md"), "# Old, mine\n").unwrap();
+    assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/B.md"]));
     assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "r1", "files.read", 0]))["ok"], false, "a read changed nothing");
 }
 

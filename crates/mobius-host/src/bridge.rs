@@ -171,6 +171,8 @@ struct StepMark {
     after: Option<String>,
     /// Put back already: listed as such, and not put back twice.
     undone: bool,
+    /// The files its Undo put back: no longer the turn's change, even once the person edits them after.
+    put_back: Vec<String>,
 }
 
 /// Whether a tool may change the workspace, so its step gets a checkpoint of its own after it. Reading calls (named
@@ -1695,7 +1697,7 @@ impl Bridge {
         // Only the last turn's steps are kept.
         list.retain(|s| s.turn == turn);
         let nth = list.iter().filter(|s| s.call == call && s.tool == tool).count();
-        list.push(StepMark { turn, call: call.to_owned(), tool: tool.to_owned(), nth, after, undone: false });
+        list.push(StepMark { turn, call: call.to_owned(), tool: tool.to_owned(), nth, after, undone: false, put_back: Vec::new() });
     }
 
     /// The last turn's steps (begun at `turn`) that took a checkpoint, with the checkpoint before each.
@@ -4605,6 +4607,12 @@ impl Bridge {
                         && let Ok(now) = self.workspace.changed_since(&mark)
                     {
                         let now: std::collections::HashSet<String> = now.into_iter().collect();
+                        // A file a step's Undo put back stays out after the person edits it again: it is theirs now.
+                        let put_back: std::collections::HashSet<String> = lock(&self.step_marks)
+                            .get(conversation)
+                            .map(|l| l.iter().filter(|s| s.turn == mark).flat_map(|s| s.put_back.iter().cloned()).collect())
+                            .unwrap_or_default();
+                        let now: std::collections::HashSet<String> = now.into_iter().filter(|f| !put_back.contains(f)).collect();
                         diff.files.retain(|f| now.contains(f));
                         diff.moves.retain(|(from, to)| now.contains(from) || now.contains(to));
                     }
@@ -4708,6 +4716,7 @@ impl Bridge {
                 }
                 if let Some(s) = lock(&self.step_marks).get_mut(conversation).and_then(|l| l.iter_mut().find(|s| s.turn == mark && s.call == call && s.tool == tool && s.nth == nth)) {
                     s.undone = true;
+                    s.put_back = back.clone();
                 }
                 self.reload_after_undo(None);
                 json!({ "ok": true, "files": back, "kept": kept })
