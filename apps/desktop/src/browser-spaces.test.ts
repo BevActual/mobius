@@ -122,6 +122,18 @@ describe('browser spaces', () => {
     s = { ...s, current: 's1' };
     s = syncSpaces(s, [tab('a', 'https://example.com/later', { active: true }), tab('b', 'https://example.com/doc'), tab('c', '')], 2);
     expect(s.tabSpace).toEqual({ a: 's1', b: work, c: 's1' });
+    // The shell opens a tab with no address and then loads it: its first address routes it. A start page (not a web
+    // address) or what is typed into it later does not.
+    s = { ...s, current: 's1' };
+    const base = [tab('a', 'https://example.com/later'), tab('b', 'https://example.com/doc')];
+    s = syncSpaces(s, [...base, tab('d', '', { active: true }), tab('e', '')], 3);
+    expect(s.tabSpace.d).toBe('s1');
+    s = syncSpaces(s, [...base, tab('d', 'https://docs.example.com/x', { active: true }), tab('e', 'mobius://start')], 4);
+    expect(s.tabSpace.d).toBe(work);
+    expect(s.current).toBe(work);
+    s = syncSpaces({ ...s, current: 's1' }, [...base, tab('d', 'https://docs.example.com/x'), tab('e', 'https://example.com/typed', { active: true })], 5);
+    expect(s.tabSpace.e).toBe('s1');
+    expect(s.unplaced).toEqual([]);
     expect(removeRoute(s, 'example.com').routes).toEqual([]);
     expect(removeSpace(s, work).routes).toEqual([]);
     expect(readSpaces(JSON.stringify(s)).routes).toEqual([{ host: 'example.com', space: work }]);

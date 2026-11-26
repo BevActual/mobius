@@ -31,6 +31,8 @@ export interface SpacesState {
   folderUrl?: Record<string, string>;
   /** Air Traffic Control, as Arc's: a site whose links open in a new tab go to this space. */
   routes?: Route[];
+  /** Tabs first seen with no address yet (the shell opens a tab, then loads it): routed by the first address they get. */
+  unplaced?: string[];
 }
 export interface Route { host: string; space: string }
 
@@ -78,19 +80,24 @@ export function syncSpaces(s: SpacesState, tabs: readonly BrowserTabState[], now
   const known = new Set(s.spaces.map((sp) => sp.id));
   const tabSpace: Record<string, string> = {};
   const seen: Record<string, number> = {};
+  const unplaced: string[] = [];
   for (const t of tabs) {
     const sp = s.tabSpace[t.id];
-    // A tab first seen already on a site with a route (a link opened from another app or page) goes to that space.
-    const routed = sp === undefined ? routeFor(s, t.url) : null;
-    tabSpace[t.id] = sp && known.has(sp) ? sp : routed ?? s.current;
+    // A tab opened on a site with a route (a link from another app or page) goes to that space: by its first address,
+    // as the shell opens a tab before loading it. A new tab's start page, and what is typed there later, never move it.
+    const waiting = s.unplaced?.includes(t.id) === true;
+    if ((sp === undefined || waiting) && t.url === '') unplaced.push(t.id);
+    const routed = (sp === undefined || waiting) && t.url !== '' ? routeFor(s, t.url) : null;
+    tabSpace[t.id] = routed ?? (sp && known.has(sp) ? sp : s.current);
     seen[t.id] = t.active ? now : (s.seen[t.id] ?? now);
   }
   const active = tabs.find((t) => t.active);
   const current = active ? tabSpace[active.id]! : s.current;
   const last = active && s.last?.[current] !== active.id ? { ...s.last, [current]: active.id } : s.last;
   const { tabFolder: keptFolder, folderUrl } = syncFolders(s, tabs);
-  const same = last === s.last && current === s.current && keptFolder === s.tabFolder && folderUrl === s.folderUrl && Object.keys(s.tabSpace).length === ids.size && tabs.every((t) => s.tabSpace[t.id] === tabSpace[t.id] && s.seen[t.id] === seen[t.id]);
-  return same ? s : { ...s, current, tabSpace, seen, ...(last ? { last } : {}), ...(keptFolder ? { tabFolder: keptFolder } : {}), ...(folderUrl ? { folderUrl } : {}) };
+  const sameUnplaced = (s.unplaced ?? []).length === unplaced.length && unplaced.every((id, i) => s.unplaced![i] === id);
+  const same = sameUnplaced && last === s.last && current === s.current && keptFolder === s.tabFolder && folderUrl === s.folderUrl && Object.keys(s.tabSpace).length === ids.size && tabs.every((t) => s.tabSpace[t.id] === tabSpace[t.id] && s.seen[t.id] === seen[t.id]);
+  return same ? s : { ...s, current, tabSpace, seen, unplaced, ...(last ? { last } : {}), ...(keptFolder ? { tabFolder: keptFolder } : {}), ...(folderUrl ? { folderUrl } : {}) };
 }
 
 /**
