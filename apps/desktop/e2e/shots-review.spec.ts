@@ -65,12 +65,6 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Today/ }).click();
       await shell.waitForTimeout(400);
       await shot('3d-tasks-today');
-      await goTo(shell, 'Search');
-      await shell.waitForTimeout(400);
-      await shot('3e-search');
-      await shell.getByRole('searchbox', { name: 'Search everything' }).fill('the');
-      await shell.waitForTimeout(500);
-      await shot('3f-search-results');
       await goTo(shell, 'Tasks');
       await shell.waitForTimeout(500);
       await shot('3g-sidebar-tasks');

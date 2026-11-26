@@ -17,7 +17,7 @@ const APPS = [
   ['agent', 'Agent'], ['agents', 'Agents'], ['activity', 'Activity'], ['abilities', 'Abilities'], ['settings', null],
   ['notes', 'Notes'], ['docs', 'Docs'], ['tasks', 'Tasks'], ['calendar', 'Calendar'], ['sheets', 'Sheets'],
   ['database', 'Database'], ['projects', 'Projects'], ['knowledge', 'Knowledge'],
-  ['browser', 'Browser'], ['mail', 'Mail'], ['search', 'Search'], ['research', 'Research'], ['reader', 'Reader'], ['files', 'Files'],
+  ['browser', 'Browser'], ['mail', 'Mail'], ['research', 'Research'], ['reader', 'Reader'], ['files', 'Files'],
   ['slides', 'Slides'], ['design', 'Design'], ['photo', 'Photo'], ['music', 'Music'], ['video', 'Video'], ['code', 'Code'],
   ['terminal', 'Terminal'], ['canvas', 'Canvas'],
   ['review', 'Review'], ['views', 'Views'],

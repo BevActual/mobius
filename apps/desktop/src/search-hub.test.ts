@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConversationInfo } from '@mobius/shared';
-import { hubResults, launcherFind, targetApp, targetLabel, targetOfRef, type HubSources } from './search-hub';
+import { hubResults, launcherFind, pagesFound, targetApp, targetLabel, targetOfRef, type HubSources } from './search-hub';
 
 const conv = (id: string, title: string, updated_ms: number): ConversationInfo => ({ id, title, updated_ms, messages: 2, activity: 'idle', waiting: 0 }) as ConversationInfo;
 const sources = (): HubSources => ({
@@ -82,5 +82,19 @@ describe('the launcher', () => {
     expect(targetApp({ app: 'open', id: 'mail' })).toBeNull();
     expect(targetLabel({ app: 'photo', path: 'Photos/Trip/beach.jpg' })).toBe('beach');
     expect(targetLabel({ app: 'browser', url: 'https://example.com/a' })).toBe('example.com');
+  });
+});
+
+describe('pages for Ctrl+K (Search folded in)', () => {
+  it('finds bookmarks and pages visited by every word of their title or address, newest first, each once', () => {
+    const marks = [{ url: 'https://bulbs.example/spring', title: 'Spring bulbs guide', added: 3 }];
+    const seen = [
+      { url: 'https://bulbs.example/spring', title: 'Spring bulbs guide', visited: 5 },
+      { url: 'https://news.example/frost', title: 'Frost tonight', visited: 4 },
+      { url: 'https://bulbs.example/autumn', title: 'Autumn planting', visited: 1 },
+    ];
+    expect(pagesFound(marks, seen, ['bulbs']).map((p) => p.target)).toEqual([{ app: 'browser', url: 'https://bulbs.example/spring' }, { app: 'browser', url: 'https://bulbs.example/autumn' }]);
+    expect(pagesFound(marks, seen, ['spring', 'guide']).map((p) => p.where)).toEqual(['bulbs.example']);
+    expect(pagesFound(marks, seen, [])).toHaveLength(3);
   });
 });

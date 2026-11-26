@@ -1118,8 +1118,10 @@ function NameSheet({ onCancel, onSave }: { onCancel: () => void; onSave: (name: 
 }
 
 /** Show, hide and reorder the sidebar's apps. At least one stays, so the sidebar is never empty. */
-function SidebarAppsEditor({ value, onChange }: { value: SidebarApp[]; onChange: (apps: SidebarApp[]) => void }) {
-  const hidden = SIDEBAR_APPS.filter((id) => !value.includes(id));
+function SidebarAppsEditor({ value: saved, onChange }: { value: SidebarApp[]; onChange: (apps: SidebarApp[]) => void }) {
+  // Search folded into Ctrl+K: a list saved before that may still name it, so it is left out here and dropped on the next change.
+  const value: SidebarApp[] = saved.filter((id) => id !== 'search');
+  const hidden = SIDEBAR_APPS.filter((id) => id !== 'search' && !value.includes(id));
   const move = (id: SidebarApp, by: -1 | 1) => {
     const at = value.indexOf(id);
     const to = at + by;

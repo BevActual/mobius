@@ -86,7 +86,7 @@ export interface HubSources {
 
 const MAX = 60;
 const words = (q: string) => q.toLowerCase().split(/\s+/).filter(Boolean);
-const matches = (text: string, ws: string[]) => { const t = text.toLowerCase(); return ws.every((w) => t.includes(w)); };
+const matches = (text: string, ws: readonly string[]) => { const t = text.toLowerCase(); return ws.every((w) => t.includes(w)); };
 const host = (url: string) => { try { return new URL(url).host; } catch { return url; } };
 
 /**
@@ -156,15 +156,7 @@ export function hubResults(sources: HubSources, query: string, filter: HubFilter
       }
     }
   }
-  if (want('page')) {
-    const seen = new Set<string>();
-    const pages = [...sources.bookmarks.map((b) => ({ url: b.url, title: b.title, when: b.added })), ...sources.history.map((h) => ({ url: h.url, title: h.title, when: h.visited }))];
-    for (const p of pages.sort((a, b) => b.when - a.when)) {
-      if (seen.has(p.url) || (searching && !matches(`${p.title} ${p.url}`, ws))) continue;
-      seen.add(p.url);
-      out.push({ key: `p:${p.url}`, kind: 'page', title: p.title || p.url, where: host(p.url), when: p.when, target: { app: 'browser', url: p.url } });
-    }
-  }
+  if (want('page')) out.push(...pagesFound(sources.bookmarks, sources.history, ws));
 
   const q = ws.join(' ');
   const starts = (r: HubResult) => (searching && r.title.toLowerCase().startsWith(q) ? 0 : 1);
@@ -192,6 +184,19 @@ function titleHits(folders: Notebook[] | undefined, ws: string[]): NoteHit[] {
  * The launcher's find: items in every app whose name matches what was typed, from what the apps already hold, so it
  * answers on each key without waiting. Search (the app) also looks through what notes and documents say, and mail.
  */
+/** Bookmarks and pages visited whose title or address has every word (all of them with none), newest first, each once. */
+export function pagesFound(bookmarks: readonly BookmarkEntry[], history: readonly HistoryEntry[], ws: readonly string[]): HubResult[] {
+  const out: HubResult[] = [];
+  const seen = new Set<string>();
+  const pages = [...bookmarks.map((b) => ({ url: b.url, title: b.title, when: b.added })), ...history.map((h) => ({ url: h.url, title: h.title, when: h.visited }))];
+  for (const p of pages.sort((a, b) => b.when - a.when)) {
+    if (seen.has(p.url) || (ws.length > 0 && !matches(`${p.title} ${p.url}`, ws))) continue;
+    seen.add(p.url);
+    out.push({ key: `p:${p.url}`, kind: 'page', title: p.title || p.url, where: host(p.url), when: p.when, target: { app: 'browser', url: p.url } });
+  }
+  return out;
+}
+
 export function launcherFind(sources: LauncherSources, query: string): HubResult[] {
   const ws = words(query);
   if (ws.length === 0) return [];

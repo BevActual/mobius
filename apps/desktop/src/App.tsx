@@ -111,7 +111,6 @@ import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { SERVICE_NAMES, catchUpAsk, channelLabel, chatItem, isSpaceAccount } from './messages-view';
 import { DEFAULT_LIST_NAME, nest, smartName, smartView } from './tasks-view';
-import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
 import { activityOf, appOfTurn } from './activity';
 import { WorkingPill } from './WorkingPill';
@@ -211,7 +210,7 @@ const OWN_LIST: Partial<Record<AppId, string>> = {
   agent: 'Chats', mail: 'Mailboxes', messages: 'Conversations', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
   reader: 'Library', research: 'Reports', wiki: 'Knowledge', projects: 'Projects', views: 'Dashboards',
   skills: 'Store', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
-  photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
+  photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs',
 };
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
 const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code', 'studio', 'database', 'messages', 'photo'];
@@ -478,9 +477,7 @@ export function App() {
   const storeItemOpen = useStoreItem(); // Store (marked): the app whose page is open in Apps
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
-  const inSearch = app === 'search';
   // Where Search looks: shared by its sidebar's scopes and the page's own.
-  const [searchFilter, setSearchFilter] = useState<HubFilter>('all');
   /** Shown in either pane, focused or not. */
   const shows = (id: AppId) => app === id || other === id;
   // Apps the agent (or another app) changed while you were elsewhere: a dot on them in the launcher until opened.
@@ -604,7 +601,6 @@ export function App() {
     });
     return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offMail?.(); offCalendar?.(); offDesigns?.(); offBoards?.(); offViews?.(); offResearch?.(); offReading?.(); offDatabases?.(); };
   }, [showBeside]);
-  const [searchFocus, setSearchFocus] = useState(0);
   // Going to an app leaves Settings (from the launcher, a shortcut or a link), so the app chosen is the one showing.
   // An app not added yet opens its page in Store, where it can be added.
   const openApp = useCallback((id: AppId) => {
@@ -746,7 +742,6 @@ export function App() {
     mail: mail.accounts.length === 0 ? 'Add an account' : mail.counts.all > 0 ? `${mail.counts.all} unread` : 'All read',
     tasks: dueToday > 0 ? `${dueToday} due today` : openTasks > 0 ? `${openTasks} to do` : 'All done',
     calendar: eventsToday > 0 ? `${plural(eventsToday, 'event')} today` : 'Nothing today',
-    search: 'Find anything',
   };
   const startedUp = useRef(false);
   // Mobius sits in the right panel, beside the work, in every app (docs/design: five zones). The sidebar is always the
@@ -1314,8 +1309,6 @@ export function App() {
           return <SlidesSidebar slides={slides} pin={null} changed={liveMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
         case 'browser':
           return browserSidebar;
-        case 'search':
-          return <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={null} />;
         default:
           return null;
       }
@@ -1690,9 +1683,9 @@ export function App() {
   };
   const launch = {
     // Everything found in your apps: what Mobius already holds, then what each app's own source finds.
-    find: (query: string) => findInSources(query, launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? 'search', label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))),
+    find: (query: string) => findInSources(query, launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? (r.target.app === 'calendar' ? 'calendar' : 'agent'), label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))),
     commands: allCommands,
-    openApp: (id: AppId) => { opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions'); openApp(id); /* after the launcher's dialog has closed and given focus back */ if (id === 'search') window.setTimeout(() => setSearchFocus((n) => n + 1), 0); },
+    openApp: (id: AppId) => { opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions'); openApp(id); },
     activateTab: (id: string) => { openApp('browser'); window.mobius.browser.activate(id); },
     newTab,
     openRecent: (item: { app: AppId; ref: string; label: string }) => { opener.current = null; closeSettings(); const target = targetOfRef(item.ref); if (target) openTarget(target, item.label); else openApp(item.app); },
@@ -1997,24 +1990,6 @@ export function App() {
         return <SheetGrid sheets={sheets} review={sheets.data && liveMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'calendar':
         return <CalendarPage calendar={calendar} newToken={eventToken} show={showEvent} me={myAddresses} onMeeting={(event) => void recordMeeting(event)} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} working={conversation.state.busy} />; // Calendar app: what Mobius's last turn changed
-      case 'search':
-        return (
-          <SearchPage
-            conversations={conversation.list}
-            notebooks={notes.notebooks}
-            tasks={tasks.all}
-            docFolders={docs.notebooks}
-            deckFolders={slides.notebooks}
-            workbooks={sheets.workbooks}
-            made={{ designFolders: designs.notebooks, boardFolders: boards.notebooks, researchFolders: research.notebooks, readingFolders: reading.notebooks, databases: databases.list.map((d) => ({ name: d.name, modified: d.modified })), songFolders: songs.notebooks, albums: photos.albums, videoProjects: video.projects.map((p) => p.name), codeProjects: code.projects.map((p) => ({ name: p.name, modified: (p as { modified?: number }).modified ?? 0 })) }}
-            focusToken={searchFocus}
-            filter={searchFilter}
-            onFilter={setSearchFilter}
-            canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
-            onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}
-            onOpen={openTarget}
-          />
-        );
       case 'agent':
         // Agents app (marked): while the sidebar is on Agents, the main area is the chosen agent's page.
         if (inAgents) {
@@ -2351,7 +2326,7 @@ export function App() {
         open={hubOpen}
         onClose={closeHub}
         current={app}
-        onOpenApp={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); openApp(id); }}
+        onOpenApp={(id) => { closeSettings(); openApp(id); }}
         onConnect={() => { closeSettings(); setExtPlace('connectors'); openApp('skills'); }}
         own={ownApps}
         status={hubStatus}

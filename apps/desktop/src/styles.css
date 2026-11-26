@@ -633,7 +633,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 
 
 /* Moving between apps: the new one settles in rather than snapping. */
-.stage > .tasks-page, .stage > .note-editor, .stage > .search-page, .stage > .chat.full { animation: app-in var(--dur-med) var(--ease); }
+.stage > .tasks-page, .stage > .note-editor, .stage > .chat.full { animation: app-in var(--dur-med) var(--ease); }
 @keyframes app-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 /* The composer while the agent works: a live line saying what it is doing, and a calm glow around the box. */
@@ -661,30 +661,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 }
 
 /* Search: one box for everything, centred like a fresh page, results in one quiet list. */
-.stage .search-page { position: absolute; z-index: 1; inset: 0; overflow: auto; padding: 0 var(--sp-8) var(--sp-8); background: var(--bg); }
-.search-hero { max-width: 720px; margin: 14vh auto var(--sp-5); display: grid; gap: var(--sp-4); }
-.search-hero h1 { margin: 0; text-align: center; font-size: 26px; font-weight: var(--fw-regular); letter-spacing: -0.015em; }
-.search-box { display: flex; align-items: center; gap: var(--sp-3); height: 46px; padding: 0 var(--sp-4); border: 1px solid var(--line-strong); border-radius: var(--radius-panel); background: var(--bg); }
-.search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
-.search-box svg { color: var(--muted); }
-.search-box input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; font-size: var(--fs-lg); }
-.search-filters { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
-.search-filter { height: 28px; padding: 0 var(--sp-3); border-radius: var(--radius-control); color: var(--muted); }
-.search-filter[aria-checked="true"] { background: var(--ink); color: var(--bg); }
-.search-filter[aria-checked="true"]:hover { background: var(--ink); }
-.search-results { max-width: 720px; margin: 0 auto; }
-.search-results ul { list-style: none; margin: 0; padding: 0; }
-.search-row { width: 100%; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2); text-align: left; border-radius: var(--radius-group); }
-.search-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--radius-group); background: var(--soft); color: var(--muted); }
-.search-row[data-kind="task"] .search-icon { color: var(--accent); }
-.search-row.ask .search-icon { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
-.search-row.ask { margin-bottom: var(--sp-1); }
-.search-text { min-width: 0; display: grid; gap: 1px; }
-.search-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-medium); }
-.search-line { display: block; font-size: var(--fs-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
-.search-empty { margin-top: var(--sp-6); text-align: center; color: var(--muted); }
-.search-row[data-done] .search-title { color: var(--muted); text-decoration: line-through; }
 
 /* The app hub (All apps): on the top layer, under the top bar. */
 .hub { position: fixed; inset: calc(var(--context) + 6px) auto auto 6px; margin: 0; width: min(560px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 60px)); overflow: auto; padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-sheet); color: var(--ink);
@@ -843,7 +819,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .hub-search, .search-box { border: 0; border-radius: var(--radius-pill); background: var(--field); }
 .hub-search:focus-within, .search-box:focus-within { background: var(--bg); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); }
 .hub-icon { border-radius: 12px; }
-.search-filter { border-radius: var(--radius-pill); }
 
 /* Controls. */
 .segmented, .seg { border-radius: var(--radius-pill); }
@@ -885,7 +860,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 /* Split view: two panes side by side. Each pane is its own positioning box, so an app fills its pane as it fills the stage. */
 .pane { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; }
 .pane-body { position: relative; flex: 1; min-height: 0; overflow: hidden; }
-.pane-body > .tasks-page, .pane-body > .note-editor, .pane-body > .search-page, .pane-body > .chat.full { animation: app-in var(--dur-med) var(--ease); }
+.pane-body > .tasks-page, .pane-body > .note-editor, .pane-body > .chat.full { animation: app-in var(--dur-med) var(--ease); }
 .stage[data-split] { --divider: 9px; }
 .stage[data-split] > .pane[data-pane="0"] { right: auto; width: calc(var(--split) - var(--divider) / 2); }
 .stage[data-split] > .pane[data-pane="1"] { left: auto; width: calc(100% - var(--split) - var(--divider) / 2); }
@@ -1007,8 +982,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .task { border-radius: var(--radius-control); }
 .task[data-fresh] { background: var(--wash); }
 /* Search filters: the chosen one carries the accent, like every other current place. */
-.search-filter[aria-checked="true"], .search-filter[aria-checked="true"]:hover { background: var(--accent); color: var(--on-accent); }
-.search-filter:not([aria-checked="true"]):hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); }
 /* A page or list the agent changed in its last turn. */
 .changed-mark { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--mobius); }
 /* What Mobius made or changed, in a sidebar list: dashed indigo until it is kept. */
@@ -2163,36 +2136,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .hub-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Search: each result and each scope wears the icon of the app that keeps it; the field has one focus ring. */
-.search-icon[data-app] { color: #fff; border-radius: 9px; }
-.search-icon[data-app] svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.search-scope-icon { flex: none; width: 20px; height: 20px; padding: 3px; border-radius: 6px; color: #fff; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.search-icon[data-app="agent"], .search-scope-icon[data-app="agent"] { background: var(--app-agent); }
-.search-icon[data-app="search"], .search-scope-icon[data-app="search"] { background: var(--app-search); }
-.search-icon[data-app="browser"], .search-scope-icon[data-app="browser"] { background: var(--app-browser); }
-.search-icon[data-app="notes"], .search-scope-icon[data-app="notes"] { background: var(--app-notes); }
-.search-icon[data-app="tasks"], .search-scope-icon[data-app="tasks"] { background: var(--app-tasks); }
-.search-icon[data-app="calendar"], .search-scope-icon[data-app="calendar"] { background: var(--app-calendar); }
-.search-icon[data-app="code"], .search-scope-icon[data-app="code"] { background: var(--app-code); }
-.search-icon[data-app="design"], .search-scope-icon[data-app="design"] { background: var(--app-design); }
-.search-icon[data-app="photo"], .search-scope-icon[data-app="photo"] { background: var(--app-photo); }
-.search-icon[data-app="studio"], .search-scope-icon[data-app="studio"] { background: var(--app-studio); }
-.search-icon[data-app="video"], .search-scope-icon[data-app="video"] { background: var(--app-video); }
-.search-icon[data-app="skills"], .search-scope-icon[data-app="skills"] { background: var(--app-skills); }
-.search-icon[data-app="docs"], .search-scope-icon[data-app="docs"] { background: var(--app-docs); }
-.search-icon[data-app="slides"], .search-scope-icon[data-app="slides"] { background: var(--app-slides); }
-.search-icon[data-app="mail"], .search-scope-icon[data-app="mail"] { background: var(--app-mail); }
-.search-icon[data-app="sheets"], .search-scope-icon[data-app="sheets"] { background: var(--app-sheets); }
-.search-icon[data-app="canvas"], .search-scope-icon[data-app="canvas"] { background: var(--app-canvas); }
-.search-icon[data-app="research"], .search-scope-icon[data-app="research"] { background: var(--app-research); }
-.search-icon[data-app="reader"], .search-scope-icon[data-app="reader"] { background: var(--app-reader); }
-.search-icon[data-app="database"], .search-scope-icon[data-app="database"] { background: var(--app-database); }
-.search-icon[data-app="terminal"], .search-scope-icon[data-app="terminal"] { background: var(--app-terminal); }
-.search-icon[data-app="review"], .search-scope-icon[data-app="review"] { background: var(--app-review); }
-.search-icon[data-app="files"], .search-scope-icon[data-app="files"] { background: var(--app-files); }
-.search-icon[data-app="wiki"], .search-scope-icon[data-app="wiki"] { background: var(--app-wiki); }
-.search-icon[data-app="projects"], .search-scope-icon[data-app="projects"] { background: var(--app-projects); }
-.search-box:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent); }
-.search-box input:focus, .search-box input:focus-visible, .hub-search input:focus-visible { outline: none; box-shadow: none; }
 
 /* The Agent home: the greeting takes the message box's width, centred with it. The desk's own styles are in desk.css. */
 .chat.full[data-empty] .empty { width: 100%; padding: 0; }
@@ -2394,7 +2337,6 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .context-strip .cap-group + .cap-group::before, .context-strip .ui-toolbar-group + .ui-toolbar-group::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: var(--hairline-w); background: var(--line); }
 .strip-left [data-dock-toggle], .strip-left [data-dock-toggle][aria-pressed="true"] { background: none; box-shadow: none; }
 .strip-left [data-dock-toggle]:hover { background: var(--sel); }
-.search-filter[aria-checked="true"], .search-filter[aria-checked="true"]:hover { background: var(--sel); color: var(--ink); }
 /* App tool groups in the toolbar: bare icons, hairline between groups (no capsules). */
 .context-strip .mail-tools-group { padding: 0; background: none; box-shadow: none; border-radius: 0; }
 .context-strip :is(.mail-tools-group, .sheet-tool-group) + :is(.mail-tools-group, .sheet-tool-group) { position: relative; margin-left: var(--sp-2); padding-left: var(--sp-2); }
@@ -2729,7 +2671,6 @@ body { font-variant-numeric: tabular-nums; }
   mask-image: linear-gradient(to bottom, #000 calc(100% - var(--row-side)), transparent);
 }
 /* Search: the scope chips stand in for the Scopes panel while it is hidden. */
-.ui-panels:has(> .ui-dock[data-dock="left"] .search-side) .search-filters { display: none; }
 /* Browser: the page is drawn natively over everything beside it, so the tabs panel's edge stays inside the panel. */
 .ui-panels[data-app="browser"] > .ui-dock[data-dock="left"] > .ui-dock-edge { right: 0; }
 

@@ -9,13 +9,13 @@ Review, Views.
 **Added from [Store](../guide/abilities.md):** everything else.
 
 Mobius is going from 30 apps to 23, so each app is easy to explain and found where you'd look. Reader is already the
-Browser's reader mode. Research, Search, Views, Review, Activity and Terminal fold into other apps next, each only once
+Browser's reader mode, and Search is Ctrl+K, which finds everything it did. Research, Views, Review, Activity and Terminal fold into other apps next, each only once
 its new home works; until then they are here as before. See the [roadmap](../roadmap.md).
 
 | Group | Apps |
 | --- | --- |
 | [Assistant](assistant.md) | [Agent](assistant.md#agent), [Agents](assistant.md#agents), [Activity](assistant.md#activity), [Changes](assistant.md#changes), [Store](assistant.md#store) |
-| [Browse and find](browse-and-find.md) | [Browser](browse-and-find.md#browser), [Mail](browse-and-find.md#mail), [Search](browse-and-find.md#search), [Research](browse-and-find.md#research), [Reader](browse-and-find.md#reader), [Files](browse-and-find.md#files) |
+| [Browse and find](browse-and-find.md) | [Browser](browse-and-find.md#browser), [Mail](browse-and-find.md#mail), [Research](browse-and-find.md#research), [Reader](browse-and-find.md#reader), [Files](browse-and-find.md#files) |
 | [Write and plan](write-and-plan.md) | [Notes](write-and-plan.md#notes), [Docs](write-and-plan.md#docs), [Tasks](write-and-plan.md#tasks), [Calendar](write-and-plan.md#calendar), [Sheets](write-and-plan.md#sheets), [Database](write-and-plan.md#database), [Projects](write-and-plan.md#projects), [Knowledge](write-and-plan.md#knowledge) |
 | [Create](create.md) | [Slides](create.md#slides), [Design](create.md#design), [Photo](create.md#photo), [Music](create.md#music), [Video](create.md#video), [Code](create.md#code), [Terminal](create.md#terminal), [Canvas](create.md#canvas) |
 | [Review](review.md) | [Views](review.md#views), [Comments](review.md#comments) |

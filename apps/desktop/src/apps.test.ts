@@ -5,7 +5,7 @@ describe('apps', () => {
   it('the ask box names what is open in each app, not another app’s things', () => {
     expect(askAbout('mail')).toBe('Ask about your mail');
     expect(askAbout('browser')).toBe('Ask about this page');
-    expect(askAbout('search')).toBe('Ask Mobius');
+    expect(askAbout('agent')).toBe('Ask Mobius');
     expect(askAbout('docs', false)).toBe('Ask Mobius');
     expect(askAbout('mail', false)).toBe('Ask about your mail');
   });
@@ -31,9 +31,9 @@ describe('apps', () => {
       localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) },
     };
     expect(recentApps()).toEqual([]);
-    for (const id of ['browser', 'notes', 'tasks', 'notes', 'gone', 'agent', 'search'] as const) noteOpened(id as AppId);
-    expect(recentApps()).toEqual(['search', 'agent', 'notes', 'tasks']);
-    expect(recentApps(10)).toEqual(['search', 'agent', 'notes', 'tasks', 'browser']);
+    for (const id of ['browser', 'notes', 'tasks', 'notes', 'gone', 'agent', 'files'] as const) noteOpened(id as AppId);
+    expect(recentApps()).toEqual(['files', 'agent', 'notes', 'tasks']);
+    expect(recentApps(10)).toEqual(['files', 'agent', 'notes', 'tasks', 'browser']);
     store.set('mobius.apps.recent', '{not json');
     expect(recentApps()).toEqual([]);
   });

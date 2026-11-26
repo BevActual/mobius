@@ -43,7 +43,7 @@ test('corners are small and plain: a selected sidebar row has the control radius
   mobius = await launch(fixture.origin + '/');
   const shell = mobius.shell;
   await shell.keyboard.press('Control+k');
-  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Search');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Knowledge');
   await shell.keyboard.press('Enter');
   const radii = await shell.evaluate(() => {
     const expected = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--radius-control'));
