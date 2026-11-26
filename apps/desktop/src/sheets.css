@@ -177,7 +177,7 @@
 .sheet-tab-more:hover { background: var(--soft); color: var(--ink); }
 
 /* Filter on the header row (Excel's AutoFilter): a funnel at the right of each header cell, filled while filtered. */
-.sheet-page .sheet-table td:has(> .sheet-filter-btn) { padding-right: 26px; position: relative; }
+.sheet-page .sheet-table td:has(> .sheet-filter-btn) { padding-right: 26px; }
 .sheet-page .sheet-filter-btn { position: absolute; top: 50%; right: 3px; width: 20px; height: 20px; padding: 0; transform: translateY(-50%); border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: default; display: inline-grid; place-items: center; }
 .sheet-page .sheet-filter-btn:hover { background: var(--sel); color: var(--ink); }
 .sheet-page .sheet-filter-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
@@ -204,4 +204,5 @@
 /* Its own background only where a cell has none (selected and marked cells keep theirs), so nothing shows through. */
 :where(.sheet-page .sheet-scroll[data-freeze] .sheet-table tbody tr > :nth-child(2)) { background: var(--bg); }
 .sheet-page .sheet-scroll[data-freeze] .sheet-table .sheet-header-row > :nth-child(2) { z-index: 3; }
-.sheet-page .sheet-scroll[data-freeze] .sheet-table thead tr > :nth-child(2) { z-index: 3; background: var(--panel); }
+/* Above the other letters (also z-index 3, later in the page), so B and on pass under A. */
+.sheet-page .sheet-scroll[data-freeze] .sheet-table thead tr > :nth-child(2) { z-index: 4; background: var(--panel); }

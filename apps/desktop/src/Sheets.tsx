@@ -643,6 +643,13 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
     if (mod && !e.altKey && !e.shiftKey && k.toLowerCase() === 'f') { openFind(); e.preventDefault(); e.stopPropagation(); return; }
     if (mod && !e.altKey && !e.shiftKey && k.toLowerCase() === 'h') { openFind(true); e.preventDefault(); e.stopPropagation(); return; }
     if (mod && e.shiftKey && !e.altKey && k.toLowerCase() === 'l') { toggleFilter(); e.preventDefault(); e.stopPropagation(); return; }
+    // Alt+Down on a header cell opens its filter, as in Excel.
+    if (e.altKey && !mod && k === 'ArrowDown' && filters && headerOn && focus.r === 0 && focus.c < used.cols) {
+      const b = grid.current?.querySelector<HTMLElement>(`[data-cell="0:${focus.c}"] .sheet-filter-btn`)?.getBoundingClientRect();
+      if (b) setFilterPop({ c: focus.c, x: b.left, y: b.bottom + 4 });
+      e.preventDefault();
+      return;
+    }
     const arrows: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
     const go = (p: Pos) => { const q = { r: Math.max(0, Math.min(height + 200, p.r)), c: Math.max(0, Math.min(51, p.c)) }; if (e.shiftKey) setFocus(q); else select(q); };
     if (arrows[k]) {
@@ -776,7 +783,7 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
             <button type="button" className="sheet-tool" aria-label="Next match" title="Next match (Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at + 1)}><Icon d="M7.5 5l5 5-5 5" /></button>
           </span>
           <button type="button" className="sheet-tool" aria-label="Replace" aria-pressed={replacing !== null} title="Replace (Ctrl+H)" onMouseDown={keep}
-            onClick={() => { setReplacing((v) => (v === null ? '' : null)); setReplaced(null); }}><Icon d="M4 7h9l-2.5-2.5M16 13H7l2.5 2.5" /></button>
+            onClick={() => { const off = replacing !== null; setReplacing(off ? null : ''); setReplaced(null); if (off) findInput.current?.focus(); }}><Icon d="M4 7h9l-2.5-2.5M16 13H7l2.5 2.5" /></button>
           <button type="button" className="btn sheet-find-done" onClick={closeFind}>Done</button>
           {replacing !== null && (
             <div className="sheet-replace" role="group" aria-label="Replace">
@@ -816,7 +823,7 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
         tabIndex={0}
         role="grid"
         aria-label={data.sheet}
-        aria-rowcount={height}
+        aria-rowcount={height - hidden.size}
         aria-colcount={width}
         aria-multiselectable="true"
         data-header={headerOn || undefined}
@@ -924,9 +931,9 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
                       {here
                         ? <input ref={cellInput} className="sheet-cell-input" data-formula={edit.text.startsWith('=') ? true : undefined} style={{ width: Math.max(colWidth(c), textWidth(edit.text) + 24) }} aria-label={`Edit ${cellName(r, c)}`} value={edit.text} spellCheck={false} onChange={(e) => typed(e.target.value, caretOf(e.target))} onSelect={(e) => { const caret = caretOf(e.currentTarget); setEdit((v) => (v && v.caret !== caret ? { ...v, caret } : v)); }} onKeyDown={onEditorKey} onBlur={(e) => { if (e.relatedTarget !== barInput.current) commit(null); }} />
                         : display(r, c)}
-                      {filters && r === 0 && c < used.cols && !here && (
+                      {filters && headerOn && r === 0 && c < used.cols && !here && (
                         <button type="button" className="sheet-filter-btn" tabIndex={-1} aria-haspopup="dialog" data-active={(filters[c]?.length ?? 0) > 0 || undefined}
-                          aria-label={`Filter ${shown(0, c) || columnName(c)}${(filters[c]?.length ?? 0) > 0 ? ', filtered' : ''}`} title={(filters[c]?.length ?? 0) > 0 ? 'Filtered' : 'Filter'}
+                          aria-label={`Filter ${shown(0, c) || columnName(c)}${(filters[c]?.length ?? 0) > 0 ? ', filtered' : ''}`} title={(filters[c]?.length ?? 0) > 0 ? 'Filtered (Alt+Down)' : 'Filter (Alt+Down)'}
                           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                           onClick={(e) => { const b = e.currentTarget.getBoundingClientRect(); setFilterPop({ c, x: b.left, y: b.bottom + 4 }); }}>
                           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h12l-4.5 5.5V15l-3 1.5v-6z" /></svg>

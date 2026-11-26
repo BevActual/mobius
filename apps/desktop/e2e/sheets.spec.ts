@@ -251,6 +251,16 @@ test('filter on the header row, freeze the first column, and find and replace, a
   await expect(cell('A5')).toHaveText('Total');
   await expect(shell().getByRole('status').filter({ hasText: 'Showing 2 of 3 rows' })).toBeVisible();
   await expect(grid().getByRole('button', { name: 'Filter Item, filtered' })).toBeVisible();
+  // The header stays a row of its own: row 3 sits under it, not behind it.
+  const head = (await cell('A1').boundingBox())!;
+  const next = (await cell('A3').boundingBox())!;
+  expect(next.y).toBeGreaterThanOrEqual(head.y + head.height - 1);
+  // Alt+Down on a header cell opens its filter from the keyboard.
+  await cell('B1').click();
+  await shell().keyboard.press('Alt+ArrowDown');
+  await expect(shell().getByRole('dialog', { name: 'Filter Qty' })).toBeVisible();
+  await shell().keyboard.press('Escape');
+  await expect(shell().getByRole('dialog', { name: 'Filter Qty' })).toHaveCount(0);
   // The arrows pass over a hidden row.
   await cell('A1').click();
   await shell().keyboard.press('ArrowDown');
