@@ -48,7 +48,8 @@ const outOfList = async (id: string, work: () => Promise<unknown>) => {
   const after = row ? [...document.querySelectorAll<HTMLElement>('.mail-row[data-id]')] : [];
   const at = row ? after.indexOf(row) : -1;
   const nextId = (after[at + 1] ?? after[at - 1])?.dataset.id ?? null;
-  const hadFocus = row?.contains(document.activeElement) || document.activeElement === document.body;
+  // (From the row's menu, the menu has the keys until it closes.)
+  const hadFocus = row?.contains(document.activeElement) || document.activeElement === document.body || Boolean(document.activeElement?.closest('[role=menu]'));
   await foldWhile(row, work);
   lastOut = rowId;
   if (hadFocus && nextId) requestAnimationFrame(() => {
@@ -57,12 +58,20 @@ const outOfList = async (id: string, work: () => Promise<unknown>) => {
   });
 };
 /** Undo, from the toast or Z: the row that left comes back opening out, as it went. */
-const undoing = (run: (() => Promise<unknown>) | undefined, outOfList = true) => { if (lastOut && outOfList) returning.add(lastOut); lastOut = null; void run?.(); };
+let focusBack = false;
+const undoing = (run: (() => Promise<unknown>) | undefined, outOfList = true, fromToast = false) => {
+  if (lastOut && outOfList) { returning.add(lastOut); focusBack = fromToast; }
+  lastOut = null;
+  void run?.();
+};
 /** On a row's first time on the page: opens out if it is one coming back. */
 const comingBack = (id: string) => (el: HTMLButtonElement | null) => {
   if (!el || 'seen' in el.dataset) return;
   el.dataset.seen = '';
-  if (returning.delete(id)) void unfold(el);
+  if (!returning.delete(id)) return;
+  void unfold(el);
+  // From the toast the keys were on its button, which goes: they go to the row that came back.
+  if (focusBack) { focusBack = false; requestAnimationFrame(() => { if (!document.activeElement || document.activeElement === document.body || document.activeElement.closest('[role=status]')) el.focus(); }); }
 };
 
 export function splitOf(v: MailView): Split | null {
@@ -797,7 +806,12 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
         e.preventDefault();
         const i = m.open ? m.rows.findIndex((t) => t.messages.some((x) => x.id === m.open!.id)) : -1;
         const next = m.rows[i < 0 ? 0 : Math.max(0, Math.min(m.rows.length - 1, i + (down ? 1 : -1)))]!.latest;
-        if (next.id !== m.open?.id) void m.read(next.id).then(() => document.querySelector(`.mail-row[data-id="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: 'nearest' }));
+        if (next.id !== m.open?.id) void m.read(next.id).then(() => {
+          const row = document.querySelector<HTMLElement>(`.mail-row[data-id="${CSS.escape(next.id)}"]`);
+          row?.scrollIntoView({ block: 'nearest' });
+          // The keys go with it when they were in the list, so E and H on the row act on the one now open.
+          if (row && (!document.activeElement || document.activeElement === document.body || document.activeElement.closest('.mail-row'))) row.focus({ preventScroll: true });
+        });
         return;
       }
       if (!m.open) return;
@@ -872,7 +886,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
         ...(waitMenu.f.sentId ? [{ label: 'Open', run: () => void mail.read(waitMenu.f.sentId!) }] : []),
         { label: 'Stop Waiting for a Reply', separated: Boolean(waitMenu.f.sentId), run: () => void follow.set(waitMenu.f.messageId, null) },
       ]} />}
-      {mail.undo && (mail.undo.until ? <SendCountdown key={mail.undo.until} text={mail.undo.text} until={mail.undo.until} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} /> : <UndoToast text={mail.undo.text} onUndo={() => undoing(mail.undo?.run)} onDismiss={mail.clearUndo} />)}
+      {mail.undo && (mail.undo.until ? <SendCountdown key={mail.undo.until} text={mail.undo.text} until={mail.undo.until} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} /> : <UndoToast text={mail.undo.text} onUndo={() => undoing(mail.undo?.run, true, true)} onDismiss={mail.clearUndo} />)}
       <MailToolbar mail={mail} onLater={setLaterFor} />
     </section>
   );
