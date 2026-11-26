@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarPerson, CalendarSuggestion, RepeatScope } from '@mobius/shared';
 import { isNotesFailure } from '@mobius/shared';
 import { onCommand } from './commands';
-import { useMorphIn } from './motion';
+import { growFrom } from './motion';
 import { slideIn } from './app-motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
@@ -915,7 +915,6 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     if (ok) { onDeleted?.(original, scope); onClose(); }
   };
   const sheet = useRef<HTMLFormElement>(null);
-  useMorphIn(sheet, true);
   // Opened from a place on the grid, it is a popover beside that place, on whichever side has room and never off the
   // window. A press anywhere else closes it, keeping what was typed, as Calendar's popover does.
   const at = editing.docked ? undefined : editing.at;
@@ -980,6 +979,13 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     window.addEventListener('keydown', escape);
     return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape); };
   }, [at, onClose]);
+  // It grows in from what was clicked once it has its place: measured before, the click would fall outside it.
+  const grown = useRef(false);
+  useLayoutEffect(() => {
+    if (grown.current || (at && !place) || !sheet.current) return;
+    grown.current = true;
+    growFrom(sheet.current, place?.side === 'left' ? 'left' : 'right');
+  }, [place, at]);
   // A meeting link in the place or the notes: Join opens it.
   const joinAt = meetingLink(`${where}\n${notes}`);
   // Record meeting is for a meeting: a timed event with people invited or a place to be.

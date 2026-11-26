@@ -155,7 +155,13 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
     // Fold first: ticking a task off takes it out of the list at once, which would leave nothing to fold.
     const row = rowOf(item.key);
     await foldAway(row);
-    if (!(await inbox!.onDone(item))) { unfold(row); return; }
+    if (!(await inbox!.onDone(item))) {
+      // It did not happen: the row comes back, says so, and takes the focus again.
+      unfold(row);
+      setSaid(`Couldn't ${item.kind === 'task' ? 'complete' : 'clear'} ${item.name}`);
+      row?.querySelector<HTMLElement>('.desk-open')?.focus();
+      return;
+    }
     kept.done(item.key);
     setSaid(`${item.kind === 'task' ? 'Completed' : 'Done with'} ${item.name}`);
   });
