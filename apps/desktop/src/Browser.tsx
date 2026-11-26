@@ -988,7 +988,7 @@ function SplitPage({ split, tabs, hidden }: { split: { first: string; second: st
     return (
       <div className="browser-split-head" data-active={tab?.active || undefined}>
         <button type="button" className="browser-split-title" title={tab?.url} aria-current={tab?.active ? 'page' : undefined} onClick={() => window.mobius.browser.activate(id)}>
-          <SiteChip url={tab?.url ?? ''} icon={tab?.icon ?? null} /><span>{tab?.title || 'New tab'}</span>
+          <SiteChip url={tab?.url ?? ''} icon={tab?.icon ?? null} /><span className="browser-split-name">{tab?.title || 'New tab'}</span>
         </button>
         <button type="button" className="browser-split-end" aria-label={`End split view, keep ${tab?.title || 'this page'}`} title="End split view (Ctrl+Shift+=)" onClick={() => { window.mobius.browser.activate(id); window.mobius.browser.showBeside?.(null); }}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>

@@ -118,7 +118,7 @@ test('split view shows two tabs side by side from the tab menu; the divider move
   await shell().locator('.tab', { hasText: 'Fixture home' }).click({ button: 'right' });
   await shell().getByRole('menuitem', { name: 'Open in split view' }).click();
   await expect(shell().getByTestId('surface-slot-beside')).toHaveCount(1);
-  await expect(shell().locator('.browser-split-title')).toHaveText(['Second page', 'Fixture home']);
+  await expect(shell().locator('.browser-split-name')).toHaveText(['Second page', 'Fixture home']);
   await expect(shell().locator('.tab[data-split="true"]')).toHaveCount(2);
   // Both pages get real room: about half the page panel each, not a sliver.
   const halves = shell().locator('.browser-split-half');
