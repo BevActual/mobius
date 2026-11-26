@@ -10,7 +10,7 @@ import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
 import { addressParts, dropPlan, historyByDay, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter, type Suggestion } from './browser-view';
-import { addSpace, CLEAR_AFTER, favouriteTab, inSpace, isFavourite, MAX_FAVOURITES, moveTab, readSpaces, removeSpace, renameSpace, siteHue, staleTabs, syncSpaces, tabToShow, toggleFavourite, type SpacesState } from './browser-spaces';
+import { addFolder, addSpace, CLEAR_AFTER, favouriteTab, foldersIn, putInFolder, removeFolder, renameFolder, toggleFolder, type Folder, inSpace, isFavourite, MAX_FAVOURITES, moveTab, readSpaces, removeSpace, renameSpace, siteHue, staleTabs, syncSpaces, tabToShow, toggleFavourite, type SpacesState } from './browser-spaces';
 import { AppSidebar, Confirm, IconButton, KeyCaps, Menu, PointMenu, SidebarRow, SidebarSection, ToolbarControls, type MenuEntry } from './ui';
 import { timeLabel } from './dates';
 import { SurfaceSlot } from './SurfaceSlot';
@@ -132,7 +132,7 @@ function useTabDrag(tabs: readonly BrowserTabState[]): TabDrag {
  * A tab's right-click menu, the shared one. It is kept inside the sidebar, since the page is drawn over everything beside
  * it, so it opens from a point that leaves room for it there.
  */
-function TabMenu({ tab, x, y, tabs, spaces: sp, pinnedPages, onPinPage, onClose }: { tab: BrowserTabState; x: number; y: number; tabs: readonly BrowserTabState[]; spaces: SpacesState; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onClose: () => void }) {
+function TabMenu({ tab, x, y, tabs, spaces: sp, pinnedPages, onPinPage, onNewFolder, onClose }: { tab: BrowserTabState; x: number; y: number; tabs: readonly BrowserTabState[]; spaces: SpacesState; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onNewFolder: (tab: BrowserTabState) => void; onClose: () => void }) {
   const side = document.querySelector('.side')?.getBoundingClientRect();
   const left = side ? Math.max(side.left + 4, Math.min(x, side.right - TAB_MENU_W - 4)) : x;
   const others = tabs.filter((t) => t.id !== tab.id && !t.pinned);
@@ -141,7 +141,9 @@ function TabMenu({ tab, x, y, tabs, spaces: sp, pinnedPages, onPinPage, onClose 
   const api = window.mobius.browser;
   // Plain words, no icons: in a menu every item has an icon or none does.
   const items: ContextMenuItem[] = [
-    ...(api.pin ? [{ label: tab.pinned ? 'Unpin tab' : 'Pin tab', run: () => api.pin?.(tab.id, !tab.pinned) }] : []),
+    ...(api.pin ? [{ label: tab.pinned ? 'Unpin tab' : 'Pin tab', run: () => { if (tab.pinned) setSpaces((s) => putInFolder(s, tab.id, null)); api.pin?.(tab.id, !tab.pinned); } }] : []),
+    // Folders of pinned tabs, as Arc's: a tab put in one is pinned.
+    ...(api.pin ? folderItems(tab, sp, onNewFolder) : []),
     ...(api.duplicate ? [{ label: 'Duplicate tab', run: () => void api.duplicate?.(tab.id) }] : []),
     { label: 'Reload', keys: tab.active ? 'Ctrl+R' : undefined, run: () => api.reload(tab.id), disabled: !tab.url },
     ...(api.reopenClosed ? [{ label: 'Reopen closed tab', keys: 'Ctrl+Shift+T', run: () => void api.reopenClosed?.() }] : []),
@@ -159,6 +161,17 @@ function TabMenu({ tab, x, y, tabs, spaces: sp, pinnedPages, onPinPage, onClose 
     { label: 'Close other tabs', run: () => others.forEach((t) => api.close(t.id)), disabled: others.length === 0 },
   ];
   return createPortal(<ContextMenu x={left} y={y} label={tab.title} items={items} onClose={onClose} />, document.body);
+}
+/** The tab menu's folder items: put it in a folder of this space (pinning it), take it out, or start a folder with it. */
+function folderItems(tab: BrowserTabState, sp: SpacesState, onNewFolder: (tab: BrowserTabState) => void): ContextMenuItem[] {
+  const api = window.mobius.browser;
+  const current = tab.pinned ? sp.tabFolder?.[tab.id] : undefined;
+  const put = (f: Folder) => { if (!tab.pinned) api.pin?.(tab.id, true); setSpaces((s) => putInFolder(s, tab.id, f.id)); };
+  return [
+    ...foldersIn(sp, sp.tabSpace[tab.id] ?? sp.current).filter((f) => f.id !== current).map((f) => ({ label: `Add to ${f.name}`, run: () => put(f) })),
+    ...(current ? [{ label: 'Remove from folder', run: () => setSpaces((s) => putInFolder(s, tab.id, null)) }] : []),
+    { label: 'New folder with tab', run: () => onNewFolder(tab) },
+  ];
 }
 /** The tab menu's split view item: end it on a tab in the split, else open this tab beside the one showing. */
 function splitItem(tab: BrowserTabState, tabs: readonly BrowserTabState[]): ContextMenuItem {
@@ -258,6 +271,37 @@ function SiteChip({ url, icon, big = false }: { url: string; icon?: string | nul
  */
 export interface ReadLater { path: string; title: string; site?: string; /** Finished (in the Archive): shown only when searching. */ done?: boolean }
 
+/**
+ * A folder of pinned tabs, as Arc's Folders (resources.arc.net, "Folders"): a row that opens and closes in place, kept
+ * per space. Closed, it still shows the tab you are on, as Arc's does. Its tabs keep their pinned order.
+ */
+function FolderRow({ folder, tabs, row, renaming, onRenamed, onMenu }: { folder: Folder; tabs: readonly BrowserTabState[]; row: (tab: BrowserTabState) => ReactNode; renaming: boolean; onRenamed: (name: string) => void; onMenu: (x: number, y: number) => void }) {
+  const shown = folder.open ? tabs : tabs.filter((t) => t.active);
+  return (
+    <li className="tab-folder" data-open={folder.open || undefined}>
+      <div className="tab folder-head" onContextMenu={(e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}>
+        {renaming ? (
+          <input className="folder-rename" aria-label="Folder name" defaultValue={folder.name} autoFocus onFocus={(e) => e.target.select()}
+            onBlur={(e) => onRenamed(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } else if (e.key === 'Escape') { e.preventDefault(); e.currentTarget.value = folder.name; e.currentTarget.blur(); } }} />
+        ) : (
+          <button type="button" className="tab-main" aria-expanded={folder.open} onClick={() => setSpaces((s) => toggleFolder(s, folder.id))}>
+            <svg className="folder-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h4l1.5 1.5h5.5v6.5h-11z" /></svg>
+            <span className="tab-title">{folder.name}</span>
+            <span className="folder-count" aria-hidden="true">{tabs.length}</span>
+            <svg className="folder-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4" /></svg>
+          </button>
+        )}
+      </div>
+      {shown.length > 0 && (
+        <ul className="tabs folder-tabs" role="list" aria-label={`${folder.name} tabs`}>
+          <AnimatePresence initial={false}>{shown.map(row)}</AnimatePresence>
+        </ul>
+      )}
+    </li>
+  );
+}
+
 export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, onPinPage, onOpenBookmark, readLater = [], reading = null, onRead, onShowTab, split = null }: {
   tabs: readonly BrowserTabState[]; pin?: ReactNode; onNewTab: () => void; onAsk?: () => void; downloads: DownloadEntry[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onOpenBookmark: (url: string) => void;
   /** Read later (Safari's Reading List): articles kept in reader mode, newest first. */
@@ -277,6 +321,8 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
   const closeMenu = useCallback(() => setMenu(null), []);
   const [query, setQuery] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [folderMenu, setFolderMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   const bookmarks = useBookmarks();
@@ -297,6 +343,16 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
   // A search also finds pages visited before, as Arc's and Chrome's do: the latest visit of each, after the bookmarks.
   const visited = useHistory(searching);
   const pastPages = searching ? historyByDay(visited.entries, new Date(), query).flatMap((d) => d.entries).filter((e, i, all) => all.findIndex((x) => x.url === e.url) === i && !saved.some((b) => b.url === e.url) && !tabs.some((t) => t.url === e.url)).slice(0, 8) : [];
+  // Folders of pinned tabs, as Arc's; a search shows the tabs without them.
+  const folders = searching ? [] : foldersIn(sp);
+  const folderOf = (t: BrowserTabState) => (t.pinned ? folders.find((f) => f.id === sp.tabFolder?.[t.id]) : undefined);
+  const loose = pinned.filter((t) => !folderOf(t));
+  // A new folder is named first, in place.
+  const newFolder = (tab?: BrowserTabState) => {
+    if (tab && !tab.pinned) window.mobius.browser.pin?.(tab.id, true);
+    setSpaces((s) => addFolder(s, '', tab ? [tab.id] : []));
+    setRenamingFolder(spaces.folders?.at(-1)?.id ?? null);
+  };
   const row = (tab: BrowserTabState) => <TabRow key={tab.id} tab={tab} drag={drag} reading={reading !== null} onShow={onShowTab} onMenu={(t, x, y) => setMenu({ tab: t, x, y })} />;
   const later = readLater.filter((a) => (searching || !a.done || a.path === reading) && matches(a.title, a.site ?? '')).slice(0, searching ? 20 : 12);
   const menuTab = menu ? tabs.find((t) => t.id === menu.tab.id) : undefined;
@@ -331,7 +387,7 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
     { label: 'Rename space…', run: () => setRenaming(true) },
     { label: 'Delete space', disabled: sp.spaces.length < 2, run: () => { const to = sp.spaces.find((s) => s.id !== space.id)!; setSpaces((s) => removeSpace(s, space.id)); goToSpace(to.id, tabs, onNewTab); } },
   ];
-  const optionEntries: MenuEntry[] = [{ label: 'History', keys: 'Ctrl+H', run: () => setShowHistory(true) }, ...CLEAR_AFTER.map((c) => ({ label: c.ms === null ? 'Never clear Today' : `Clear Today after ${c.label.toLowerCase()}`, checked: sp.clearAfter === c.ms, separated: c === CLEAR_AFTER[0], run: () => setSpaces((s) => ({ ...s, clearAfter: c.ms })) }))];
+  const optionEntries: MenuEntry[] = [{ label: 'History', keys: 'Ctrl+H', run: () => setShowHistory(true) }, ...(window.mobius.browser.pin ? [{ label: 'New folder', run: () => newFolder() }] : []), ...CLEAR_AFTER.map((c) => ({ label: c.ms === null ? 'Never clear Today' : `Clear Today after ${c.label.toLowerCase()}`, checked: sp.clearAfter === c.ms, separated: c === CLEAR_AFTER[0], run: () => setSpaces((s) => ({ ...s, clearAfter: c.ms })) }))];
   // Back from History, the keyboard is on the tab showing.
   const closeHistory = () => { setShowHistory(false); afterPaint(() => document.querySelector<HTMLElement>('.tab[aria-current="page"] .tab-main, .tab .tab-main')?.focus()); };
   if (showHistory) return <AppSidebar label="Tabs"><HistoryList tabs={tabs} onClose={closeHistory} /></AppSidebar>;
@@ -378,12 +434,23 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
           </ul>
         )}
         <div className="tab-lists" onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) drag.end(); }}>
-          {pinned.length > 0 && (
+          {(pinned.length > 0 || folders.length > 0) && (
             <section className="ui-side-section">
               <div className="side-head"><span className="side-title">Pinned</span></div>
-              <ul className="tabs tabs-pinned" role="list" aria-label="Pinned tabs">
-                <AnimatePresence initial={false}>{pinned.map(row)}</AnimatePresence>
-              </ul>
+              {folders.length > 0 && (
+                <ul className="tab-folders" role="list" aria-label="Folders">
+                  {folders.map((f) => (
+                    <FolderRow key={f.id} folder={f} tabs={pinned.filter((t) => folderOf(t) === f)} row={row} renaming={renamingFolder === f.id}
+                      onRenamed={(name) => { setSpaces((s) => (name.trim() ? renameFolder(s, f.id, name) : s)); setRenamingFolder(null); }}
+                      onMenu={(x, y) => setFolderMenu({ id: f.id, x, y })} />
+                  ))}
+                </ul>
+              )}
+              {loose.length > 0 && (
+                <ul className="tabs tabs-pinned" role="list" aria-label="Pinned tabs">
+                  <AnimatePresence initial={false}>{loose.map(row)}</AnimatePresence>
+                </ul>
+              )}
             </section>
           )}
           <section className="ui-side-section">
@@ -468,7 +535,12 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
             <DownloadsButton entries={downloads} />
           </div>
         </div>
-        {menu && menuTab && <TabMenu tab={menuTab} x={menu.x} y={menu.y} tabs={mine} spaces={sp} pinnedPages={pinnedPages} onPinPage={onPinPage} onClose={closeMenu} />}
+        {menu && menuTab && <TabMenu tab={menuTab} x={menu.x} y={menu.y} tabs={mine} spaces={sp} pinnedPages={pinnedPages} onPinPage={onPinPage} onNewFolder={newFolder} onClose={closeMenu} />}
+        {folderMenu && createPortal(
+          <ContextMenu x={folderMenu.x} y={folderMenu.y} label="Folder" onClose={() => setFolderMenu(null)} items={[
+            { label: 'Rename folder…', run: () => setRenamingFolder(folderMenu.id) },
+            { label: 'Delete folder', run: () => setSpaces((s) => removeFolder(s, folderMenu.id)) },
+          ]} />, document.body)}
       </div>
     </AppSidebar>
   );

@@ -138,3 +138,26 @@ test('split view shows two tabs side by side from the tab menu; the divider move
   await expect(shell().locator('.tab[data-split="true"]')).toHaveCount(0);
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
 });
+
+test('a pinned folder holds tabs, opens and closes in place, and keeps its tabs pinned when deleted', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
+  await openIn('/second');
+  await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+  await shell().locator('.tab', { hasText: 'Second page' }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'New folder with tab' }).click();
+  const name = shell().getByRole('textbox', { name: 'Folder name' });
+  await name.fill('Reading');
+  await name.press('Enter');
+  const folder = shell().getByRole('button', { name: /^Reading/ });
+  await expect(folder).toHaveAttribute('aria-expanded', 'true');
+  await expect(shell().getByRole('list', { name: 'Reading tabs' }).locator('.tab-title')).toHaveText(['Second page']);
+  // Closed, a folder still shows the tab you are on, as Arc's; on another tab it hides its own.
+  await folder.click();
+  await expect(folder).toHaveAttribute('aria-expanded', 'false');
+  await expect(shell().getByRole('list', { name: 'Reading tabs' }).locator('.tab-title')).toHaveText(['Second page']);
+  await shell().getByRole('list', { name: 'Open tabs' }).locator('.tab-main').first().click();
+  await expect(shell().getByRole('list', { name: 'Reading tabs' })).toHaveCount(0);
+  await folder.click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Delete folder' }).click();
+  await expect(shell().getByRole('list', { name: 'Folders' })).toHaveCount(0);
+  await expect(shell().getByRole('list', { name: 'Pinned tabs' }).locator('.tab-title')).toHaveText(['Second page']);
+});

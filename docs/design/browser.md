@@ -40,6 +40,14 @@ goes back to half on a double click; the share is kept across restarts. Both row
 split ends when either page closes or a tab outside it is chosen. The shell places both native pages
 (`browser.showBeside`, `surface.setBesideBounds`).
 
+## Folders of pinned tabs (round 2)
+
+As Arc's Folders (resources.arc.net, "Folders"): pinned tabs can be kept in folders, per space. A tab's menu has
+**New folder with tab** (named in place), **Add to <folder>** and **Remove from folder**; Tabs options has **New
+folder**. A tab put in a folder is pinned, and unpinning one takes it out. A folder opens and closes in place with its
+count beside the name; closed, it still shows the tab you are on, as Arc's does. Right-click a folder to rename or
+delete it; deleting keeps its tabs pinned. A search shows the tabs without folders.
+
 ## Later
 
 - Separate sign-ins per space.

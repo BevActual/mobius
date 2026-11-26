@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrowserTabState } from '@mobius/shared';
-import { addSpace, favouriteTab, inSpace, initialSpaces, readSpaces, removeSpace, staleTabs, syncSpaces, tabToShow, toggleFavourite } from './browser-spaces';
+import { addFolder, addSpace, favouriteTab, foldersIn, putInFolder, removeFolder, renameFolder, toggleFolder, inSpace, initialSpaces, readSpaces, removeSpace, staleTabs, syncSpaces, tabToShow, toggleFavourite } from './browser-spaces';
 
 const tab = (id: string, url: string, extra: Partial<BrowserTabState> = {}): BrowserTabState => ({ id, url, title: id, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra });
 const HOUR = 3_600_000;
@@ -70,5 +70,26 @@ describe('browser spaces', () => {
   it('reads back what was saved, and starts afresh from anything broken', () => {
     expect(readSpaces('not json')).toEqual(initialSpaces());
     expect(readSpaces(JSON.stringify({ spaces: [{ id: 'x', name: 'X' }], current: 'gone' })).current).toBe('x');
+  });
+
+  it('keeps pinned tabs in folders per space; a closed tab leaves its folder, and a deleted folder leaves its tabs pinned', () => {
+    const tabs = [tab('a', 'https://a.example', { pinned: true, active: true }), tab('b', 'https://b.example', { pinned: true })];
+    let s = syncSpaces(initialSpaces(), tabs, 0);
+    s = addFolder(s, ' Work ', ['a']);
+    const id = s.folders![0]!.id;
+    expect(s.folders).toEqual([{ id, name: 'Work', space: 's1', open: true }]);
+    s = renameFolder(toggleFolder(putInFolder(s, 'b', id), id), id, 'Reading');
+    expect(foldersIn(s)).toEqual([{ id, name: 'Reading', space: 's1', open: false }]);
+    expect(s.tabFolder).toEqual({ a: id, b: id });
+    s = syncSpaces(s, [tabs[0]!], 1);
+    expect(s.tabFolder).toEqual({ a: id });
+    expect(foldersIn(addSpace(s, 'Other'))).toEqual([]);
+    expect(putInFolder(s, 'a', null).tabFolder).toEqual({});
+    s = removeFolder(s, id);
+    expect(s.folders).toEqual([]);
+    expect(s.tabFolder).toEqual({});
+    const back = readSpaces(JSON.stringify(addFolder(s, 'Kept', ['a'])));
+    expect(back.folders?.[0]?.name).toBe('Kept');
+    expect(back.tabFolder).toEqual({ a: back.folders?.[0]?.id });
   });
 });

@@ -9,6 +9,8 @@ import type { BrowserTabState } from '@mobius/shared';
 
 export interface Space { id: string; name: string }
 export interface Favourite { url: string; title: string }
+/** A folder of pinned tabs in one space, as Arc's Folders: opens and closes in place. */
+export interface Folder { id: string; name: string; space: string; open: boolean }
 export interface SpacesState {
   spaces: Space[];
   current: string;
@@ -21,6 +23,10 @@ export interface SpacesState {
   last?: Record<string, string>;
   /** How long a Today tab may go unseen before it is closed; null: never. */
   clearAfter: number | null;
+  /** Folders of pinned tabs, in the order made. */
+  folders?: Folder[];
+  /** Tab id → folder id, for pinned tabs kept in a folder. */
+  tabFolder?: Record<string, string>;
 }
 
 const HOUR = 3_600_000;
@@ -50,6 +56,8 @@ export function readSpaces(raw: string | null): SpacesState {
       ...(v.last && typeof v.last === 'object' ? { last: v.last } : {}),
       favourites: Array.isArray(v.favourites) ? v.favourites.filter((f) => f && typeof f.url === 'string').slice(0, MAX_FAVOURITES) : [],
       clearAfter: v.clearAfter === null || typeof v.clearAfter === 'number' ? v.clearAfter : start.clearAfter,
+      ...(Array.isArray(v.folders) ? { folders: v.folders.filter((f) => f && typeof f.id === 'string' && typeof f.name === 'string').map((f) => ({ ...f, space: spaces.some((sp) => sp.id === f.space) ? f.space : current, open: f.open !== false })) } : {}),
+      ...(v.tabFolder && typeof v.tabFolder === 'object' ? { tabFolder: v.tabFolder } : {}),
     };
   } catch { return start; }
 }
@@ -71,8 +79,10 @@ export function syncSpaces(s: SpacesState, tabs: readonly BrowserTabState[], now
   const active = tabs.find((t) => t.active);
   const current = active ? tabSpace[active.id]! : s.current;
   const last = active && s.last?.[current] !== active.id ? { ...s.last, [current]: active.id } : s.last;
-  const same = last === s.last && current === s.current && Object.keys(s.tabSpace).length === ids.size && tabs.every((t) => s.tabSpace[t.id] === tabSpace[t.id] && s.seen[t.id] === seen[t.id]);
-  return same ? s : { ...s, current, tabSpace, seen, ...(last ? { last } : {}) };
+  // A closed tab leaves its folder (an unpinned one is taken out where it is unpinned).
+  const keptFolder = s.tabFolder && Object.keys(s.tabFolder).some((id) => !ids.has(id)) ? Object.fromEntries(Object.entries(s.tabFolder).filter(([id]) => ids.has(id))) : s.tabFolder;
+  const same = last === s.last && current === s.current && keptFolder === s.tabFolder && Object.keys(s.tabSpace).length === ids.size && tabs.every((t) => s.tabSpace[t.id] === tabSpace[t.id] && s.seen[t.id] === seen[t.id]);
+  return same ? s : { ...s, current, tabSpace, seen, ...(last ? { last } : {}), ...(keptFolder ? { tabFolder: keptFolder } : {}) };
 }
 
 export const inSpace = (s: SpacesState, tabs: readonly BrowserTabState[], space = s.current) => tabs.filter((t) => (s.tabSpace[t.id] ?? s.current) === space);
@@ -103,9 +113,31 @@ export function removeSpace(s: SpacesState, id: string): SpacesState {
   if (spaces.length === 0 || spaces.length === s.spaces.length) return s;
   const to = spaces[0]!.id;
   const tabSpace = Object.fromEntries(Object.entries(s.tabSpace).map(([t, sp]) => [t, sp === id ? to : sp]));
-  return { ...s, spaces, tabSpace, current: s.current === id ? to : s.current };
+  const folders = s.folders?.map((f) => (f.space === id ? { ...f, space: to } : f));
+  return { ...s, spaces, tabSpace, current: s.current === id ? to : s.current, ...(folders ? { folders } : {}) };
 }
 export const moveTab = (s: SpacesState, tabId: string, space: string): SpacesState => ({ ...s, tabSpace: { ...s.tabSpace, [tabId]: space } });
+
+/** The folders of a space, in the order made. */
+export const foldersIn = (s: SpacesState, space = s.current) => (s.folders ?? []).filter((f) => f.space === space);
+/** A new folder in the current space, open, holding `tabIds` (pinned tabs; the caller pins any that are not). */
+export function addFolder(s: SpacesState, name: string, tabIds: readonly string[] = []): SpacesState {
+  const id = `f${Date.now().toString(36)}${(made++).toString(36)}`;
+  const folder: Folder = { id, name: name.trim() || 'New folder', space: s.current, open: true };
+  return { ...s, folders: [...(s.folders ?? []), folder], tabFolder: { ...s.tabFolder, ...Object.fromEntries(tabIds.map((t) => [t, id])) } };
+}
+export const renameFolder = (s: SpacesState, id: string, name: string): SpacesState => (name.trim() ? { ...s, folders: (s.folders ?? []).map((f) => (f.id === id ? { ...f, name: name.trim() } : f)) } : s);
+export const toggleFolder = (s: SpacesState, id: string, open?: boolean): SpacesState => ({ ...s, folders: (s.folders ?? []).map((f) => (f.id === id ? { ...f, open: open ?? !f.open } : f)) });
+/** A folder removed; its tabs stay pinned, out of any folder. */
+export function removeFolder(s: SpacesState, id: string): SpacesState {
+  return { ...s, folders: (s.folders ?? []).filter((f) => f.id !== id), tabFolder: Object.fromEntries(Object.entries(s.tabFolder ?? {}).filter(([, f]) => f !== id)) };
+}
+/** A tab put in a folder, or taken out of its folder (null). */
+export function putInFolder(s: SpacesState, tabId: string, folder: string | null): SpacesState {
+  const tabFolder = { ...s.tabFolder };
+  if (folder === null) delete tabFolder[tabId]; else tabFolder[tabId] = folder;
+  return { ...s, tabFolder };
+}
 
 const bare = (url: string) => url.replace(/^https?:\/\/(www\.)?/, '').replace(/[#?].*$/, '').replace(/\/$/, '');
 export const isFavourite = (s: SpacesState, url: string) => s.favourites.some((f) => bare(f.url) === bare(url));
