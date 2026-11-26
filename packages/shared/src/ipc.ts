@@ -885,6 +885,10 @@ export interface MobiusBridge {
     setRule(id: string, app: string, level: ProjectLevel | 'follow'): Promise<ProjectInfo | NotesFailure>;
     /** Its status, target day or task list. */
     setDetails?(id: string, details: ProjectDetails): Promise<ProjectInfo | NotesFailure>;
+    /** Post an update (its health and words, with the tasks done of all just then); edit or delete one. */
+    addUpdate?(id: string, update: ProjectUpdateText): Promise<ProjectInfo | NotesFailure>;
+    editUpdate?(id: string, update: string, text: ProjectUpdateText): Promise<ProjectInfo | NotesFailure>;
+    removeUpdate?(id: string, update: string): Promise<ProjectInfo | NotesFailure>;
     addThread(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
     /** A thread leaves the project, with the side threads asked from it; the conversation is kept. */
     removeThread?(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
@@ -2212,7 +2216,13 @@ export type ProjectLevel = 'ask' | 'propose' | 'act';
 /** A project: its name, its rules by app, and its conversations (threads). */
 /** Where a project stands, as Linear's project statuses. */
 export type ProjectStatus = 'backlog' | 'planned' | 'started' | 'paused' | 'completed' | 'canceled';
-export interface ProjectInfo { id: string; name: string; rules: Partial<Record<string, ProjectLevel>>; threads: string[]; sides?: ProjectSide[]; status?: ProjectStatus; /** The day it should be done by (YYYY-MM-DD). */ target?: string; /** The Tasks list holding its work, for its progress. */ list?: string }
+export interface ProjectInfo { id: string; name: string; rules: Partial<Record<string, ProjectLevel>>; threads: string[]; sides?: ProjectSide[]; status?: ProjectStatus; /** The day it should be done by (YYYY-MM-DD). */ target?: string; /** The Tasks list holding its work, for its progress. */ list?: string; /** Its updates, oldest first. */ updates?: ProjectUpdate[] }
+/** How a project is going, as Linear's project health. */
+export type ProjectHealth = 'on_track' | 'at_risk' | 'off_track';
+/** A project update, with where the project stood when it was posted (its status, target day and tasks done of all). */
+export interface ProjectUpdate { id: string; at: number; health: ProjectHealth; text: string; edited?: number; status?: ProjectStatus; target?: string; done?: number; total?: number }
+/** An update being posted or changed. */
+export interface ProjectUpdateText { health: ProjectHealth; text: string; done?: number; total?: number }
 /** A change to a project's status, target or task list: an absent field stays, an empty string clears it. */
 export interface ProjectDetails { status?: ProjectStatus | ''; target?: string; list?: string }
 /** A bot asked from a project thread to do something in a side thread of its own, and what it reported back. */

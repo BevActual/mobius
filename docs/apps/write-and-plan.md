@@ -238,6 +238,11 @@ A place for one piece of work.
   Planned, In progress, Paused, Completed or Canceled), its target day (red once it has passed while still open), and
   link a Tasks list to see how far it has come ("3 of 8 done", with a bar). A project's status mark shows in the
   Projects panel.
+- **Updates**, as Linear's project updates: **Write an update** says how the work is going (On track, At risk or Off
+  track) and what moved. What changed since the last update (status, target day, progress) is added by itself.
+  **Write with Mobius** drafts one from where the project stands and its threads, dashed until you keep it; Mobius
+  never posts. The latest update's health shows beside the project's status, and work in progress is due an update
+  each week.
 - **Rules**: how much Mobius may do in each app inside the project (Ask each time, Review changes or Auto). Paying,
   sending, deleting and running commands always ask, whatever a project says.
 - **Threads**: the project's conversations. Move an existing conversation in and the project's rules apply to it.

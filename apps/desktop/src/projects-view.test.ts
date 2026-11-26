@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConversationInfo, ProjectInfo } from '@mobius/shared';
-import { groupByStatus, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine } from './projects-view';
+import { groupByStatus, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine, changesSince, draftAsk, parseDraft, updateDue, UPDATE_EVERY_MS } from './projects-view';
 
 const NOW = Date.UTC(2026, 10, 12, 12, 0);
 const MIN = 60_000;
@@ -58,5 +58,37 @@ describe('the Projects panel', () => {
     expect(groupByStatus(plain)).toEqual([{ title: 'Projects', projects: [{ id: 'a' }, { id: 'b' }] }]);
     const got = groupByStatus([{ id: 'a', status: 'completed' as const }, { id: 'b' }, { id: 'c', status: 'started' as const }, { id: 'd', status: 'planned' as const }]);
     expect(got.map((g) => [g.title, g.projects.map((p) => p.id)])).toEqual([['In progress', ['c']], ['Planned', ['d']], ['No status', ['b']], ['Completed', ['a']]]);
+  });
+});
+
+describe('project updates', () => {
+  const now = new Date(2026, 10, 26, 15, 0);
+  it('say what changed since the last one, with progress only when it moved by more than 2 points', () => {
+    expect(changesSince(undefined, { status: 'started' }, now)).toEqual([]);
+    expect(changesSince({ status: 'planned', target: '2026-12-04', done: 2, total: 8 }, { status: 'started', target: '2026-12-11', done: 3, total: 8 }, now))
+      .toEqual(['Status: Planned → In progress', 'Target day: Dec 4 → Dec 11', 'Progress: 25% → 38% (3 of 8 done)']);
+    expect(changesSince({ status: 'started', done: 50, total: 100 }, { status: 'started', done: 52, total: 100 }, now)).toEqual([]);
+    expect(changesSince({ target: '2026-12-04' }, {}, now)).toEqual(['Target day removed']);
+    expect(changesSince({}, { target: '2026-12-04' }, now)).toEqual(['Target day set to Dec 4']);
+  });
+  it('are due a week after the last, only for work in progress', () => {
+    const t = now.getTime();
+    expect(updateDue({ status: 'started' }, t)).toBe(true);
+    expect(updateDue({ status: 'planned' }, t)).toBe(false);
+    expect(updateDue({ status: 'started', updates: [{ id: 'u', at: t - 2 * 86_400_000, health: 'on_track', text: 'x' }] }, t)).toBe(false);
+    expect(updateDue({ status: 'started', updates: [{ id: 'u', at: t - UPDATE_EVERY_MS - 1, health: 'on_track', text: 'x' }] }, t)).toBe(true);
+  });
+  it('take their health from the first line of a draft', () => {
+    expect(parseDraft('At risk\nCatering is late.')).toEqual({ health: 'at_risk', text: 'Catering is late.' });
+    expect(parseDraft('**Health: On track.**\n\n- Venue booked')).toEqual({ health: 'on_track', text: '- Venue booked' });
+    expect(parseDraft('Venue booked.')).toEqual({ health: null, text: 'Venue booked.' });
+  });
+  it('ask Mobius with where the project stands and the last update', () => {
+    const ask = draftAsk({ id: 'p', name: 'Offsite', rules: {}, threads: [], status: 'started', updates: [{ id: 'u', at: 0, health: 'at_risk', text: 'Catering late.' }] },
+      { changes: ['Status: Planned → In progress'], threads: ['Book the venue'], reports: [], progress: '3 of 8 done', target: 'Dec 4' });
+    expect(ask).toContain('"Offsite"');
+    expect(ask).toContain('Status: In progress.');
+    expect(ask).toContain('Since the last update: Status: Planned → In progress.');
+    expect(ask).toContain('The last update (At risk): Catering late.');
   });
 });

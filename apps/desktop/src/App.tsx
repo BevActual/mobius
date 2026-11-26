@@ -1850,6 +1850,7 @@ export function App() {
             projects={projects}
             conversations={conversation.list}
             incoming={wikiIncoming}
+            onForget={(id) => void conversation.remove(id)}
             onOpenThread={(id) => { conversation.select(id); openApp('agent'); }}
             onNewThread={(pid) => { const id = conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()); void projects.addThread(pid, id).then((ok) => { if (ok) { conversation.select(id); openApp('agent'); } }); }}
             onOpenMemory={(p) => { setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(memoryPage(p), p.name); }}

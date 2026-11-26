@@ -37,6 +37,65 @@ pub struct Project {
     /// The Tasks list that holds its work; its open and done tasks give the project's progress.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub list: Option<String>,
+    /// Its updates, as Linear's project updates: how it is going (its health) and what to say, oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub updates: Vec<Update>,
+}
+
+/// A project update: its health (`on_track`, `at_risk` or `off_track`), what was said, and where the project stood
+/// then (status, target day, tasks done of all), so the next update can say what changed since.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Update {
+    pub id: String,
+    /// When it was posted, in ms since 1970.
+    pub at: u64,
+    pub health: String,
+    pub text: String,
+    /// When it was last changed, if it was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edited: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub done: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total: Option<u32>,
+}
+
+/// An update being posted or changed: its health and words, and (when posted) the tasks done of all just then.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct UpdateText {
+    pub health: String,
+    pub text: String,
+    #[serde(default)]
+    pub done: Option<u32>,
+    #[serde(default)]
+    pub total: Option<u32>,
+}
+
+pub const HEALTHS: [&str; 3] = ["on_track", "at_risk", "off_track"];
+const MAX_UPDATES: usize = 100;
+const MAX_UPDATE_CHARS: usize = 8000;
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+}
+
+fn checked(u: &UpdateText) -> Result<String, String> {
+    if !HEALTHS.contains(&u.health.as_str()) {
+        return Err("An update's health is On track, At risk or Off track.".into());
+    }
+    let text = u.text.trim();
+    if text.is_empty() {
+        return Err("An update needs a few words.".into());
+    }
+    if text.chars().count() > MAX_UPDATE_CHARS {
+        return Err("That update is too long.".into());
+    }
+    Ok(text.to_owned())
 }
 
 /// A change to a project's status, target day or task list. An absent field stays; an empty one is cleared.
@@ -126,7 +185,7 @@ impl Projects {
             }
             let mut bytes = [0u8; 4];
             let _ = getrandom::fill(&mut bytes);
-            let project = Project { id: format!("p{}", bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()), name, rules: BTreeMap::new(), threads: Vec::new(), sides: Vec::new(), status: None, target: None, list: None };
+            let project = Project { id: format!("p{}", bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()), name, rules: BTreeMap::new(), threads: Vec::new(), sides: Vec::new(), status: None, target: None, list: None, updates: Vec::new() };
             all.push(project.clone());
             Ok(project)
         })
@@ -195,6 +254,52 @@ impl Projects {
             if let Some(v) = set(d.status.as_deref()) { p.status = v; }
             if let Some(v) = set(d.target.as_deref()) { p.target = v; }
             if let Some(v) = set(list.as_deref()) { p.list = v; }
+            Ok(p.clone())
+        })
+    }
+
+    /// Post an update. Where the project stands now (its status and target day, with the tasks done given) is kept with it.
+    pub fn add_update(&self, id: &str, u: &UpdateText) -> Result<Project, String> {
+        let text = checked(u)?;
+        self.change(|all| {
+            let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;
+            let mut bytes = [0u8; 4];
+            let _ = getrandom::fill(&mut bytes);
+            let total = u.total.filter(|t| *t > 0);
+            p.updates.push(Update {
+                id: format!("u{}", bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()),
+                at: now_ms(), health: u.health.clone(), text, edited: None,
+                status: p.status.clone(), target: p.target.clone(), done: total.and(u.done.map(|d| d.min(total.unwrap_or(0)))), total,
+            });
+            if p.updates.len() > MAX_UPDATES {
+                let extra = p.updates.len() - MAX_UPDATES;
+                p.updates.drain(..extra);
+            }
+            Ok(p.clone())
+        })
+    }
+
+    /// Change an update's health or words; where the project stood when it was posted stays.
+    pub fn edit_update(&self, id: &str, update: &str, u: &UpdateText) -> Result<Project, String> {
+        let text = checked(u)?;
+        self.change(|all| {
+            let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;
+            let up = p.updates.iter_mut().find(|x| x.id == update).ok_or("That update is not there.")?;
+            up.health.clone_from(&u.health);
+            up.text = text;
+            up.edited = Some(now_ms());
+            Ok(p.clone())
+        })
+    }
+
+    pub fn remove_update(&self, id: &str, update: &str) -> Result<Project, String> {
+        self.change(|all| {
+            let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;
+            let before = p.updates.len();
+            p.updates.retain(|x| x.id != update);
+            if p.updates.len() == before {
+                return Err("That update is not there.".into());
+            }
             Ok(p.clone())
         })
     }
@@ -317,6 +422,29 @@ mod tests {
         assert!(p.set_details(&id, &d(None, Some("next week"), None)).is_err());
         assert!(p.set_details(&id, &d(None, None, Some("a/b"))).is_err());
         assert_eq!(p.list()[0].status.as_deref(), Some("paused"), "kept on disk");
+    }
+
+    #[test]
+    fn a_project_keeps_its_updates_with_where_it_stood() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = Projects::new(dir.path().join("projects.json"));
+        let id = p.create("Offsite").unwrap().id;
+        p.set_details(&id, &Details { status: Some("started".into()), target: Some("2026-12-04".into()), list: None }).unwrap();
+        let u = |health: &str, text: &str| UpdateText { health: health.into(), text: text.into(), done: Some(3), total: Some(8) };
+        let got = p.add_update(&id, &u("on_track", "  Venue booked. ")).unwrap();
+        let first = &got.updates[0];
+        assert_eq!((first.health.as_str(), first.text.as_str(), first.status.as_deref(), first.target.as_deref(), first.done, first.total), ("on_track", "Venue booked.", Some("started"), Some("2026-12-04"), Some(3), Some(8)));
+        assert!(first.at > 0 && first.edited.is_none());
+        let uid = first.id.clone();
+        let got = p.edit_update(&id, &uid, &u("at_risk", "Venue booked; catering late.")).unwrap();
+        assert_eq!((got.updates[0].health.as_str(), got.updates[0].text.as_str(), got.updates[0].done), ("at_risk", "Venue booked; catering late.", Some(3)));
+        assert!(got.updates[0].edited.is_some());
+        assert!(p.add_update(&id, &u("fine", "x")).is_err(), "only the three healths");
+        assert!(p.add_update(&id, &u("on_track", "  ")).is_err(), "an update needs words");
+        assert!(p.add_update("nope", &u("on_track", "x")).is_err());
+        assert_eq!(p.list()[0].updates.len(), 1, "kept on disk");
+        assert!(p.remove_update(&id, &uid).unwrap().updates.is_empty());
+        assert!(p.remove_update(&id, &uid).is_err());
     }
 
     #[test]
