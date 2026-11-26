@@ -141,6 +141,13 @@ import { clipToNotes } from './clip';
 import { loadPanes, savePanes, loadByMobius, saveByMobius, leavesSplit, companionFor, followPane, loadShare, saveShare } from './split';
 import { TRY_ANOTHER_ASK, TryAnotherContext, TurnRunningContext } from './ReviewBar';
 
+/** Focuses a task's row once its list shows (opened from Ctrl+K), trying for a moment while the list renders. */
+function focusTaskRow(text: string, tries = 20): void {
+  const row = document.querySelector<HTMLElement>(`.tasks-page .task-line[aria-label="${CSS.escape(text)}"]`);
+  if (row) { row.focus(); row.scrollIntoView({ block: 'nearest' }); return; }
+  if (tries > 0) window.setTimeout(() => focusTaskRow(text, tries - 1), 50);
+}
+
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
 
 const NOTICES: Record<string, string> = {
@@ -1030,7 +1037,7 @@ export function App() {
     else if (target.app === 'slides') { openApp('slides'); void slides.open(target.path, target.title); }
     else if (target.app === 'sheets') { openApp('sheets'); void sheets.open(target.workbook, target.sheet); }
     else if (target.app === 'mail') { openApp('mail'); mail.setView({ kind: 'box', box: target.id.split('/')[1] === 'sent' ? 'sent' : 'inbox', category: 'all' }); void mail.read(target.id); }
-    else if (target.app === 'tasks') { tasks.setView({ kind: 'list', name: target.list }); openApp('tasks'); }
+    else if (target.app === 'tasks') { tasks.setView({ kind: 'list', name: target.list }); openApp('tasks'); if (target.task) focusTaskRow(target.task); }
     else if (target.app === 'design') { openApp('design'); void designs.open(target.path, target.title); }
     else if (target.app === 'canvas') { openApp('canvas'); void boards.open(target.path, target.title); }
     else if (target.app === 'database') { openApp('database'); void databases.choose(target.name); }

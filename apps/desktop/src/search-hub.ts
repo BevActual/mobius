@@ -11,7 +11,7 @@ export type HubTarget =
   | { app: 'slides'; path: string; title: string }
   | { app: 'sheets'; workbook: string; sheet: string }
   | { app: 'mail'; id: string }
-  | { app: 'tasks'; list: string }
+  | { app: 'tasks'; list: string; /** The task's words, to focus it once the list shows. */ task?: string }
   | { app: 'design'; path: string; title: string }
   | { app: 'canvas'; path: string; title: string }
   | { app: 'research'; path: string; title: string }
@@ -152,7 +152,7 @@ export function hubResults(sources: HubSources, query: string, filter: HubFilter
     for (const [list, items] of Object.entries(sources.tasks)) {
       for (const t of items) {
         if (searching ? !matches(t.text, ws) : t.done) continue;
-        out.push({ key: `t:${list}:${t.line}`, kind: 'task', title: t.text, where: within('Tasks', list), when: null, due: t.due, done: t.done, target: { app: 'tasks', list } });
+        out.push({ key: `t:${list}:${t.line}`, kind: 'task', title: t.text, where: within('Tasks', list), when: null, due: t.due, done: t.done, target: { app: 'tasks', list, task: t.text } });
       }
     }
   }

@@ -45,6 +45,14 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await expect(nav().getByRole('button')).toHaveCount(2);
 }
 
+test('Ctrl+K on words inside a deck opens it at the slide that has them', async () => {
+  await start();
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('laptops');
+  await shell().getByRole('option', { name: /Offsite kickoff.*laptops/ }).click();
+  await expect(nav().getByRole('button', { name: /^Slide 2: Plan next year/ })).toHaveAttribute('aria-current', 'true');
+});
+
 test('a deck is a Markdown file of slides, edited on the slide and played full screen', async () => {
   await start();
   await nav().getByRole('button', { name: /^Slide 2: Plan next year/ }).click();

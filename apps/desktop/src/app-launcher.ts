@@ -4,6 +4,7 @@ import { useLauncherSource } from './launcher-sources';
 import { pagesFound, type HubTarget } from './search-hub';
 import { parseWhen, parseWhenAndTime, timeWords, type SmartView } from './tasks-view';
 import { parseEventWords } from './calendar-view';
+import { showSlideWith } from './slides-view';
 
 /**
  * What the everyday apps add to the launcher (docs/design/launcher.md, "How apps take part"): what the launcher can't
@@ -145,7 +146,7 @@ function wordsInside(app: 'notes' | 'docs' | 'slides', d: Daily) {
       if (!api || !(await after(signal, 150))) return [];
       const hits = await api.search(query).catch(() => []);
       if (isNotesFailure(hits)) return [];
-      return bodyHits(hits, query).map((h) => ({ id: `text:${h.path}`, app, label: h.title, detail: `${app === 'notes' ? 'Notes' : app === 'docs' ? 'Docs' : 'Slides'}, says “${h.line.trim().slice(0, 60)}”`, run: () => d.openTarget({ app, path: h.path, title: h.title }, h.title) }));
+      return bodyHits(hits, query).map((h) => ({ id: `text:${h.path}`, app, label: h.title, detail: `${app === 'notes' ? 'Notes' : app === 'docs' ? 'Docs' : 'Slides'}, says “${h.line.trim().slice(0, 60)}”`, run: () => { if (app === 'slides') showSlideWith(h.path, h.line); d.openTarget({ app, path: h.path, title: h.title }, h.title); } }));
     },
   };
 }
