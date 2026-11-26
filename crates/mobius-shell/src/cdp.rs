@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tauri::{Webview, Wry};
 use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_DOWNLOAD_STATE, COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED, COREWEBVIEW2_DOWNLOAD_STATE_IN_PROGRESS, ICoreWebView2DownloadOperation, ICoreWebView2Settings3, ICoreWebView2Settings8, ICoreWebView2_4, ICoreWebView2_8, COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN, COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
-use webview2_com::{AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, FocusChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, ZoomFactorChangedEventHandler, NavigationStartingEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
+use webview2_com::{AddScriptToExecuteOnDocumentCreatedCompletedHandler, ExecuteScriptCompletedHandler, WebMessageReceivedEventHandler, AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, FocusChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, ZoomFactorChangedEventHandler, NavigationStartingEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
 use windows::core::{Interface, PWSTR};
 use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW, COREWEBVIEW2_PERMISSION_STATE_DENY};
@@ -256,6 +256,67 @@ pub fn watch_navigation(webview: &Webview<Wry>, on_move: Arc<dyn Fn(String, bool
             }));
             let mut token = 0i64;
             let _ = core.add_NavigationStarting(&handler, &mut token);
+        }
+    });
+}
+
+/// Runs `script` at the start of every document the page loads from now on, before the page's own scripts;
+/// `on_added` gets the id that takes it away again (`remove_document_script`).
+pub fn add_document_script(webview: &Webview<Wry>, script: String, on_added: Box<dyn FnOnce(String) + Send>) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            let Ok(core) = platform.controller().CoreWebView2() else { return };
+            let handler = AddScriptToExecuteOnDocumentCreatedCompletedHandler::create(Box::new(move |result, id| {
+                if result.is_ok() {
+                    on_added(id);
+                }
+                Ok(())
+            }));
+            let _ = core.AddScriptToExecuteOnDocumentCreated(&HSTRING::from(script), &handler);
+        }
+    });
+}
+
+pub fn remove_document_script(webview: &Webview<Wry>, id: String) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            if let Ok(core) = platform.controller().CoreWebView2() {
+                let _ = core.RemoveScriptToExecuteOnDocumentCreated(&HSTRING::from(id));
+            }
+        }
+    });
+}
+
+/// Runs `script` once in the document the page shows now, and does not wait for it.
+pub fn run_script(webview: &Webview<Wry>, script: String) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            if let Ok(core) = platform.controller().CoreWebView2() {
+                let handler = ExecuteScriptCompletedHandler::create(Box::new(|_, _| Ok(())));
+                let _ = core.ExecuteScript(&HSTRING::from(script), &handler);
+            }
+        }
+    });
+}
+
+/// Calls `on_message` with the JSON of each message the page's top document posts (`chrome.webview.postMessage`).
+pub fn watch_messages(webview: &Webview<Wry>, on_message: Arc<dyn Fn(String) + Send + Sync>) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            let Ok(core) = platform.controller().CoreWebView2() else { return };
+            let handler = WebMessageReceivedEventHandler::create(Box::new(move |_, args| {
+                let Some(args) = args else { return Ok(()) };
+                let mut json = PWSTR::null();
+                args.WebMessageAsJson(&mut json)?;
+                on_message(take_pwstr(json));
+                Ok(())
+            }));
+            let mut token = 0i64;
+            let _ = core.add_WebMessageReceived(&handler, &mut token);
         }
     });
 }

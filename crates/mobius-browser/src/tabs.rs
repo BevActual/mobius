@@ -232,6 +232,7 @@ impl Browser {
             let front = s.tabs.iter().take_while(|t| t.pinned).count();
             s.tabs.insert(front, tab);
         }
+        self.engine.set_pinned(id, pinned);
         self.publish();
     }
 
@@ -626,6 +627,24 @@ impl Browser {
         host_of(&tab.url) != host_of(url)
     }
 
+    /// A link clicked in a pinned tab, caught by the page before it sent anything: one that leaves the tab's site opens
+    /// in a peek, and any other loads in the tab as the click would have.
+    pub fn link_clicked(&self, id: &str, url: &str) {
+        if !is_web_url(url) {
+            return;
+        }
+        let leaves = {
+            let s = lock(&self.state);
+            let Some(tab) = s.tabs.iter().find(|t| t.id == id) else { return };
+            tab.pinned && is_web_url(&tab.url) && host_of(&tab.url) != host_of(url)
+        };
+        if leaves {
+            self.peek(Some(url));
+        } else {
+            self.navigate(id, url);
+        }
+    }
+
     pub fn found(&self, id: &str, active: u64, matches: u64) {
         (self.notify)("mobius:browser-found", json!({ "tabId": id, "active": active, "matches": matches }));
     }
@@ -991,6 +1010,27 @@ mod tests {
         assert_eq!(b.state()["peek"], Value::Null);
         assert!(!engine.calls().contains(&"close tab-3".to_owned()), "the same page, not loaded again");
         assert_eq!(b.keep_peek(), None);
+    }
+
+    #[test]
+    fn a_caught_click_in_a_pinned_tab_peeks_without_the_tab_loading_anything() {
+        let (b, engine, _, _) = browser();
+        b.open(Some("mail.example"));
+        b.navigated("tab-1", "https://mail.example/inbox", false, false);
+        b.pin("tab-1", true);
+        assert!(engine.calls().contains(&"pin tab-1 true".to_owned()), "the page is told it is pinned");
+        // Still loading (a picture, say): a real click peeks all the same.
+        b.link_clicked("tab-1", "https://news.example/story");
+        assert_eq!(b.state()["peek"]["url"], json!("https://news.example/story"));
+        assert!(!engine.calls().iter().any(|c| c.starts_with("navigate tab-1")), "the tab sends nothing");
+        b.peek(None);
+        b.link_clicked("tab-1", "https://www.mail.example/sent");
+        assert_eq!(b.state()["peek"], Value::Null, "the same site loads in the tab");
+        assert!(engine.calls().contains(&"navigate tab-1 https://www.mail.example/sent".to_owned()));
+        b.link_clicked("tab-1", "javascript:alert(1)");
+        assert!(!engine.calls().iter().any(|c| c.contains("javascript")));
+        b.pin("tab-1", false);
+        assert!(engine.calls().contains(&"pin tab-1 false".to_owned()));
     }
 
     #[test]

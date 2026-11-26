@@ -31,6 +31,9 @@ pub trait Engine: Send + Sync {
     fn zoom_page(&self, tab: &str, factor: f64);
     /// Silence the page, or let it be heard again.
     fn mute(&self, tab: &str, muted: bool);
+    /// The tab was pinned or unpinned. An engine that can catch a link click in the page before it sends anything
+    /// tells the page here, and reports such clicks with `Browser::link_clicked`.
+    fn set_pinned(&self, _tab: &str, _pinned: bool) {}
 }
 
 #[cfg(any(test, feature = "fake"))]
@@ -111,6 +114,9 @@ pub mod fake {
         }
         fn mute(&self, tab: &str, muted: bool) {
             self.note(format!("mute {tab} {muted}"));
+        }
+        fn set_pinned(&self, tab: &str, pinned: bool) {
+            self.note(format!("pin {tab} {pinned}"));
         }
     }
 }

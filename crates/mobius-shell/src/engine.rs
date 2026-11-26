@@ -51,11 +51,22 @@ pub struct WebViewEngine {
     /// How much the window's own interface is zoomed: page areas are placed in the same units.
     zoom: Mutex<f64>,
     finds: Mutex<HashMap<String, String>>,
+    /// The scripts that tell pinned tabs' pages they are pinned, by tab.
+    #[cfg(windows)]
+    pinned: Arc<Mutex<PinScripts>>,
+}
+
+/// Which tabs are pinned, and the id of each one's "you are pinned" script once the page has taken it.
+#[cfg(windows)]
+#[derive(Default)]
+struct PinScripts {
+    wanted: std::collections::HashSet<String>,
+    ids: HashMap<String, String>,
 }
 
 impl WebViewEngine {
     pub fn new(window: Window<Wry>) -> Arc<WebViewEngine> {
-        Arc::new(WebViewEngine { window, browser: Arc::new(OnceLock::new()), pages: Arc::default(), downloads: Arc::new(OnceLock::new()), keys: Arc::new(OnceLock::new()), zoom: Mutex::new(1.0), finds: Mutex::default() })
+        Arc::new(WebViewEngine { window, browser: Arc::new(OnceLock::new()), pages: Arc::default(), downloads: Arc::new(OnceLock::new()), keys: Arc::new(OnceLock::new()), zoom: Mutex::new(1.0), finds: Mutex::default(), #[cfg(windows)] pinned: Arc::default() })
     }
 
     pub fn attach(&self, browser: &Arc<Browser>) {
@@ -258,6 +269,17 @@ impl Engine for WebViewEngine {
                             let _ = engine_cdp(&engine_pages, &tab, "Browser.setPermission", json!({ "permission": { "name": name }, "setting": "denied" }));
                         }
                     });
+                    // In a pinned tab a click on a link to another site is caught in the page before anything is sent,
+                    // and opens in a peek (the move below can only stop a request already on its way).
+                    crate::cdp::add_document_script(&webview, LINK_SCRIPT.to_owned(), Box::new(|_| {}));
+                    let (link_slot, link_id) = (self.browser.clone(), id.clone());
+                    crate::cdp::watch_messages(&webview, Arc::new(move |message: String| {
+                        let Some(url) = serde_json::from_str::<Value>(&message).ok().and_then(|m| m.get("mobiusLink")?.as_str().map(str::to_owned)) else { return };
+                        if let Some(b) = weak_browser(&link_slot) {
+                            let id = link_id.clone();
+                            in_order(move || b.link_clicked(&id, &url));
+                        }
+                    }));
                     // The page is moving: the tab learns where. A link clicked that leaves a pinned tab's site opens
                     // in a peek instead, and the tab stays where it is; a redirect or a script's move (no click) stays.
                     let (move_slot, move_id) = (self.browser.clone(), id.clone());
@@ -364,6 +386,46 @@ impl Engine for WebViewEngine {
             let _ = page.close();
         }
         lock(&self.finds).remove(tab);
+        #[cfg(windows)]
+        {
+            let mut pins = lock(&self.pinned);
+            pins.wanted.remove(tab);
+            pins.ids.remove(tab);
+        }
+    }
+
+    fn set_pinned(&self, tab: &str, pinned: bool) {
+        #[cfg(windows)]
+        if let Some(page) = self.page(tab) {
+            if pinned {
+                if lock(&self.pinned).wanted.insert(tab.to_owned()) {
+                    let (all, tab, later_page) = (self.pinned.clone(), tab.to_owned(), page.clone());
+                    crate::cdp::add_document_script(&page, PINNED_SCRIPT.to_owned(), Box::new(move |script| {
+                        let mut pins = lock(&all);
+                        // Unpinned (or closed) before the page took it: take it away again.
+                        if pins.wanted.contains(&tab) {
+                            pins.ids.insert(tab, script);
+                        } else {
+                            drop(pins);
+                            crate::cdp::remove_document_script(&later_page, script);
+                        }
+                    }));
+                }
+            } else {
+                let script = {
+                    let mut pins = lock(&self.pinned);
+                    pins.wanted.remove(tab);
+                    pins.ids.remove(tab)
+                };
+                if let Some(script) = script {
+                    crate::cdp::remove_document_script(&page, script);
+                }
+            }
+            // The document showing now learns it too.
+            crate::cdp::run_script(&page, format!("window.__mobiusPinned = {pinned};"));
+        }
+        #[cfg(not(windows))]
+        let _ = (tab, pinned);
     }
 
     fn zoom_page(&self, tab: &str, factor: f64) {
@@ -471,6 +533,33 @@ impl WebViewEngine {
 }
 
 /// Moves the selection to the next (or first) match of the text and counts the matches. Case does not matter.
+/// Tells a pinned tab's documents that they are pinned, for `LINK_SCRIPT`.
+#[cfg(windows)]
+const PINNED_SCRIPT: &str = "window.__mobiusPinned = true;";
+
+/// In every tab's top document: a plain click on a link to another site, which nothing else in the page handled,
+/// is not followed while the tab is pinned; the shell is told instead and opens it in a peek. It runs after the
+/// page's own click handlers, so a link the page handles itself stays the page's.
+#[cfg(windows)]
+const LINK_SCRIPT: &str = r#"(() => {
+  if (window.top !== window) return;
+  const site = (host) => host.toLowerCase().replace(/^www\./, '');
+  addEventListener('click', (e) => {
+    if (window.__mobiusPinned !== true || e.defaultPrevented || e.button !== 0) return;
+    if (e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
+    const a = e.target instanceof Element ? e.target.closest('a[href]') : null;
+    if (!a || a.hasAttribute('download')) return;
+    const target = a.getAttribute('target');
+    if (target && target.toLowerCase() !== '_self') return;
+    let to;
+    try { to = new URL(a.getAttribute('href'), document.baseURI); } catch { return; }
+    if (to.protocol !== 'https:' && to.protocol !== 'http:') return;
+    if (site(to.hostname) === site(location.hostname)) return;
+    e.preventDefault();
+    window.chrome.webview.postMessage({ mobiusLink: to.href });
+  });
+})();"#;
+
 const FIND_SCRIPT: &str = r#"((text, forward, again) => {
   const needle = text.toLowerCase();
   const nodes = [];
