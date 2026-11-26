@@ -96,6 +96,14 @@ test('a dock of panels slides back into its edge as it closes and out again as i
   await expect(dock).toHaveCount(0);
   await shell.keyboard.press('Control+\\');
   expect(await dockMotion(shell)).toEqual([{ props: ['marginRight', 'opacity', 'width'], duration: 200 }]);
+  // Going to Settings and back changes place: the dock goes and comes back with Notes, without sliding.
+  await expect.poll(() => dockMotion(shell)).toEqual([]);
+  const notesDock = '.ui-panels[data-app="notes"] .ui-dock[data-dock="left"]';
+  await openSettings(shell);
+  await expect(shell.locator(notesDock)).toHaveCount(0);
+  await shell.keyboard.press('Escape');
+  await expect(shell.locator(notesDock)).toBeVisible();
+  expect(await motionOn(shell, notesDock)).toEqual([]);
 });
 
 /** The animations on an element: their keyframes' properties and length. */

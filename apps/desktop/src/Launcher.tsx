@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Reorder } from 'motion/react';
 import { popOut } from './motion';
 import type { BrowserTabState } from '@mobius/shared';
@@ -329,7 +329,9 @@ export function Launcher({
   dragOrderRef.current = dragOrder;
   const dragged = useRef(false);
 
-  useEffect(() => {
+  // Before paint, so there is never a frame where it is closing but not yet marked as leaving: an app that waits for
+  // the launcher to go before taking the keys (a new document's editor) must see it leaving at once.
+  useLayoutEffect(() => {
     const element = dialog.current;
     if (!element || inline) return;
     // Still leaving from the last close: it stays, whole again, as if it never went.

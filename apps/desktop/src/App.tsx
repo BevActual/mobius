@@ -1340,7 +1340,7 @@ export function App() {
   const listFor = (id: AppId): readonly PanelSpec[] => (settingsOpen ? NO_PANELS : ownListPanels[id] ?? NO_PANELS);
   const withOwnList = (id: AppId, content: ReactNode): ReactNode => {
     const panels = ownListPanels[id];
-    return panels && !LIST_HANDED.includes(id) ? <PanelLayout app={id} panels={settingsOpen ? NO_PANELS : panels}>{content}</PanelLayout> : content;
+    return panels && !LIST_HANDED.includes(id) ? <PanelLayout app={id} panels={settingsOpen ? NO_PANELS : panels} away={settingsOpen}>{content}</PanelLayout> : content;
   };
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);

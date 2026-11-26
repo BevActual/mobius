@@ -142,7 +142,11 @@ export const PanelRegistryContext = Registry;
 
 const mac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 
-export function PanelLayout({ app, panels, children }: { app: string; panels: readonly PanelSpec[]; children: ReactNode }) {
+/**
+ * `away` is true while the app is put aside for another place (Settings over it): its docks then go and come back with
+ * that place, without sliding.
+ */
+export function PanelLayout({ app, panels, away = false, children }: { app: string; panels: readonly PanelSpec[]; away?: boolean; children: ReactNode }) {
   const [saved, setSaved] = useState<SavedLayout>(() => readLayout(app));
   // Another app's layout is read when the app changes; not again on mount, which would draw everything a second time.
   const readFor = useRef(app);
@@ -252,12 +256,14 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
     <Panel key={place.key} place={place} onHide={() => hide(place)} onChoose={choose} />
   ));
 
-  // Each dock slides out of its edge as it opens and back as it closes (dockIn, dockOut); switching app does not.
+  // Each dock slides out of its edge as it opens and back as it closes (dockIn, dockOut); switching app, or going to
+  // Settings and back, does not.
   const rightDock = useRef<HTMLDivElement>(null);
   const bottomDock = useRef<HTMLDivElement>(null);
-  const l = useDockMotion('left', left, leftSize, app, leftDock);
-  const b = useDockMotion('bottom', bottom, bottomSize, app, bottomDock);
-  const r = useDockMotion('right', right, rightSize, app, rightDock);
+  const place = away ? `${app}\u0000away` : app;
+  const l = useDockMotion('left', left, leftSize, place, leftDock);
+  const b = useDockMotion('bottom', bottom, bottomSize, place, bottomDock);
+  const r = useDockMotion('right', right, rightSize, place, rightDock);
   const leaving = (m: DockMotion) => (m.leaving ? { inert: true, 'aria-hidden': true } : {});
 
   return (
@@ -291,27 +297,27 @@ interface DockMotion { panels: PanelSpec[]; size: number; leaving: boolean }
 
 /**
  * What a dock draws: its shown panels, or, for the moment it takes to slide back into its edge, the ones just hidden.
- * Opening a dock slides it out. Neither happens when the app changes (the whole app settles in then) or when the
- * window is not shown.
+ * Opening a dock slides it out. Neither happens when the place changes (another app, or Settings over this one: the
+ * whole page settles in then) or when the window is not shown.
  */
-function useDockMotion(dock: PanelDock, shown: PanelSpec[], size: number, app: string, ref: RefObject<HTMLDivElement | null>): DockMotion {
+function useDockMotion(dock: PanelDock, shown: PanelSpec[], size: number, place: string, ref: RefObject<HTMLDivElement | null>): DockMotion {
   const open = shown.length > 0;
   const [gone, setGone] = useState<{ panels: PanelSpec[]; size: number } | null>(null);
-  const before = useRef({ app, open, panels: shown, size });
+  const before = useRef({ place, open, panels: shown, size });
   // Whether the dock, as last drawn, may slide away: by the time a close is seen here it has already left the page.
   const mayLeave = useRef(false);
   useLayoutEffect(() => { if (ref.current) mayLeave.current = dockLeaves(ref.current); });
   useLayoutEffect(() => {
     const was = before.current;
-    before.current = { app, open, panels: open ? shown : was.panels, size: open ? size : was.size };
-    if (was.app !== app) { setGone(null); return; }
+    before.current = { place, open, panels: open ? shown : was.panels, size: open ? size : was.size };
+    if (was.place !== place) { setGone(null); return; }
     if (open && !was.open) {
       setGone(null);
       if (ref.current) dockIn(ref.current, dock, size);
     } else if (!open && was.open && mayLeave.current) {
       setGone({ panels: was.panels, size: was.size });
     }
-  }, [app, open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [place, open]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const node = ref.current;
     if (!gone || !node) return undefined;
