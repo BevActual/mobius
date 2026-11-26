@@ -9,6 +9,9 @@ const ANSWERED = 'The person answered: ';
 
 export type QuestionStatus = 'open' | 'sending' | 'answered' | 'cancelled';
 
+/** Said where a turn was stopped: what came before stays, nothing after it was done. */
+export const STOPPED_NOTE = 'Stopped. What was done before this stays; nothing after it was done.';
+
 /** `paused`: running when the person took over; `skipped`: not run, because they took over and changed things. */
 export type ToolStatus = 'running' | 'waiting' | 'done' | 'failed' | 'declined' | 'cancelled' | 'paused' | 'skipped';
 /** What the agent tells the model about a call it did not run because the person took over (engine.rs, hand_back). */
@@ -259,7 +262,8 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         case 'failed':
           return finished(withItem(base, (id) => ({ kind: 'error', id, text: event.message, failed: true })), 'failed');
         case 'cancelled':
-          return finished({ ...base, items: cancelOpenTools(base.items) }, 'cancelled');
+          // Said in the conversation, so a stop from the working pill (with the panel closed) is seen when it opens.
+          return finished(withItem({ ...base, items: cancelOpenTools(base.items) }, (id) => ({ kind: 'notice', id, text: STOPPED_NOTE })), 'cancelled');
       }
     }
   }
