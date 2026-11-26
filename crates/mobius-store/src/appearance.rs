@@ -59,7 +59,8 @@ static FIELDS: [Field; 16] = [
     Field { name: "agentPlace", default: || json!("beside"), check: |v| one_of(v, &["sidebar", "beside"]) },
     Field { name: "rightWidth", default: || json!(RIGHT_WIDTH.2), check: |v| in_range(v, RIGHT_WIDTH.0, RIGHT_WIDTH.1) },
     // Which apps the sidebar lists, in order. At least one; each once.
-    Field { name: "sidebarApps", default: || json!(SIDEBAR_APPS), check: is_app_list },
+    // Search folded into Ctrl+K: still allowed in a saved list, but no longer in a new one.
+    Field { name: "sidebarApps", default: || json!(SIDEBAR_APPS.iter().filter(|a| **a != "search").collect::<Vec<_>>()), check: is_app_list },
     // Notes, task lists and web pages pinned under the apps, in order.
     Field { name: "favourites", default: || json!([]), check: is_favourites },
     // Where text saved from a web page goes. Empty: a page called Clippings, made when first needed.

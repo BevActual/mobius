@@ -1,7 +1,7 @@
 import { isNotesFailure, type CalendarEvent, type ChatChannel, type Contact, type MailMessage, type NoteHit, type Notebook } from '@mobius/shared';
 import type { FoundItem, LauncherPreview } from './Launcher';
 import { useLauncherSource } from './launcher-sources';
-import type { HubTarget } from './search-hub';
+import { pagesFound, type HubTarget } from './search-hub';
 import { parseWhen, parseWhenAndTime, timeWords, type SmartView } from './tasks-view';
 import { parseEventWords } from './calendar-view';
 
@@ -137,7 +137,7 @@ const after = (signal: AbortSignal, ms: number) => new Promise<boolean>((done) =
 });
 
 /** Notes or Docs: pages that say the words, though their title doesn't. */
-function wordsInside(app: 'notes' | 'docs', d: Daily) {
+function wordsInside(app: 'notes' | 'docs' | 'slides', d: Daily) {
   return {
     app,
     find: async (query: string, signal: AbortSignal): Promise<FoundItem[]> => {
@@ -145,7 +145,7 @@ function wordsInside(app: 'notes' | 'docs', d: Daily) {
       if (!api || !(await after(signal, 150))) return [];
       const hits = await api.search(query).catch(() => []);
       if (isNotesFailure(hits)) return [];
-      return bodyHits(hits, query).map((h) => ({ id: `text:${h.path}`, app, label: h.title, detail: `${app === 'notes' ? 'Notes' : 'Docs'}, says “${h.line.trim().slice(0, 60)}”`, run: () => d.openTarget({ app, path: h.path, title: h.title }, h.title) }));
+      return bodyHits(hits, query).map((h) => ({ id: `text:${h.path}`, app, label: h.title, detail: `${app === 'notes' ? 'Notes' : app === 'docs' ? 'Docs' : 'Slides'}, says “${h.line.trim().slice(0, 60)}”`, run: () => d.openTarget({ app, path: h.path, title: h.title }, h.title) }));
     },
   };
 }
@@ -216,6 +216,22 @@ export function useDailyLauncherSources(d: Daily): void {
   });
   useLauncherSource(wordsInside('notes', d));
   useLauncherSource(wordsInside('docs', d));
+  // What the Search app found that nothing else here did (Search folded into Ctrl+K): words inside decks, and pages
+  // bookmarked or visited in the Browser.
+  useLauncherSource(wordsInside('slides', d));
+  useLauncherSource({
+    app: 'browser',
+    find: async (query, signal) => {
+      const ws = words(query);
+      if (!ws.length || !(await after(signal, 150))) return [];
+      const [seen, marks] = await Promise.all([
+        window.mobius.history.get(query).catch(() => ({ enabled: false, entries: [] })),
+        window.mobius.bookmarks.get(query).catch(() => []),
+      ]);
+      if (signal.aborted) return [];
+      return pagesFound(marks.slice(0, 40), seen.entries.slice(0, 40), ws).slice(0, 5).map((p) => ({ id: p.key, app: 'browser' as const, label: p.title, detail: `Browser, ${p.where}`, run: () => d.openTarget(p.target, p.title) }));
+    },
+  });
   useLauncherSource({ app: 'files', commands: () => [{ id: 'trash', label: 'Trash', detail: 'Files', run: d.filesTrash }] });
 }
 

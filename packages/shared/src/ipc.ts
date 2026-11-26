@@ -1682,9 +1682,12 @@ const isFavourite = (v: unknown): v is Favourite => {
 /** The apps that can be kept in the sidebar. */
 export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'] as const;
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
+/** The sidebar's apps on a new install. Search folded into Ctrl+K: a saved list may still name it, and it is left out
+ *  where the list is used. */
+export const DEFAULT_SIDEBAR_APPS: SidebarApp[] = SIDEBAR_APPS.filter((id) => id !== 'search');
 export type SidebarMode = 'attached' | 'floating';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 340 }, inspector: { min: 240, max: 440, default: 280 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, panelGaps: true, resumeLast: true, rightSidebar: 'attached', agentPlace: 'beside', rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, panelGaps: true, resumeLast: true, rightSidebar: 'attached', agentPlace: 'beside', rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...DEFAULT_SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 

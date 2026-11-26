@@ -79,13 +79,6 @@ Slack, Matrix, Teams chats and Telegram in one place, with a catch-up when you c
 
 **Kept in:** nothing beyond what the service gives back. Messages are read from the service as you open them.
 
-## Search
-
-One box for everything Mobius keeps: conversations, notes, tasks and pages. The **Scopes** panel narrows it to one kind of thing.
-Type a question instead and Search hands it to Mobius.
-
-![The Search app in Mobius](../readme/apps/search.png)
-
 ## Research
 
 Ask a question and Mobius searches the web from several angles, reads the best pages and writes a report with its

@@ -133,12 +133,12 @@ Mobius's own apps, always there.
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/mail-dark.png"><img src="docs/readme/apps/mail.png" alt="The Mail app in Mobius"></picture><br><b>Mail</b> · Your mail on this computer, sorted, with drafts in your tone.<br><sub>Get to inbox zero faster. Mobius writes drafts; it never sends, you press Send.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/search-dark.png"><img src="docs/readme/apps/search.png" alt="The Search app in Mobius"></picture><br><b>Search</b> · One box for conversations, notes, tasks, docs, mail and pages.<br><sub>Find anything you've kept, or ask a question and Search hands it to Mobius.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/research-dark.png"><img src="docs/readme/apps/research.png" alt="The Research app in Mobius"></picture><br><b>Research</b> · Ask a question; Mobius searches, reads and writes a report.<br><sub>Get a sourced answer to a real question; follow-ups add to the same report.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/reader-dark.png"><img src="docs/readme/apps/reader.png" alt="The Reader app in Mobius"></picture><br><b>Reader</b> · The Browser's reader mode: pages kept in Read later, as clean readable text.<br><sub>Read without clutter, and ask Mobius about the article you're reading.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/reader-dark.png"><img src="docs/readme/apps/reader.png" alt="The Reader app in Mobius"></picture><br><b>Reader</b> · The Browser's reader mode: pages kept in Read later, as clean readable text.<br><sub>Read without clutter, and ask Mobius about the article you're reading.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/files-dark.png"><img src="docs/readme/apps/files.png" alt="The Files app in Mobius"></picture><br><b>Files</b> · Your whole workspace as a drive, with Made by Mobius.<br><sub>Every note, sheet and doc is a real file you own, in one place.</sub></td>
+<td width="50%" valign="top"><b>Find anything</b> · Ctrl+K finds apps, notes, tasks, docs, mail, words inside them, and pages you visited or bookmarked.<br><sub>Search folded into it: there is no separate Search app.</sub></td>
 </tr>
 </table>
 

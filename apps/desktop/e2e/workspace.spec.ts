@@ -46,14 +46,14 @@ test('the Go button opens every app through the launcher, says where you are, an
   await start();
   await expect(shell().getByRole('navigation', { name: 'Apps' })).toHaveCount(0);
   await onApp('Browser');
-  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', 'aside[aria-label="Notebooks"]'], ['Search', '.search-page'], ['Home', '.chat.full']] as const) {
+  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', 'aside[aria-label="Notebooks"]'], ['Home', '.chat.full']] as const) {
     await open(name);
     await expect(shell().locator(view)).toBeVisible();
     await onApp(name);
   }
-  // Ctrl+1 opens the first pinned app (Home is the launcher's own place, so Search leads).
+  // Ctrl+1 opens the first pinned app (Home is the launcher's own place, so Browser leads).
   await shell().keyboard.press('Control+1');
-  await onApp('Search');
+  await onApp('Browser');
   await goToPlace(shell(), 'Settings');
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
   await onApp('Settings');
@@ -62,40 +62,25 @@ test('the Go button opens every app through the launcher, says where you are, an
   await expect(shell().getByRole('region', { name: 'Settings' })).toHaveCount(0);
 });
 
-test('Search finds notes, tasks and pages in one place and opens each in its own app', async () => {
+test('Ctrl+K finds notes, words inside them and tasks, and opens each in its own app (Search folded in)', async () => {
   seed();
   await start();
-  await open('Search');
-  const page = shell().locator('.search-page');
-  const box = page.getByRole('searchbox', { name: 'Search everything' });
-  expect(await box.evaluate((el) => el === document.activeElement)).toBe(true);
-  // Nothing typed: the latest things, from every app.
-  await expect(page.getByRole('list', { name: 'Recent' })).toContainText('Garden');
-  await box.fill('tulip');
-  const results = page.getByRole('list', { name: 'Results' });
-  await expect(results.getByRole('button')).toHaveCount(2);
-  await expect(results).toContainText('Notes › Home');
-  await expect(results).toContainText('Tasks › Inbox');
-  await shell().getByRole('navigation', { name: 'Search in' }).getByRole('button', { name: 'Tasks' }).click();
-  await expect(results.getByRole('button')).toHaveCount(1);
-  await results.getByRole('button', { name: /Buy tulip bulbs/ }).click();
+  const find = async (words: string) => {
+    await shell().keyboard.press('Control+k');
+    await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(words);
+  };
+  // The Search app is gone: Ctrl+K is where things are found.
+  await find('Search');
+  await expect(shell().getByRole('option', { name: /^Search/ })).toHaveCount(0);
+  await shell().keyboard.press('Escape');
+  await find('tulip');
+  await shell().getByRole('option', { name: /Buy tulip bulbs/ }).click();
   await onApp('Tasks');
   await expect(shell().locator('.toolbar-sub')).toHaveText('Inbox');
-
-  await open('Search');
-  await shell().getByRole('navigation', { name: 'Search in' }).getByRole('button', { name: 'All' }).click();
-  await page.getByRole('searchbox', { name: 'Search everything' }).fill('frost');
-  await page.getByRole('list', { name: 'Results' }).getByRole('button', { name: /Garden/ }).click();
+  // Words inside a note, not in its title.
+  await find('frost');
+  await shell().getByRole('option', { name: /^Garden/ }).click();
   await expect(shell().getByRole('textbox', { name: 'Note text' })).toContainText('tulips before the frost');
-});
-
-test('asking from Search hands the question to the agent', async () => {
-  await start([says(['Here is what I found.'])]);
-  await open('Search');
-  await shell().getByRole('searchbox', { name: 'Search everything' }).fill('what did I plan for the garden');
-  await shell().getByRole('button', { name: /Ask Mobius/ }).click();
-  await onApp('Home');
-  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Here is what I found.');
 });
 
 test('while the agent works the composer says what it is doing, and a change elsewhere leaves a dot', async () => {
@@ -366,7 +351,7 @@ test('Mobius beside the page is a panel of its own on the frame, a gap and its o
 });
 
 
-test('design review: the title bar names the app, nothing claims a page it cannot see, Search has scopes, the Agent home lines up, and From Mobius filters', async () => {
+test('design review: the title bar names the app, nothing claims a page it cannot see, the Agent home lines up, and From Mobius filters', async () => {
   seed();
   fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Fix the gate\n');
   await start([callsTool('tasks-add', { list: 'Inbox', text: 'Water the plants' }), says(['Added.'])]);
@@ -379,21 +364,6 @@ test('design review: the title bar names the app, nothing claims a page it canno
   await open('Docs');
   await expect(shell().locator('.strip-title')).toHaveText('Docs');
   await expect(shell().getByRole('button', { name: /^Sees / })).toHaveCount(0);
-  // Search: scopes in its sidebar, the same as the page's, and nothing to create.
-  await open('Search');
-  const scopes = shell().getByRole('navigation', { name: 'Search in' });
-  await expect(scopes.getByRole('button')).toHaveCount(9);
-  await scopes.getByRole('button', { name: 'Tasks' }).click();
-  await expect(scopes.getByRole('button', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
-  await expect(leftSide().locator('.app-side-new')).toHaveCount(0);
-  // The scopes show once: in their panel while it shows, as chips under the field when it is hidden.
-  const chips = shell().locator('.search-page').getByRole('radiogroup', { name: 'Show' });
-  await expect(chips).toBeHidden();
-  await leftSide().getByRole('button', { name: 'Hide Scopes' }).click();
-  await expect(chips.getByRole('radio', { name: 'Tasks' })).toHaveAttribute('aria-checked', 'true');
-  await shell().keyboard.press('Control+Backslash');
-  await expect(chips).toBeHidden();
-  await expect(scopes).toBeVisible();
   // The Agent home: what is in your apps is as wide as the message box, and centred with it.
   await open('Agent');
   // Measured once the page has settled (it grows in as the app opens).

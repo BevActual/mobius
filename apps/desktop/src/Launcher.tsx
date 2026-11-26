@@ -85,7 +85,8 @@ interface Props {
   /** Everything the menus can do now, to find by name. */
   commands?: readonly { id: string; label: string; detail?: string; run: () => void }[];
   /** The pinned apps, in order (the person's choice). Ctrl+1 to Ctrl+9 open the first nine. */
-  pinned?: readonly AppId[];
+  /** As saved: a name no longer an app (Search, folded into Ctrl+K) is left out. */
+  pinned?: readonly string[];
   /** Reorder, pin or unpin. Without it the row can't be changed here. */
   onPinned?: (apps: AppId[]) => void;
   /** How many things wait in each app, for the dots. */
@@ -150,7 +151,7 @@ export function rankApps<T extends { id: AppId; name: string }>(apps: readonly T
 }
 
 /** The pinned apps that can be opened, in order; by default the everyday apps. Home is a place, not a pin. */
-export const pinnedApps = (pinned?: readonly AppId[]): AppId[] => [...new Set(pinned ?? DEFAULT_APPS)].filter((id) => id !== 'agent' && isAvailable(id));
+export const pinnedApps = (pinned?: readonly string[]): AppId[] => [...new Set(pinned ?? DEFAULT_APPS)].filter((id): id is AppId => id !== 'agent' && isAvailable(id));
 
 /**
  * Where the arrows go. Items are drawn in rows: the pinned apps share a row across, and so do the places; All apps

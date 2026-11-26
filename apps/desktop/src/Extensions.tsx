@@ -47,7 +47,6 @@ const APP_PURPOSE: Partial<Record<AppId, string>> = {
   browser: 'A full web browser with tabs, favourites and downloads.',
   mail: 'Your mail on this computer, sorted, with drafts in your tone.',
   messages: 'Slack, Matrix, Teams and Telegram in one place, with a catch-up when you come back.',
-  search: 'One box for conversations, notes, tasks, docs, mail and pages.',
   research: 'Ask a question; Mobius searches, reads and writes a report.',
   reader: 'Pages saved to read later, as clean readable text.',
   notes: 'Quick pages, saved as you type, kept as Markdown files.',
@@ -102,7 +101,7 @@ const LIBRARY = APPS.filter((a) => a.available && isListed(a) && !(CORE_APPS as 
 const STORE_GROUPS = ['Core', 'Add-ons', 'Pro'] as const;
 const STORE_GROUP: Partial<Record<AppId, (typeof STORE_GROUPS)[number]>> = {
   mail: 'Core', calendar: 'Core', tasks: 'Core', projects: 'Core', notes: 'Core', docs: 'Core', files: 'Core', browser: 'Core',
-  messages: 'Add-ons', sheets: 'Add-ons', slides: 'Add-ons', database: 'Add-ons', wiki: 'Add-ons', canvas: 'Add-ons', search: 'Add-ons', research: 'Add-ons',
+  messages: 'Add-ons', sheets: 'Add-ons', slides: 'Add-ons', database: 'Add-ons', wiki: 'Add-ons', canvas: 'Add-ons', research: 'Add-ons',
   studio: 'Pro', photo: 'Pro', design: 'Pro', video: 'Pro', code: 'Pro', terminal: 'Pro',
 };
 /** Mobius's own apps that Store shows among the rest: always there, so never added or removed. */
