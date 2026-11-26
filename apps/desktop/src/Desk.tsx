@@ -10,6 +10,7 @@ import { APP_ICONS } from './Rail';
 import { useFollowUps, waitingOn } from './mail-follow-ups';
 import { LATER, laterUntil, sortInbox, trimKept, type InboxItem, type InboxKept } from './inbox';
 import { Menu } from './ui';
+import { foldAway } from './app-motion';
 import './desk.css';
 
 export type { DeskRow } from './desk-apps';
@@ -60,23 +61,25 @@ function useInboxKept() {
   const [kept, setKept] = useState<InboxKept>(readKept);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(t); }, []);
-  const put = (next: InboxKept) => {
-    const trimmed = trimKept(next, Date.now());
-    setKept(trimmed);
+  // From what is kept now, not what this render saw: two rows done in quick succession both stay done.
+  const put = (change: (was: InboxKept) => InboxKept) => setKept((was) => {
+    const trimmed = trimKept(change(was), Date.now());
     try { window.localStorage.setItem(KEPT_KEY, JSON.stringify(trimmed)); } catch { /* Not kept. */ }
-  };
+    return trimmed;
+  });
+  const without = (later: Readonly<Record<string, number>>, key: string) => Object.fromEntries(Object.entries(later).filter(([k]) => k !== key));
   return {
     kept, now,
-    done: (key: string) => put({ done: [...kept.done.filter((k) => k !== key), key], later: Object.fromEntries(Object.entries(kept.later).filter(([k]) => k !== key)) }),
-    later: (key: string, until: number) => put({ ...kept, later: { ...kept.later, [key]: until } }),
-    back: (key: string) => put({ ...kept, later: Object.fromEntries(Object.entries(kept.later).filter(([k]) => k !== key)) }),
+    done: (key: string) => put((k) => ({ done: [...k.done.filter((d) => d !== key), key], later: without(k.later, key) })),
+    later: (key: string, until: number) => put((k) => ({ ...k, later: { ...k.later, [key]: until } })),
+    back: (key: string) => put((k) => ({ ...k, later: without(k.later, key) })),
   };
 }
 
 /** Up and Down (or J and K) move through the Inbox's rows, as in Linear's; E is Done and H is Later (tomorrow). */
 function inboxKeys(e: KeyboardEvent<HTMLUListElement>, act: (key: string, what: 'done' | 'later') => void) {
   if (e.altKey || e.ctrlKey || e.metaKey) return;
-  const rows = [...e.currentTarget.querySelectorAll<HTMLElement>(':scope > li > .desk-open, :scope > li > button.desk-row')];
+  const rows = [...e.currentTarget.querySelectorAll<HTMLElement>(':scope > li:not([data-leaving]) > .desk-open, :scope > li:not([data-leaving]) > button.desk-row')];
   const at = rows.findIndex((r) => r === document.activeElement);
   const k = e.key.toLowerCase();
   if (k === 'arrowdown' || k === 'j' || k === 'arrowup' || k === 'k') {
@@ -146,16 +149,24 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const [showLater, setShowLater] = useState(false);
   // Said to screen readers once Done or Later has acted, since the row itself goes.
   const [said, setSaid] = useState('');
-  const doneWith = (item: InboxItem) => hold(item.key, async () => { if (await inbox!.onDone(item)) { kept.done(item.key); setSaid(`${item.kind === 'task' ? 'Completed' : 'Done with'} ${item.name}`); } });
-  const setAsideUntil = (item: InboxItem, choice: string) => {
+  // A row that goes folds away first, so the rows under it slide up rather than jump.
+  const rowOf = (key: string) => document.querySelector<HTMLElement>(`li[data-key="${CSS.escape(key)}"]`);
+  const doneWith = (item: InboxItem) => hold(item.key, async () => {
+    if (!(await inbox!.onDone(item))) return;
+    await foldAway(rowOf(item.key));
+    kept.done(item.key);
+    setSaid(`${item.kind === 'task' ? 'Completed' : 'Done with'} ${item.name}`);
+  });
+  const setAsideUntil = async (item: InboxItem, choice: string) => {
     const until = laterUntil(choice, new Date());
+    await foldAway(rowOf(item.key));
     kept.later(item.key, until);
     setSaid(`${item.name} set aside, back ${whenLabel(new Date(until), new Date()).replace(/^(Today|Tomorrow)/, (w) => w.toLowerCase())}`);
   };
   const act = (key: string, what: 'done' | 'later') => {
     const item = more.find((i) => i.key === key);
     if (!item) return;
-    if (what === 'done') doneWith(item); else setAsideUntil(item, 'tomorrow');
+    if (what === 'done') doneWith(item); else void setAsideUntil(item, 'tomorrow');
   };
   // The Inbox: everything across apps that waits on the person, in one list. What Mobius changed is here, not in
   // In your apps, so it is said once.
@@ -254,7 +265,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                   <span className="desk-text" data-late={item.text.startsWith('Overdue') || undefined}>{item.text}</span>
                   {go(item.go)}
                 </button>
-                <Menu label={`Later: ${item.name}`} align="end" entries={LATER.map((l) => ({ label: l.label, run: () => setAsideUntil(item, l.id) }))}
+                <Menu label={`Later: ${item.name}`} align="end" entries={LATER.map((l) => ({ label: l.label, run: () => void setAsideUntil(item, l.id) }))}
                   trigger={<button type="button" className="desk-act" aria-label={`Later: ${item.name}`} aria-keyshortcuts="H" title="Set it aside until later (H)">Later</button>} />
                 <button type="button" className="desk-act" disabled={busy.has(item.key)} aria-label={`${item.kind === 'task' ? 'Complete' : 'Done with'} ${item.name}`} aria-keyshortcuts="E" title={item.kind === 'task' ? 'Tick it off (E)' : 'Clear it from the Inbox (E)'} onClick={() => doneWith(item)}>Done</button>
               </li>

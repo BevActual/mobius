@@ -4,7 +4,8 @@ import { createPortal } from 'react-dom';
 import type { CalendarDraft, CalendarEvent, CalendarPerson, CalendarSuggestion, RepeatScope } from '@mobius/shared';
 import { isNotesFailure } from '@mobius/shared';
 import { onCommand } from './commands';
-import { useMorphIn } from './motion';
+import { growFrom, useMorphIn } from './motion';
+import { slideIn } from './app-motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
 import { ContactPanel, useAddressSuggestions } from './ContactPanel';
@@ -979,6 +980,13 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     window.addEventListener('keydown', escape);
     return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape); };
   }, [at, onClose]);
+  // The popover settles in from what was clicked once it has its place; the docked panel has its own motion.
+  const grown = useRef(false);
+  useLayoutEffect(() => {
+    if (grown.current || docked || (at && !place) || !sheet.current) return;
+    grown.current = true;
+    growFrom(sheet.current, place?.side === 'left' ? 'left' : 'right');
+  }, [place, at, docked]);
   // A meeting link in the place or the notes: Join opens it.
   const joinAt = meetingLink(`${where}\n${notes}`);
   // Record meeting is for a meeting: a timed event with people invited or a place to be.
@@ -1285,6 +1293,15 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
   const days = daysFor(calendar.mode, calendar.anchor);
   const writable = calendar.calendars.filter((c) => !calendar.readOnly(c));
   const into = writable.find((c) => !calendar.hidden.has(c)) ?? writable[0] ?? 'Calendar';
+  // Moved on in time in the same view, the view slides in from the side it came from.
+  const firstDay = days[0]?.getTime() ?? 0;
+  const lastView = useRef({ mode: calendar.mode, from: firstDay });
+  useLayoutEffect(() => {
+    const was = lastView.current;
+    lastView.current = { mode: calendar.mode, from: firstDay };
+    if (was.mode !== calendar.mode || was.from === firstDay) return;
+    slideIn(page.current?.querySelector<HTMLElement>(':scope > .cal-time, :scope > .cal-month, :scope > .cal-year') ?? null, firstDay > was.from);
+  }, [calendar.mode, firstDay]); // eslint-disable-line react-hooks/exhaustive-deps
   const create = () => setEditing({ start: newStart(calendar.anchor), allDay: false });
   useEffect(() => { if (newToken) create(); }, [newToken]); // eslint-disable-line react-hooks/exhaustive-deps
   // Open the event asked for once its day has been read.
