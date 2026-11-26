@@ -36,7 +36,7 @@ import { useConversation } from './useConversation';
 import { SettingsPage } from './settings/SettingsPage';
 import { useCoreStatus } from './useCoreStatus';
 import { useNotes } from './useNotes';
-import { saveAll } from './saveBeforeQuit';
+import { saveAll, saveTyped } from './saveBeforeQuit';
 import { NotesSidebar } from './NotesSidebar';
 import { TasksGlance, TasksPage, TasksSidebar } from './Tasks';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
@@ -110,8 +110,9 @@ import { SERVICE_NAMES, catchUpAsk, channelLabel, chatItem, isSpaceAccount } fro
 import { DEFAULT_LIST_NAME, nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
-import { activityOf } from './activity';
+import { activityOf, appOfTurn } from './activity';
 import { WorkingPill } from './WorkingPill';
+import { usePauseOnTyping } from './pauseOnTyping';
 import { findInSources, sourceCommands } from './launcher-sources';
 import { useDailyLauncherSources, useMoreLauncherSources } from './app-launcher';
 import { askInline, selectionNow, type LauncherAbout } from './launcher-ask';
@@ -1345,6 +1346,11 @@ export function App() {
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
+  // Starting to type in the app Mobius is working in pauses it; the pill (or the panel) resumes it.
+  const stageNode = useCallback(() => document.querySelector<HTMLElement>('.stage'), []);
+  usePauseOnTyping(stageNode, activity, appOfTurn(conversation.state), app, conversation.takeOver, setToast);
+  // What the person typed while they had control is written before Mobius goes on, so it counts as theirs.
+  const handBack = useCallback(async (note?: string) => { await saveTyped(); return conversation.handBack(note); }, [conversation.handBack]); // eslint-disable-line react-hooks/exhaustive-deps
   const [incoming, setIncoming] = useState<{ token: number; item?: ContextItem; text?: string } | null>(null);
   /** A start from an app's New row: its words go in the message box, for the person to finish and send. */
   const startWithMobius = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), text: prompt }); };
@@ -2020,7 +2026,7 @@ export function App() {
             onTakeOver={conversation.takeOver}
             appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{app === 'code' && <CodeGlance tests={code.tests} onDebug={debugTest} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
-            onHandBack={conversation.handBack}
+            onHandBack={handBack}
             onAnswer={conversation.answer}
             onReply={conversation.reply}
             onSaveSettings={saveSettings}
@@ -2065,7 +2071,7 @@ export function App() {
             onTakeOver={conversation.takeOver}
             appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{app === 'code' && <CodeGlance tests={code.tests} onDebug={debugTest} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
-            onHandBack={conversation.handBack}
+            onHandBack={handBack}
             onAnswer={conversation.answer}
               onReply={conversation.reply}
             onSaveSettings={saveSettings}
@@ -2207,7 +2213,7 @@ export function App() {
             : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
           {nativeMenus ? menuBar(appMenu) : appMenu && <MenuBar menus={[{ id: 'more', label: 'More', items: entryItems(appMenu.entries, 'more') }]} compact label="More" onOpenChange={setMenuOpen} />}
           {/* Mobius at work with its panel closed: what it is doing, with Stop; a press shows it. */}
-          {hasRight && !rightOpen && activity && <WorkingPill activity={activity} onOpen={() => { openRight(); setFocusToken((n) => n + 1); }} onStop={conversation.stop} />}
+          {hasRight && !rightOpen && activity && <WorkingPill activity={activity} onOpen={() => { openRight(); setFocusToken((n) => n + 1); }} onStop={conversation.stop} onPause={conversation.takeOver} onResume={() => handBack()} />}
           {hasRight && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
         </>,
       }}
