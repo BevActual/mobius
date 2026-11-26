@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Activity } from './activity';
 
 interface Props {
@@ -34,13 +34,22 @@ export function WorkingPill({ activity, onOpen, onStop, onPause, onResume }: Pro
     handOn.current = null;
     to?.focus();
   }, [paused]);
+  // Gone (Mobius finished) with the focus on it: the Mobius button beside it takes the focus, not nothing.
+  const root = useRef<HTMLDivElement>(null);
+  // Before it leaves the page, while the focus can still be seen on it.
+  useLayoutEffect(() => {
+    const node = root.current;
+    return () => {
+      if (node && node.contains(document.activeElement)) window.setTimeout(() => { if (document.activeElement === document.body) document.querySelector<HTMLElement>('.strip-mobius')?.focus(); }, 0);
+    };
+  }, []);
   const run = (act: (() => Promise<string | null>) | undefined, next: 'pause' | 'resume') => {
     if (!act) return;
     handOn.current = next;
     void act().then((p) => { setProblem(p); if (p) handOn.current = null; });
   };
   return (
-    <div className="working-pill" role="status" data-needs-you={activity.needsYou || undefined} data-paused={paused ? '' : undefined}>
+    <div ref={root} className="working-pill" role="status" data-needs-you={activity.needsYou || undefined} data-paused={paused ? '' : undefined}>
       <button ref={openButton} type="button" className="working-pill-open" onClick={onOpen} title={problem ?? 'Show Mobius'}>
         <span className="working-pill-mark" aria-hidden="true" />
         <span className="working-pill-label">{activity.needsYou ? 'Mobius needs you' : paused ? 'Paused' : activity.label}</span>

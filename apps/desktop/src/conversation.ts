@@ -237,7 +237,8 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
             return updateTool(base, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'running', ...(item.args === undefined && event.arguments !== undefined ? { args: event.arguments } : {}) }));
           }
           // With its arguments, so the row can say what it acted on.
-          return withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: 'running', ...(event.arguments !== undefined ? { args: event.arguments } : {}) }));
+          // A call that comes while the person has control waits, paused, until they hand back.
+          return withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.name, status: base.control ? 'paused' : 'running', ...(event.arguments !== undefined ? { args: event.arguments } : {}) }));
         }
         case 'needs_approval': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);

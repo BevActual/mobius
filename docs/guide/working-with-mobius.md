@@ -139,6 +139,8 @@ checkpoints live in their own store and never touch a folder's own git history.
   apps are yours. Then **Hand back**, optionally telling it what you changed or what to do next ("I booked it myself;
   just send the summary"), or **Stop**. Starting to type in the app Mobius is working in (the note it is writing, say)
   takes over at once, so the two of you never write over each other; Resume on the pill, or Hand back, carries on.
+  What you change while you have control is yours: it is not listed with Mobius's changes, and its Undo leaves it be.
+  A step Mobius had in hand when you took over says *Not run: you took over*; it reads what is there again and decides.
 
 ## Signing in to websites
 

@@ -159,6 +159,14 @@ impl crate::sync_pairs::SyncHost for SyncHost {
     }
 }
 
+/// A stretch of a turn when the person had control: from the checkpoint as they took over to the one as they handed
+/// back (none while they still have it, or when the turn ended before they did).
+struct Yours {
+    turn: String,
+    from: String,
+    to: Option<String>,
+}
+
 /// A checkpoint taken after one step of a turn: the turn it is part of (its start), the call, and the step's end.
 #[derive(Clone)]
 struct StepMark {
@@ -317,6 +325,9 @@ pub struct Bridge {
     /// For each conversation, the checkpoint after each step of its last turn that may have changed the workspace, so
     /// each step's changes can be listed and put back on their own.
     step_marks: Mutex<std::collections::HashMap<String, Vec<StepMark>>>,
+    /// While the person had control of a turn (took over, or typed in the app Mobius worked in): what they change then
+    /// is theirs, never the turn's to list or put back.
+    yours: Mutex<std::collections::HashMap<String, Vec<Yours>>>,
     /// Checkpoints being taken before a turn: the turn's tools wait for them, so the model is asked at once.
     marking: Arc<(Mutex<u32>, std::sync::Condvar)>,
     /// Turns whose end checkpoint is still being taken. What a turn changed is read once it is saved: from the two
@@ -541,6 +552,7 @@ impl Bridge {
             tab_drivers: Mutex::new(std::collections::HashMap::new()),
             turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
             step_marks: Mutex::new(std::collections::HashMap::new()),
+            yours: Mutex::new(std::collections::HashMap::new()),
             marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             ending: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             mcp: {
@@ -1699,6 +1711,52 @@ impl Bridge {
     }
 
     /// The last turn's steps (begun at `turn`) that took a checkpoint, with the checkpoint before each.
+    /// The person takes over (`theirs`) or hands back: the checkpoint there opens or closes their stretch of the turn.
+    fn mark_control(&self, conversation: &str, theirs: bool) {
+        let Some(turn) = lock(&self.turn_marks).get(conversation).cloned() else { return };
+        let at = match self.workspace.mark(if theirs { "the person took over" } else { "the person handed back" }) {
+            Ok(Some(at)) => at,
+            Ok(None) => return,
+            Err(error) => {
+                eprintln!("[changes] no mark as control changed: {error}");
+                return;
+            }
+        };
+        let mut all = lock(&self.yours);
+        let list = all.entry(conversation.to_owned()).or_default();
+        list.retain(|y| y.turn == turn);
+        if theirs {
+            if !list.iter().any(|y| y.to.is_none()) {
+                list.push(Yours { turn, from: at, to: None });
+            }
+        } else if let Some(open) = list.iter_mut().find(|y| y.to.is_none()) {
+            open.to = Some(at);
+        }
+    }
+
+    /// Files only the person changed during the turn (while they had control) and no step of Mobius's touched: theirs,
+    /// so the turn neither lists them nor puts them back. `end` is the turn's end, or None while it runs.
+    fn yours_only(&self, conversation: &str, turn: &str, end: Option<&str>) -> std::collections::HashSet<String> {
+        let windows: Vec<(String, Option<String>)> = lock(&self.yours).get(conversation).into_iter().flatten().filter(|y| y.turn == turn).map(|y| (y.from.clone(), y.to.clone().or_else(|| end.map(str::to_owned)))).collect();
+        if windows.is_empty() {
+            return std::collections::HashSet::new();
+        }
+        let mut theirs: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for (from, to) in windows {
+            let changed = match &to {
+                Some(to) => self.workspace.changed_between(&from, to),
+                None => self.workspace.changed_since(&from),
+            };
+            theirs.extend(changed.unwrap_or_default());
+        }
+        for (_, before, after) in self.steps_of(conversation, turn) {
+            for path in self.workspace.changed_between(&before, &after).unwrap_or_default() {
+                theirs.remove(&path);
+            }
+        }
+        theirs
+    }
+
     fn steps_of(&self, conversation: &str, turn: &str) -> Vec<(StepMark, String, String)> {
         let steps = lock(&self.step_marks);
         let mut before = turn.to_owned();
@@ -4608,6 +4666,10 @@ impl Bridge {
                         diff.files.retain(|f| now.contains(f));
                         diff.moves.retain(|(from, to)| now.contains(from) || now.contains(to));
                     }
+                    // What the person changed while they had control is theirs.
+                    let yours = self.yours_only(conversation, &mark, end.as_deref());
+                    diff.files.retain(|f| !yours.contains(f));
+                    diff.moves.retain(|(from, to)| !(yours.contains(from) && yours.contains(to)));
                     let (files, moves) = turn_changes(diff, left_out);
                     json!({ "checkpoint": mark, "files": files, "moves": moves })
                 }
@@ -4624,7 +4686,9 @@ impl Bridge {
                 },
                 (Some(end), Ok(files)) => {
                     // The turn's files only; one changed again since is left as it is, and said.
-                    let (kept, back): (Vec<String>, Vec<String>) = files.into_iter().partition(|path| changed_later(path));
+                    // What the person changed while they had control stays as they left it.
+                    let yours = self.yours_only(conversation, &mark, Some(end));
+                    let (kept, back): (Vec<String>, Vec<String>) = files.into_iter().filter(|path| !yours.contains(path)).partition(|path| changed_later(path));
                     // All at once: one by one, each took a checkpoint of its own, and a tidy of a hundred files took
                     // most of a minute to undo.
                     if let Err(e) = self.workspace.restore_turn(&mark, end, &back) {
@@ -4859,6 +4923,7 @@ impl Bridge {
                     let result = self.agent.control(c, theirs, arg(1).as_str());
                     if result["ok"] == true {
                         self.hand_tabs(c, if theirs { TabChange::TakeOver } else { TabChange::HandBack });
+                        self.mark_control(c, theirs);
                     }
                     result
                 },

@@ -116,10 +116,11 @@ test('typing in the note Mobius is working in pauses it; Resume on its pill carr
   const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
   if (!(await composer.isVisible())) await shell.keyboard.press('Control+Shift+M');
   await expect(composer).toBeEnabled({ timeout: 15_000 });
+  // Its steps run without asking, so the one in hand while the person types is running, not waiting on them.
+  await shell.evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
   await composer.fill('Tidy my plan');
   await composer.press('Enter');
   const log = shell.getByRole('log', { name: 'Conversation' });
-  await log.getByRole('group', { name: 'Approval needed: files.read' }).getByRole('button', { name: 'Allow once' }).click();
   await expect.poll(() => model!.requests.length).toBe(2);
 
   // Typing in the message box does not pause it; typing in the note it is working in does, at once.
@@ -129,10 +130,20 @@ test('typing in the note Mobius is working in pauses it; Resume on its pill carr
   await expect(shell.getByRole('status', { name: 'You have control' })).toHaveCount(0);
   await composer.fill('');
   const text = shell.getByRole('textbox', { name: 'Note text' });
+  // Once the note has taken in the step that read it.
+  await shell.waitForTimeout(800);
   await text.click();
   await shell.keyboard.type('x');
   await expect(shell.getByRole('status').filter({ hasText: 'Paused Mobius while you type' })).toBeVisible();
   await expect(shell.getByRole('status', { name: 'You have control' })).toBeVisible();
+
+  // While paused, the note is theirs to write in.
+  await shell.waitForTimeout(1000);
+  await text.click();
+  await shell.keyboard.type('Booked the venue myself');
+  // The step it was taking waits as Paused, not Running, and nothing claims Mobius is working.
+  await expect(log.locator('.tool-status', { hasText: 'Paused' })).toHaveCount(1, { timeout: 8000 });
+  await expect(log.locator('.tool-status', { hasText: 'Running' })).toHaveCount(0);
 
   // With the panel closed, its pill says Paused and offers Resume.
   await shell.getByRole('button', { name: 'Hide Mobius' }).click();
@@ -141,13 +152,19 @@ test('typing in the note Mobius is working in pauses it; Resume on its pill carr
   await expect(pill.getByRole('button', { name: 'Pause Mobius' })).toHaveCount(0);
   await shell.waitForTimeout(3000);
   expect(model.requests).toHaveLength(2);
-  await pill.getByRole('button', { name: 'Resume' }).click();
-  await expect(pill).not.toContainText('Paused');
-  await pill.getByRole('button').first().click();
-  const card = log.getByRole('group', { name: 'Approval needed: files.read' });
-  await card.or(log.locator('.msg.assistant', { hasText: 'Carried on.' })).first().waitFor();
-  if (await card.isVisible()) await card.getByRole('button', { name: 'Allow once' }).click();
+  await expect(pill).toContainText(/at step \d/);
+  // From the keyboard, Resume hands the focus to the pill rather than to nothing.
+  await pill.getByRole('button', { name: 'Resume' }).focus();
+  await shell.keyboard.press('Enter');
+  await expect(pill.filter({ hasText: 'Paused' })).toHaveCount(0);
+  await expect.poll(() => shell.evaluate(() => document.activeElement?.closest('.working-pill, .strip-mobius') != null)).toBe(true);
+  if (await pill.isVisible()) await pill.getByRole('button').first().click(); else await shell.getByRole('button', { name: 'Show Mobius' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('Carried on.');
   const system = (model.requests[2]!.messages as Array<{ role: string; content: string }>)[0]!.content;
   expect(system).toContain('The person took over for a while');
+  // The step Mobius did not run says so, and what the person typed meanwhile is theirs, not the turn's to review.
+  await expect(log.locator('.tool-status', { hasText: 'Not run: you took over' })).toHaveCount(1);
+  await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'), 'utf8')).toContain('Booked the venue myself');
+  await shell.waitForTimeout(1000);
+  await expect(shell.getByRole('region', { name: 'Changes from the last turn' })).toHaveCount(0);
 });
