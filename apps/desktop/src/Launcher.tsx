@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Reorder } from 'motion/react';
+import { popOut } from './motion';
 import type { BrowserTabState } from '@mobius/shared';
 import { APPS, DEFAULT_APPS, appName, isAvailable, isInstalled, isListed, recentApps, recentItems, type AppId, type RecentItem } from './apps';
 import { APP_ICONS, OWN_ICONS } from './Rail';
@@ -328,22 +329,40 @@ export function Launcher({
   dragOrderRef.current = dragOrder;
   const dragged = useRef(false);
 
-  useEffect(() => {
+  // Before paint, so there is never a frame where it is closing but not yet marked as leaving: an app that waits for
+  // the launcher to go before taking the keys (a new document's editor) must see it leaving at once.
+  useLayoutEffect(() => {
     const element = dialog.current;
     if (!element || inline) return;
-    if (open && !element.open) {
+    // Still leaving from the last close: it stays, whole again, as if it never went.
+    if (open && element.open && element.dataset.leaving !== undefined) {
+      delete element.dataset.leaving;
+      element.getAnimations().forEach((a) => a.cancel());
+      input.current?.focus();
+    } else if (open && !element.open) {
       // The field is already empty: it was emptied as the launcher closed. Emptying it only now, after it shows, could
       // land after the first letters typed into it, and the same words typed again went unseen (the field already held
       // them), so Enter opened whatever was first for an empty field.
       returnTo.current = document.activeElement instanceof HTMLElement && !element.contains(document.activeElement) ? document.activeElement : null;
       element.show();
       input.current?.focus();
-    } else if (!open && element.open) {
+    } else if (!open && element.open && element.dataset.leaving === undefined) {
       const focusWasInside = element.contains(document.activeElement);
-      element.close();
+      // The focus goes back at once, so the next keys reach the app while the launcher fades out.
       const back = returnTo.current;
       returnTo.current = null;
       if (focusWasInside && back?.isConnected) back.focus({ preventScroll: true });
+      element.dataset.leaving = '';
+      void popOut(element, 'translateX(-50%)').then(() => {
+        if (element.dataset.leaving === undefined) return;
+        delete element.dataset.leaving;
+        // Closing a dialog gives the focus back to where it was when it opened, even after the app has moved it on
+        // (a new document's text takes it): keep it where it is now.
+        const now = document.activeElement instanceof HTMLElement && !element.contains(document.activeElement) ? document.activeElement : null;
+        element.close();
+        if (now && document.activeElement !== now && now.isConnected) now.focus({ preventScroll: true });
+        element.getAnimations().forEach((a) => a.cancel());
+      });
     }
   }, [open, inline]);
   // However it closed (a choice, Escape, a click outside), it is empty and unchosen for next time.

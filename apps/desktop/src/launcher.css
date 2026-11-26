@@ -86,6 +86,8 @@
 .launcher:not([data-inline])[open] { animation: launcher-grow var(--dur-fast) var(--ease); }
 @keyframes launcher-grow { from { opacity: 0; transform: translateX(-50%) scale(0.97); } }
 @media (prefers-reduced-motion: reduce) { .launcher:not([data-inline])[open] { animation: none; } }
+/* Leaving: it fades out (popOut) and takes no more clicks; the focus is already back in the app. */
+.launcher[data-leaving] { pointer-events: none; }
 
 /* A quick answer: the result large, what it answers beside it in grey. */
 .launcher-option[data-kind="answer"] .launcher-label { font-size: var(--fs-xl); font-variant-numeric: tabular-nums; }

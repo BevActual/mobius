@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { pageIn } from '../motion';
 import { createPortal } from 'react-dom';
 import { SETTINGS, findSection, searchSettings, type SectionId } from './manifest';
 import { AboutSection, AdvancedSection, AppearanceSection, BrowserSection, KeyboardSection, NotificationsSection, ModelSection, SafetySection, SessionsSection, type SectionProps } from './sections';
@@ -84,6 +85,14 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   const current = findSection(section);
   const hits = useMemo(() => searchSettings(query), [query]);
   const View = VIEWS[section];
+  // Another section, page or account turns the page: it rises out of a light fade, as System Settings does.
+  const shownPage = useRef(`${section}|${subpage}|${detail ?? ''}`);
+  useLayoutEffect(() => {
+    const now = `${section}|${subpage}|${detail ?? ''}`;
+    if (shownPage.current === now) return;
+    shownPage.current = now;
+    pageIn(content.current);
+  }, [section, subpage, detail]);
   useEffect(() => { onTitle?.(query.trim() ? 'Search' : current?.label ?? 'Settings'); }, [onTitle, query, current?.label]);
   // The app sidebar (zone 2), from the shared pieces: search, then the sections under their headings, as in System Settings.
   const nav = (

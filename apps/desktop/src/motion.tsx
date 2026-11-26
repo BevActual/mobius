@@ -117,6 +117,35 @@ export function switchIn(node: HTMLElement): Animation | null {
 }
 
 /**
+ * A new page inside the same place (a Settings section, another conversation): it rises 4px out of a light fade in
+ * 150ms, the way System Settings turns a page, so the change reads without moving the frame around it. A short fade
+ * with Reduce Motion.
+ */
+export const PAGE_MS = 150;
+export function pageIn(node: HTMLElement | null): Animation | null {
+  if (!node || typeof node.animate !== 'function' || unseen()) return null;
+  node.getAnimations().forEach((a) => a.cancel());
+  if (reduced()) return node.animate([{ opacity: 0.6 }, { opacity: 1 }], { duration: 100, easing: 'linear' });
+  return node.animate([{ opacity: 0.5, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: PAGE_MS, easing: EASE });
+}
+
+/**
+ * The launcher leaves faster than it came: a fade and a slight shrink toward its centre in 120ms, then it closes.
+ * `keep` is the transform it is placed with (it is centred with translateX(-50%)). Resolves once it may be closed.
+ */
+export function popOut(node: HTMLElement | null, keep = 'none'): Promise<void> {
+  if (!node || typeof node.animate !== 'function' || unseen()) return Promise.resolve();
+  // Closed while still growing in: the way out starts from where it is, not on top of the way in.
+  node.getAnimations().forEach((a) => a.cancel());
+  const scaled = keep === 'none' ? 'scale(0.98)' : `${keep} scale(0.98)`;
+  const animation = reduced()
+    ? node.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100, easing: 'linear', fill: 'forwards' })
+    : node.animate([{ opacity: 1, transform: keep }, { opacity: 0, transform: scaled }], { duration: 120, easing: EASE_EXIT, fill: 'forwards' });
+  const settled = animation.finished.then(() => undefined, () => undefined);
+  return Promise.race([settled, new Promise<void>((done) => { window.setTimeout(done, 220); })]);
+}
+
+/**
  * A dock of panels slides out of its window edge as it opens, and back into it as it closes: its width (height, at the
  * bottom) grows from nothing while the panels inside keep their full size, so they come in whole instead of being
  * squeezed, and the app beside it gives up its room smoothly. 200ms in, 150ms out; a fade with Reduce Motion.

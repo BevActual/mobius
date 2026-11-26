@@ -1,6 +1,7 @@
 import type { SuggestedRead } from './surface';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
+import { pageIn } from './motion';
 import { TRY_ANOTHER_ASK } from './ReviewBar';
 import { Welcome } from './Welcome';
 import { describeAction, finalNote, finalVerb, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
@@ -807,6 +808,13 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   }, [incoming]);
   // Each finished step that changed files can be put back on its own.
   const turnSteps = useTurnSteps(state.conversation, state.busy, state.items);
+  // Another conversation turns the page in the panel, as a Settings section does.
+  const shownChat = useRef(state.conversation);
+  useLayoutEffect(() => {
+    if (shownChat.current === state.conversation) return;
+    shownChat.current = state.conversation;
+    pageIn(log.current);
+  }, [state.conversation]);
 
   return (
     <TurnStepsContext.Provider value={turnSteps}>

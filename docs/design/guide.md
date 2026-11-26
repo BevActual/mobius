@@ -355,7 +355,12 @@ moves.
   motion (`switchIn`).
 - A dock of panels slides out of its window edge as it opens and back as it closes (200ms in, 150ms out). The panels
   keep their full size while the dock's own size grows, and the app beside it gives up its room smoothly
-  (`dockIn`, `dockOut`). Switching app does not slide docks: the whole app settles in instead.
+  (`dockIn`, `dockOut`). Switching app does not slide docks: the whole app settles in instead. Opening or closing
+  Settings settles in the same way.
+- A new page in the same place (a Settings section, another conversation in the Mobius panel) rises 4px out of a light
+  fade in 150ms, as System Settings turns a page (`pageIn`).
+- The launcher grows in, and fades out in 120ms as it closes (`popOut`). The focus is back in the app at once, so the
+  next keys never wait for it, and it takes no clicks on its way out.
 - Keep settles a proposal solid in place; Discard fades it out and the space closes.
 - Only one thing loops at a time: Mobius working, or the playhead.
 - Hover and press change colour only.

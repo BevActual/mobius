@@ -96,4 +96,42 @@ test('a dock of panels slides back into its edge as it closes and out again as i
   await expect(dock).toHaveCount(0);
   await shell.keyboard.press('Control+\\');
   expect(await dockMotion(shell)).toEqual([{ props: ['marginRight', 'opacity', 'width'], duration: 200 }]);
+  // Going to Settings and back changes place: the dock goes and comes back with Notes, without sliding.
+  await expect.poll(() => dockMotion(shell)).toEqual([]);
+  const notesDock = '.ui-panels[data-app="notes"] .ui-dock[data-dock="left"]';
+  await openSettings(shell);
+  await expect(shell.locator(notesDock)).toHaveCount(0);
+  await shell.keyboard.press('Escape');
+  await expect(shell.locator(notesDock)).toBeVisible();
+  expect(await motionOn(shell, notesDock)).toEqual([]);
+});
+
+/** The animations on an element: their keyframes' properties and length. */
+const motionOn = (shell: Page, selector: string) => shell.evaluate((s) => document.querySelector(s)?.getAnimations().map((a) => {
+  const effect = a.effect as KeyframeEffect;
+  return { props: [...new Set(effect.getKeyframes().flatMap((f) => Object.keys(f).filter((k) => !['offset', 'computedOffset', 'easing', 'composite'].includes(k))))].sort(), duration: effect.getTiming().duration };
+}) ?? null, selector);
+
+test('the launcher fades out as it closes, the focus already back, and a Settings section turns like a page', async () => {
+  const shell = mobius!.shell;
+  const field = shell.getByRole('textbox', { name: 'Message Mobius' });
+  await field.focus();
+  await shell.keyboard.press('Control+k');
+  const find = shell.getByRole('combobox', { name: 'Find apps, pages and commands' });
+  await expect(find).toBeFocused();
+  await shell.keyboard.press('Escape');
+  // Still drawn for a moment, fading out and out of reach; the keys are already the app's.
+  expect(await motionOn(shell, '.launcher')).toEqual([{ props: ['opacity', 'transform'], duration: 120 }]);
+  await expect(field).toBeFocused();
+  await expect(shell.locator('.launcher[open]')).toHaveCount(0);
+  // Opened again at once, it is whole and takes the keys.
+  await shell.keyboard.press('Control+k');
+  await shell.keyboard.press('Escape');
+  await shell.keyboard.press('Control+k');
+  await expect(find).toBeFocused();
+  await expect(shell.locator('.launcher[open]')).toBeVisible();
+  await shell.keyboard.press('Escape');
+  await openSettings(shell);
+  await shell.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Appearance' }).click();
+  expect(await motionOn(shell, '.settings-content')).toEqual([{ props: ['opacity', 'transform'], duration: 150 }]);
 });

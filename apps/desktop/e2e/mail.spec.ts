@@ -219,6 +219,8 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await list.getByRole('option').first().click();
   await tools.getByRole('button', { name: 'Done' }).click();
   await expect(list.getByRole('option')).toHaveCount(0);
+  // With nothing after it to open, the reading pane closes.
+  await expect(tools).toHaveCount(0);
   // The shared Undo toast takes it back.
   await page().getByRole('status').filter({ hasText: 'Done: “Terrace + lunch for the 13th”' }).getByRole('button', { name: 'Undo' }).click();
   await expect(list.getByRole('option')).toHaveCount(1);

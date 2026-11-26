@@ -13,6 +13,7 @@ import { MobiusMark } from './MobiusMark';
 import { REMIND_AFTER, remindAt, remindDay, useFollowUps, waitingOn } from './mail-follow-ups';
 
 import './mail.css';
+import { foldWhile } from './app-motion';
 import { AccountDialog } from './MailAccounts';
 import { dayLabel, formatWith, timeLabel, weekdayLabel } from './dates';
 import { earlierIn, fileKind, sizeWords, type Thread } from './mail-threads';
@@ -35,6 +36,10 @@ const SPLITS: { id: Split; label: string; view: MailView }[] = [
   { id: 'other', label: 'Other', view: { kind: 'box', box: 'inbox', category: 'other' } },
 ];
 /** Which split tab a view is, or null when the list shows something else (a label, Sent, Drafts…). */
+/** A conversation leaving the list (Done, Later) folds its row away first; the open one is the selected row. */
+const mailRow = (id: string) => document.querySelector<HTMLElement>(`.mail-row[data-id="${CSS.escape(id)}"]`) ?? document.querySelector<HTMLElement>('.mail-row[aria-selected="true"][data-id]');
+const outOfList = (id: string, work: () => Promise<unknown>) => foldWhile(mailRow(id), work);
+
 export function splitOf(v: MailView): Split | null {
   if (v.kind === 'waiting') return 'waiting';
   if (v.kind === 'box' && v.box === 'inbox') return v.category === 'primary' ? 'important' : v.category === 'other' ? 'other' : null;
@@ -388,7 +393,7 @@ function MessageTools({ mail, content, onLater }: { mail: MailState; content: Ma
         <IconButton label="Forward" keys="F" icon={TOOL_ICONS.forward} onClick={() => mail.forward(content)} />
       </ToolGroup>
       <ToolGroup label="Triage">
-        {archived ? <IconButton label="Move to Inbox" icon={TOOL_ICONS.done} onClick={() => void mail.archive(content.id, false)} /> : <IconButton label="Done" keys="E" icon={TOOL_ICONS.done} onClick={() => void mail.archive(content.id)} />}
+        {archived ? <IconButton label="Move to Inbox" icon={TOOL_ICONS.done} onClick={() => void mail.archive(content.id, false)} /> : <IconButton label="Done" keys="E" icon={TOOL_ICONS.done} onClick={() => void outOfList(content.id, () => mail.archive(content.id))} />}
         {!archived && row?.box !== 'sent' && <IconButton label="Later" keys="H" icon={TOOL_ICONS.later} onClick={() => onLater(content.id)} />}
         <IconButton label={flagged ? 'Unflag' : 'Flag'} pressed={flagged} icon={TOOL_ICONS.flag} onClick={() => void mail.flag(content.id, 'flagged', !flagged)} />
         {row?.box === 'sent' && follow.available && (
@@ -619,7 +624,7 @@ function rowItems(mail: MailState, m: MailMessage, onLater: (id: string) => void
     { label: 'Open', run: () => void mail.read(m.id) },
     { label: m.seen ? 'Mark as Unread' : 'Mark as Read', keys: 'U', separated: true, run: () => void mail.flag(m.id, 'seen', !m.seen) },
     { label: m.flagged ? 'Unflag' : 'Flag', run: () => void mail.flag(m.id, 'flagged', !m.flagged) },
-    m.archived ? { label: 'Move to Inbox', run: () => void mail.archive(m.id, false) } : { label: 'Done', keys: 'E', run: () => void mail.archive(m.id) },
+    m.archived ? { label: 'Move to Inbox', run: () => void mail.archive(m.id, false) } : { label: 'Done', keys: 'E', run: () => void outOfList(m.id, () => mail.archive(m.id)) },
     ...(m.box === 'inbox' && !m.archived ? [(m.laterMs ?? 0) > Date.now() ? { label: 'Back to Inbox Now', run: () => void mail.later(m.id, null) } : { label: 'Later…', keys: 'H', run: () => onLater(m.id) }] : []),
     ...(m.box === 'inbox' ? moveItems(mail, m.id, m.category, reopen) : []),
   ];
@@ -765,7 +770,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
       }
       if (!m.open) return;
       const key = e.key.toLowerCase();
-      if (key === 'e') { e.preventDefault(); void m.archive(m.open.id); }
+      if (key === 'e') { e.preventDefault(); const id = m.open.id; void outOfList(id, () => m.archive(id)); }
       else if (key === 'r') { e.preventDefault(); m.reply(m.open, e.shiftKey); }
       else if (key === 'f') { e.preventDefault(); m.forward(m.open); }
       else if (key === 'u') { e.preventDefault(); void m.flag(m.open.id, 'seen', false); m.setOpen(null); }
@@ -785,7 +790,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
     );
   }
   const count = v.kind === 'drafts' ? drafts.length : v.kind === 'waiting' ? waiting.length : mail.rows.length;
-  const pickLater = (at: number) => { const id = laterFor; setLaterFor(null); if (id) void mail.later(id, at); };
+  const pickLater = (at: number) => { const id = laterFor; setLaterFor(null); if (id) void outOfList(id, () => mail.later(id, at)); };
   return (
     <section className="mail-page" aria-label="Mail" data-open={mail.open || mail.editing ? true : undefined}>
       <div className="mail-list-pane">
@@ -808,7 +813,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
               const m = t.latest;
               const inInbox = m.box === 'inbox' && !m.archived;
               return <Row key={t.key} t={t} on={Boolean(mail.open && t.messages.some((x) => x.id === mail.open!.id))} onOpen={() => void mail.read(m.id)} onMenu={(x, y) => setRowMenu({ m, x, y })}
-                onDone={inInbox ? () => void mail.archive(m.id) : undefined} onLater={inInbox && (m.laterMs ?? 0) <= Date.now() ? () => setLaterFor(m.id) : undefined} />;
+                onDone={inInbox ? () => void outOfList(m.id, () => mail.archive(m.id)) : undefined} onLater={inInbox && (m.laterMs ?? 0) <= Date.now() ? () => setLaterFor(m.id) : undefined} />;
             })}
           </div>
         )}
