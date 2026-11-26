@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { AgentWaiting, ConversationInfo, MailFollowUp, ScheduleInfo } from '@mobius/shared';
 import type { Activity } from './activity';
 import { describeAction } from './actions';
@@ -151,24 +151,33 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const [said, setSaid] = useState('');
   // A row that goes folds away first, so the rows under it slide up rather than jump.
   const rowOf = (key: string) => document.querySelector<HTMLElement>(`li[data-key="${CSS.escape(key)}"]`);
+  // Rows folded for a Done that has not come back yet: if the list draws such a row anew (ticking a task off takes it
+  // out at once and puts it back when the write fails), it opens out from nothing as it is put on the page, before it
+  // is ever painted at full size.
+  const folded = useRef(new Set<string>());
+  const reopen = (key: string) => (el: HTMLLIElement | null) => {
+    if (!el || 'leaving' in el.dataset || !folded.current.has(key)) return;
+    folded.current.delete(key);
+    void unfold(el);
+  };
+  const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
   const doneWith = (item: InboxItem) => hold(item.key, async () => {
     // Fold first: ticking a task off takes it out of the list at once, which would leave nothing to fold.
-    const row = rowOf(item.key);
-    await foldAway(row);
+    await foldAway(rowOf(item.key));
+    folded.current.add(item.key);
     if (!(await inbox!.onDone(item))) {
       // It did not happen: the row comes back, says so, and takes the focus again.
       setSaid(`Couldn't ${item.kind === 'task' ? 'complete' : 'clear'} ${item.name}`);
-      // Ticking it off takes the task out of the list at once and puts a new row back when the write fails: open out
-      // the row that is on the page now, found again over the next frames, not the one that was folded.
-      const frame = () => new Promise<void>((done) => requestAnimationFrame(() => done()));
       await frame();
-      let back = rowOf(item.key);
-      for (let i = 0; i < 12 && !back?.isConnected; i++) { await frame(); back = rowOf(item.key); }
-      await unfold(back ?? row);
-      // After the keyboard's own move to the next row has run.
-      requestAnimationFrame(() => rowOf(item.key)?.querySelector<HTMLElement>('.desk-open')?.focus());
+      // Still the folded row (the list did not draw it anew): open it out here.
+      const still = rowOf(item.key);
+      if (still && 'leaving' in still.dataset && folded.current.delete(item.key)) void unfold(still);
+      // After the keyboard's own move to the next row, and once the row is back on the page.
+      for (let i = 0; i < 20 && !rowOf(item.key); i++) await frame();
+      rowOf(item.key)?.querySelector<HTMLElement>('.desk-open')?.focus();
       return;
     }
+    folded.current.delete(item.key);
     kept.done(item.key);
     setSaid(`${item.kind === 'task' ? 'Completed' : 'Done with'} ${item.name}`);
   });
@@ -273,7 +282,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
               </li>
             ))}
             {more.map((item) => (
-              <li key={item.key} className="desk-row" data-key={item.key} data-kind={item.kind}>
+              <li key={item.key} ref={reopen(item.key)} className="desk-row" data-key={item.key} data-kind={item.kind}>
                 <button type="button" className="desk-open" aria-label={`${item.name}: ${item.text}`} aria-keyshortcuts="E H" title="E: Done · H: Later" onClick={() => inbox?.onOpen(item)}>
                   <Icon app={item.app} />
                   <span className="desk-name">{item.name}</span>
