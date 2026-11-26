@@ -625,3 +625,22 @@ test('Edit templates puts the kept ones in Templates to change, and Today\'s not
   await notesMenu("Today’s note");
   await expect(text()).toContainText('Top three');
 });
+
+test('keys typed straight after clicking into a note from the message box all land, while Mobius is still working', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n');
+  const read = callsTool('files-read', { path: 'notes/Work/Plan.md' });
+  // The next step comes slowly: a tool call starts, then nothing for a while.
+  const slow = { chunks: [{ ...read.chunks[0]!, pauseMs: 2500 }, read.chunks[1]!] };
+  await start([read, slow, says(['Read it.'])]);
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect(text().locator('h1')).toHaveText('Plan');
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('Tidy my plan');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  await expect.poll(() => model!.requests.length).toBe(2);
+  // Clicked into from the message box, which had the keys: typed at once, nothing is lost.
+  await text().click();
+  await shell().keyboard.type('xz');
+  await expect(text()).toContainText('xz');
+});
