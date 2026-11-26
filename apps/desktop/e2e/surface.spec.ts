@@ -193,6 +193,8 @@ test('a message sent in the background leaves the panel, and what it did lands i
   await inbox.getByRole('button', { name: 'Keep all of Write a brief' }).click();
   await expect(inbox.getByRole('button', { name: /^Open Write a brief/ })).toHaveCount(0);
   await expect(shell().getByRole('region', { name: 'Desk' }).getByRole('status').first()).toHaveText('Kept everything from Write a brief');
+  // Not some other button on the desk: with the Inbox empty, the message box.
+  await expect(composer()).toBeFocused();
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'), 'utf8')).toBe('# Brief\n');
 });
 
@@ -213,6 +215,53 @@ test('work running in another chat is listed under this one, with Stop', async (
   await jobs.getByRole('button', { name: 'Stop Write a long brief' }).click();
   await expect(jobs).toHaveCount(0);
   // The row went with the focus on it: the message box takes it.
+  await expect(composer()).toBeFocused();
+});
+
+test('Assign to Mobius on a task runs it in a chat of its own and lands in the Inbox, leaving the open chat alone', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Fix the tap\n');
+  await start([says(['I found three plumbers ', 'near you.'], 1500)]);
+  await openApp('Tasks');
+  await shell().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Home/ }).click();
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Fix the tap', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
+  await expect(shell().locator('.toast')).toHaveText('Assigned to Mobius. It will be in your Inbox when done.');
+  // Choosing it moves nothing on the page: the keyboard is back on the task's row.
+  await expect.poll(() => shell().evaluate(() => document.activeElement?.closest('li.task')?.textContent ?? '')).toContain('Fix the tap');
+  // The ask names the task and its list, and starts in Tasks.
+  await expect.poll(() => sent()).toContain('Work on this task from my Tasks list \\"Home\\": \\"Fix the tap\\"');
+  // The open chat is not the one it runs in: it is listed under it while it runs.
+  if (!(await composer().isVisible())) await shell().keyboard.press('Control+Shift+M');
+  await expect(log().locator('.msg')).toHaveCount(0);
+  const jobs = shell().getByRole('region', { name: 'Running jobs' });
+  await expect(jobs).toContainText('In the background');
+  // Named after the task, not the words of the ask.
+  await expect(jobs.getByRole('button', { name: 'Stop Fix the tap' })).toBeVisible();
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: 'Open Fix the tap: Finished in the background' })).toBeVisible();
+  // Done clears it; with the Inbox empty, the message box takes the keyboard.
+  await inbox.getByRole('button', { name: 'Done with Fix the tap' }).click();
+  await expect(inbox.getByRole('button', { name: /^Open Fix the tap/ })).toHaveCount(0);
+  await expect(composer()).toBeFocused();
+});
+
+test('a run assigned to Mobius and stopped says so in the Inbox, not that it finished', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Book the train\n');
+  await start([says(['Looking at ', 'times…'], 6000)]);
+  await openApp('Tasks');
+  await shell().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Home/ }).click();
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Book the train', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
+  if (!(await composer().isVisible())) await shell().keyboard.press('Control+Shift+M');
+  await shell().getByRole('region', { name: 'Running jobs' }).getByRole('button', { name: 'Stop Book the train' }).click();
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: 'Open Book the train: Stopped before it finished' })).toBeVisible();
+  // Open goes to that chat, with the keyboard in its message box.
+  await inbox.getByRole('button', { name: 'Open Book the train: Stopped before it finished' }).click();
   await expect(composer()).toBeFocused();
 });
 

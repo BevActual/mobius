@@ -138,6 +138,11 @@ checkpoints live in their own store and never touch a folder's own git history.
 - **Also running.** Work Mobius is doing in other chats (sent in the background, started by a schedule, or left
   running when you moved on) is listed under the open chat, each with what it is doing (*In the background*,
   *Working*, *Needs you*) and **Stop**. Press one to open that chat.
+- **Assign to Mobius.** Right-click a task in Tasks, or a message in Mail (or use the open message's ⋯), and choose
+  **Assign to Mobius**. It works on it in a chat of its own, in the background, without opening the panel or touching
+  the chat you have open. A task it does as far as it can, ticking it off only when it is finished; a message it reads
+  and prepares what it needs (a draft reply, a task, an event), sending nothing. The result lands in Home's Inbox,
+  named after the item; one you stopped, or one that went wrong, says so there rather than that it finished.
 - **Take over** (beside Stop). While a task is running you can take control: Mobius pauses at the next safe step and the
   apps are yours. Then **Hand back**, optionally telling it what you changed or what to do next ("I booked it myself;
   just send the summary"), or **Stop**. Starting to type in the app Mobius is working in (the note it is writing, say)

@@ -1,3 +1,4 @@
+import { assignToMobius, taskAssignment } from './assign';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
@@ -338,6 +339,8 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
     ...(task.due ? [{ label: 'No deadline', run: () => setDue(null) }] : []),
     { label: task.flagged ? 'Unflag' : 'Flag', separated: true, run: () => void tasks.change(list, task, { flagged: !task.flagged }) },
     ...others.map((l, i) => ({ label: `Move to ${l.name}`, separated: i === 0, run: () => void tasks.move(list, task, l.name) })),
+    // Shell: Assign to Mobius (assign.ts) works on it in the background; the result lands in Home's Inbox.
+    ...(task.done ? [] : [{ label: 'Assign to Mobius', separated: true, run: () => assignToMobius(taskAssignment(list, task), () => line.current) }]),
     { label: 'Delete', danger: true, separated: true, keys: 'Delete', run: remove },
   ];
   const note = (task.notes ?? '').split('\n')[0] ?? '';
