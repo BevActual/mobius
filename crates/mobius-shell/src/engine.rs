@@ -136,6 +136,23 @@ impl PageEngine for WebViewEngine {
     }
 }
 
+/// The Escape key's virtual key code.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) const ESCAPE: u32 = 0x1B;
+
+/// Whether Shift is held down now (a link clicked with it asks for a new window).
+#[cfg(windows)]
+pub(crate) fn shift_held() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_SHIFT};
+    // SAFETY: reads the keyboard state of this thread; no pointers.
+    (unsafe { GetKeyState(i32::from(VK_SHIFT.0)) } as u16 & 0x8000) != 0
+}
+
+#[cfg(not(windows))]
+pub(crate) fn shift_held() -> bool {
+    false
+}
+
 fn weak_browser(slot: &Arc<OnceLock<Weak<Browser>>>) -> Option<Arc<Browser>> {
     slot.get().and_then(Weak::upgrade)
 }
@@ -167,6 +184,11 @@ impl Engine for WebViewEngine {
         let builder = WebviewBuilder::new(&id, WebviewUrl::External(parsed))
             .on_navigation(move |target| {
                 let allowed = weak_browser(&nav_slot).is_none_or(|b| b.allows_navigation(target.as_str()));
+                // On Windows the tab learns of the move from `watch_navigation`, which also knows whether it was a
+                // click and can send it to a peek instead.
+                #[cfg(windows)]
+                let _ = &nav_id;
+                #[cfg(not(windows))]
                 if allowed && let Some(b) = weak_browser(&nav_slot) {
                     let (id, url) = (nav_id.clone(), target.to_string());
                     in_order(move || {
@@ -205,7 +227,12 @@ impl Engine for WebViewEngine {
             .on_new_window(move |target, _| {
                 if let Some(b) = weak_browser(&window_slot) {
                     let target = target.to_string();
-                    in_order(move || b.new_window(&target));
+                    // Shift+click asks for a new window: it opens in a peek instead.
+                    if shift_held() {
+                        in_order(move || b.new_window_peek(&target));
+                    } else {
+                        in_order(move || b.new_window(&target));
+                    }
                 }
                 NewWindowResponse::Deny
             });
@@ -231,6 +258,22 @@ impl Engine for WebViewEngine {
                             let _ = engine_cdp(&engine_pages, &tab, "Browser.setPermission", json!({ "permission": { "name": name }, "setting": "denied" }));
                         }
                     });
+                    // The page is moving: the tab learns where. A link clicked that leaves a pinned tab's site opens
+                    // in a peek instead, and the tab stays where it is; a redirect or a script's move (no click) stays.
+                    let (move_slot, move_id) = (self.browser.clone(), id.clone());
+                    crate::cdp::watch_navigation(&webview, Arc::new(move |url: String, clicked: bool| {
+                        let Some(b) = weak_browser(&move_slot).filter(|b| b.allows_navigation(&url)) else { return false };
+                        let id = move_id.clone();
+                        if b.peeks_link(&id, &url, Some(clicked)) {
+                            in_order(move || b.peek(Some(&url)));
+                            return true;
+                        }
+                        in_order(move || {
+                            b.navigated(&id, &url, false, false);
+                            b.loading(&id, true);
+                        });
+                        false
+                    }));
                     // Ctrl and the mouse wheel zoom the page itself: the tab learns the new factor.
                     let (zoom_slot, zoom_id) = (self.browser.clone(), id.clone());
                     crate::cdp::watch_zoom(&webview, Arc::new(move |factor| {
@@ -256,7 +299,15 @@ impl Engine for WebViewEngine {
                         }
                     }));
                     let key_slot = self.keys.clone();
-                    crate::cdp::watch_keys(&webview, Arc::new(move |key, control, alt, shift| key_slot.get().and_then(Weak::upgrade).is_some_and(|bridge| bridge.page_key(key, control, alt, shift))));
+                    let (escape_slot, escape_id) = (self.browser.clone(), id.clone());
+                    crate::cdp::watch_keys(&webview, Arc::new(move |key, control, alt, shift| {
+                        // Escape in a peek closes it.
+                        if key == ESCAPE && let Some(b) = weak_browser(&escape_slot).filter(|b| b.is_peek(&escape_id)) {
+                            in_order(move || b.peek(None));
+                            return true;
+                        }
+                        key_slot.get().and_then(Weak::upgrade).is_some_and(|bridge| bridge.page_key(key, control, alt, shift))
+                    }));
                     let (start_slot, progress_slot, end_slot) = (self.downloads.clone(), self.downloads.clone(), self.downloads.clone());
                     crate::cdp::watch_downloads(
                         &webview,

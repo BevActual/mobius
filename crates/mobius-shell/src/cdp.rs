@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tauri::{Webview, Wry};
 use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_DOWNLOAD_STATE, COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED, COREWEBVIEW2_DOWNLOAD_STATE_IN_PROGRESS, ICoreWebView2DownloadOperation, ICoreWebView2Settings3, ICoreWebView2Settings8, ICoreWebView2_4, ICoreWebView2_8, COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN, COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
-use webview2_com::{AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, FocusChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, ZoomFactorChangedEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
+use webview2_com::{AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, FocusChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, ZoomFactorChangedEventHandler, NavigationStartingEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
 use windows::core::{Interface, PWSTR};
 use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW, COREWEBVIEW2_PERMISSION_STATE_DENY};
@@ -230,6 +230,32 @@ pub fn watch_audio(webview: &Webview<Wry>, on_audio: Arc<dyn Fn(bool) + Send + S
             }));
             let mut token = 0i64;
             let _ = core.add_IsDocumentPlayingAudioChanged(&handler, &mut token);
+        }
+    });
+}
+
+/// Calls `on_move(address, clicked)` as the page starts moving to an address; `clicked` is true for a person's click
+/// that is no redirect. An answer of true stops the move.
+pub fn watch_navigation(webview: &Webview<Wry>, on_move: Arc<dyn Fn(String, bool) -> bool + Send + Sync>) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            let Ok(core) = platform.controller().CoreWebView2() else { return };
+            let handler = NavigationStartingEventHandler::create(Box::new(move |_, args| {
+                let Some(args) = args else { return Ok(()) };
+                let mut uri = PWSTR::null();
+                args.Uri(&mut uri)?;
+                let url = take_pwstr(uri);
+                let (mut user, mut redirected) = (windows::core::BOOL(0), windows::core::BOOL(0));
+                args.IsUserInitiated(&mut user)?;
+                args.IsRedirected(&mut redirected)?;
+                if on_move(url, user.as_bool() && !redirected.as_bool()) {
+                    args.SetCancel(true)?;
+                }
+                Ok(())
+            }));
+            let mut token = 0i64;
+            let _ = core.add_NavigationStarting(&handler, &mut token);
         }
     });
 }

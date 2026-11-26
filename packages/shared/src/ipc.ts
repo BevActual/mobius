@@ -45,6 +45,8 @@ export interface BrowserState {
   beside?: string | null;
   /** Split view: which tab is in which place. The active tab is one of the two (the page clicked last); the places stay put. */
   split?: { first: string; second: string } | null;
+  /** Peek: the page open over the others for a look, which is not one of the tabs. Only the Tauri shell sets it. */
+  peek?: { url: string; title: string; loading: boolean } | null;
 }
 
 /** Channel names. One string per capability, grouped by surface. */
@@ -543,6 +545,8 @@ export interface MobiusBridge {
     setBounds(bounds: Bounds | null): void;
     /** Split view: where the page beside goes, reported like `setBounds`. Null until its place is drawn. */
     setBesideBounds?(bounds: Bounds | null): void;
+    /** Peek: the inside of the card the peek page shows in. While it is set, only the peek page shows: draw a picture of the pages under the card. */
+    setPeekBounds?(bounds: Bounds | null): void;
   };
   /** What the last agent turn of a conversation changed in the workspace (notes, tasks, files), and putting it back. */
   changes: {
@@ -1531,6 +1535,10 @@ export interface MobiusBridge {
     setZoom?(tabId: string, factor: number): void;
     /** Silence a tab's page, or let it be heard again. */
     mute?(tabId: string, muted: boolean): void;
+    /** Peek: open a web address over the pages for a look (again: the same peek goes there), or close it with null. Escape in the peek closes it too. */
+    peek?(url: string | null): void;
+    /** Keep the peek as a tab next to the active one, and make it active. Its id, or null with no peek. */
+    keepPeek?(): Promise<string | null>;
   };
 }
 

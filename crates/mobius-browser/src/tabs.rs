@@ -38,6 +38,18 @@ struct Tab {
     /// The page is playing sound, and whether the person silenced it.
     audible: bool,
     muted: bool,
+    /// The shell itself sent the page somewhere (an address typed, back, forward, reload): not a link to peek at.
+    sent: bool,
+}
+
+impl Tab {
+    fn new(id: String) -> Tab {
+        Tab { id, url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false, driver: None, zoom: 1.0, audible: false, muted: false, sent: false }
+    }
+}
+
+fn host_of(url: &str) -> Option<String> {
+    url::Url::parse(url).ok()?.host_str().map(|h| h.trim_start_matches("www.").to_ascii_lowercase())
 }
 
 /// The page zoom a tab may have, as browsers allow it (25% to 500%).
@@ -78,6 +90,9 @@ struct State {
     /// Split view: the tab in the first place and the tab beside it. The active tab is one of the two.
     split: Option<(String, String)>,
     beside_bounds: Option<Bounds>,
+    /// Peek: a page opened over the others for a look, not one of the tabs until it is kept.
+    peek: Option<Tab>,
+    peek_bounds: Option<Bounds>,
 }
 
 fn roomy(bounds: Option<Bounds>) -> Option<Bounds> {
@@ -85,10 +100,22 @@ fn roomy(bounds: Option<Bounds>) -> Option<Bounds> {
 }
 
 impl State {
+    /// A tab, or the page being peeked at: what the engine reports about a page goes to either.
+    fn page_mut(&mut self, id: &str) -> Option<&mut Tab> {
+        match self.tabs.iter_mut().find(|t| t.id == id) {
+            Some(tab) => Some(tab),
+            None => self.peek.as_mut().filter(|p| p.id == id),
+        }
+    }
+
     /// The pages to show and where: the active one, or both halves of a split once the second has its place.
     /// Nothing while the page area is hidden (an overlay is up), so the second page hides with the first.
     fn pages(&self) -> Vec<(String, Bounds)> {
         let Some(bounds) = roomy(self.bounds) else { return Vec::new() };
+        // A peek shows alone, in its card: the window draws a picture of the pages under it.
+        if let (Some(peek), Some(card)) = (&self.peek, roomy(self.peek_bounds)) {
+            return vec![(peek.id.clone(), card)];
+        }
         match (&self.split, roomy(self.beside_bounds)) {
             (Some((first, second)), Some(beside)) => vec![(first.clone(), bounds), (second.clone(), beside)],
             _ => self.active.iter().map(|id| (id.clone(), bounds)).collect(),
@@ -137,7 +164,8 @@ impl Browser {
             })
             .collect();
         let split = s.split.as_ref().map(|(first, second)| json!({ "first": first, "second": second }));
-        json!({ "tabs": tabs, "activeId": s.active, "beside": s.split.as_ref().map(|(_, second)| second), "split": split })
+        let peek = s.peek.as_ref().map(|p| json!({ "url": shown_url(&p.url), "title": if p.title.is_empty() { shown_url(&p.url) } else { p.title.as_str() }, "loading": p.loading }));
+        json!({ "tabs": tabs, "activeId": s.active, "beside": s.split.as_ref().map(|(_, second)| second), "split": split, "peek": peek })
     }
 
     fn layout(&self) {
@@ -151,7 +179,7 @@ impl Browser {
             let mut s = lock(&self.state);
             s.counter += 1;
             let id = format!("tab-{}", s.counter);
-            s.tabs.push(Tab { id: id.clone(), url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false, driver: None, zoom: 1.0, audible: false, muted: false });
+            s.tabs.push(Tab::new(id.clone()));
             id
         };
         self.engine.open(&id, url.unwrap_or(START_PAGE));
@@ -346,8 +374,9 @@ impl Browser {
             Address::Empty => "empty",
             Address::Blocked(_) => "blocked",
             Address::Url(url) => {
-                if !lock(&self.state).tabs.iter().any(|t| t.id == id) {
-                    return "blocked";
+                match lock(&self.state).tabs.iter_mut().find(|t| t.id == id) {
+                    Some(t) => t.sent = true,
+                    None => return "blocked",
                 }
                 self.engine.navigate(id, &url);
                 "navigated"
@@ -355,20 +384,32 @@ impl Browser {
         }
     }
 
+    /// Marks a tab as sent somewhere by the shell, if `may` allows it; says whether it did.
+    fn send(&self, id: &str, may: impl Fn(&Tab) -> bool) -> bool {
+        let mut s = lock(&self.state);
+        match s.tabs.iter_mut().find(|t| t.id == id && may(t)) {
+            Some(t) => {
+                t.sent = true;
+                true
+            }
+            None => false,
+        }
+    }
+
     pub fn back(&self, id: &str) {
-        if lock(&self.state).tabs.iter().any(|t| t.id == id && t.can_back) {
+        if self.send(id, |t| t.can_back) {
             self.engine.back(id);
         }
     }
 
     pub fn forward(&self, id: &str) {
-        if lock(&self.state).tabs.iter().any(|t| t.id == id && t.can_forward) {
+        if self.send(id, |t| t.can_forward) {
             self.engine.forward(id);
         }
     }
 
     pub fn reload(&self, id: &str) {
-        if lock(&self.state).tabs.iter().any(|t| t.id == id) {
+        if self.send(id, |_| true) {
             self.engine.reload(id);
         }
     }
@@ -403,7 +444,7 @@ impl Browser {
     fn update(&self, id: &str, change: impl FnOnce(&mut Tab)) {
         {
             let mut s = lock(&self.state);
-            let Some(tab) = s.tabs.iter_mut().find(|t| t.id == id) else { return };
+            let Some(tab) = s.page_mut(id) else { return };
             change(tab);
         }
         self.publish();
@@ -420,6 +461,7 @@ impl Browser {
             t.url = url.to_owned();
             t.can_back = can_back;
             t.can_forward = can_forward;
+            t.sent = false;
         });
     }
 
@@ -428,7 +470,7 @@ impl Browser {
         // Once per load: a visit kept under its address learns its title. Later changes (a count in the title) do not.
         let revisit = {
             let mut s = lock(&self.state);
-            s.tabs.iter_mut().find(|t| t.id == id).filter(|t| t.untitled_visit && !title.trim().is_empty()).map(|t| {
+            s.page_mut(id).filter(|t| t.untitled_visit && !title.trim().is_empty()).map(|t| {
                 t.untitled_visit = false;
                 t.url.clone()
             })
@@ -448,7 +490,7 @@ impl Browser {
         self.loading(id, false);
         let page = {
             let mut s = lock(&self.state);
-            s.tabs.iter_mut().find(|t| t.id == id).map(|t| {
+            s.page_mut(id).map(|t| {
                 t.untitled_visit = t.title.trim().is_empty();
                 (t.url.clone(), t.title.clone())
             })
@@ -471,7 +513,7 @@ impl Browser {
     pub fn icon_offered(&self, id: &str, offered: &[String]) -> Option<String> {
         let url = crate::favicon::choose_icon(offered)?.clone();
         let mut s = lock(&self.state);
-        let tab = s.tabs.iter_mut().find(|t| t.id == id)?;
+        let tab = s.page_mut(id)?;
         if tab.icon_from.as_deref() == Some(url.as_str()) {
             return None;
         }
@@ -484,6 +526,104 @@ impl Browser {
         if let Address::Url(u) = resolve_address(url) {
             self.open_url(Some(&u));
         }
+    }
+
+    /// A link the person Shift+clicked (a new window, in other browsers): it opens in a peek.
+    pub fn new_window_peek(&self, url: &str) {
+        self.peek(Some(url));
+    }
+
+    // ---- peek ----
+
+    /// Opens a page over the others for a look (a second call sends the same peek elsewhere), or closes it with `None`.
+    /// Only web addresses open. The window shows it once it says where its card is (`set_peek_bounds`).
+    pub fn peek(&self, url: Option<&str>) {
+        let url = url.and_then(|u| match resolve_address(u) {
+            Address::Url(u) => Some(u),
+            _ => None,
+        });
+        enum Then {
+            Open(String, String),
+            Navigate(String, String),
+            Close(String),
+            Nothing,
+        }
+        let then = {
+            let mut s = lock(&self.state);
+            match (url, s.peek.as_ref().map(|p| (p.id.clone(), p.url.clone()))) {
+                // The same link asked for twice (one click can report more than once): it is already on its way.
+                (Some(url), Some((_, at))) if at == url => Then::Nothing,
+                (Some(url), Some((id, _))) => {
+                    if let Some(p) = s.peek.as_mut() {
+                        p.url.clone_from(&url);
+                    }
+                    Then::Navigate(id, url)
+                }
+                (Some(url), None) => {
+                    s.counter += 1;
+                    let id = format!("tab-{}", s.counter);
+                    s.peek = Some(Tab { url: url.clone(), ..Tab::new(id.clone()) });
+                    Then::Open(id, url)
+                }
+                (None, Some((id, _))) => {
+                    s.peek = None;
+                    Then::Close(id)
+                }
+                (None, None) => Then::Nothing,
+            }
+        };
+        match then {
+            Then::Open(id, url) => self.engine.open(&id, &url),
+            Then::Navigate(id, url) => self.engine.navigate(&id, &url),
+            Then::Close(id) => {
+                self.engine.close(&id);
+                self.layout();
+            }
+            Then::Nothing => return,
+        }
+        self.publish();
+    }
+
+    /// Where the peek's card is; `None` until the window has drawn it.
+    pub fn set_peek_bounds(&self, bounds: Option<Bounds>) {
+        lock(&self.state).peek_bounds = bounds;
+        self.layout();
+    }
+
+    /// Keeps the page being peeked at as a tab of its own, next to the active one, and makes it active.
+    pub fn keep_peek(&self) -> Option<String> {
+        let id = {
+            let mut s = lock(&self.state);
+            let peek = s.peek.take()?;
+            let id = peek.id.clone();
+            let at = s.active.as_ref().and_then(|a| s.tabs.iter().position(|t| t.id == *a)).map_or(s.tabs.len(), |i| i + 1);
+            let at = at.max(s.tabs.iter().take_while(|t| t.pinned).count());
+            s.tabs.insert(at, peek);
+            id
+        };
+        self.activate(&id);
+        Some(id)
+    }
+
+    #[must_use]
+    pub fn is_peek(&self, id: &str) -> bool {
+        lock(&self.state).peek.as_ref().is_some_and(|p| p.id == id)
+    }
+
+    /// Whether a page's own move to `url` should open in a peek instead: a link that leaves a pinned tab's site, as
+    /// Arc does. Not while the page is still loading (a redirect), not where the shell sent it, and not when the engine
+    /// knows it was no click (`clicked` false). The caller opens the peek and stops the tab's own navigation.
+    #[must_use]
+    pub fn peeks_link(&self, id: &str, url: &str, clicked: Option<bool>) -> bool {
+        if clicked == Some(false) || !is_web_url(url) {
+            return false;
+        }
+        let s = lock(&self.state);
+        let Some(tab) = s.tabs.iter().find(|t| t.id == id) else { return false };
+        if !tab.pinned || tab.loading || tab.sent || !is_web_url(&tab.url) {
+            return false;
+        }
+        host_of(&tab.url) != host_of(url)
     }
 
     pub fn found(&self, id: &str, active: u64, matches: u64) {
@@ -808,6 +948,69 @@ mod tests {
         b.zoomed("tab-1", f64::INFINITY);
         assert_eq!(b.state()["tabs"][0]["zoom"], 1.1);
         assert!(!engine.calls().iter().any(|c| c.starts_with("zoom")), "the page already has it");
+    }
+
+    #[test]
+    fn a_peek_opens_over_the_pages_alone_and_closes() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        let (area, card) = (Bounds { x: 0, y: 0, width: 600, height: 400 }, Bounds { x: 50, y: 30, width: 500, height: 340 });
+        b.set_bounds(Some(area));
+        b.peek(Some("example.com"));
+        assert_eq!(b.state()["peek"]["loading"], true);
+        assert_eq!(ids(&b), vec!["tab-1"], "a peek is not one of the tabs");
+        assert!(engine.calls().contains(&"open tab-2 https://example.com/".to_owned()));
+        assert_eq!(last_layout(&engine), vec![("tab-1".into(), area)], "the page shows until the card is drawn");
+        b.set_peek_bounds(Some(card));
+        assert_eq!(last_layout(&engine), vec![("tab-2".into(), card)], "then the peek alone, in its card");
+        b.navigated("tab-2", "https://example.com/", false, false);
+        b.titled("tab-2", "Example");
+        assert_eq!(b.state()["peek"], json!({ "url": "https://example.com/", "title": "Example", "loading": true }));
+        b.peek(Some("other.example"));
+        assert!(engine.calls().contains(&"navigate tab-2 https://other.example/".to_owned()), "one peek at a time");
+        b.peek(Some("https://other.example/"));
+        assert_eq!(engine.calls().iter().filter(|c| c.contains("other.example")).count(), 1, "the same link twice loads once");
+        b.peek(None);
+        assert!(engine.calls().contains(&"close tab-2".to_owned()));
+        assert_eq!(b.state()["peek"], Value::Null);
+        assert_eq!(last_layout(&engine), vec![("tab-1".into(), area)]);
+        b.peek(Some("what is a peek"));
+        assert_eq!(b.state()["peek"], Value::Null, "only web addresses");
+    }
+
+    #[test]
+    fn a_kept_peek_becomes_the_active_tab_next_to_the_one_it_came_from() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        b.open(None);
+        b.activate("tab-1");
+        b.peek(Some("example.com"));
+        assert_eq!(b.keep_peek().as_deref(), Some("tab-3"));
+        assert_eq!(ids(&b), vec!["tab-1", "tab-3", "tab-2"]);
+        assert_eq!(b.active_id().as_deref(), Some("tab-3"));
+        assert_eq!(b.state()["peek"], Value::Null);
+        assert!(!engine.calls().contains(&"close tab-3".to_owned()), "the same page, not loaded again");
+        assert_eq!(b.keep_peek(), None);
+    }
+
+    #[test]
+    fn a_link_that_leaves_a_pinned_tabs_site_peeks_and_nothing_else_does() {
+        let (b, _, _, _) = browser();
+        b.open(Some("mail.example"));
+        b.navigated("tab-1", "https://mail.example/inbox", false, false);
+        b.finished("tab-1");
+        assert!(!b.peeks_link("tab-1", "https://news.example/", None), "not a pinned tab");
+        b.pin("tab-1", true);
+        assert!(b.peeks_link("tab-1", "https://news.example/", None));
+        assert!(b.peeks_link("tab-1", "https://news.example/", Some(true)));
+        assert!(!b.peeks_link("tab-1", "https://news.example/", Some(false)), "the engine knows it was no click");
+        assert!(!b.peeks_link("tab-1", "https://www.mail.example/sent", None), "the same site");
+        assert!(!b.peeks_link("tab-1", "javascript:alert(1)", None));
+        assert_eq!(b.navigate("tab-1", "news.example"), "navigated");
+        assert!(!b.peeks_link("tab-1", "https://news.example/", None), "where the shell sent it");
+        b.navigated("tab-1", "https://news.example/", true, false);
+        b.loading("tab-1", true);
+        assert!(!b.peeks_link("tab-1", "https://login.example/", None), "a redirect while loading");
     }
 
     #[test]

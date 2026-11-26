@@ -204,7 +204,7 @@ mod chromium {
                 Some(TabDownload::new(self.shared.clone()))
             }
             fn keyboard_handler(&self) -> Option<KeyboardHandler> {
-                Some(TabKeys::new(self.shared.clone()))
+                Some(TabKeys::new(self.shared.clone(), self.tab.clone()))
             }
             fn permission_handler(&self) -> Option<PermissionHandler> {
                 Some(TabPermissions::new())
@@ -307,9 +307,18 @@ mod chromium {
             tab: String,
         }
         impl RequestHandler {
-            fn on_before_browse(&self, _browser: Option<&mut cef::Browser>, _frame: Option<&mut Frame>, request: Option<&mut Request>, _user_gesture: i32, _is_redirect: i32) -> i32 {
+            fn on_before_browse(&self, _browser: Option<&mut cef::Browser>, frame: Option<&mut Frame>, request: Option<&mut Request>, user_gesture: i32, is_redirect: i32) -> i32 {
                 let Some(request) = request else { return 0 };
                 let url = CefString::from(&request.url()).to_string();
+                let main = frame.is_some_and(|f| f.is_main() != 0);
+                // A link clicked that leaves a pinned tab's site opens in a peek; the tab stays where it is.
+                if main && let Some(b) = self.shared.links.tabs()
+                    && b.allows_navigation(&url)
+                    && b.peeks_link(&self.tab, &url, Some(user_gesture != 0 && is_redirect == 0))
+                {
+                    later(move || b.peek(Some(&url)));
+                    return 1;
+                }
                 let allowed = self.shared.links.tabs().is_none_or(|b| b.allows_navigation(&url));
                 i32::from(!allowed)
             }
@@ -322,12 +331,14 @@ mod chromium {
             tab: String,
         }
         impl LifeSpanHandler {
-            fn on_before_popup(&self, _browser: Option<&mut cef::Browser>, _frame: Option<&mut Frame>, _popup_id: i32, target_url: Option<&CefString>, _target_frame_name: Option<&CefString>, _target_disposition: WindowOpenDisposition, _user_gesture: i32, _popup_features: Option<&PopupFeatures>, _window_info: Option<&mut WindowInfo>, _client: Option<&mut Option<Client>>, _settings: Option<&mut BrowserSettings>, _extra_info: Option<&mut Option<DictionaryValue>>, _no_javascript_access: Option<&mut i32>) -> i32 {
+            fn on_before_popup(&self, _browser: Option<&mut cef::Browser>, _frame: Option<&mut Frame>, _popup_id: i32, target_url: Option<&CefString>, _target_frame_name: Option<&CefString>, target_disposition: WindowOpenDisposition, _user_gesture: i32, _popup_features: Option<&PopupFeatures>, _window_info: Option<&mut WindowInfo>, _client: Option<&mut Option<Client>>, _settings: Option<&mut BrowserSettings>, _extra_info: Option<&mut Option<DictionaryValue>>, _no_javascript_access: Option<&mut i32>) -> i32 {
                 if let Some(target) = target_url.map(CefString::to_string) {
                     let shared = self.shared.clone();
+                    // Shift+click asks for a new window: it opens in a peek instead.
+                    let peek = target_disposition == WindowOpenDisposition::from(sys::cef_window_open_disposition_t::CEF_WOD_NEW_WINDOW);
                     later(move || {
                         if let Some(b) = shared.links.tabs() {
-                            b.new_window(&target);
+                            if peek { b.new_window_peek(&target) } else { b.new_window(&target) }
                         }
                     });
                 }
@@ -435,12 +446,20 @@ mod chromium {
     wrap_keyboard_handler! {
         struct TabKeys {
             shared: Arc<Shared>,
+            tab: String,
         }
         impl KeyboardHandler {
             fn on_pre_key_event(&self, _browser: Option<&mut cef::Browser>, event: Option<&KeyEvent>, _os_event: Option<&mut sys::MSG>, _is_keyboard_shortcut: Option<&mut i32>) -> i32 {
                 let Some(event) = event else { return 0 };
                 if event.type_ != KeyEventType::from(sys::cef_key_event_type_t::KEYEVENT_RAWKEYDOWN) {
                     return 0;
+                }
+                // Escape in a peek closes it.
+                if u32::try_from(event.windows_key_code).ok() == Some(crate::engine::ESCAPE)
+                    && let Some(b) = self.shared.links.tabs().filter(|b| b.is_peek(&self.tab))
+                {
+                    later(move || b.peek(None));
+                    return 1;
                 }
                 let Some(bridge) = self.shared.links.bridge() else { return 0 };
                 let (control, alt, shift) = (event.modifiers & 4 != 0, event.modifiers & 8 != 0, event.modifiers & 2 != 0);
