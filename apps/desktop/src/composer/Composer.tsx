@@ -201,7 +201,12 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
-  const selected = useStageSelection(here?.key ?? null);
+  const selection = useStageSelection(here?.key ?? null);
+  // The selection shows as its own chip after what is open, so "this" is visibly the chosen cells or words; removed,
+  // the message goes with the whole item until something else is chosen.
+  const [selectionOff, setSelectionOff] = useState<string | null>(null);
+  const selectionShown = here && selection.now && selection.now !== selectionOff ? selection.now : null;
+  const selected = () => { const now = selection.read(); return now && now !== selectionOff ? now : null; };
   const going = useRef(false);
   /** The message's attachments with what is open here first, unless it is already among them. */
   const withHere = async (items: ContextItem[]): Promise<ContextItem[]> => {
@@ -473,6 +478,15 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               <span className="chip-kind" aria-hidden="true">{here.what.replace(/^this /, '').replace(/^./, (c) => c.toUpperCase())}</span>
               <span className="chip-title">{here.label}</span>
               <button type="button" className="chip-remove" aria-label={`Remove ${here.label}`} onClick={onRemoveHere}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+              </button>
+            </li>
+          )}
+          {here && selectionShown && !context.some((c) => c.source === here.item.source) && (
+            <li className="chip" data-selection title={`Goes with your message: what you chose in ${here.what}. Remove it to send ${here.what} without it.`}>
+              <span className="chip-kind" aria-hidden="true">Selected</span>
+              <span className="chip-title">{/^[A-Z]{1,3}\d+(:[A-Z]{1,3}\d+)?$/.test(selectionShown) ? selectionShown : `“${selectionShown.length > 40 ? `${selectionShown.slice(0, 39)}…` : selectionShown}”`}</span>
+              <button type="button" className="chip-remove" aria-label="Remove the selection" onClick={() => setSelectionOff(selectionShown)}>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
               </button>
             </li>
