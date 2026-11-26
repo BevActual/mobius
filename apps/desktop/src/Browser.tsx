@@ -1023,13 +1023,69 @@ function SplitPage({ split, tabs, hidden }: { split: { first: string; second: st
 }
 
 /** A new tab shows Mobius's own start page; otherwise the native page sits in its slot (two, side by side, in split view). */
-export function BrowserPage({ onStartPage, hidden, onOpen, onRead, split = null, tabs = [] }: { onStartPage: boolean; hidden: boolean; onOpen: (url: string) => void; onRead: (path: string, title: string) => void; split?: { first: string; second: string } | null; tabs?: readonly BrowserTabState[] }) {
-  if (split && window.mobius.surface.setBesideBounds) return <SplitPage split={split} tabs={tabs} hidden={hidden} />;
-  return (
+export function BrowserPage({ onStartPage, hidden, onOpen, onRead, split = null, tabs = [], peek = null }: { onStartPage: boolean; hidden: boolean; onOpen: (url: string) => void; onRead: (path: string, title: string) => void; split?: { first: string; second: string } | null; tabs?: readonly BrowserTabState[]; peek?: { url: string; title: string; loading: boolean } | null }) {
+  const page = split && window.mobius.surface.setBesideBounds ? <SplitPage split={split} tabs={tabs} hidden={hidden} /> : (
     <>
       {onStartPage && <StartPage onOpen={onOpen} onRead={onRead} />}
       <SurfaceSlot hidden={hidden} />
     </>
+  );
+  return (
+    <>
+      {page}
+      {peek && window.mobius.surface.setPeekBounds && <PeekCard peek={peek} hidden={hidden} />}
+    </>
+  );
+}
+
+/**
+ * Peek, as Arc's (resources.arc.net, "Peek"): a link that leaves a pinned tab's site, or a Shift+click, opens in a card
+ * over the page rather than a new tab. The pages under it show as a dimmed picture (only the peek page is drawn while it
+ * is open). Escape, Close or a click outside closes it; Open as tab keeps it as a tab beside the active one.
+ */
+function PeekCard({ peek, hidden }: { peek: { url: string; title: string; loading: boolean }; hidden: boolean }) {
+  const body = useRef<HTMLDivElement>(null);
+  const [under, setUnder] = useState<string | null | undefined>(undefined);
+  const api = window.mobius.browser;
+  const close = () => api.peek?.(null);
+  // The picture of the pages under the card is taken first: once the card has its place, only the peek page is drawn.
+  useEffect(() => {
+    let live = true;
+    void api.snapshot().then((url) => { if (live) setUnder(url); }).catch(() => { if (live) setUnder(null); });
+    return () => { live = false; };
+  }, [api]);
+  useEffect(() => {
+    const el = body.current;
+    const set = window.mobius.surface.setPeekBounds;
+    if (!el || !set || under === undefined) return undefined;
+    if (hidden) { set(null); return undefined; }
+    const report = () => { const { x, y, width, height } = el.getBoundingClientRect(); set({ x, y, width, height }); };
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    window.addEventListener('resize', report);
+    return () => { observer.disconnect(); window.removeEventListener('resize', report); set(null); };
+  }, [under, hidden]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); close(); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+  return (
+    <div className="peek" role="dialog" aria-label={`Peek: ${peek.title || hostOf(peek.url)}`}>
+      {under && <img className="peek-under" src={under} alt="" />}
+      <div className="peek-scrim" aria-hidden="true" onClick={close} />
+      <div className="peek-card">
+        <div className="peek-head">
+          <SiteChip url={peek.url} icon={null} />
+          <span className="peek-title" title={peek.url}>{peek.title || hostOf(peek.url)}</span>
+          <span className="peek-host">{hostOf(peek.url)}</span>
+          <button type="button" className="peek-keep" onClick={() => void api.keepPeek?.()}>Open as tab</button>
+          <IconButton label="Close peek" keys="Esc" onClick={close} icon={<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>} />
+        </div>
+        <div ref={body} className="peek-body" data-testid="peek-slot" data-loading={peek.loading || undefined} />
+      </div>
+    </div>
   );
 }
 

@@ -1808,7 +1808,7 @@ export function App() {
         return (
           <>
             {cover?.url && <img className="page-cover" src={cover.url} alt="" data-testid="page-cover" />}
-            <BrowserPage onStartPage={onStartPage} hidden={launcherOpen || hubOpen || settingsOpen || menuOverPage || cover !== null || onStartPage} onOpen={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); }} onRead={(path, title) => { openApp('reader'); void reading.open(path, title); }} split={browser.split ?? null} tabs={browser.tabs} />
+            <BrowserPage onStartPage={onStartPage} hidden={launcherOpen || hubOpen || settingsOpen || menuOverPage || cover !== null || onStartPage} onOpen={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); }} onRead={(path, title) => { openApp('reader'); void reading.open(path, title); }} split={browser.split ?? null} tabs={browser.tabs} peek={browser.peek ?? null} />
           </>
         );
       case 'notes':

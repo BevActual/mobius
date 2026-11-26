@@ -204,3 +204,20 @@ test('Air Traffic Control: a site set to open in a space sends its new tabs ther
   await shell().getByRole('button', { name: 'Tabs options' }).click();
   await shell().getByRole('menuitemcheckbox', { name: `Open ${host} in Work` }).click();
 });
+
+test('Peek shows a page in a card over the tabs; Open as tab keeps it, Escape closes it', { tag: '@shell', annotation: { type: 'needs the shell', description: 'the peek page is placed by the shell' } }, async () => {
+  await expect(titles()).toHaveText(['Fixture home']);
+  await shell().evaluate((url) => window.mobius.browser.peek?.(url), fixture.origin + '/second');
+  const peek = shell().getByRole('dialog', { name: /^Peek: / });
+  await expect(peek).toBeVisible();
+  await expect(peek.locator('.peek-title')).toHaveText('Second page');
+  await peek.getByRole('button', { name: 'Open as tab' }).click();
+  await expect(peek).toHaveCount(0);
+  await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+  await shell().evaluate((url) => window.mobius.browser.peek?.(url), fixture.origin + '/');
+  await expect(peek).toBeVisible();
+  await shell().locator('.peek-head').click();
+  await shell().keyboard.press('Escape');
+  await expect(peek).toHaveCount(0);
+  await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+});

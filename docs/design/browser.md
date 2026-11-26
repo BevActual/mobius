@@ -70,6 +70,15 @@ space, and the space shows; a site's subdomains follow it. Tabs already placed a
 into stays where you are. **Tabs options** lists each route, ticked; choosing one stops it. Deleting a space drops its
 routes.
 
+## Peek (round 3)
+
+As Arc's Peek (resources.arc.net, "Peek"): a link that leaves a pinned tab's site (once the tab has loaded, so sign-in
+redirects stay put) or a Shift+click on any link opens in a card over the page panel, not a new tab. The card shows
+the page's title and site, **Open as tab** (keeps it as a tab beside the active one, without reloading) and Close.
+Escape, Close or a click outside closes it. Only the peek page is drawn while it is open, so the pages under it show
+as a dimmed picture taken just before. The shell routes the links and places the page (`browser.peek`,
+`browser.keepPeek`, `surface.setPeekBounds`).
+
 ## Later
 
 - Separate sign-ins per space.
