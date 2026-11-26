@@ -1048,6 +1048,13 @@ function PeekCard({ peek, hidden }: { peek: { url: string; title: string; loadin
   const [under, setUnder] = useState<string | null | undefined>(undefined);
   const api = window.mobius.browser;
   const close = () => api.peek?.(null);
+  // A dialog takes the keyboard while it is open (onto Open as tab) and gives it back where it was when it closes.
+  const keep = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    keep.current?.focus();
+    return () => { if (before?.isConnected) before.focus(); };
+  }, []);
   // The picture of the pages under the card is taken first: once the card has its place, only the peek page is drawn.
   useEffect(() => {
     let live = true;
@@ -1072,7 +1079,7 @@ function PeekCard({ peek, hidden }: { peek: { url: string; title: string; loadin
     return () => window.removeEventListener('keydown', onKey);
   });
   return (
-    <div className="peek" role="dialog" aria-label={`Peek: ${peek.title || hostOf(peek.url)}`}>
+    <div className="peek" role="dialog" aria-modal="true" aria-label={`Peek: ${peek.title || hostOf(peek.url)}`}>
       {under && <img className="peek-under" src={under} alt="" />}
       <div className="peek-scrim" aria-hidden="true" onClick={close} />
       <div className="peek-card">
@@ -1080,7 +1087,7 @@ function PeekCard({ peek, hidden }: { peek: { url: string; title: string; loadin
           <SiteChip url={peek.url} icon={null} />
           <span className="peek-title" title={peek.url}>{peek.title || hostOf(peek.url)}</span>
           <span className="peek-host">{hostOf(peek.url)}</span>
-          <button type="button" className="peek-keep" onClick={() => void api.keepPeek?.()}>Open as tab</button>
+          <button ref={keep} type="button" className="peek-keep" onClick={() => void api.keepPeek?.()}>Open as tab</button>
           <IconButton label="Close peek" keys="Esc" onClick={close} icon={<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>} />
         </div>
         <div ref={body} className="peek-body" data-testid="peek-slot" data-loading={peek.loading || undefined} />
