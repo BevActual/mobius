@@ -40,13 +40,19 @@ export function slideIn(view: HTMLElement | null, later: boolean | null): void {
   view.animate([{ opacity: 0.4, transform: `translateX(${later ? 24 : -24}px)` }, { opacity: 1, transform: 'none' }], { duration: GROW_MS, easing: EASE });
 }
 
-/** Puts back a row that was folding away, when what it was for did not happen after all: the fold runs back open. */
+/** Puts back a row that was folding away, when what it was for did not happen after all: it opens back out. */
 export async function unfold(row: HTMLElement | null): Promise<void> {
   if (!row) return;
-  const runs = row.getAnimations?.() ?? [];
-  for (const a of runs) a.reverse();
-  await Promise.all(runs.map((a) => a.finished.catch(() => undefined)));
-  for (const a of runs) a.cancel();
+  for (const a of row.getAnimations?.() ?? []) a.cancel();
   delete row.dataset.leaving;
+  if (typeof row.animate !== 'function' || still()) { row.style.overflow = ''; return; }
+  // Measured as it stands now, back at full size, then opened out to that from nothing.
+  const style = getComputedStyle(row);
+  const open = { opacity: 1, minHeight: style.minHeight, height: `${row.getBoundingClientRect().height}px`, paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, marginTop: style.marginTop, marginBottom: style.marginBottom };
+  const shut = { opacity: 0, minHeight: '0px', height: '0px', paddingTop: '0px', paddingBottom: '0px', marginTop: '0px', marginBottom: '0px' };
+  const run = reduced()
+    ? row.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, easing: 'linear' })
+    : row.animate([shut, open], { duration: GROW_MS, easing: EASE });
+  await run.finished.catch(() => undefined);
   row.style.overflow = '';
 }
