@@ -165,6 +165,9 @@ struct Yours {
     turn: String,
     from: String,
     to: Option<String>,
+    /// How many of the turn's changing steps came before the hand back: the next one starts from `to`, not from the
+    /// step before the person's stretch, so what they changed is never counted as that step's.
+    steps_before_back: usize,
 }
 
 /// A checkpoint taken after one step of a turn: the turn it is part of (its start), the call, and the step's end.
@@ -1722,22 +1725,31 @@ impl Bridge {
                 return;
             }
         };
+        let steps = self.steps_of(conversation, &turn).len();
         let mut all = lock(&self.yours);
         let list = all.entry(conversation.to_owned()).or_default();
         list.retain(|y| y.turn == turn);
         if theirs {
             if !list.iter().any(|y| y.to.is_none()) {
-                list.push(Yours { turn, from: at, to: None });
+                list.push(Yours { turn, from: at, to: None, steps_before_back: 0 });
             }
         } else if let Some(open) = list.iter_mut().find(|y| y.to.is_none()) {
             open.to = Some(at);
+            open.steps_before_back = steps;
         }
     }
 
     /// Files only the person changed during the turn (while they had control) and no step of Mobius's touched: theirs,
     /// so the turn neither lists them nor puts them back. `end` is the turn's end, or None while it runs.
     fn yours_only(&self, conversation: &str, turn: &str, end: Option<&str>) -> std::collections::HashSet<String> {
-        let windows: Vec<(String, Option<String>)> = lock(&self.yours).get(conversation).into_iter().flatten().filter(|y| y.turn == turn).map(|y| (y.from.clone(), y.to.clone().or_else(|| end.map(str::to_owned)))).collect();
+        let (windows, resumes): (Vec<(String, Option<String>)>, std::collections::HashMap<usize, String>) = {
+            let all = lock(&self.yours);
+            let mine: Vec<&Yours> = all.get(conversation).into_iter().flatten().filter(|y| y.turn == turn).collect();
+            (
+                mine.iter().map(|y| (y.from.clone(), y.to.clone().or_else(|| end.map(str::to_owned)))).collect(),
+                mine.iter().filter_map(|y| y.to.clone().map(|to| (y.steps_before_back, to))).collect(),
+            )
+        };
         if windows.is_empty() {
             return std::collections::HashSet::new();
         }
@@ -1749,7 +1761,9 @@ impl Bridge {
             };
             theirs.extend(changed.unwrap_or_default());
         }
-        for (_, before, after) in self.steps_of(conversation, turn) {
+        for (i, (_, before, after)) in self.steps_of(conversation, turn).into_iter().enumerate() {
+            // The first step after a hand back counts from there.
+            let before = resumes.get(&i).cloned().unwrap_or(before);
             for path in self.workspace.changed_between(&before, &after).unwrap_or_default() {
                 theirs.remove(&path);
             }

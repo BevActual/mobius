@@ -101,12 +101,17 @@ test('a tab Mobius drives says so, becomes Yours on Take over, and is Mobius’s
 });
 
 test('typing in the note Mobius is working in pauses it; Resume on its pill carries on', async () => {
-  // It reads the note, then takes its time over the next step: meanwhile the person starts typing in that note.
+  test.setTimeout(90_000);
+  // It writes a note beside the plan, then takes its time over the next one: meanwhile the person types in the plan.
   const slowStep = { chunks: [
-    { data: { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'call_2', function: { name: 'files-read', arguments: JSON.stringify({ path: 'notes/Work/Plan.md' }) } }] } }] }, pauseMs: 2500 },
+    { data: { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id: 'call_2', function: { name: 'files-write', arguments: JSON.stringify({ path: 'notes/Work/Step3.md', content: '# Step3\n' }) } }] } }] }, pauseMs: 2500 },
     { data: { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }, pauseMs: 0 },
   ] };
-  model = await startModel([callsTool('files-read', { path: 'notes/Work/Plan.md' }), slowStep, says(['Carried on.']), says(['Carried on.'])]);
+  model = await startModel([
+    callsTool('files-write', { path: 'notes/Work/Alpha.md', content: '# Alpha\n' }), slowStep,
+    // Handed back, it reads what is there again and writes the next note after all.
+    callsTool('files-write', { path: 'notes/Work/Step3.md', content: '# Step3\n' }), says(['Carried on.']),
+  ]);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   const shell = mobius.shell;
   await shell.keyboard.press('Control+k');
@@ -137,10 +142,6 @@ test('typing in the note Mobius is working in pauses it; Resume on its pill carr
   await expect(shell.getByRole('status').filter({ hasText: 'Paused Mobius while you type' })).toBeVisible();
   await expect(shell.getByRole('status', { name: 'You have control' })).toBeVisible();
 
-  // While paused, the note is theirs to write in.
-  await shell.waitForTimeout(1000);
-  await text.click();
-  await shell.keyboard.type('Booked the venue myself');
   // The step it was taking waits as Paused, not Running, and nothing claims Mobius is working.
   await expect(log.locator('.tool-status', { hasText: 'Paused' })).toHaveCount(1, { timeout: 8000 });
   await expect(log.locator('.tool-status', { hasText: 'Running' })).toHaveCount(0);
@@ -153,18 +154,22 @@ test('typing in the note Mobius is working in pauses it; Resume on its pill carr
   await shell.waitForTimeout(3000);
   expect(model.requests).toHaveLength(2);
   await expect(pill).toContainText(/at step \d/);
+  // While paused, the note is theirs to write in; resumed straight after, before the note would save on its own.
+  await text.click();
+  await shell.keyboard.type('Booked the venue myself');
   // From the keyboard, Resume hands the focus to the pill rather than to nothing.
   await pill.getByRole('button', { name: 'Resume' }).focus();
   await shell.keyboard.press('Enter');
   await expect(pill.filter({ hasText: 'Paused' })).toHaveCount(0);
   await expect.poll(() => shell.evaluate(() => document.activeElement?.closest('.working-pill, .strip-mobius') != null)).toBe(true);
-  if (await pill.isVisible()) await pill.getByRole('button').first().click(); else await shell.getByRole('button', { name: 'Show Mobius' }).click();
+  await shell.getByRole('button', { name: 'Show Mobius' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('Carried on.');
   const system = (model.requests[2]!.messages as Array<{ role: string; content: string }>)[0]!.content;
   expect(system).toContain('The person took over for a while');
-  // The step Mobius did not run says so, and what the person typed meanwhile is theirs, not the turn's to review.
+  // The step Mobius did not run says so, and what the person typed meanwhile is theirs, not the turn's to review:
+  // only Mobius's two notes are listed, and the turn's Undo leaves the plan as they wrote it.
   await expect(log.locator('.tool-status', { hasText: 'Not run: you took over' })).toHaveCount(1);
-  await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'), 'utf8')).toContain('Booked the venue myself');
-  await shell.waitForTimeout(1000);
-  await expect(shell.getByRole('region', { name: 'Changes from the last turn' })).toHaveCount(0);
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'), 'utf8')).toContain('Booked the venue myself');
+  const summary = shell.getByRole('region', { name: 'Changes from the last turn' });
+  await expect(summary.locator('.turn-summary-count')).toHaveText('2 changes');
 });
