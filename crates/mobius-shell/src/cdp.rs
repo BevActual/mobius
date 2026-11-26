@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tauri::{Webview, Wry};
 use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_DOWNLOAD_STATE, COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED, COREWEBVIEW2_DOWNLOAD_STATE_IN_PROGRESS, ICoreWebView2DownloadOperation, ICoreWebView2Settings3, ICoreWebView2Settings8, ICoreWebView2_4, COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN, COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
-use webview2_com::{AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
+use webview2_com::{AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, FocusChangedEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
 use windows::core::{Interface, PWSTR};
 use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW, COREWEBVIEW2_PERMISSION_STATE_DENY};
@@ -194,6 +194,21 @@ pub fn watch_keys(webview: &Webview<Wry>, on_key: KeyFn) {
             }));
             let mut token = 0i64;
             let _ = controller.add_AcceleratorKeyPressed(&handler, &mut token);
+        }
+    });
+}
+
+/// Calls `on_focus` each time the page takes the keyboard focus (the person clicked in it, or tabbed into it).
+pub fn watch_focus(webview: &Webview<Wry>, on_focus: Arc<dyn Fn() + Send + Sync>) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            let handler = FocusChangedEventHandler::create(Box::new(move |_, _| {
+                on_focus();
+                Ok(())
+            }));
+            let mut token = 0i64;
+            let _ = platform.controller().add_GotFocus(&handler, &mut token);
         }
     });
 }

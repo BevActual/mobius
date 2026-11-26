@@ -32,7 +32,14 @@ export interface SavedServer {
   hasKey: boolean;
 }
 
-export interface BrowserState { tabs: BrowserTabState[]; activeId: string | null }
+export interface BrowserState {
+  tabs: BrowserTabState[];
+  activeId: string | null;
+  /** Split view: the tab showing beside the first, or null. Only the Tauri shell sets it. */
+  beside?: string | null;
+  /** Split view: which tab is in which place. The active tab is one of the two (the page clicked last); the places stay put. */
+  split?: { first: string; second: string } | null;
+}
 
 /** Channel names. One string per capability, grouped by surface. */
 export const channels = {
@@ -528,6 +535,8 @@ export interface MobiusBridge {
   };
   surface: {
     setBounds(bounds: Bounds | null): void;
+    /** Split view: where the page beside goes, reported like `setBounds`. Null until its place is drawn. */
+    setBesideBounds?(bounds: Bounds | null): void;
   };
   /** What the last agent turn of a conversation changed in the workspace (notes, tasks, files), and putting it back. */
   changes: {
@@ -1510,6 +1519,8 @@ export interface MobiusBridge {
     openPage?(path: string): Promise<string | null>;
     pin?(tabId: string, pinned: boolean): void;
     moveTab?(tabId: string, index: number): void;
+    /** Split view: show this tab beside the active one; null ends the split. Activating a tab outside the split ends it too. */
+    showBeside?(tabId: string | null): void;
   };
 }
 
