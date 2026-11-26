@@ -611,7 +611,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       section.current?.querySelector('.doc-scroll')?.scrollTo({ top: 0 });
     }
     // Not while a dialog is open (the launcher): a page that loads late must not take the keys from it.
-    if (!autoFocus || document.querySelector('dialog[open]')) return;
+    if (!autoFocus || document.querySelector('dialog[open]:not([data-leaving])')) return;
     // A new document: its title is chosen, so what is typed first names it.
     const at = untitledHeading(editor);
     if (at) editor.chain().focus().setTextSelection(at).run();
