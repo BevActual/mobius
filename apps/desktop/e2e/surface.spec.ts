@@ -196,6 +196,24 @@ test('a message sent in the background leaves the panel, and what it did lands i
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'), 'utf8')).toBe('# Brief\n');
 });
 
+test('work running in another chat is listed under this one, with Stop', async () => {
+  // A slow answer, so the first chat is still working when the second one opens.
+  await start([says(['Thinking it ', 'through…'], 4000)]);
+  await openApp('Notes');
+  if (!(await composer().isVisible())) await shell().keyboard.press('Control+Shift+M');
+  await composer().fill('Write a long brief');
+  await composer().press('Alt+Enter');
+  await expect(shell().locator('.working-pill')).toBeVisible();
+  await shell().locator('.working-pill-open').click();
+  await shell().getByRole('button', { name: 'All chats' }).click();
+  await shell().getByRole('menu', { name: 'Conversations' }).getByRole('menuitem', { name: 'New chat' }).click();
+  const jobs = shell().getByRole('region', { name: 'Running jobs' });
+  await expect(jobs).toContainText('Write a long brief');
+  await expect(jobs).toContainText('In the background');
+  await jobs.getByRole('button', { name: 'Stop Write a long brief' }).click();
+  await expect(jobs).toHaveCount(0);
+});
+
 test('the Inbox gathers tasks due and project updates due, each with Done and Later, as Linear’s', async () => {
   fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
   fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Pay rent (due 2001-01-01)\n- [ ] Call the plumber (due 2001-01-02)\n');

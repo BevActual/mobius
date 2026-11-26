@@ -27,6 +27,7 @@ import { RestingPanel } from './Resting';
 import { attachmentLabel, hereOf, type SurfaceState } from './surface';
 import { activityOf } from './activity';
 import { WorkingIndicator } from './Working';
+import { RunningJobs } from './RunningJobs';
 import { FirstRunModels } from './settings/ProviderKeys';
 import { SignInForTask } from './SignIn';
 import { TurnStepsContext, useTurnStep, useTurnSteps } from './useTurnSteps';
@@ -993,6 +994,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
           {/* Not on the start page: earlier changes belong to a chat that is open. */}
           {state.items.length > 0 && <TurnHistory conversation={state.conversation} busy={state.busy} />}
           {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
+          <RunningJobs conversations={conversations} open={activeConversation} onOpen={onSelectConversation} />
           {queue.items.length > 0 && (
             <QueuePanel
               queue={queue}

@@ -79,7 +79,8 @@ it, without opening the panel.
 - **Replies made of real pieces.** An event, a table, a draft reply arrives as the app's own piece, editable in the
   reply, and Keep puts it in place.
 - **Running jobs.** Background work and schedules are listed under the conversation, each with Stop: no tabs, per the
-  layout rule.
+  layout rule. Built in the third round: every other chat Mobius is working on (handed off, scheduled or left
+  running), with Stop and a press to open it.
 
 ## Open standards, no account
 

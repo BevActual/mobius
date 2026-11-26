@@ -135,6 +135,9 @@ checkpoints live in their own store and never touch a folder's own git history.
 - **Questions.** When Mobius needs something from you, it asks with a few choices or room for your own words. The
   turn waits, and the question survives a reload.
 - **Queue.** Messages you send while Mobius is working wait in a queue. Each can be edited or removed.
+- **Also running.** Work Mobius is doing in other chats (sent in the background, started by a schedule, or left
+  running when you moved on) is listed under the open chat, each with what it is doing (*In the background*,
+  *Working*, *Needs you*) and **Stop**. Press one to open that chat.
 - **Take over** (beside Stop). While a task is running you can take control: Mobius pauses at the next safe step and the
   apps are yours. Then **Hand back**, optionally telling it what you changed or what to do next ("I booked it myself;
   just send the summary"), or **Stop**. Starting to type in the app Mobius is working in (the note it is writing, say)

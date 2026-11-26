@@ -2899,3 +2899,11 @@ button.waiting-row:focus-visible { outline: var(--focus-w) solid var(--ink); out
 .working-pill .working-pill-resume:hover, .working-pill .working-pill-resume:focus-visible { background: var(--mobius); color: var(--on-mobius); filter: brightness(1.08); }
 .working-pill[data-paused] { border-style: solid; }
 .working-pill[data-paused] .working-pill-mark { animation: none; background: var(--muted); }
+/* Running jobs: other chats Mobius is working on, under this one (RunningJobs.tsx). */
+.running-job-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: var(--sp-2); padding: 2px var(--sp-1); margin-left: calc(-1 * var(--sp-1)); border: 0; border-radius: var(--radius-small); background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.running-job-open:hover, .running-job-open:focus-visible { background: var(--wash); }
+.running-job-mark { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--mobius); animation: pulse var(--dur-loop) var(--ease) infinite; }
+.running-job[data-needs-you] .running-job-mark { animation: none; }
+.running-job-state { flex: none; color: var(--muted); font-size: var(--fs-xs); }
+.running-job[data-needs-you] .running-job-state { color: var(--mobius); }
+@media (prefers-reduced-motion: reduce) { .running-job-mark { animation: none; } }
