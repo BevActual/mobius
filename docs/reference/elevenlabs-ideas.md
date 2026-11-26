@@ -2,6 +2,8 @@
 
 > Copied from the claude.ai page of the same name on 14 November 2026, when the project moved to the repo. Links point at the repo copies.
 
+> Superseded for planning by [Voice, audio and capabilities](../design/voice-and-capabilities.md) (2026-11-26), which builds these on open models that run on your own computer.
+
 Nov 10, 2026
 
 ## The short version

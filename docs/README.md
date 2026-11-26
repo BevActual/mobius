@@ -60,6 +60,7 @@ you want to build or change Mobius, go to **Developers**.
 | [Settings: Accounts and Back and Forward](design/settings-accounts.md) | The look of the Accounts page, an account's own page, and Settings' Back and Forward |
 | [Notes](design/notes.md) | The look of what Notes adds next: managing notebooks, the Trash, Ctrl+O, note links and Mobius citing notes |
 | [Messages](design/messages.md) | The design of Messages, Mobius's own Slack or Teams on Matrix: its panels, the conversation, the composer and drafts by Mobius |
+| [Voice, audio and capabilities](design/voice-and-capabilities.md) | ElevenLabs-style voice and audio on open models that run on your own computer, and Settings and the model router organised by capability |
 | [Instrument](design/instrument.md) | The detailed reference behind the guide: sizes, colour, every element, pop-out, and the Mobius panel with its modes, permissions and cards |
 | [Design mocks](design/mocks/README.md) | The mock-ups behind Instrument, in light and dark |
 | [Archive](archive/README.md) | Earlier specs and reviews, and where each claude.ai page moved when the project came to the repo |
