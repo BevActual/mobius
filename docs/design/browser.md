@@ -61,6 +61,15 @@ As Chrome's and Arc's speaker: a tab playing sound shows a speaker in its row, a
 on it (its own button, first of the row's buttons and shown at rest too) mutes or unmutes the tab, and the tab's menu has **Mute tab** / **Unmute tab** (`browser.mute`). Only WebView2
 reports sound playing; on Chromium the speaker shows once a tab is muted.
 
+## Air Traffic Control (round 3)
+
+As Arc's Air Traffic Control (resources.arc.net, "Air Traffic Control"): a site can be set to open in a space. With
+two or more spaces, a web tab's menu has **Always open <site> in <space>** (its own space), or **Stop opening …**
+once set. From then on a tab that opens already on that site (a link from Mail, another app or a page) goes to that
+space, and the space shows; a site's subdomains follow it. Tabs already placed are never moved, and a new tab you type
+into stays where you are. **Tabs options** lists each route, ticked; choosing one stops it. Deleting a space drops its
+routes.
+
 ## Later
 
 - Separate sign-ins per space.

@@ -29,7 +29,10 @@ export interface SpacesState {
   tabFolder?: Record<string, string>;
   /** Tab id → its address when last seen, for each tab in a folder: tabs come back with new ids after a restart. */
   folderUrl?: Record<string, string>;
+  /** Air Traffic Control, as Arc's: a site whose links open in a new tab go to this space. */
+  routes?: Route[];
 }
+export interface Route { host: string; space: string }
 
 const HOUR = 3_600_000;
 export const CLEAR_AFTER = [
@@ -61,6 +64,7 @@ export function readSpaces(raw: string | null): SpacesState {
       ...(Array.isArray(v.folders) ? { folders: v.folders.filter((f) => f && typeof f.id === 'string' && typeof f.name === 'string').map((f) => ({ ...f, space: spaces.some((sp) => sp.id === f.space) ? f.space : current, open: f.open !== false })) } : {}),
       ...(v.tabFolder && typeof v.tabFolder === 'object' ? { tabFolder: v.tabFolder } : {}),
       ...(v.folderUrl && typeof v.folderUrl === 'object' ? { folderUrl: v.folderUrl } : {}),
+      ...(Array.isArray(v.routes) ? { routes: v.routes.filter((r) => r && typeof r.host === 'string' && spaces.some((sp) => sp.id === r.space)) } : {}),
     };
   } catch { return start; }
 }
@@ -76,7 +80,9 @@ export function syncSpaces(s: SpacesState, tabs: readonly BrowserTabState[], now
   const seen: Record<string, number> = {};
   for (const t of tabs) {
     const sp = s.tabSpace[t.id];
-    tabSpace[t.id] = sp && known.has(sp) ? sp : s.current;
+    // A tab first seen already on a site with a route (a link opened from another app or page) goes to that space.
+    const routed = sp === undefined ? routeFor(s, t.url) : null;
+    tabSpace[t.id] = sp && known.has(sp) ? sp : routed ?? s.current;
     seen[t.id] = t.active ? now : (s.seen[t.id] ?? now);
   }
   const active = tabs.find((t) => t.active);
@@ -142,9 +148,29 @@ export function removeSpace(s: SpacesState, id: string): SpacesState {
   const to = spaces[0]!.id;
   const tabSpace = Object.fromEntries(Object.entries(s.tabSpace).map(([t, sp]) => [t, sp === id ? to : sp]));
   const folders = s.folders?.map((f) => (f.space === id ? { ...f, space: to } : f));
-  return { ...s, spaces, tabSpace, current: s.current === id ? to : s.current, ...(folders ? { folders } : {}) };
+  const routes = s.routes?.filter((r) => r.space !== id);
+  return { ...s, spaces, tabSpace, current: s.current === id ? to : s.current, ...(folders ? { folders } : {}), ...(routes ? { routes } : {}) };
 }
 export const moveTab = (s: SpacesState, tabId: string, space: string): SpacesState => ({ ...s, tabSpace: { ...s.tabSpace, [tabId]: space } });
+
+/** A web address's site, without www. */
+export function siteOf(url: string): string {
+  try { const u = new URL(url); return /^https?:$/.test(u.protocol) ? u.hostname.replace(/^www\./, '') : ''; } catch { return ''; }
+}
+/** The space a site's links are sent to, if any: the route for the site or a site it is part of (mail.example.com under example.com). */
+export function routeFor(s: SpacesState, url: string): string | null {
+  const host = siteOf(url);
+  if (!host) return null;
+  const hit = (s.routes ?? []).filter((r) => host === r.host || host.endsWith(`.${r.host}`)).sort((a, b) => b.host.length - a.host.length)[0];
+  return hit && s.spaces.some((sp) => sp.id === hit.space) ? hit.space : null;
+}
+/** A site's links sent to a space from now on (one space per site). */
+export function addRoute(s: SpacesState, url: string, space: string): SpacesState {
+  const host = siteOf(url);
+  if (!host) return s;
+  return { ...s, routes: [...(s.routes ?? []).filter((r) => r.host !== host), { host, space }] };
+}
+export const removeRoute = (s: SpacesState, host: string): SpacesState => ({ ...s, routes: (s.routes ?? []).filter((r) => r.host !== host) });
 
 /** The folders of a space, in the order made. */
 export const foldersIn = (s: SpacesState, space = s.current) => (s.folders ?? []).filter((f) => f.space === space);

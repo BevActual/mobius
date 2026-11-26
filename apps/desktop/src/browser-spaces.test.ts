@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrowserTabState } from '@mobius/shared';
-import { addFolder, addSpace, favouriteTab, foldersIn, putInFolder, removeFolder, renameFolder, toggleFolder, inSpace, initialSpaces, readSpaces, removeSpace, staleTabs, syncSpaces, tabToShow, toggleFavourite } from './browser-spaces';
+import { addFolder, addRoute, addSpace, removeRoute, routeFor, favouriteTab, foldersIn, putInFolder, removeFolder, renameFolder, toggleFolder, inSpace, initialSpaces, readSpaces, removeSpace, staleTabs, syncSpaces, tabToShow, toggleFavourite } from './browser-spaces';
 
 const tab = (id: string, url: string, extra: Partial<BrowserTabState> = {}): BrowserTabState => ({ id, url, title: id, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra });
 const HOUR = 3_600_000;
@@ -104,5 +104,26 @@ describe('browser spaces', () => {
     const after = syncSpaces(back, [tab('n1', 'https://b.example', { pinned: true, active: true }), tab('n2', 'https://a.example/x', { pinned: true }), tab('n3', 'https://a.example/x')], 2);
     expect(after.tabFolder).toEqual({ n1: id, n2: id });
     expect(after.folderUrl).toEqual({ n1: 'https://b.example', n2: 'https://a.example/x' });
+  });
+
+  it('sends a new tab on a routed site to its space and shows that space, as Arc\'s Air Traffic Control; old tabs stay put', () => {
+    let s = syncSpaces(initialSpaces(), [tab('a', 'https://a.example', { active: true })], 0);
+    s = addSpace(s, 'Work');
+    const work = s.current;
+    s = { ...s, current: 's1' };
+    s = addRoute(s, 'https://www.example.com/inbox', work);
+    expect(s.routes).toEqual([{ host: 'example.com', space: work }]);
+    expect(routeFor(s, 'https://mail.example.com/x')).toBe(work);
+    expect(routeFor(s, 'https://notexample.com')).toBeNull();
+    s = syncSpaces(s, [tab('a', 'https://a.example'), tab('b', 'https://example.com/doc', { active: true })], 1);
+    expect(s.tabSpace).toEqual({ a: 's1', b: work });
+    expect(s.current).toBe(work);
+    // A tab already placed is not moved by a route, nor a new tab with no address yet.
+    s = { ...s, current: 's1' };
+    s = syncSpaces(s, [tab('a', 'https://example.com/later', { active: true }), tab('b', 'https://example.com/doc'), tab('c', '')], 2);
+    expect(s.tabSpace).toEqual({ a: 's1', b: work, c: 's1' });
+    expect(removeRoute(s, 'example.com').routes).toEqual([]);
+    expect(removeSpace(s, work).routes).toEqual([]);
+    expect(readSpaces(JSON.stringify(s)).routes).toEqual([{ host: 'example.com', space: work }]);
   });
 });

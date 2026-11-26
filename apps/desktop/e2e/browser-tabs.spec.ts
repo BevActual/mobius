@@ -181,3 +181,26 @@ test('Ctrl+= zooms the page and the site keeps it in its other tabs; the readout
   await expect(shell().getByRole('menuitem', { name: 'Unmute tab' })).toBeVisible();
   await shell().keyboard.press('Escape');
 });
+
+test('Air Traffic Control: a site set to open in a space sends its new tabs there', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
+  // A second space, named in place; it opens on a new tab, which goes to the fixture.
+  await shell().getByRole('button', { name: 'Personal' }).click();
+  await shell().getByRole('menuitem', { name: 'New space' }).click();
+  const name = shell().getByRole('textbox', { name: 'Space name' });
+  await name.fill('Work');
+  await name.press('Enter');
+  await address().fill(fixture.origin + '/second');
+  await address().press('Enter');
+  await expect(titles()).toHaveText(['Second page']);
+  const host = new URL(fixture.origin).hostname;
+  await shell().locator('.tab', { hasText: 'Second page' }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: `Always open ${host} in Work` }).click();
+  // Back in Personal, a link to the site opened in a new tab goes to Work, and Work shows.
+  await shell().keyboard.press('Control+Alt+ArrowLeft');
+  await expect(shell().getByRole('button', { name: 'Personal' })).toBeVisible();
+  await shell().evaluate((url) => window.mobius.browser.open(url), fixture.origin + '/');
+  await expect(shell().getByRole('button', { name: 'Work' })).toBeVisible();
+  await expect(titles()).toHaveText(['Second page', 'Fixture home']);
+  await shell().getByRole('button', { name: 'Tabs options' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: `Open ${host} in Work` }).click();
+});

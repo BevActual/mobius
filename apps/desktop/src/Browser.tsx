@@ -10,7 +10,7 @@ import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
 import { addressParts, dropPlan, historyByDay, hostOf, nextTabId, sidebarMatch, stepZoom, suggestionsFor, tileLetter, type Suggestion } from './browser-view';
-import { addFolder, addSpace, CLEAR_AFTER, favouriteTab, foldersIn, putInFolder, removeFolder, renameFolder, toggleFolder, type Folder, inSpace, isFavourite, MAX_FAVOURITES, moveTab, readSpaces, removeSpace, renameSpace, siteHue, staleTabs, syncSpaces, tabToShow, toggleFavourite, type SpacesState } from './browser-spaces';
+import { addFolder, addRoute, addSpace, removeRoute, routeFor, siteOf, CLEAR_AFTER, favouriteTab, foldersIn, putInFolder, removeFolder, renameFolder, toggleFolder, type Folder, inSpace, isFavourite, MAX_FAVOURITES, moveTab, readSpaces, removeSpace, renameSpace, siteHue, staleTabs, syncSpaces, tabToShow, toggleFavourite, type SpacesState } from './browser-spaces';
 import { AppSidebar, Confirm, IconButton, KeyCaps, Menu, PointMenu, SidebarRow, SidebarSection, ToolbarControls, type MenuEntry } from './ui';
 import { timeLabel } from './dates';
 import { SurfaceSlot } from './SurfaceSlot';
@@ -164,6 +164,8 @@ function TabMenu({ tab, x, y, tabs, spaces: sp, pinnedPages, onPinPage, onNewFol
     // Favourites, kept across spaces, as Arc's: a tile above Pinned.
     { label: isFavourite(sp, tab.url) ? 'Remove from favourites' : 'Add to favourites', run: () => setSpaces((s) => toggleFavourite(s, { url: tab.url, title: tab.title })), disabled: !web || (!isFavourite(sp, tab.url) && sp.favourites.length >= MAX_FAVOURITES) },
     ...sp.spaces.filter((s) => s.id !== (sp.tabSpace[tab.id] ?? sp.current)).map((s, i) => ({ label: `Move to ${s.name}`, separated: i === 0, run: () => { setSpaces((st) => moveTab(st, tab.id, s.id)); } })),
+    // Air Traffic Control, as Arc's: this site's links, opened in a new tab, go to this tab's space from now on.
+    ...(sp.spaces.length > 1 && web ? [routeItem(tab, sp)] : []),
     // Split view, as Arc's: this tab beside the one showing (or, on the one showing, end the split).
     ...(api.showBeside && window.mobius.surface.setBesideBounds ? [splitItem(tab, tabs)] : []),
     { label: 'Close tab', keys: tab.active ? 'Ctrl+W' : undefined, run: () => api.close(tab.id), separated: true },
@@ -171,6 +173,14 @@ function TabMenu({ tab, x, y, tabs, spaces: sp, pinnedPages, onPinPage, onNewFol
     { label: 'Close other tabs', run: () => others.forEach((t) => api.close(t.id)), disabled: others.length === 0 },
   ];
   return createPortal(<ContextMenu x={left} y={y} label={tab.title} items={items} onClose={onClose} />, document.body);
+}
+/** The tab menu's Air Traffic Control item: send this site's new tabs to the tab's space, or stop. */
+function routeItem(tab: BrowserTabState, sp: SpacesState): ContextMenuItem {
+  const space = sp.tabSpace[tab.id] ?? sp.current;
+  const site = siteOf(tab.url);
+  const name = sp.spaces.find((s) => s.id === space)?.name ?? 'this space';
+  if (routeFor(sp, tab.url) === space && (sp.routes ?? []).some((r) => r.host === site)) return { label: `Stop opening ${site} in ${name}`, run: () => setSpaces((s) => removeRoute(s, site)) };
+  return { label: `Always open ${site} in ${name}`, run: () => setSpaces((s) => addRoute(s, tab.url, space)) };
 }
 /** The tab menu's folder items: put it in a folder of this space (pinning it), take it out, or start a folder with it. */
 function folderItems(tab: BrowserTabState, sp: SpacesState, onNewFolder: (tab: BrowserTabState) => void): ContextMenuItem[] {
@@ -439,7 +449,9 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
     { label: 'Rename space…', run: () => setRenaming(true) },
     { label: 'Delete space', disabled: sp.spaces.length < 2, run: () => { const to = sp.spaces.find((s) => s.id !== space.id)!; setSpaces((s) => removeSpace(s, space.id)); goToSpace(to.id, tabs, onNewTab); } },
   ];
-  const optionEntries: MenuEntry[] = [{ label: 'History', keys: 'Ctrl+H', run: () => setShowHistory(true) }, ...(window.mobius.browser.pin ? [{ label: 'New folder', run: () => newFolder() }] : []), ...CLEAR_AFTER.map((c) => ({ label: c.ms === null ? 'Never clear Today' : `Clear Today after ${c.label.toLowerCase()}`, checked: sp.clearAfter === c.ms, separated: c === CLEAR_AFTER[0], run: () => setSpaces((s) => ({ ...s, clearAfter: c.ms })) }))];
+  // The sites sent to a space (Air Traffic Control), each ticked; choosing one stops it.
+  const routeEntries: MenuEntry[] = (sp.routes ?? []).map((r, i) => ({ label: `Open ${r.host} in ${sp.spaces.find((s) => s.id === r.space)?.name ?? 'a space'}`, checked: true, separated: i === 0, run: () => setSpaces((s) => removeRoute(s, r.host)) }));
+  const optionEntries: MenuEntry[] = [{ label: 'History', keys: 'Ctrl+H', run: () => setShowHistory(true) }, ...(window.mobius.browser.pin ? [{ label: 'New folder', run: () => newFolder() }] : []), ...routeEntries, ...CLEAR_AFTER.map((c) => ({ label: c.ms === null ? 'Never clear Today' : `Clear Today after ${c.label.toLowerCase()}`, checked: sp.clearAfter === c.ms, separated: c === CLEAR_AFTER[0], run: () => setSpaces((s) => ({ ...s, clearAfter: c.ms })) }))];
   // Back from History, the keyboard is on the tab showing.
   const closeHistory = () => { setShowHistory(false); afterPaint(() => document.querySelector<HTMLElement>('.tab[aria-current="page"] .tab-main, .tab .tab-main')?.focus()); };
   if (showHistory) return <AppSidebar label="Tabs"><HistoryList tabs={tabs} onClose={closeHistory} /></AppSidebar>;
