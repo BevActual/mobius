@@ -117,7 +117,7 @@ Where it makes sense the review is finer: Docs shows each edit as a proposal (ol
 its own Discard, Code lets you keep or put back each changed line, and a note can be reviewed line by line. When a
 turn ends, a card in the conversation names every app it changed. Apps open on what is waiting for you.
 
-The [Review app](../apps/review.md) lists everything Mobius changed, from every conversation, in one place.
+[Changes](../apps/assistant.md#changes), in Home, lists everything Mobius changed, from every conversation, in one place.
 
 ## Rewind to here
 

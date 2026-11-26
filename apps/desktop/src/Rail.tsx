@@ -30,14 +30,13 @@ export const APP_ICONS: Record<string, ReactNode> = {
   database: <><ellipse cx="10" cy="5.5" rx="6" ry="2.5" /><path d="M4 5.5v9c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-9M4 10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5" /></>,
   terminal: <><rect x="3" y="4" width="14" height="12" rx="2" /><path d="m6.5 8 2.5 2-2.5 2M10.5 13h3" /></>,
   canvas: <><rect x="3" y="3.5" width="6" height="6" rx="1" /><rect x="11" y="10.5" width="6" height="6" rx="1" /><path d="M9 6.5h3.5a1.5 1.5 0 0 1 1.5 1.5v2.5" /></>,
-  review: <><path d="M4 10a6 6 0 1 0 12 0 6 6 0 0 0-12 0" /><path d="m7.5 10 1.8 1.8 3.4-3.6" /></>,
   files: <path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" />,
   views: <><rect x="3.5" y="3.5" width="13" height="5.5" rx="1.5" /><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.5" /><rect x="11" y="11" width="5.5" height="5.5" rx="1.5" /></>,
 };
 
 /** One of Mobius's own apps: Agents, Activity, Abilities and Settings. */
 export interface OwnApp {
-  id: 'bots' | 'activity' | 'extensions' | 'settings';
+  id: 'bots' | 'activity' | 'changes' | 'extensions' | 'settings';
   name: string;
   /** It is the one showing. */
   current: boolean;
@@ -48,6 +47,7 @@ export interface OwnApp {
 export const OWN_ICONS: Record<OwnApp['id'], ReactNode> = {
   bots: <><rect x="4.5" y="7" width="11" height="8.5" rx="2.5" /><path d="M10 7V4.5M8 11h.01M12 11h.01" /></>,
   activity: <path d="M3 10.5h3l2-5 4 9 2-4h3" />,
+  changes: <><path d="M4 10a6 6 0 1 0 12 0 6 6 0 0 0-12 0" /><path d="m7.5 10 1.8 1.8 3.4-3.6" /></>,
   extensions: <><path d="M4.5 7h11l-.8 9.5h-9.4z" /><path d="M7.5 7V6a2.5 2.5 0 0 1 5 0v1" /></>,
   settings: <><circle cx="10" cy="10" r="2.5" /><path d="M10 2.8v1.9M10 15.3v1.9M2.8 10h1.9M15.3 10h1.9M4.9 4.9l1.35 1.35M13.75 13.75l1.35 1.35M4.9 15.1l1.35-1.35M13.75 6.25l1.35-1.35" /><circle cx="10" cy="10" r="5.2" /></>,
 };

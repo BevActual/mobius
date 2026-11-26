@@ -1,4 +1,4 @@
-export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'notes' | 'canvas' | 'research' | 'reader' | 'database' | 'terminal' | 'tasks' | 'calendar' | 'review' | 'files' | 'wiki' | 'projects' | 'views' | 'messages';
+export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'notes' | 'canvas' | 'research' | 'reader' | 'database' | 'terminal' | 'tasks' | 'calendar' | 'files' | 'wiki' | 'projects' | 'views' | 'messages';
 
 /** What an app is for. The hub groups apps this way, so however many there are, they read as a few clear groups. */
 export type AppGroup = 'Assistant' | 'Browse and find' | 'Write and plan' | 'Create' | 'Review';
@@ -33,7 +33,6 @@ export const APPS: readonly AppInfo[] = [
   { id: 'terminal', name: 'Terminal', available: true, group: 'Create' },
   { id: 'canvas', name: 'Canvas', available: true, group: 'Create' },
   { id: 'files', name: 'Files', available: true, group: 'Browse and find', also: 'Drive Made by Mobius Artifacts' },
-  { id: 'review', name: 'Review', available: true, group: 'Review' },
   { id: 'views', name: 'Views', available: true, group: 'Browse and find', also: 'Dashboard Dashboards Live view Overview Widgets' },
 ];
 
@@ -46,7 +45,7 @@ export const COMPACT_APPS: ReadonlySet<AppId> = new Set<AppId>(['studio', 'video
 export const findApp = (id: string): AppInfo | undefined => APPS.find((app) => app.id === id);
 
 /** Always there: Home (the agent) and Mobius's own apps. Every other app is added from Abilities. */
-export const CORE_APPS: readonly AppId[] = ['agent', 'skills', 'projects', 'files', 'review', 'views'];
+export const CORE_APPS: readonly AppId[] = ['agent', 'skills', 'projects', 'files', 'views'];
 /** The apps a new install starts with, beside the core ones (the same list as the preferences' default). */
 export const DEFAULT_APPS: readonly AppId[] = ['notes', 'tasks', 'calendar', 'mail', 'docs', 'browser'];
 /** The apps added from Abilities; null is every app (an install from before Abilities). Set from the preferences. */

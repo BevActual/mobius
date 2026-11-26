@@ -31,7 +31,7 @@ program. Install it, sign in, then choose **Check again**. See
 permission in the message box. See [Working with Mobius](guide/working-with-mobius.md).
 
 **I don't want a change Mobius made.** Choose **Discard** in the app, or **Rewind to here** in the Activity
-app to go back further. The [Review](apps/review.md) app lists everything Mobius changed.
+app to go back further. [Changes](apps/assistant.md#changes), in Home, lists everything Mobius changed.
 
 **A request failed.** It is marked **Failed** in red. In [Activity](apps/assistant.md#activity), under what needs
 you, **Try again** sends the same request once more.

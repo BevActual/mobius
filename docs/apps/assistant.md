@@ -76,6 +76,18 @@ launcher (Ctrl+K).
   running commands).
 - It reads the same log as **Settings › Approvals and safety › Activity**, which stays on this computer.
 
+## Changes
+
+Everything Mobius changed, from every conversation, in one place. It was the Review app; it now sits in Home beside
+Agents and Activity. Open it from **Go**, or type "Changes" or "Review" in the launcher (Ctrl+K).
+
+- **The Changes panel** filters to everything, or one app's changes, with counts.
+- **The list** groups changes by day. Each turn shows what you asked, and each file it changed opens in its app or can be
+  put back from here.
+
+What waits for your answer is in [Activity](#activity). Changes themselves are kept or discarded in their apps; see
+[Keep, Discard, Try another](../guide/working-with-mobius.md#keep-discard-try-another).
+
 ## Store
 
 Where you add apps, skills, connectors and plugins (it was called Abilities). Store is a place, like Settings: open it from **Go › Store…** or Ctrl K, not from All apps. See the [Store guide](../guide/abilities.md).

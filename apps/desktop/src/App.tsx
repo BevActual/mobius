@@ -206,7 +206,7 @@ async function albumSheet(read: (path: string) => Promise<unknown> | undefined, 
 const NO_PANELS: readonly PanelSpec[] = [];
 const OWN_LIST: Partial<Record<AppId, string>> = {
   agent: 'Chats', mail: 'Mailboxes', messages: 'Conversations', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
-  reader: 'Library', research: 'Reports', wiki: 'Knowledge', projects: 'Projects', views: 'Dashboards', review: 'Changes',
+  reader: 'Library', research: 'Reports', wiki: 'Knowledge', projects: 'Projects', views: 'Dashboards',
   skills: 'Store', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
@@ -438,6 +438,8 @@ export function App() {
   const inActivity = inAgent && sideMode === 'activity';
   // Agents app (marked): the agent whose page is open, if any.
   const inAgents = inAgent && sideMode === 'bots';
+  // Changes (folded in from the Review app): everything Mobius changed, by turn, to open or put back.
+  const inChanges = inAgent && sideMode === 'changes';
   const shownAgent = inAgents && agentView?.kind !== 'new' ? bots.bots.find((b) => b.id === (agentView?.kind === 'show' ? agentView.id : botOfConversation(conversation.id, botIds))) ?? null : null;
   const agentSchedulesList = useSchedules();
   useEffect(() => {
@@ -464,7 +466,6 @@ export function App() {
   const inProjects = app === 'projects';
   const inDatabase = app === 'database';
   const inTerminal = app === 'terminal';
-  const inReview = app === 'review';
   const inFiles = app === 'files';
   const inPhoto = app === 'photo';
   const inStudio = app === 'studio';
@@ -708,7 +709,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? 'Settings' : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgents ? (agentView?.kind === 'new' ? 'New agent' : shownAgent?.name ?? 'Agents') : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : '' /* Home's start page: the Go button already says Home. */)) : inNotes ? appName(app) /* Notes (marked, panel look): its notebook in grey beside it; the page's title is its first line */ : inDocs ? appName(app) /* Docs (marked, panel look): the document's title in grey beside it */ : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace === 'apps' ? storeItemOpen : null) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inMessages ? (chatSpaceSetup ? 'Mobius space' : chat.channel ? channelLabel(chat.channel) : '') /* Messages: the open conversation */ : inTasks ? appName(app) /* Tasks: the list is in grey beside it */ : inCalendar ? appName(app) /* Calendar: its range is in grey beside it */ : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
+  const place = settingsOpen ? 'Settings' : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inChanges ? 'Changes' : inAgents ? (agentView?.kind === 'new' ? 'New agent' : shownAgent?.name ?? 'Agents') : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : '' /* Home's start page: the Go button already says Home. */)) : inNotes ? appName(app) /* Notes (marked, panel look): its notebook in grey beside it; the page's title is its first line */ : inDocs ? appName(app) /* Docs (marked, panel look): the document's title in grey beside it */ : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace === 'apps' ? storeItemOpen : null) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inMessages ? (chatSpaceSetup ? 'Mobius space' : chat.channel ? channelLabel(chat.channel) : '') /* Messages: the open conversation */ : inTasks ? appName(app) /* Tasks: the list is in grey beside it */ : inCalendar ? appName(app) /* Calendar: its range is in grey beside it */ : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -736,7 +737,6 @@ export function App() {
     canvas: some(boards.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'board'),
     views: some(views.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'view'),
     database: some(databases.list.length, 'database'),
-    review: (() => { const n = review.turns.reduce((s, t) => s + t.files.length, 0); return n ? `${plural(n, 'change')} to look at` : 'Nothing to review'; })(),
     terminal: terminal.processes.some((p) => p.running) ? `${plural(terminal.processes.filter((p) => p.running).length, 'command')} running` : 'Your workspace',
     research: some(research.notebooks.reduce((sum, nb) => sum + nb.pages.length, 0), 'report'),
     reader: some(reading.notebooks.filter((nb) => nb.name !== 'Archive').reduce((sum, nb) => sum + nb.pages.length, 0), 'article', ' to read'),
@@ -775,7 +775,7 @@ export function App() {
   // Each own-list app's panel, made once: its body is drawn from the latest render through the ref.
   const ownListRef = useRef<(id: AppId) => ReactNode>(() => null);
   // Activity's list filters its page (which is the region named Activity), so the panel is named for that.
-  const homeListName = sideMode === 'activity' ? 'Filter' : sideMode === 'bots' ? 'Agents' : 'Chats';
+  const homeListName = sideMode === 'activity' ? 'Filter' : sideMode === 'bots' ? 'Agents' : sideMode === 'changes' ? 'Changes' : 'Chats';
   // Mail (marked): below about 1200px wide, Mailboxes starts hidden so the list and the message keep their room; the
   // Panels menu (or the top bar) brings it back, and a choice made there is kept.
   const roomy = useWideWindow(1200);
@@ -788,8 +788,8 @@ export function App() {
   ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy, mobiusDocked]);
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
-    || (inActivity && !split); // Activity (marked): its page fills the stage, so Mobius sits beside it as in every app
+  const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
+    || ((inActivity || inChanges) && !split); // Activity and Changes (marked): its page fills the stage, so Mobius sits beside it as in every app
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const rightOpen = hasRight && chatOpen && !learnOpen;
   useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -822,6 +822,7 @@ export function App() {
   const ownApps: OwnApp[] = [
             { id: 'bots', name: 'Agents', current: !settingsOpen && app === 'agent' && sideMode === 'bots', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } },
             { id: 'activity', name: 'Activity', current: !settingsOpen && app === 'agent' && sideMode === 'activity', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } },
+            { id: 'changes', name: 'Changes', current: !settingsOpen && app === 'agent' && sideMode === 'changes', run: () => { closeSettings(); setSideMode('changes'); openApp('agent'); } },
             { id: 'extensions', name: 'Store', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
             { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
   ];
@@ -1233,7 +1234,7 @@ export function App() {
     const list = (() => {
       switch (id) {
         case 'agent':
-          return inActivity ? <ActivitySidebar feed={activityFeed} conversations={conversation.list} pin={null} /> : (
+          return inActivity ? <ActivitySidebar feed={activityFeed} conversations={conversation.list} pin={null} /> : inChanges ? <ReviewSidebar review={review} pin={null} /> : (
             <ConversationSidebar
               conversations={conversation.list}
               active={conversation.id}
@@ -1283,8 +1284,6 @@ export function App() {
           return <StudioSidebar songs={songs} pin={null} changed={liveMarks.songs} starts={startsFor('studio')} onStart={startWithMobius} />
         case 'photo':
           return <PhotoSidebar photos={photos} pin={null} changed={liveMarks.photos} />
-        case 'review':
-          return <ReviewSidebar review={review} pin={null} />
         case 'terminal':
           return <TerminalSidebar term={terminal} pin={null} />
         case 'database':
@@ -1637,7 +1636,7 @@ export function App() {
     activateTab: (id: string) => { openApp('browser'); window.mobius.browser.activate(id); },
     newTab,
     openRecent: (item: { app: AppId; ref: string; label: string }) => { opener.current = null; closeSettings(); const target = targetOfRef(item.ref); if (target) openTarget(target, item.label); else openApp(item.app); },
-    places: { home: () => { closeSettings(); setSideMode('sessions'); openApp('agent'); }, activity: ownApp('activity'), abilities: ownApp('extensions'), settings: () => openSettings() },
+    places: { home: () => { closeSettings(); setSideMode('sessions'); openApp('agent'); }, activity: ownApp('activity'), changes: ownApp('changes'), abilities: ownApp('extensions'), settings: () => openSettings() },
     openMobius: () => { closeSettings(); if (hasRight) openRight(); else openApp('agent'); setFocusToken((n) => n + 1); },
     // Mobius opens with the thing chosen attached, as an item is from inside its app; the person says what to ask.
     askAbout: (item: { app?: AppId; label: string; detail?: string }) => {
@@ -1886,8 +1885,6 @@ export function App() {
         return <DesignEditor designs={designs} listPanels={listFor('design')} review={designs.page && liveMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'files':
         return <FilesPage files={files} onOpenFile={openChangedFile} onAsk={startWithMobius} />;
-      case 'review':
-        return <ReviewPage review={review} onOpenFile={openChangedFile} onOpenConversation={(id) => { conversation.select(id); openApp('agent'); }} />;
       case 'terminal':
         return <TerminalPage term={terminal} focusToken={terminalFocus} onAsk={(title, text) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item: { kind: 'file', title, source: `terminal/${terminal.cwd || '~'}`, text } }); }} />;
       case 'database':
@@ -1977,6 +1974,7 @@ export function App() {
             />
           );
         }
+        if (inChanges) return <ReviewPage review={review} onOpenFile={openChangedFile} onOpenConversation={(id) => { conversation.select(id); setSideMode('sessions'); }} />;
         if (inActivity) return <ActivityPage feed={activityFeed} conversations={conversation.list} active={conversation.id} onOpenConversation={(id) => { conversation.select(id); setSideMode('sessions'); }} onOpenApp={openApp} onOpenSchedules={() => openSettingsAt('schedules')} />;
         return (
           <ChatPanel

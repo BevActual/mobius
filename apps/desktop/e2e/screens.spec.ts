@@ -14,7 +14,7 @@ const APPS: Array<[string, string]> = [
   ['Browser', 'browser'], ['Agent', 'agent'], ['Mail', 'mail'], ['Notes', 'notes'], ['Docs', 'docs'], ['Projects', 'projects'],
   ['Knowledge', 'wiki'], ['Sheets', 'sheets'], ['Slides', 'slides'], ['Tasks', 'tasks'], ['Database', 'database'], ['Calendar', 'calendar'],
   ['Search', 'search'], ['Research', 'research'], ['Reader', 'reader'], ['Design', 'design'], ['Photo', 'photo'], ['Music', 'studio'],
-  ['Video', 'video'], ['Code', 'code'], ['Terminal', 'terminal'], ['Canvas', 'canvas'], ['Files', 'files'], ['Review', 'review'], ['Views', 'views'],
+  ['Video', 'video'], ['Code', 'code'], ['Terminal', 'terminal'], ['Canvas', 'canvas'], ['Files', 'files'], ['Views', 'views'],
 ];
 
 const SONG = { version: 1, tempo: 112, key: 'A minor', bars: 4, tracks: [{ id: 't1', name: 'Keys', instrument: 'piano', volume: 0.8, notes: [57, 60, 64, 67].map((pitch, i) => ({ pitch, start: i * 2, length: 2, velocity: 0.7 })) }] };
