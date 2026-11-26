@@ -118,12 +118,21 @@ test('split view shows two tabs side by side from the tab menu; the divider move
   await shell().locator('.tab', { hasText: 'Fixture home' }).click({ button: 'right' });
   await shell().getByRole('menuitem', { name: 'Open in split view' }).click();
   await expect(shell().getByTestId('surface-slot-beside')).toHaveCount(1);
-  await expect(shell().locator('.split-title')).toHaveText(['Second page', 'Fixture home']);
+  await expect(shell().locator('.browser-split-title')).toHaveText(['Second page', 'Fixture home']);
   await expect(shell().locator('.tab[data-split="true"]')).toHaveCount(2);
+  // Both pages get real room: about half the page panel each, not a sliver.
+  const halves = shell().locator('.browser-split-half');
+  const [one, two] = [await halves.nth(0).boundingBox(), await halves.nth(1).boundingBox()];
+  expect(one!.width).toBeGreaterThan(200);
+  expect(Math.abs(one!.width - two!.width)).toBeLessThan(40);
   const divider = shell().getByRole('separator', { name: 'Resize split view' });
   await divider.focus();
   await divider.press('ArrowLeft');
   await expect(divider).toHaveAttribute('aria-valuenow', '45');
+  await divider.press('End');
+  await expect(divider).toHaveAttribute('aria-valuenow', '80');
+  await divider.dblclick();
+  await expect(divider).toHaveAttribute('aria-valuenow', '50');
   await shell().getByRole('button', { name: 'End split view, keep Second page' }).click();
   await expect(shell().getByTestId('surface-slot-beside')).toHaveCount(0);
   await expect(shell().locator('.tab[data-split="true"]')).toHaveCount(0);

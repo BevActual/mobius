@@ -851,23 +851,26 @@ function SplitPage({ split, tabs, hidden }: { split: { first: string; second: st
   const head = (id: string) => {
     const tab = tabs.find((t) => t.id === id);
     return (
-      <div className="split-head" data-active={tab?.active || undefined}>
-        <button type="button" className="split-title" title={tab?.url} onClick={() => window.mobius.browser.activate(id)}>
+      <div className="browser-split-head" data-active={tab?.active || undefined}>
+        <button type="button" className="browser-split-title" title={tab?.url} aria-current={tab?.active ? 'page' : undefined} onClick={() => window.mobius.browser.activate(id)}>
           <SiteChip url={tab?.url ?? ''} icon={tab?.icon ?? null} /><span>{tab?.title || 'New tab'}</span>
         </button>
-        <button type="button" className="split-end" aria-label={`End split view, keep ${tab?.title || 'this page'}`} title="End split view (Ctrl+Shift+=)" onClick={() => { window.mobius.browser.activate(id); window.mobius.browser.showBeside?.(null); }}>
+        <button type="button" className="browser-split-end" aria-label={`End split view, keep ${tab?.title || 'this page'}`} title="End split view (Ctrl+Shift+=)" onClick={() => { window.mobius.browser.activate(id); window.mobius.browser.showBeside?.(null); }}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </button>
       </div>
     );
   };
   return (
-    <div ref={box} className="split-page" style={{ '--split': `${ratio * 100}%` } as React.CSSProperties}>
-      <div className="split-half" data-place="first">{head(split.first)}<div className="split-body"><SurfaceSlot hidden={hidden} /></div></div>
-      <div className="split-divider" role="separator" aria-orientation="vertical" aria-label="Resize split view" aria-valuemin={20} aria-valuemax={80} aria-valuenow={Math.round(ratio * 100)} tabIndex={0}
+    <div ref={box} className="browser-split-page" style={{ '--split': `${ratio * 100}%` } as React.CSSProperties}>
+      <div className="browser-split-half" data-place="first">{head(split.first)}<div className="browser-split-body"><SurfaceSlot hidden={hidden} /></div></div>
+      <div className="browser-split-divider" role="separator" aria-orientation="vertical" aria-label="Resize split view" aria-valuemin={20} aria-valuemax={80} aria-valuenow={Math.round(ratio * 100)} tabIndex={0}
         onPointerDown={drag} onDoubleClick={() => keep(0.5)}
-        onKeyDown={(e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); keep(ratio + (e.key === 'ArrowLeft' ? -0.05 : 0.05)); } }} />
-      <div className="split-half" data-place="second">{head(split.second)}<div className="split-body"><SurfaceSlot hidden={hidden} beside /></div></div>
+        onKeyDown={(e) => {
+          const to = e.key === 'ArrowLeft' ? ratio - 0.05 : e.key === 'ArrowRight' ? ratio + 0.05 : e.key === 'Home' ? 0.2 : e.key === 'End' ? 0.8 : null;
+          if (to !== null) { e.preventDefault(); keep(to); }
+        }} />
+      <div className="browser-split-half" data-place="second">{head(split.second)}<div className="browser-split-body"><SurfaceSlot hidden={hidden} beside /></div></div>
     </div>
   );
 }

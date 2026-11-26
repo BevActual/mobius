@@ -281,21 +281,21 @@
 .history-foot { justify-content: flex-start; }
 
 /* Split view, as Arc's: two pages side by side, each with its title and End split above it; the divider drags. */
-.split-page { position: absolute; inset: 0; display: grid; grid-template-columns: var(--split) 8px 1fr; }
-.split-half { position: relative; display: flex; flex-direction: column; min-width: 0; }
-.split-head { display: flex; align-items: center; gap: var(--sp-1); height: 28px; padding: 0 var(--sp-1) 0 var(--sp-2); color: var(--muted); }
-.split-head[data-active] { color: var(--ink); }
-.split-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); cursor: default; }
-.split-head[data-active] .split-title { font-weight: var(--fw-medium); }
-.split-end { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); cursor: default; }
-.split-end:hover { background: var(--sel); color: var(--ink); }
-.split-title:focus-visible, .split-end:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
-.split-body { position: relative; flex: 1; min-height: 0; }
-.split-divider { cursor: col-resize; display: grid; place-items: center; }
-.split-divider::after { content: ''; width: 2px; height: 32px; border-radius: 1px; background: var(--line); }
-.split-divider:hover::after, .split-divider:focus-visible::after { background: var(--muted); }
-.split-divider:focus-visible { outline: none; }
+.browser-split-page { position: absolute; inset: 0; display: grid; grid-template-columns: var(--split) 8px 1fr; }
+.browser-split-half { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.browser-split-head { display: flex; align-items: center; gap: var(--sp-1); height: 28px; padding: 0 var(--sp-1) 0 var(--sp-2); color: var(--muted); }
+.browser-split-head[data-active] { color: var(--ink); }
+.browser-split-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); cursor: default; }
+.browser-split-head[data-active] .browser-split-title { font-weight: var(--fw-medium); }
+.browser-split-end { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); cursor: default; }
+.browser-split-end:hover { background: var(--sel); color: var(--ink); }
+.browser-split-title:focus-visible, .browser-split-end:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.browser-split-body { position: relative; flex: 1; min-height: 0; }
+.browser-split-divider { cursor: col-resize; display: grid; place-items: center; }
+.browser-split-divider::after { content: ''; width: 2px; height: 32px; border-radius: 1px; background: var(--line); }
+.browser-split-divider:hover::after, .browser-split-divider:focus-visible::after { background: var(--muted); }
+.browser-split-divider:focus-visible { outline: none; }
 .browser-side .tab[data-split="true"] .tab-title::after { content: ' · split'; color: var(--muted); font-weight: var(--fw-regular); }
-.split-title { display: flex; align-items: center; gap: 6px; }
-.split-title > span { overflow: hidden; text-overflow: ellipsis; }
-.split-end svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.browser-split-title { display: flex; align-items: center; gap: 6px; }
+.browser-split-title > span { overflow: hidden; text-overflow: ellipsis; }
+.browser-split-end svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
