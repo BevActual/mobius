@@ -306,6 +306,8 @@ test('a project has a status, a target day and its progress from a Tasks list, a
   await shell().getByRole('menuitemcheckbox', { name: 'In progress' }).click();
   await expect(page.getByRole('button', { name: 'Status: In progress' })).toBeVisible();
   await expect.poll(() => saved().status).toBe('started');
+  // The panel groups projects by status once one has one, as Linear's list.
+  await expect(shell().getByRole('navigation', { name: 'Projects' })).toContainText('In progress');
   await page.getByLabel('Target day').fill('2030-05-01');
   await expect.poll(() => saved().target).toBe('2030-05-01');
   await expect(page.getByRole('group', { name: 'Project details' })).toContainText('May 1, 2030');

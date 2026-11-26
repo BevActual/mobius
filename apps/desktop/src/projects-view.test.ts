@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConversationInfo, ProjectInfo } from '@mobius/shared';
-import { progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine } from './projects-view';
+import { groupByStatus, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine } from './projects-view';
 
 const NOW = Date.UTC(2026, 10, 12, 12, 0);
 const MIN = 60_000;
@@ -49,5 +49,14 @@ describe('a project’s status, target and progress', () => {
     expect(targetLine('2026-11-20', 'started', now)).toEqual({ text: 'Nov 20', late: true });
     expect(targetLine('2026-11-20', 'completed', now)).toEqual({ text: 'Nov 20', late: false });
     expect(targetLine(undefined, 'started', now)).toBeNull();
+  });
+});
+
+describe('the Projects panel', () => {
+  it('is one group until a project has a status, then grouped by status in work order', () => {
+    const plain: { id: string; status?: undefined }[] = [{ id: 'a' }, { id: 'b' }];
+    expect(groupByStatus(plain)).toEqual([{ title: 'Projects', projects: [{ id: 'a' }, { id: 'b' }] }]);
+    const got = groupByStatus([{ id: 'a', status: 'completed' as const }, { id: 'b' }, { id: 'c', status: 'started' as const }, { id: 'd', status: 'planned' as const }]);
+    expect(got.map((g) => [g.title, g.projects.map((p) => p.id)])).toEqual([['In progress', ['c']], ['Planned', ['d']], ['No status', ['b']], ['Completed', ['a']]]);
   });
 });

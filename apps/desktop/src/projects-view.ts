@@ -68,3 +68,14 @@ export function targetLine(target: string | undefined, status: ProjectStatus | u
   const text = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : day.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(y !== now.getFullYear() ? { year: 'numeric' } : {}) });
   return { text, late: diff < 0 && status !== 'completed' && status !== 'canceled' };
 }
+
+/**
+ * The Projects panel's groups: one "Projects" group while no project has a status; else, as Linear's projects list,
+ * a group per status in work order (In progress, Planned, Paused, Backlog, then Completed and Canceled), with
+ * projects without one under "No status" after the open ones. Empty groups are left out.
+ */
+export function groupByStatus<T extends Pick<ProjectInfo, 'status'>>(projects: readonly T[]): { title: string; projects: T[] }[] {
+  if (!projects.some((p) => p.status)) return [{ title: 'Projects', projects: [...projects] }];
+  const order: (ProjectStatus | undefined)[] = ['started', 'planned', 'paused', 'backlog', undefined, 'completed', 'canceled'];
+  return order.map((st) => ({ title: statusName(st), projects: projects.filter((p) => p.status === st) })).filter((g) => g.projects.length > 0);
+}

@@ -6,7 +6,7 @@ import { APP_ICONS } from './Rail';
 import { ActionIcon, ContextMenu } from './ContextMenu';
 import { AppMenu, AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SideNew } from './SideNew';
-import { PROJECT_STATUSES, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine } from './projects-view';
+import { groupByStatus, PROJECT_STATUSES, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine } from './projects-view';
 import './projects.css';
 import type { WikiIncoming } from './Wiki';
 import { changeTarget } from './actions';
@@ -220,13 +220,16 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
       )}
       {naming && projects.problem && <p className="field-error" role="alert">{projects.problem}</p>}
       <nav aria-label="Projects">
-        <SidebarSection title="Projects" {...(pin ? { action: pin } : {})}>
-          {shown.map((p) => (
-            <SidebarRow key={p.id} icon={p.status ? <StatusIcon status={p.status} /> : <svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>}
-              label={p.name} count={waiting(p)} current={projects.open?.id === p.id} onSelect={() => projects.setOpenId(p.id)}
-              onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, project: p }); }} />
-          ))}
-        </SidebarSection>
+        {/* Grouped by status once any project has one, as Linear's projects list: open work first, done and canceled last. */}
+        {groupByStatus(shown).map((g, i) => (
+          <SidebarSection key={g.title} title={g.title} {...(pin && i === 0 ? { action: pin } : {})}>
+            {g.projects.map((p) => (
+              <SidebarRow key={p.id} icon={p.status ? <StatusIcon status={p.status} /> : <svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>}
+                label={p.name} count={waiting(p)} current={projects.open?.id === p.id} onSelect={() => projects.setOpenId(p.id)}
+                onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, project: p }); }} />
+            ))}
+          </SidebarSection>
+        ))}
       </nav>
       {projects.list.length > 0 && shown.length === 0 && <p className="side-empty">No projects match.</p>}
       {menu && createPortal(

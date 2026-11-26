@@ -23,6 +23,11 @@ Linear counts a project's progress from its issues; in Mobius a project's work i
 picks one; then the chip names the list (a click opens it in Tasks), with a bar and "3 of 8 done · 38%" beside it, the
 list's done tasks out of all. The arrow beside it changes or unlinks the list. Progress follows the list as it changes.
 
+## The Projects panel by status
+
+While no project has a status the panel is one "Projects" list. Once one has, it is grouped as Linear's projects list:
+In progress, Planned, Paused, Backlog, then No status, then Completed and Canceled; empty groups are left out.
+
 ## Kept
 
 In `projects.json` with the project: `status`, `target` (YYYY-MM-DD) and `list` (the list's name). The core checks
@@ -32,4 +37,3 @@ each (one of the six statuses, a real day, a list name without a slash); an empt
 ## Later
 
 - Project updates with health (On track, At risk, Off track), as Linear's, drafted by Mobius from the threads.
-- Group the Projects panel by status.
