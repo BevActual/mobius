@@ -201,6 +201,8 @@ test('a Knowledge page can move to another folder and to the Trash, with Undo, P
   fs.writeFileSync(path.join(pages, 'Team rules.md'), '# Team rules\n\nBuilds start on Mondays.\n');
   fs.writeFileSync(path.join(pages, 'Old plan.md'), '# Old plan\n\nGone soon.\n');
   fs.writeFileSync(path.join(userData, 'workspace', 'wiki', 'Team', 'Rota.md'), '# Rota\n');
+  fs.mkdirSync(path.join(userData, 'workspace', 'wiki', 'Projects'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'wiki', 'Projects', 'Kestrel.md'), '# Kestrel\n');
   await start();
   await openWiki();
   const side = shell().getByRole('navigation', { name: 'Pages' });
@@ -218,9 +220,18 @@ test('a Knowledge page can move to another folder and to the Trash, with Undo, P
   await shell().getByRole('status').getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => fs.existsSync(path.join(pages, 'Old plan.md'))).toBe(true);
   await expect(trash).toHaveCount(0);
-  // Delete from the keyboard, then Put back from the Trash; then Delete forever.
+  // A project's memory page stays with its project: its menu has no Move or Trash, and Delete leaves it.
+  await side.getByRole('button', { name: /^Kestrel$/ }).click({ button: 'right' });
+  await expect(shell().getByRole('menuitem', { name: 'Open' })).toBeVisible();
+  await expect(shell().getByRole('menuitem', { name: /Move to/ })).toHaveCount(0);
+  await shell().keyboard.press('Escape');
+  await side.getByRole('button', { name: /^Kestrel$/ }).focus();
+  await shell().keyboard.press('Delete');
+  expect(fs.existsSync(path.join(userData, 'workspace', 'wiki', 'Projects', 'Kestrel.md'))).toBe(true);
+  // Delete from the keyboard (focus goes to a row beside it), then Put back from the Trash; then Delete forever.
   await side.getByRole('button', { name: /Old plan/ }).focus();
   await shell().keyboard.press('Delete');
+  await expect(side.locator('button.list-row[data-path]:focus')).toHaveCount(1);
   await trash.getByRole('button', { name: /Old plan/ }).click();
   await shell().getByRole('menuitem', { name: 'Put back' }).click();
   await expect.poll(() => fs.existsSync(path.join(pages, 'Old plan.md'))).toBe(true);
