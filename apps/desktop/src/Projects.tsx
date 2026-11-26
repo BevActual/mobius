@@ -438,9 +438,19 @@ function ProjectUpdates({ projects, project, progress, threads, onForget }: { pr
   const form = writing && (
     <form className="proj-update-form" aria-label={writing.update ? 'Edit the update' : 'New update'} onSubmit={(e) => { e.preventDefault(); void post(); }}
       onKeyDown={(e) => { if (e.key === 'Escape' && !draft) { e.stopPropagation(); close(); } }}>
-      <div className="proj-health-pick" role="radiogroup" aria-label="Health">
+      {/* One Tab stop; the arrows choose, as a radio group does. */}
+      <div className="proj-health-pick" role="radiogroup" aria-label="Health"
+        onKeyDown={(e) => {
+          const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+          if (!step) return;
+          e.preventDefault();
+          const at = PROJECT_HEALTHS.findIndex((h) => h.id === health);
+          const next = PROJECT_HEALTHS[(at + step + PROJECT_HEALTHS.length) % PROJECT_HEALTHS.length]!;
+          setHealth(next.id);
+          e.currentTarget.querySelector<HTMLElement>(`[data-health-id="${next.id}"]`)?.focus();
+        }}>
         {PROJECT_HEALTHS.map((h) => (
-          <button key={h.id} type="button" role="radio" aria-checked={health === h.id} className="proj-prop" onClick={() => setHealth(h.id)}><HealthDot health={h.id} /><span>{h.name}</span></button>
+          <button key={h.id} type="button" role="radio" aria-checked={health === h.id} tabIndex={health === h.id ? 0 : -1} data-health-id={h.id} className="proj-prop" onClick={() => setHealth(h.id)}><HealthDot health={h.id} /><span>{h.name}</span></button>
         ))}
       </div>
       {draft ? (
@@ -464,7 +474,7 @@ function ProjectUpdates({ projects, project, progress, threads, onForget }: { pr
         <ul className="proj-update-changes" aria-label="Added by itself: changes since the last update">{pending.map((c) => <li key={c}>{c}</li>)}</ul>
       )}
       <div className="proj-update-bar">
-        {!writing.update && !draft && <button type="button" className="btn" onClick={write}><MobiusMark size={14} />Write with Mobius</button>}
+        {!writing.update && !draft && <button type="button" className="btn proj-write-mobius" onClick={write}><MobiusMark size={14} /><span>Write with Mobius</span></button>}
         <span className="spacer" />
         <button type="button" className="btn" onClick={close}>Cancel</button>
         <button type="submit" className="btn primary" disabled={!text.trim() || !!draft} title="Post (Ctrl+Enter)">{writing.update ? 'Save' : 'Post update'}</button>

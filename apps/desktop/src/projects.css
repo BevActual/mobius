@@ -127,4 +127,5 @@ button.proj-row:focus-visible { outline: 2px solid color-mix(in srgb, var(--acce
 .proj-update-draft[aria-busy="true"] .proj-update-text { color: var(--muted); }
 .proj-update-who { display: inline-flex; align-items: center; gap: 6px; }
 .proj-update-bar { display: flex; align-items: center; gap: var(--sp-2); }
-.proj-update-bar .btn svg { margin-right: 6px; vertical-align: -2px; }
+.proj-write-mobius { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.proj-write-mobius svg { flex: none; }

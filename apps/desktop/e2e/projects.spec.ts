@@ -353,7 +353,11 @@ test('a project update says its health, Mobius can draft one, and the next says 
   await page.getByLabel('Target day').fill('2030-05-01');
   await updates.getByRole('button', { name: 'Write an update' }).click();
   await expect(updates.getByRole('list', { name: /changes since the last update/ })).toHaveText('Target day set to May 1, 2030');
-  await updates.getByRole('radio', { name: 'On track' }).click();
+  // The health is one Tab stop, and the arrows choose (At risk was kept from the last update; Left goes to On track).
+  await updates.getByRole('radio', { name: 'At risk' }).focus();
+  await shell().keyboard.press('ArrowLeft');
+  await expect(updates.getByRole('radio', { name: 'On track' })).toHaveAttribute('aria-checked', 'true');
+  await expect(updates.getByRole('radio', { name: 'On track' })).toBeFocused();
   await updates.getByRole('textbox', { name: 'Update' }).fill('Catering signed.');
   await updates.getByRole('textbox', { name: 'Update' }).press('Control+Enter');
   await expect.poll(() => saved().updates?.length).toBe(2);
