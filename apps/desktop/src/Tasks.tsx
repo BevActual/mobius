@@ -233,7 +233,7 @@ function useCompleting(commit: () => Promise<unknown> | void) {
       ? [{ opacity: 1 }, { opacity: 0 }]
       : [{ height: `${li.offsetHeight}px`, minHeight: getComputedStyle(li).minHeight, opacity: 1, transform: 'none' }, { height: '0px', minHeight: '0px', opacity: 0, transform: 'translateX(24px)' }];
     li.style.overflow = 'hidden';
-    const a = li.animate(frames, { duration: still ? FADE_MS : GROW_MS, easing: 'cubic-bezier(0.2, 0, 0, 1)', fill: 'forwards' });
+    const a = li.animate(frames, { duration: still ? FADE_MS : GROW_MS, easing: still ? 'linear' : 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
     a.onfinish = finish;
     a.oncancel = finish;
   };
