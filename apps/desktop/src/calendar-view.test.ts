@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
 import { setLocaleForTests } from './dates';
-import { answerWord, inviteText, parseInvitees, sameInvitees, calendarGlance, dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, meetingLink, rangeLabel, scoped, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { answerWord, answeredAs, myInvite, inviteText, parseInvitees, sameInvitees, calendarGlance, dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, meetingLink, rangeLabel, scoped, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -298,5 +298,23 @@ describe('scoped', () => {
   });
   it('leaves an event that does not repeat alone', () => {
     expect(scoped(ev('Lunch', '2026-11-09T12:00', '2026-11-09T13:00'), moved, 'one')).toEqual(moved);
+  });
+});
+
+describe('answering an invitation (Going?)', () => {
+  const rui = { name: 'Rui', email: 'rui@example.com', status: 'accepted' as const };
+  const ana = { name: 'Ana', email: 'Ana@Example.com', status: 'needs-action' as const };
+  it('finds the person on an invitation someone else sent, by any of their addresses', () => {
+    expect(myInvite({ attendees: [rui, ana], organizer: rui }, ['ana@example.com'])).toEqual(ana);
+    expect(myInvite({ attendees: [rui, ana], organizer: { ...ana } }, ['ana@example.com'])).toBeNull();
+    expect(myInvite({ attendees: [rui], organizer: rui }, ['ana@example.com'])).toBeNull();
+    expect(myInvite({ attendees: [rui, ana], organizer: rui }, [])).toBeNull();
+  });
+  it('changes only their answer', () => {
+    expect(answeredAs([rui, ana, { name: '', email: 'sam@example.com', status: '' }], 'ana@example.com', 'tentative')).toEqual([
+      { name: 'Rui', email: 'rui@example.com', status: 'accepted' },
+      { name: 'Ana', email: 'Ana@Example.com', status: 'tentative' },
+      { name: '', email: 'sam@example.com' },
+    ]);
   });
 });

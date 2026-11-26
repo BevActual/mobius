@@ -312,6 +312,8 @@ export function App() {
   // The Inbox's invitations come from their own read of the next 30 days: Calendar's events are only the days on its
   // screen, so an invitation for next week was missed from Day view. Read again whenever Calendar's events or its files change.
   const [ahead, setAhead] = useState<CalendarEvent[]>([]);
+  // The person's own addresses, to find the invitations they are on: their mail accounts and calendar sign-ins.
+  const myAddresses = [...mail.accounts.map((a) => a.email), ...calendar.accounts.map((a) => a.username).filter((u) => u.includes('@'))];
   const [calendarFiles, setCalendarFiles] = useState(0);
   useEffect(() => window.mobius.calendar?.onChanged(() => setCalendarFiles((n) => n + 1)), []);
   const calendarKey = calendar.events.map((e) => `${e.id}|${e.start}|${e.attendees?.map((a) => a.status).join(',') ?? ''}`).join(';');
@@ -325,6 +327,8 @@ export function App() {
     return () => { on = false; };
   }, [calendarKey, calendarFiles]);
   const [eventToken, setEventToken] = useState(0);
+  // An event to open in Calendar, from the Inbox's Answer: its id and day, and a count so the same one opens again.
+  const [showEvent, setShowEvent] = useState<{ id: string; date: string; n: number } | null>(null);
   // A saved shortcut on a key Mobius keeps for itself (Little Mobius was Ctrl+Shift+M) goes back to its usual keys.
   const bindings = useMemo(() => settleBindings(preferences.value.keybindings), [preferences.value.keybindings]);
   // Clicking a notification brings Mobius forward; show the conversation it was about.
@@ -1014,7 +1018,7 @@ export function App() {
     else if (target.app === 'photo') { openApp('photo'); void photos.openPhoto(target.path); }
     else if (target.app === 'video') { openApp('video'); void video.open(target.project); }
     else if (target.app === 'code') { openApp('code'); void code.openProject(target.project); }
-    else if (target.app === 'calendar') { openApp('calendar'); if (target.date) { const day = new Date(`${target.date}T12:00:00`); if (!Number.isNaN(day.getTime())) calendar.setAnchor(day); } }
+    else if (target.app === 'calendar') { openApp('calendar'); if (target.date) { const day = new Date(`${target.date}T12:00:00`); if (!Number.isNaN(day.getTime())) calendar.setAnchor(day); if (target.event) { const id = target.event, date = target.date; setShowEvent((was) => ({ id, date, n: (was?.n ?? 0) + 1 })); } } }
     else if (target.app === 'open') openApp(target.id);
     else showPage(target.url);
   };
@@ -1907,7 +1911,7 @@ export function App() {
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && liveMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'calendar':
-        return <CalendarPage calendar={calendar} newToken={eventToken} onMeeting={(event) => void recordMeeting(event)} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} working={conversation.state.busy} />; // Calendar app: what Mobius's last turn changed
+        return <CalendarPage calendar={calendar} newToken={eventToken} show={showEvent} me={myAddresses} onMeeting={(event) => void recordMeeting(event)} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} working={conversation.state.busy} />; // Calendar app: what Mobius's last turn changed
       case 'search':
         return (
           <SearchPage
@@ -1967,7 +1971,7 @@ export function App() {
                 onOpenRecent={launch.openRecent}
                 suggested={{ count: mail.counts.suggested, onOpen: () => { openApp('mail'); mail.setView({ kind: 'drafts', only: 'mobius' }); } }}
                 inbox={{
-                  items: inboxItems({ dueToday: smartView('today', tasks.all, new Date()), projects: projects.list, suggested: wikiIncoming.waiting, mail: mail.messages, events: ahead.filter((e) => !calendar.hidden.has(e.calendar)), me: mail.accounts.map((a) => a.email) }, new Date()),
+                  items: inboxItems({ dueToday: smartView('today', tasks.all, new Date()), projects: projects.list, suggested: wikiIncoming.waiting, mail: mail.messages, events: ahead.filter((e) => !calendar.hidden.has(e.calendar)), me: myAddresses }, new Date()),
                   onOpen: (item) => {
                     if (item.target) openTarget(item.target);
                     else if (item.project) { projects.setOpenId(item.project); openApp('projects'); }

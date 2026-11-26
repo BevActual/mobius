@@ -8,7 +8,7 @@ import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
 import { ContactPanel, useAddressSuggestions } from './ContactPanel';
-import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, meetingLink, movedByDays, parseEventWithPlace, placeDay, REPEAT_OPTIONS, SCOPE_CHOICES, scoped, sameDay, searchEvents, answerWord, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, meetingLink, movedByDays, parseEventWithPlace, placeDay, REPEAT_OPTIONS, SCOPE_CHOICES, scoped, sameDay, searchEvents, answerWord, answeredAs, GOING, myInvite, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
@@ -810,7 +810,7 @@ function RepeatScopeDialog({ asking, onDone }: { asking: Asking | null; onDone: 
   );
 }
 
-function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock, onPerson, askScope }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent, scope: RepeatScope) => void; /** Which times of a repeating event a change or a deletion is for. */ askScope?: AskScope; onMeeting?: (event: CalendarEvent) => void; /** Moves the editor to the Event panel, keeping what was typed. */ onDock?: () => void; /** Shows someone on the event in the Person panel. */ onPerson?: (person: CalendarPerson) => void }) {
+function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock, onPerson, askScope, me = [] }: { calendar: CalendarState; editing: Editing; /** The person's own addresses, to answer an invitation they are on. */ me?: readonly string[]; onClose: () => void; onDeleted?: (event: CalendarEvent, scope: RepeatScope) => void; /** Which times of a repeating event a change or a deletion is for. */ askScope?: AskScope; onMeeting?: (event: CalendarEvent) => void; /** Moves the editor to the Event panel, keeping what was typed. */ onDock?: () => void; /** Shows someone on the event in the Person panel. */ onPerson?: (person: CalendarPerson) => void }) {
   const original = 'event' in editing ? editing.event : null;
   const startText = 'event' in editing ? editing.event.start : editing.start;
   const initialAllDay = 'event' in editing ? editing.event.allDay : editing.allDay;
@@ -840,6 +840,24 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   // What the event is now, as far as this editor knows: what it opened with, then what it last kept. The docked panel
   // keeps changes as they are made, so what is sent next is measured from here, not from the event it opened.
   const base = useRef({ title: original?.title ?? '', where: original?.location ?? '', notes: original?.notes ?? '', allDay: initialAllDay, repeat: initialRepeat, alert: initialAlert, invite: inviteText(original?.attendees), start: startText, end: endText, attendees: original?.attendees });
+  // Going?: the person's own answer to an invitation someone else sent, kept as soon as it is chosen.
+  const you = original ? myInvite(original, me) : null;
+  const [going, setGoing] = useState(you?.status ?? '');
+  const answer = async (status: (typeof GOING)[number]['status']) => {
+    if (!original || !you || status === going) return;
+    let change: CalendarDraft = { attendees: answeredAs(base.current.attendees ?? original.attendees ?? [], you.email, status) };
+    if (original.repeats) {
+      const scope = askScope ? await askScope('change', true, original.start) : 'all';
+      if (!scope) return;
+      change = scoped(original, change, scope);
+    }
+    setBusy(true);
+    const ok = await calendar.update(original, change);
+    setBusy(false);
+    if (!ok) return;
+    setGoing(status);
+    base.current.attendees = (base.current.attendees ?? original.attendees ?? []).map((a) => (a.email.toLowerCase() === you.email.toLowerCase() ? { ...a, status } : a));
+  };
   const save = async (event?: FormEvent, stay = false) => {
     event?.preventDefault();
     const draft: CalendarDraft = {
@@ -990,6 +1008,12 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           <ul className="cal-invitees" aria-label="Answers">
             {original!.attendees!.map((p) => <li key={p.email}>{onPerson ? <button type="button" className="cal-invitee" title={`About ${p.name || p.email}`} onClick={() => onPerson(p)}>{p.name || p.email}</button> : (p.name || p.email)}{answerWord(p.status) && <span> · {answerWord(p.status)}</span>}</li>)}
           </ul>
+        )}
+        {you && (
+          <div className="cal-going" role="group" aria-label="Going?">
+            <span aria-hidden="true">Going?</span>
+            {GOING.map((g) => <button key={g.status} type="button" className="cal-going-btn" aria-pressed={going === g.status} disabled={busy} onClick={() => void answer(g.status)}>{g.label}</button>)}
+          </div>
         )}
         <div className="cal-editor-group">
           <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={(on) => { setAllDay(on); if (alert !== null && on !== allDay) setAlert(null); }} />
@@ -1210,7 +1234,7 @@ function changeSaid(changed: readonly CalendarEvent[], first: CalendarEvent): st
     : `Mobius changed ${changed.length} events in its last turn, from ${when}.`;
 }
 
-export function CalendarPage({ calendar, newToken = 0, review = null, working = false, onMeeting }: { calendar: CalendarState; newToken?: number; /** Record an event's meeting: a note for it, listening. */ onMeeting?: (event: CalendarEvent) => void; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null; /** Mobius's turn is still running: its changes are drawn as they come, and Keep waits for the end. */ working?: boolean }) {
+export function CalendarPage({ calendar, newToken = 0, review = null, working = false, onMeeting, show = null, me = [] }: { calendar: CalendarState; newToken?: number; /** An event to open, by its id and day (from the Inbox's Answer); n changes to open it again. */ show?: { id: string; date: string; n: number } | null; /** The person's own addresses, to answer invitations they are on. */ me?: readonly string[]; /** Record an event's meeting: a note for it, listening. */ onMeeting?: (event: CalendarEvent) => void; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null; /** Mobius's turn is still running: its changes are drawn as they come, and Keep waits for the end. */ working?: boolean }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   // Person (right, hidden until someone on an event is picked): who they are, and their coming meetings.
   const [person, setPerson] = useState<CalendarPerson | null>(null);
@@ -1257,6 +1281,15 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
   const into = writable.find((c) => !calendar.hidden.has(c)) ?? writable[0] ?? 'Calendar';
   const create = () => setEditing({ start: newStart(calendar.anchor), allDay: false });
   useEffect(() => { if (newToken) create(); }, [newToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Open the event asked for once its day has been read.
+  const shownFor = useRef(0);
+  useEffect(() => {
+    if (!show || shownFor.current === show.n) return;
+    const event = calendar.events.find((e) => e.id === show.id && e.start.startsWith(show.date));
+    if (!event) return;
+    shownFor.current = show.n;
+    open(event);
+  }, [show, calendar.events]); // eslint-disable-line react-hooks/exhaustive-deps
   // A new event being made is drawn on the grid where it will go, until it is added or let go.
   const pending: Pending | null = editing && !('event' in editing) && !editing.allDay
     ? { start: editing.start, end: editing.end ?? isoTime(new Date(localDate(editing.start).getTime() + 3600_000)) }
@@ -1418,7 +1451,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
       {/* Closing one suggestion never closes the next: its answer can finish after another was opened. */}
       {asking && <SuggestionPopover key={asking.id} calendar={calendar} id={asking.id} at={asking.at} onClose={() => { const id = asking.id; setAsking((a) => (a?.id === id ? null : a)); }} />}
       {scopeDialog}
-      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} askScope={askScope} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} onPerson={setPerson} />}
+      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} me={me} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} askScope={askScope} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} onPerson={setPerson} />}
       {/* Person: only once someone invited is picked (from their name on the event), so an event's page stands alone. */}
       {person && <PanelTab id="person" name="Person" shown><ContactPanel person={person} empty="Pick someone invited to an event to see who they are." onOpenEvent={(event) => setEditing({ event })} /></PanelTab>}
     </section>

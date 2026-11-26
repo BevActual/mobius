@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
+import { startMailServers } from './mail-fixture';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -196,4 +197,45 @@ test('the Inbox gathers tasks due and project updates due, each with Done and La
   // Opening a project update goes to the project.
   await inbox.getByRole('button', { name: 'Offsite: No update yet' }).click();
   await expect(shell().getByRole('region', { name: 'Project updates' })).toBeVisible();
+});
+
+test('an invitation in the Inbox opens in Calendar, where Going? answers it, as Google Calendar', async () => {
+  const servers = await startMailServers('app-pass', []);
+  try {
+    const when = new Date();
+    when.setDate(when.getDate() + 3);
+    const d = `${when.getFullYear()}${String(when.getMonth() + 1).padStart(2, '0')}${String(when.getDate()).padStart(2, '0')}`;
+    const file = path.join(userData, 'workspace', 'calendar', 'Calendar.ics');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Mobius//EN', 'BEGIN:VEVENT', 'UID:lunch', `DTSTART:${d}T120000`, `DTEND:${d}T130000`, 'SUMMARY:Lunch with Rui',
+      'ORGANIZER;CN=Rui Almeida:mailto:rui@example.com', 'ATTENDEE;CN=Rui Almeida;PARTSTAT=ACCEPTED:mailto:rui@example.com', 'ATTENDEE;CN=Ana;PARTSTAT=NEEDS-ACTION:mailto:ana@example.com', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'));
+    await start();
+    // The person's address comes from their mail account.
+    await openApp('Mail');
+    await shell().getByRole('button', { name: 'Add a mail account…' }).click();
+    const dialog = shell().getByRole('dialog', { name: 'Add a mail account' });
+    await dialog.getByRole('combobox', { name: 'Provider' }).selectOption('other');
+    await dialog.getByRole('textbox', { name: 'Email address' }).fill('ana@example.com');
+    await dialog.getByRole('textbox', { name: 'Incoming server (IMAP)' }).fill(`127.0.0.1:${servers.imapPort}`);
+    await dialog.getByRole('textbox', { name: 'Outgoing server (SMTP)' }).fill(`127.0.0.1:${servers.smtpPort}`);
+    await dialog.getByLabel('App password').fill('app-pass');
+    await dialog.getByRole('button', { name: 'Connect' }).click();
+    await expect(dialog).toHaveCount(0);
+    await openApp('Agent');
+    const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+    // Answer opens the event itself in Calendar.
+    await inbox.getByRole('button', { name: 'Lunch with Rui: Invitation from Rui Almeida' }).click();
+    const editor = shell().getByRole('dialog', { name: 'Edit event' });
+    await expect(editor.getByRole('textbox', { name: 'Title' })).toHaveValue('Lunch with Rui');
+    const going = editor.getByRole('group', { name: 'Going?' });
+    await going.getByRole('button', { name: 'Yes' }).click();
+    await expect(going.getByRole('button', { name: 'Yes' })).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => fs.readFileSync(file, 'utf8').replace(/\r\n /g, '')).toMatch(/ATTENDEE[^\n]*PARTSTAT=ACCEPTED[^\n]*:mailto:ana@example\.com/);
+    // Answered, it leaves the Inbox.
+    await shell().keyboard.press('Escape');
+    await openApp('Agent');
+    await expect(inbox.getByRole('button', { name: /^Lunch with Rui/ })).toHaveCount(0);
+  } finally {
+    await servers.close();
+  }
 });

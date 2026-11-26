@@ -137,6 +137,10 @@ Your calendars by day, week or month.
 - **Invite** in an event's details lists who is invited, with names from your address book as you type, as in Mail's
   To. Under it, each person's answer (going, maybe, not going) as their calendar sent it. Who is invited is kept in the
   calendar file and on CalDAV servers; Outlook calendars show it but do not take changes to it yet.
+- **Going?** in an invitation someone sent you: **Yes**, **No** or **Maybe**, as Google Calendar, kept at once (a
+  repeating event asks which times it is for). You are known by your mail and calendar account addresses. Your answer is
+  kept in the calendar file and on CalDAV servers; Mobius sends no reply mail of its own. **Answer** on an invitation in
+  Home's Inbox opens the event here.
 - **Record meeting** (right-click an event, or in its details) opens the event's page in the **Meetings** notebook,
   named for its day and title and saying which event it was and who is on it, and starts listening as Notes' Record a meeting does.
   The same event opens the same page again.
