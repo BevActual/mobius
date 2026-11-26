@@ -12,7 +12,7 @@ let model: ModelFixture | undefined;
 let mobius: Launched | undefined;
 let userData: string;
 const RUI = 'From: Rui Almeida <rui@example.com>\r\nTo: Ana <ana@example.com>\r\nSubject: Terrace + lunch for the 13th\r\nMessage-ID: <t1@example.com>\r\nDate: Sun, 08 Nov 2026 09:02:00 +0000\r\n\r\nHi!\r\n\r\nI can hold the terrace for eight on the 13th. Could you send the headcount by Wednesday?\r\n\r\nRui\r\n';
-const TAP = 'From: TAP <noreply@flytap.com>\r\nSubject: Your booking LX7Q2M\r\nDate: Thu, 05 Nov 2026 18:10:00 +0000\r\nContent-Type: text/html\r\n\r\n<p>Your booking is confirmed.</p><img src="https://tracker.example/pixel.gif">\r\n';
+const TAP = 'From: TAP <noreply@flytap.com>\r\nSubject: Your booking LX7Q2M\r\nDate: Thu, 05 Nov 2026 18:10:00 +0000\r\nContent-Type: text/html\r\n\r\n<p>Your booking is confirmed. <a href="https://www.flytap.com/manage">Manage booking</a></p><img src="https://tracker.example/pixel.gif">\r\n';
 
 test.beforeEach(async () => {
   fixture = await startFixture();
@@ -80,6 +80,14 @@ test('an account signs in with an app password, mail is sorted here, and only th
   await expect(frame).toBeVisible();
   expect(await frame.getAttribute('sandbox')).toBe('allow-same-origin');
   expect(await frame.getAttribute('srcdoc')).toContain("default-src 'none'");
+  // A link in it opens in the Browser (with Ctrl, without leaving Mail), as a link in a note does.
+  await shell().evaluate(() => { const w = window as unknown as { links: string[] }; w.links = []; window.addEventListener('mobius:web-link', (e) => w.links.push((e as CustomEvent<{ url: string; background: boolean }>).detail.url + (((e as CustomEvent<{ background: boolean }>).detail.background) ? ' (background)' : ''))); });
+  await frame.contentFrame().getByRole('link', { name: 'Manage booking' }).click({ modifiers: ['Control'] });
+  await expect.poll(() => shell().evaluate(() => (window as unknown as { links: string[] }).links)).toEqual(['https://www.flytap.com/manage (background)']);
+  // Keys pressed in the message still reach the window: Ctrl+K opens the launcher.
+  await frame.contentFrame().locator('body').press('Control+k');
+  await expect(shell().getByRole('combobox', { name: 'Find apps, pages and commands' })).toBeVisible();
+  await shell().keyboard.press('Escape');
 
   await labels().getByRole('button', { name: /^Primary/ }).click();
   await list.getByRole('option').first().click();

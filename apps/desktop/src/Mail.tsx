@@ -1,3 +1,4 @@
+import { openWebLink } from './web-link';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AppMenu, AppSidebar, Button, EmptyState, IconButton, KeyHintBar, Menu, PointMenu, SidebarRow, SidebarSearch, SidebarSection, TOOL_ICONS, ToolbarControls, ToolGroup, UndoToast, type EmptyKind } from './ui';
@@ -133,7 +134,46 @@ export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode; s
 function HtmlBody({ html }: { html: string }) {
   const doc = useMemo(() => `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: cid:; style-src 'unsafe-inline'; font-src data:"><base target="_blank"><style>body{font:14px/1.5 system-ui,sans-serif;margin:0;color:#1d1d1f;word-wrap:break-word}img{max-width:100%;height:auto}</style></head><body>${html}</body></html>`, [html]);
   const [height, setHeight] = useState(400);
-  return <iframe className="mail-html" title="Message" sandbox="allow-same-origin" srcDoc={doc} style={{ height }} onLoad={(e) => { const b = e.currentTarget.contentDocument?.body; if (b) setHeight(Math.min(6000, b.scrollHeight + 24)); }} />;
+  // Its web links open in the Browser, in the tab already showing them or a new one (Ctrl or a middle click: without
+  // leaving Mail), as a link in a note does. The frame itself may open nothing: it has no scripts and no pop-ups.
+  const links = (d: Document) => {
+    const go = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!a || (e.type === 'auxclick' && e.button !== 1)) return;
+      e.preventDefault();
+      if (/^https?:/i.test(a.href)) openWebLink(a.href, e.ctrlKey || e.metaKey || e.button === 1);
+    };
+    d.addEventListener('click', go);
+    d.addEventListener('auxclick', go);
+    // Keys pressed while the message has focus (after a click in it) reach the window, so Ctrl+K and Mail's own keys
+    // still work there.
+    d.addEventListener('keydown', (e) => {
+      const copy = new KeyboardEvent('keydown', { key: e.key, code: e.code, ctrlKey: e.ctrlKey, metaKey: e.metaKey, shiftKey: e.shiftKey, altKey: e.altKey, repeat: e.repeat, bubbles: true, cancelable: true });
+      if (!window.dispatchEvent(copy)) e.preventDefault();
+    });
+    d.documentElement.dataset.links = 'on';
+  };
+  // Read once the frame's own document is in. Its load event does not always reach us (the frame may run no script),
+  // so it is looked for until the message's document replaces the blank one, for a few seconds at most.
+  const frame = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return undefined;
+    let tries = 0;
+    let timer = 0;
+    const ready = () => {
+      const d = el.contentDocument;
+      if (d && d.URL !== 'about:blank' && d.body) {
+        if (d.documentElement.dataset.links !== 'on') { links(d); setHeight(Math.min(6000, d.body.scrollHeight + 24)); }
+        return;
+      }
+      if (tries++ < 50) timer = window.setTimeout(ready, 60);
+    };
+    ready();
+    el.addEventListener('load', ready);
+    return () => { window.clearTimeout(timer); el.removeEventListener('load', ready); };
+  }, [doc]);
+  return <iframe ref={frame} className="mail-html" title="Message" sandbox="allow-same-origin" srcDoc={doc} style={{ height }} />;
 }
 
 const sendTime = (ms: number) => formatWith(ms, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
