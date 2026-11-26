@@ -144,11 +144,18 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const kept = useInboxKept();
   const { shown: more, later: setAside } = sortInbox(inbox?.items ?? [], kept.kept, kept.now);
   const [showLater, setShowLater] = useState(false);
-  const doneWith = (item: InboxItem) => hold(item.key, async () => { if (await inbox!.onDone(item)) kept.done(item.key); });
+  // Said to screen readers once Done or Later has acted, since the row itself goes.
+  const [said, setSaid] = useState('');
+  const doneWith = (item: InboxItem) => hold(item.key, async () => { if (await inbox!.onDone(item)) { kept.done(item.key); setSaid(`${item.kind === 'task' ? 'Completed' : 'Done with'} ${item.name}`); } });
+  const setAsideUntil = (item: InboxItem, choice: string) => {
+    const until = laterUntil(choice, new Date());
+    kept.later(item.key, until);
+    setSaid(`${item.name} set aside, back ${whenLabel(new Date(until), new Date()).replace(/^(Today|Tomorrow)/, (w) => w.toLowerCase())}`);
+  };
   const act = (key: string, what: 'done' | 'later') => {
     const item = more.find((i) => i.key === key);
     if (!item) return;
-    if (what === 'done') doneWith(item); else kept.later(key, laterUntil('tomorrow', new Date()));
+    if (what === 'done') doneWith(item); else setAsideUntil(item, 'tomorrow');
   };
   // The Inbox: everything across apps that waits on the person, in one list. What Mobius changed is here, not in
   // In your apps, so it is said once.
@@ -191,6 +198,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
       {(inboxCount > 0 || setAside.length > 0) && (
         <div className="desk-group" role="group" aria-label="Inbox">
           <h3 className="desk-head">Inbox {inboxCount > 0 && <span className="desk-count">{inboxCount}</span>}</h3>
+          <span className="sr-only" role="status">{said}</span>
           <ul className="desk-rows" onKeyDown={(e) => inboxKeys(e, act)}>
             {waiting.map((c) => {
               const ask = approvals[c.id];
@@ -246,25 +254,25 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                   <span className="desk-text" data-late={item.text.startsWith('Overdue') || undefined}>{item.text}</span>
                   {go(item.go)}
                 </button>
-                <Menu label={`Later: ${item.name}`} align="end" entries={LATER.map((l) => ({ label: l.label, run: () => kept.later(item.key, laterUntil(l.id, new Date())) }))}
-                  trigger={<button type="button" className="desk-act" aria-label={`Later: ${item.name}`} title="Set it aside until later (H)">Later</button>} />
-                <button type="button" className="desk-act" disabled={busy.has(item.key)} aria-label={`${item.kind === 'task' ? 'Complete' : 'Done with'} ${item.name}`} title={item.kind === 'task' ? 'Tick it off (E)' : 'Clear it from the Inbox (E)'} onClick={() => doneWith(item)}>Done</button>
+                <Menu label={`Later: ${item.name}`} align="end" entries={LATER.map((l) => ({ label: l.label, run: () => setAsideUntil(item, l.id) }))}
+                  trigger={<button type="button" className="desk-act" aria-label={`Later: ${item.name}`} aria-keyshortcuts="H" title="Set it aside until later (H)">Later</button>} />
+                <button type="button" className="desk-act" disabled={busy.has(item.key)} aria-label={`${item.kind === 'task' ? 'Complete' : 'Done with'} ${item.name}`} aria-keyshortcuts="E" title={item.kind === 'task' ? 'Tick it off (E)' : 'Clear it from the Inbox (E)'} onClick={() => doneWith(item)}>Done</button>
               </li>
             ))}
           </ul>
           {setAside.length > 0 && (
             <>
-              <button type="button" className="btn link desk-later-toggle" aria-expanded={showLater} onClick={() => setShowLater((v) => !v)}>
+              <button type="button" className="btn link desk-later-toggle" aria-expanded={showLater} aria-controls="desk-set-aside" onClick={() => setShowLater((v) => !v)}>
                 {showLater ? 'Hide what is set aside' : `${setAside.length} set aside for later`}
               </button>
               {showLater && (
-                <ul className="desk-rows" aria-label="Set aside for later">
+                <ul id="desk-set-aside" className="desk-rows" aria-label="Set aside for later">
                   {setAside.map((item) => (
                     <li key={item.key} className="desk-row" data-later>
-                      <button type="button" className="desk-open" aria-label={`${item.name}, back ${whenLabel(new Date(item.until), now).toLowerCase()}`} onClick={() => inbox?.onOpen(item)}>
+                      <button type="button" className="desk-open" aria-label={`${item.name}, back ${whenLabel(new Date(item.until), now).replace(/^(Today|Tomorrow)/, (w) => w.toLowerCase())}`} onClick={() => inbox?.onOpen(item)}>
                         <Icon app={item.app} />
                         <span className="desk-name">{item.name}</span>
-                        <span className="desk-text">Back {whenLabel(new Date(item.until), now).replace(/^[A-Z]/, (c) => c.toLowerCase())}</span>
+                        <span className="desk-text">Back {whenLabel(new Date(item.until), now).replace(/^(Today|Tomorrow)/, (w) => w.toLowerCase())}</span>
                         {go(item.go)}
                       </button>
                       <button type="button" className="desk-act" aria-label={`Bring back ${item.name}`} onClick={() => kept.back(item.key)}>Bring back</button>

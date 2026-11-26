@@ -88,7 +88,7 @@ import { editsPathFor } from './photo-edit';
 import { sheetContext } from './sheets-view';
 import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
-import { eventsOn, rangeLabel as calendarRange } from './calendar-view';
+import { eventsOn, isoDay, rangeLabel as calendarRange } from './calendar-view';
 import { Desk } from './Desk';
 import { inboxItems } from './inbox';
 import { fitDocks } from './dock-fit';
@@ -309,6 +309,19 @@ export function App() {
   const chatSpaceSetup = chatRail === 'space' && !!window.mobius.space && !(chat.account && isSpaceAccount(chat.account));
   const tasks = useTasks();
   const calendar = useCalendar();
+  // The Inbox's invitations come from their own read of the next 30 days: Calendar's events are only the days on its
+  // screen, so an invitation for next week was missed from Day view. Read again whenever Calendar's events change.
+  const [ahead, setAhead] = useState<CalendarEvent[]>([]);
+  const calendarKey = calendar.events.map((e) => `${e.id}|${e.start}|${e.attendees?.map((a) => a.status).join(',') ?? ''}`).join(';');
+  useEffect(() => {
+    const api = window.mobius.calendar;
+    if (!api) return;
+    let on = true;
+    const to = new Date();
+    to.setDate(to.getDate() + 30);
+    void api.events(isoDay(new Date()), isoDay(to)).then((got) => { if (on && Array.isArray(got)) setAhead(got); });
+    return () => { on = false; };
+  }, [calendarKey]);
   const [eventToken, setEventToken] = useState(0);
   // A saved shortcut on a key Mobius keeps for itself (Little Mobius was Ctrl+Shift+M) goes back to its usual keys.
   const bindings = useMemo(() => settleBindings(preferences.value.keybindings), [preferences.value.keybindings]);
@@ -1952,7 +1965,7 @@ export function App() {
                 onOpenRecent={launch.openRecent}
                 suggested={{ count: mail.counts.suggested, onOpen: () => { openApp('mail'); mail.setView({ kind: 'drafts', only: 'mobius' }); } }}
                 inbox={{
-                  items: inboxItems({ dueToday: smartView('today', tasks.all, new Date()), projects: projects.list, suggested: wikiIncoming.waiting, mail: mail.messages, events: calendar.events, me: mail.accounts.map((a) => a.email) }, new Date()),
+                  items: inboxItems({ dueToday: smartView('today', tasks.all, new Date()), projects: projects.list, suggested: wikiIncoming.waiting, mail: mail.messages, events: ahead.filter((e) => !calendar.hidden.has(e.calendar)), me: mail.accounts.map((a) => a.email) }, new Date()),
                   onOpen: (item) => {
                     if (item.target) openTarget(item.target);
                     else if (item.project) { projects.setOpenId(item.project); openApp('projects'); }
