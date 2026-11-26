@@ -94,9 +94,6 @@ export function useMorphIn(ref: RefObject<HTMLElement | null>, shown: boolean, s
   }, [ref, shown, side]);
 }
 
-/** No movement at all while the window is not shown, as above: what would animate just happens. */
-export const motionSeen = (): boolean => !unseen();
-
 /**
  * Changing app. Picked with the pointer (a tile, a row), the new app settles out of what was clicked: a fade from 98.5%
  * in 180ms, small enough that text never looks blown up. From the keyboard, done tens of times a day, it only lifts out
@@ -110,7 +107,8 @@ export function switchIn(node: HTMLElement): Animation | null {
   if (reduced() || !fresh) return node.animate([{ opacity: 0.55 }, { opacity: 1 }], { duration: 120, easing: EASE });
   const origin = originOf(node, 'left');
   return node.animate([
-    { opacity: 0, transform: 'scale(0.985)', transformOrigin: origin },
+    // From 0.4, not 0: the first frames come while the new app is still drawing, and an empty frame reads as a flash.
+    { opacity: 0.4, transform: 'scale(0.985)', transformOrigin: origin },
     { opacity: 1, transform: 'none', transformOrigin: origin },
   ], { duration: SWITCH_MS, easing: EASE });
 }
@@ -122,19 +120,34 @@ export function switchIn(node: HTMLElement): Animation | null {
  */
 export const DOCK_MS = 200;
 type DockSide = 'left' | 'right' | 'bottom';
-function dockMove(node: HTMLElement, side: DockSide, size: number, opening: boolean): Animation {
+/** The side of the dock that faces the app, whose gap to it also grows from nothing so the app never jumps. */
+const INNER = { left: 'marginRight', right: 'marginLeft', bottom: 'marginTop' } as const;
+/**
+ * A page drawn natively above the window (the Browser's) cannot follow a sliding dock frame by frame: it lags opening and
+ * runs ahead closing, over the dock. Beside one, a dock fades in and closes at once.
+ */
+const besideNativePage = (node: HTMLElement) => node.closest('.ui-panels')?.querySelector('.surface-slot') != null;
+
+function dockMove(node: HTMLElement, side: DockSide, size: number, opening: boolean): Animation | null {
   node.getAnimations().forEach((a) => a.cancel());
-  if (reduced()) {
+  if (reduced() || besideNativePage(node)) {
+    if (!opening && besideNativePage(node)) return null;
     const frames = [{ opacity: 0 }, { opacity: 1 }];
     return node.animate(opening ? frames : frames.reverse(), { duration: FADE_MS, easing: 'linear', fill: opening ? 'none' : 'forwards' });
   }
   const prop = side === 'bottom' ? 'height' : 'width';
+  const parent = node.parentElement ? getComputedStyle(node.parentElement) : null;
+  const gap = parseFloat((side === 'bottom' ? parent?.rowGap : parent?.columnGap) ?? '') || 0;
   node.style.setProperty('--dock-full', `${size}px`);
   node.dataset.moving = '';
-  const frames = [{ [prop]: '0px', opacity: 0.4 }, { [prop]: `${size}px`, opacity: 1 }];
+  const frames = [
+    { [prop]: '0px', [INNER[side]]: `${-gap}px`, opacity: 0.4 },
+    { [prop]: `${size}px`, [INNER[side]]: '0px', opacity: 1 },
+  ];
+  // Leaving accelerates away, so it does not crawl over its last few pixels.
   const animation = node.animate(opening ? frames : frames.reverse(), opening
     ? { duration: DOCK_MS, easing: EASE }
-    : { duration: EXIT_MS, easing: EASE, fill: 'forwards' });
+    : { duration: EXIT_MS, easing: EASE_EXIT, fill: 'forwards' });
   void animation.finished.then(() => { if (opening) delete node.dataset.moving; }, () => undefined);
   return animation;
 }
@@ -144,9 +157,16 @@ export function dockIn(node: HTMLElement, side: DockSide, size: number): void {
   dockMove(node, side, size, true);
 }
 
+/** Whether a closing dock should stay drawn while it goes back into its edge (not beside a native page). */
+export function dockLeaves(node: HTMLElement | null): boolean {
+  return node !== null && typeof node.animate === 'function' && !unseen() && !besideNativePage(node);
+}
+
 /** Resolves once the dock has gone back into its edge, so the caller can then take it away. */
 export function dockOut(node: HTMLElement, side: DockSide, size: number): Promise<void> {
   if (typeof node.animate !== 'function' || unseen()) return Promise.resolve();
-  const settled = dockMove(node, side, size, false).finished.then(() => undefined, () => undefined);
+  const animation = dockMove(node, side, size, false);
+  if (!animation) return Promise.resolve();
+  const settled = animation.finished.then(() => undefined, () => undefined);
   return Promise.race([settled, new Promise<void>((done) => { window.setTimeout(done, EXIT_MS + 100); })]);
 }

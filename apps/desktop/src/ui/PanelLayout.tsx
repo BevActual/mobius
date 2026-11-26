@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { Menu, type MenuEntry } from './Menu';
 import { useInspector } from './PanelTabs';
 import { afterPaint } from './frame';
-import { dockIn, dockOut, motionSeen } from '../motion';
+import { dockIn, dockLeaves, dockOut } from '../motion';
 
 /**
  * Panels (docs/design/panel-layouts.md: show, hide, resize). A panel is a named, self-contained piece of an app that
@@ -298,6 +298,9 @@ function useDockMotion(dock: PanelDock, shown: PanelSpec[], size: number, app: s
   const open = shown.length > 0;
   const [gone, setGone] = useState<{ panels: PanelSpec[]; size: number } | null>(null);
   const before = useRef({ app, open, panels: shown, size });
+  // Whether the dock, as last drawn, may slide away: by the time a close is seen here it has already left the page.
+  const mayLeave = useRef(false);
+  useLayoutEffect(() => { if (ref.current) mayLeave.current = dockLeaves(ref.current); });
   useLayoutEffect(() => {
     const was = before.current;
     before.current = { app, open, panels: open ? shown : was.panels, size: open ? size : was.size };
@@ -305,7 +308,7 @@ function useDockMotion(dock: PanelDock, shown: PanelSpec[], size: number, app: s
     if (open && !was.open) {
       setGone(null);
       if (ref.current) dockIn(ref.current, dock, size);
-    } else if (!open && was.open && motionSeen()) {
+    } else if (!open && was.open && mayLeave.current) {
       setGone({ panels: was.panels, size: was.size });
     }
   }, [app, open]); // eslint-disable-line react-hooks/exhaustive-deps
