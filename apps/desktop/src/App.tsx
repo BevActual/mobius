@@ -94,6 +94,7 @@ import { useBackgroundRuns } from './background';
 import { ASSIGN_EVENT, type Assignment } from './assign';
 import { AskHere, inlineAnswer, pickedNow, plainAnswer, type Picked } from './AskHere';
 import { hereOf } from './surface';
+import { useItemChats } from './itemChats';
 import type { SendOptions } from './composer/Composer';
 import { inboxItems } from './inbox';
 import { fitDocks } from './dock-fit';
@@ -1348,6 +1349,9 @@ export function App() {
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
+  // Chats live on items: opening a note, document, sheet or list shows its own chat; elsewhere, the general one. Not
+  // while the open chat's changes wait for Keep: going to look at them must not take them away.
+  useItemChats(hereOf(surface), app !== 'agent' && !settingsOpen, { id: conversation.state.conversation, empty: conversation.state.items.length === 0, busy: conversation.state.busy, waiting: turnMarks.files.length > 0 }, conversation.select);
   // Ask from anywhere: Ctrl+Shift+J with something chosen in the open app asks about it there, in a card by it.
   const [askHere, setAskHere] = useState<{ picked: Picked; back: Element | null; range: Range | null } | null>(null);
   useEffect(() => {

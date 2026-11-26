@@ -76,6 +76,9 @@ it, without opening the panel.
   Stop). It opens the panel only when Mobius needs an answer.
 - **Conversations live on the thing.** A doc, a project or a task has its own conversation with Mobius, found again
   by opening that thing; the panel shows the one for what is open, with All chats a step away.
+  Decided by Andrew on 26 November 2026: yes. Built in the seventh round (itemChats.ts): the chat for each item is
+  kept on this computer by the item's key, one general chat away from items, never moving while Mobius works or its
+  changes wait for Keep, and not in the Agent app.
 - **Replies made of real pieces.** An event, a table, a draft reply arrives as the app's own piece, editable in the
   reply, and Keep puts it in place.
 - **Running jobs.** Background work and schedules are listed under the conversation, each with Stop: no tabs, per the

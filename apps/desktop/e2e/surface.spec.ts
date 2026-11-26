@@ -364,6 +364,33 @@ test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a ca
   await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), 'utf8')).toContain('The ferry leaves Athens at dawn.');
 });
 
+test('chats live on items: each note keeps its own chat, the list away from them is the general one', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Work'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), '# Trip\n\nFerry at dawn.\n');
+  fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Budget.md'), '# Budget\n\nTwo nights.\n');
+  await start([says(['About the trip.']), says(['About the budget.'])]);
+  await openApp('Notes');
+  if (!(await composer().isVisible())) await shell().keyboard.press('Control+Shift+M');
+  await shell().getByRole('button', { name: 'Trip', exact: true }).click();
+  await composer().fill('When is the ferry?');
+  await composer().press('Enter');
+  await expect(log().locator('.msg.assistant')).toContainText('About the trip.');
+  await shell().getByRole('button', { name: 'Budget', exact: true }).click();
+  // Another note: its own chat, empty until asked.
+  await expect(log().locator('.msg')).toHaveCount(0);
+  await composer().fill('How many nights?');
+  await composer().press('Enter');
+  await expect(log().locator('.msg.assistant')).toContainText('About the budget.');
+  // Back to the first: its chat comes back with it.
+  await shell().getByRole('button', { name: 'Trip', exact: true }).click();
+  await expect(log().locator('.msg.user')).toContainText('When is the ferry?');
+  // All chats says what each is about.
+  await shell().getByRole('button', { name: /all chats$/ }).click();
+  const menu = shell().getByRole('menu', { name: 'Conversations' });
+  await expect(menu.getByRole('menuitem', { name: /When is the ferry\?.*Trip/ })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: /How many nights\?.*Budget/ })).toBeVisible();
+});
+
 test('a chat a schedule starts is listed as running while it runs', async () => {
   await start([says(['Looking ', 'through it…'], 4000)]);
   await openApp('Agent');

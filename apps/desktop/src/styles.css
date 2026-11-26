@@ -2863,3 +2863,6 @@ button.waiting-row:focus-visible { outline: var(--focus-w) solid var(--ink); out
 .ask-here-form input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--field); color: var(--ink); border: 0; font: inherit; }
 .ask-here-foot { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .ask-here-keys { margin-left: auto; color: var(--muted); font-size: var(--fs-xs, 11px); }
+
+/* All chats: what a chat on an item is about, quietly after its name. */
+.convo-item-about { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--fs-xs, 11px); }

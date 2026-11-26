@@ -1,0 +1,74 @@
+import { useEffect, useRef } from 'react';
+import { MAIN_BOT_ID, conversationIdFor } from '@mobius/shared';
+import type { Here } from './surface';
+
+/**
+ * Chats live on the things they are about (Andrew, 26 November 2026): each note, document, sheet or task list keeps
+ * its own chat with Mobius, found again by opening that thing; the panel keeps one general chat for everything else;
+ * All chats, here and in Home, lists them all, each with what it is about.
+ *
+ * Which chat belongs to which item is kept on this computer, by the item's key (`Here.key`).
+ */
+export interface ItemChats { items: Record<string, { id: string; label: string }>; general?: string }
+
+const KEY = 'mobius.item-chats';
+const MAX = 400;
+
+export function readItemChats(): ItemChats {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(KEY) ?? '{}') as Partial<ItemChats>;
+    const items: ItemChats['items'] = {};
+    for (const [k, c] of Object.entries(v.items ?? {})) if (c && typeof c.id === 'string' && typeof c.label === 'string') items[k] = { id: c.id, label: c.label };
+    return { items, ...(typeof v.general === 'string' ? { general: v.general } : {}) };
+  } catch { return { items: {} }; }
+}
+function writeItemChats(chats: ItemChats): void {
+  const keys = Object.keys(chats.items);
+  const items = keys.length > MAX ? Object.fromEntries(keys.slice(-MAX).map((k) => [k, chats.items[k]!])) : chats.items;
+  try { window.localStorage.setItem(KEY, JSON.stringify({ ...chats, items })); } catch { /* Not remembered. */ }
+}
+
+/** What a chat is about, for All chats: the item's name, or null for the general chat and older chats. */
+export function itemOfChat(chats: ItemChats, id: string): string | null {
+  return Object.values(chats.items).find((c) => c.id === id)?.label ?? null;
+}
+const bound = (chats: ItemChats, id: string) => chats.general === id || Object.values(chats.items).some((c) => c.id === id);
+
+/**
+ * Which chat to show for where the person is now, and what to remember: the item's own chat (a new one if it has none;
+ * the open chat itself when that is empty and not yet anyone's), or the general one away from any item.
+ */
+export function chatForPlace(chats: ItemChats, here: { key: string; label: string } | null, open: { id: string; empty: boolean }, fresh: () => string): { id: string; chats: ItemChats } {
+  const reuse = open.empty && !bound(chats, open.id);
+  if (here) {
+    const known = chats.items[here.key];
+    if (known) return { id: known.id, chats: known.label === here.label ? chats : { ...chats, items: { ...chats.items, [here.key]: { id: known.id, label: here.label } } } };
+    const id = reuse ? open.id : fresh();
+    return { id, chats: { ...chats, items: { ...chats.items, [here.key]: { id, label: here.label } } } };
+  }
+  if (chats.general) return { id: chats.general, chats };
+  // The first time away from any item: the open chat, unless it is an item's, becomes the general one.
+  const id = Object.values(chats.items).some((c) => c.id === open.id) ? fresh() : open.id;
+  return { id, chats: { ...chats, general: id } };
+}
+
+/**
+ * Follows the person from item to item: opening a note shows its chat, leaving it for a place with no item shows the
+ * general chat. Never while Mobius is working in the open chat (it may be opening things itself) or while what it
+ * changed waits for Keep (the person is likely going to look at it), and not in the Agent app, where the chat is the
+ * page and the person picks it.
+ */
+export function useItemChats(here: Here | null, on: boolean, open: { id: string; empty: boolean; busy: boolean; waiting: boolean }, select: (id: string) => void): void {
+  const now = useRef(open);
+  now.current = open;
+  const key = on ? (here ? `item:${here.key}` : 'general') : null;
+  const label = here?.label ?? '';
+  useEffect(() => {
+    if (!key || now.current.busy || now.current.waiting) return;
+    const place = key === 'general' ? null : { key: key.slice(5), label };
+    const next = chatForPlace(readItemChats(), place, now.current, () => conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()));
+    writeItemChats(next.chats);
+    if (next.id !== now.current.id) select(next.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a change of place moves the chat.
+  }, [key]);
+}
