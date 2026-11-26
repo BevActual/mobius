@@ -310,8 +310,10 @@ export function App() {
   const tasks = useTasks();
   const calendar = useCalendar();
   // The Inbox's invitations come from their own read of the next 30 days: Calendar's events are only the days on its
-  // screen, so an invitation for next week was missed from Day view. Read again whenever Calendar's events change.
+  // screen, so an invitation for next week was missed from Day view. Read again whenever Calendar's events or its files change.
   const [ahead, setAhead] = useState<CalendarEvent[]>([]);
+  const [calendarFiles, setCalendarFiles] = useState(0);
+  useEffect(() => window.mobius.calendar?.onChanged(() => setCalendarFiles((n) => n + 1)), []);
   const calendarKey = calendar.events.map((e) => `${e.id}|${e.start}|${e.attendees?.map((a) => a.status).join(',') ?? ''}`).join(';');
   useEffect(() => {
     const api = window.mobius.calendar;
@@ -321,7 +323,7 @@ export function App() {
     to.setDate(to.getDate() + 30);
     void api.events(isoDay(new Date()), isoDay(to)).then((got) => { if (on && Array.isArray(got)) setAhead(got); });
     return () => { on = false; };
-  }, [calendarKey]);
+  }, [calendarKey, calendarFiles]);
   const [eventToken, setEventToken] = useState(0);
   // A saved shortcut on a key Mobius keeps for itself (Little Mobius was Ctrl+Shift+M) goes back to its usual keys.
   const bindings = useMemo(() => settleBindings(preferences.value.keybindings), [preferences.value.keybindings]);

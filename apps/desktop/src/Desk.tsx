@@ -248,7 +248,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
             ))}
             {more.map((item) => (
               <li key={item.key} className="desk-row" data-key={item.key} data-kind={item.kind}>
-                <button type="button" className="desk-open" aria-label={`${item.name}: ${item.text}`} title="E: Done · H: Later" onClick={() => inbox?.onOpen(item)}>
+                <button type="button" className="desk-open" aria-label={`${item.name}: ${item.text}`} aria-keyshortcuts="E H" title="E: Done · H: Later" onClick={() => inbox?.onOpen(item)}>
                   <Icon app={item.app} />
                   <span className="desk-name">{item.name}</span>
                   <span className="desk-text" data-late={item.text.startsWith('Overdue') || undefined}>{item.text}</span>
@@ -262,7 +262,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
           </ul>
           {setAside.length > 0 && (
             <>
-              <button type="button" className="btn link desk-later-toggle" aria-expanded={showLater} aria-controls="desk-set-aside" onClick={() => setShowLater((v) => !v)}>
+              <button type="button" className="btn link desk-later-toggle" aria-expanded={showLater} aria-controls={showLater ? 'desk-set-aside' : undefined} onClick={() => setShowLater((v) => !v)}>
                 {showLater ? 'Hide what is set aside' : `${setAside.length} set aside for later`}
               </button>
               {showLater && (
