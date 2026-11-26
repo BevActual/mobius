@@ -9,7 +9,7 @@ import { MobiusMark } from './MobiusMark';
 import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
-import { addressParts, dropPlan, historyByDay, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter, type Suggestion } from './browser-view';
+import { addressParts, dropPlan, historyByDay, hostOf, nextTabId, sidebarMatch, stepZoom, suggestionsFor, tileLetter, type Suggestion } from './browser-view';
 import { addFolder, addSpace, CLEAR_AFTER, favouriteTab, foldersIn, putInFolder, removeFolder, renameFolder, toggleFolder, type Folder, inSpace, isFavourite, MAX_FAVOURITES, moveTab, readSpaces, removeSpace, renameSpace, siteHue, staleTabs, syncSpaces, tabToShow, toggleFavourite, type SpacesState } from './browser-spaces';
 import { AppSidebar, Confirm, IconButton, KeyCaps, Menu, PointMenu, SidebarRow, SidebarSection, ToolbarControls, type MenuEntry } from './ui';
 import { timeLabel } from './dates';
@@ -56,6 +56,15 @@ function TabRow({ tab, onMenu, drag, onShow, reading = false }: { tab: BrowserTa
       <button type="button" className="tab-main" title={tab.url ? `${tab.title}\n${tab.url}` : tab.title} onClick={() => { window.mobius.browser.activate(tab.id); onShow?.(); }}>
         <SiteChip url={tab.url} icon={tab.icon} />
         <span className="tab-title">{tab.title}</span>
+        {(tab.audible || tab.muted) && window.mobius.browser.mute && (
+          // The speaker, as Chrome's and Arc's: shown while the tab plays sound or is muted. A click on it mutes or unmutes
+          // the tab (a pointer shortcut; the tab's menu has Mute tab for the keyboard), and the words are read with the row.
+          <span className="tab-sound" data-muted={tab.muted || undefined} title={tab.muted ? 'Unmute tab' : 'Mute tab'}
+            onClick={(e) => { e.stopPropagation(); window.mobius.browser.mute?.(tab.id, !tab.muted); }}>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6h2.5L9 3v10L5.5 10H3z" />{tab.muted ? <path d="m11 6 3 4m0-4-3 4" /> : <path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6 6 0 0 1 0 9" />}</svg>
+            <span className="sr-only">{tab.muted ? ', muted' : ', playing sound'}</span>
+          </span>
+        )}
         {tab.driver && (
           // A small mark, not a word, so the title keeps its room: Mobius's mark only while Mobius reads or uses the tab; once you
           // took it over it is a plain row again (the words stay for screen readers).
@@ -144,6 +153,7 @@ function TabMenu({ tab, x, y, tabs, spaces: sp, pinnedPages, onPinPage, onNewFol
     ...(api.pin ? [{ label: tab.pinned ? 'Unpin tab' : 'Pin tab', run: () => { if (tab.pinned) setSpaces((s) => putInFolder(s, tab.id, null)); api.pin?.(tab.id, !tab.pinned); } }] : []),
     // Folders of pinned tabs, as Arc's: a tab put in one is pinned.
     ...(api.pin ? folderItems(tab, sp, onNewFolder) : []),
+    ...(api.mute ? [{ label: tab.muted ? 'Unmute tab' : 'Mute tab', run: () => api.mute?.(tab.id, !tab.muted) }] : []),
     ...(api.duplicate ? [{ label: 'Duplicate tab', run: () => void api.duplicate?.(tab.id) }] : []),
     { label: 'Reload', keys: tab.active ? 'Ctrl+R' : undefined, run: () => api.reload(tab.id), disabled: !tab.url },
     ...(api.reopenClosed ? [{ label: 'Reopen closed tab', keys: 'Ctrl+Shift+T', run: () => void api.reopenClosed?.() }] : []),
@@ -186,6 +196,45 @@ let splitNow: { first: string; second: string } | null = null;
 
 /** About as wide as the tab menu draws, to keep it clear of the page. */
 const TAB_MENU_W = 210;
+
+/**
+ * Page zoom kept per site, as Chrome's: a site zoomed in once opens at that size in every tab and after a restart. The
+ * shell keeps a tab's zoom as it goes; this sets it when a tab shows a site with another size.
+ */
+const ZOOM_KEY = 'mobius.browser.zoom';
+let siteZoom: Record<string, number> = (() => { try { const v = JSON.parse(localStorage.getItem(ZOOM_KEY) ?? '{}') as unknown; return v && typeof v === 'object' ? (v as Record<string, number>) : {}; } catch { return {}; } })();
+const zoomListeners = new Set<() => void>();
+function setSiteZoom(url: string, z: number) {
+  const host = /^https?:/i.test(url) ? hostOf(url) : '';
+  if (!host) return;
+  const next = { ...siteZoom };
+  if (Math.abs(z - 1) < 0.001) delete next[host]; else next[host] = z;
+  siteZoom = next;
+  try { localStorage.setItem(ZOOM_KEY, JSON.stringify(next)); } catch { /* for this window */ }
+  zoomListeners.forEach((l) => l());
+}
+const useSiteZoomMap = () => useSyncExternalStore((l) => { zoomListeners.add(l); return () => { zoomListeners.delete(l); }; }, () => siteZoom, () => siteZoom);
+const zoomFor = (url: string) => (/^https?:/i.test(url) ? siteZoom[hostOf(url)] ?? 1 : 1);
+/** Each tab at its site's zoom; a zoom the page made itself (Ctrl+wheel) becomes the site's. */
+function useSiteZoom(tabs: readonly BrowserTabState[]) {
+  const map = useSiteZoomMap();
+  const applied = useRef(new Map<string, { host: string; zoom: number; pending: boolean }>());
+  useEffect(() => {
+    const api = window.mobius.browser;
+    if (!api.setZoom) return;
+    for (const t of tabs) {
+      if (t.zoom === undefined || !/^https?:/i.test(t.url)) continue;
+      const host = hostOf(t.url);
+      const want = map[host] ?? 1;
+      const prev = applied.current.get(t.id);
+      const same = (a: number, b: number) => Math.abs(a - b) < 0.001;
+      if (prev?.pending && prev.host === host && !same(t.zoom, prev.zoom)) continue;
+      if (prev && prev.host === host && !prev.pending && !same(t.zoom, prev.zoom) && !same(t.zoom, want)) { applied.current.set(t.id, { host, zoom: t.zoom, pending: false }); setSiteZoom(t.url, t.zoom); continue; }
+      if (!same(t.zoom, want)) { api.setZoom(t.id, want); applied.current.set(t.id, { host, zoom: want, pending: true }); }
+      else applied.current.set(t.id, { host, zoom: t.zoom, pending: false });
+    }
+  }, [tabs, map]);
+}
 
 /** The spaces, favourites and Today's clock, kept for the window (and across restarts) and shared by the tabs panel and the keys. */
 const SPACES_KEY = 'mobius.browser.spaces';
@@ -316,6 +365,7 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
 }) {
   splitNow = split;
   useSpacesSync(tabs);
+  useSiteZoom(tabs);
   const sp = useSpaces();
   const [menu, setMenu] = useState<{ tab: BrowserTabState; x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -735,6 +785,13 @@ function useBrowserKeys(active: BrowserTabState | undefined, say: (notice: strin
           const other = besideFor(s?.tabs ?? [], s?.tabs.find((t) => t.active));
           if (other) api.showBeside?.(other.id); else say('Open another tab to split with');
         });
+      } else if (mod && !e.shiftKey && !e.altKey && (e.code === 'Equal' || e.code === 'Minus' || e.code === 'Digit0' || e.code === 'NumpadAdd' || e.code === 'NumpadSubtract' || e.code === 'Numpad0') && api.setZoom) {
+        // Ctrl+= and Ctrl+- zoom the page through Chrome's steps, Ctrl+0 goes back to 100%; kept for the site.
+        if (!active || !/^https?:/.test(active.url)) return;
+        e.preventDefault();
+        const z = e.code === 'Equal' || e.code === 'NumpadAdd' ? stepZoom(active.zoom ?? zoomFor(active.url), 1) : e.code === 'Minus' || e.code === 'NumpadSubtract' ? stepZoom(active.zoom ?? zoomFor(active.url), -1) : 1;
+        setSiteZoom(active.url, z);
+        say(`Zoom ${Math.round(z * 100)}%`);
       } else if (mod && e.shiftKey && !e.altKey && e.code === 'KeyT') {
         e.preventDefault();
         void api.reopenClosed?.();
@@ -877,6 +934,10 @@ function AddressBar({ active, shownUrl, address, draft, setDraft, setNotice, onS
           <span className="address-host">{parts.host}</span>
           {parts.path && <span className="address-path">/ {parts.path}</span>}
         </span>
+      )}
+      {!editing && active?.zoom !== undefined && Math.abs(active.zoom - 1) > 0.001 && (
+        // The zoom, as Chrome's: shown only when the page is not at 100%; a click goes back to it.
+        <button type="button" className="address-zoom" aria-label={`Zoom ${Math.round(active.zoom * 100)}%, reset to 100%`} title="Reset zoom (Ctrl+0)" onClick={() => setSiteZoom(active.url, 1)}>{Math.round(active.zoom * 100)}%</button>
       )}
       {!editing && star}
       {active?.loading && <span className="address-progress" role="status" aria-label="Loading" />}

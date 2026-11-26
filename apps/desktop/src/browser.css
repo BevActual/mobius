@@ -310,3 +310,12 @@
 .browser-side .folder-tabs .tab-main { padding-left: calc(var(--sp-2) + var(--sp-4)); }
 .browser-side .folder-rename { flex: 1 1 auto; min-width: 0; height: var(--control-h); margin: 0 var(--sp-1); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: var(--field); box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); font: inherit; font-size: var(--fs-md); color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { .browser-side .folder-chevron { transition: none; } }
+
+/* A tab's speaker while it plays sound or is muted, as Chrome's; a click mutes it. */
+.browser-side .tab-sound { display: inline-grid; place-items: center; flex: none; width: var(--sp-5); height: var(--sp-5); border-radius: var(--radius-small); color: var(--muted); }
+.browser-side .tab-sound:hover { background: var(--sel); color: var(--ink); }
+.browser-side .tab-sound svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+/* The page's zoom in the address field when it is not 100%, before the star. */
+.browser-chrome .address-zoom { position: absolute; right: calc(var(--control-h) + 4px); top: 50%; transform: translateY(-50%); height: calc(var(--control-h) - 6px); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: var(--sel); color: var(--ink); font: inherit; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; cursor: default; }
+.browser-chrome .address-zoom:hover { background: var(--side-hover); }
+.browser-chrome .address-zoom:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }

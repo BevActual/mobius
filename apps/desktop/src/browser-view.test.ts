@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrowserTabState } from '@mobius/shared';
-import { addressParts, dropPlan, historyByDay, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter } from './browser-view';
+import { addressParts, dropPlan, historyByDay, hostOf, nextTabId, stepZoom, sidebarMatch, suggestionsFor, tileLetter } from './browser-view';
 
 const tab = (id: string, url: string, title: string, extra: Partial<BrowserTabState> = {}): BrowserTabState => ({ id, url, title, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra });
 
@@ -112,5 +112,16 @@ describe('History by day', () => {
     const list = [e('https://docs.test/rust', 'Rust book', at(25, 9)), e('https://news.test/', 'News', at(25, 10))];
     expect(historyByDay(list, now, 'rust docs').flatMap((d) => d.entries.map((x) => x.title))).toEqual(['Rust book']);
     expect(historyByDay(list, now, 'nothing')).toEqual([]);
+  });
+});
+
+describe('page zoom', () => {
+  it('steps in and out through Chrome\'s levels, from between them too, and stays at the ends', () => {
+    expect(stepZoom(1, 1)).toBe(1.1);
+    expect(stepZoom(1, -1)).toBe(0.9);
+    expect(stepZoom(1.2, 1)).toBe(1.25);
+    expect(stepZoom(1.2, -1)).toBe(1.1);
+    expect(stepZoom(5, 1)).toBe(5);
+    expect(stepZoom(0.25, -1)).toBe(0.25);
   });
 });

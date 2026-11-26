@@ -121,3 +121,11 @@ export function historyByDay(entries: readonly HistoryEntry[], now: Date, query 
   }
   return days;
 }
+
+/** Page zoom steps, as Chrome's (25% to 500%). */
+export const PAGE_ZOOM = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5] as const;
+/** The next zoom step in or out from `z`, staying at the ends. */
+export function stepZoom(z: number, dir: 1 | -1): number {
+  if (dir > 0) return PAGE_ZOOM.find((v) => v > z + 0.001) ?? PAGE_ZOOM.at(-1)!;
+  return [...PAGE_ZOOM].reverse().find((v) => v < z - 0.001) ?? PAGE_ZOOM[0];
+}

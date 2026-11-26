@@ -48,6 +48,19 @@ folder**. A tab put in a folder is pinned, and unpinning one takes it out. A fol
 count beside the name; closed, it still shows the tab you are on, as Arc's does. Right-click a folder to rename or
 delete it; deleting keeps its tabs pinned. A search shows the tabs without folders.
 
+## Page zoom (round 2)
+
+As Chrome's zoom (support.google.com/chrome, "Change text, image & video sizes"): Ctrl+= and Ctrl+- step through
+Chrome's levels (25% to 500%), Ctrl+0 goes back to 100%, and each says the new size. The size is kept per site, so the
+site opens at it in every tab and after a restart. Away from 100% the address field shows it; a click resets it. The
+shell sets and keeps each tab's zoom (`browser.setZoom`); a zoom the page reports itself becomes the site's.
+
+## Tab sound (round 2)
+
+As Chrome's and Arc's speaker: a tab playing sound shows a speaker in its row, and a muted tab a crossed one; a click
+on it mutes or unmutes the tab, and the tab's menu has **Mute tab** / **Unmute tab** (`browser.mute`). Only WebView2
+reports sound playing; on Chromium the speaker shows once a tab is muted.
+
 ## Later
 
 - Separate sign-ins per space.
