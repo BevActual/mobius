@@ -4714,9 +4714,12 @@ impl Bridge {
                 if let Err(e) = self.workspace.restore_paths(&before, &back) {
                     return Ok(failed(e));
                 }
+                // Only a file now as it was before the turn is put back for good: one an earlier step changed too is
+                // still the turn's.
+                let now = self.workspace.changed_since(&mark).unwrap_or_default();
                 if let Some(s) = lock(&self.step_marks).get_mut(conversation).and_then(|l| l.iter_mut().find(|s| s.turn == mark && s.call == call && s.tool == tool && s.nth == nth)) {
                     s.undone = true;
-                    s.put_back = back.clone();
+                    s.put_back = back.iter().filter(|f| !now.contains(f)).cloned().collect();
                 }
                 self.reload_after_undo(None);
                 json!({ "ok": true, "files": back, "kept": kept })

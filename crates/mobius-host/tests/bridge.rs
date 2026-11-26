@@ -1844,6 +1844,37 @@ fn one_step_of_a_turn_goes_back_on_its_own() {
     assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "r1", "files.read", 0]))["ok"], false, "a read changed nothing");
 }
 
+/// A note two steps changed: putting back only the second leaves the first step's change the turn's, before and after
+/// the person edits the note.
+#[test]
+fn a_step_put_back_leaves_an_earlier_step_on_the_same_file() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("notes")).unwrap();
+    std::fs::write(ws.join("notes/Plan.md"), "# Plan\n").unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "change the plan twice"]))["ok"], true);
+    let wait = |what: &dyn Fn() -> bool| {
+        let start = Instant::now();
+        while !what() {
+            assert!(start.elapsed() < Duration::from_secs(20), "timed out");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"].as_array().is_some_and(|t| !t.is_empty()));
+    let write = |call_id: &str, content: &str| {
+        b.host_request("host.tool", &json!({ "call_id": call_id, "tool": "files.write", "arguments": { "path": "notes/Plan.md", "content": content }, "conversation": "c-1" })).unwrap();
+    };
+    write("s1", "# Plan\n\nOne.\n");
+    write("s2", "# Plan\n\nOne.\n\nTwo.\n");
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"][0]["ended"] == true);
+    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "s2", "files.write", 0]))["ok"], true);
+    assert_eq!(std::fs::read_to_string(ws.join("notes/Plan.md")).unwrap(), "# Plan\n\nOne.\n");
+    assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/Plan.md"]));
+    std::fs::write(ws.join("notes/Plan.md"), "# Plan\n\nOne. Mine.\n").unwrap();
+    assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/Plan.md"]));
+}
+
 /// A turn that changed no files, then another: the second has a start of its own, so keeping the first (by its start)
 /// never hides what the second changes. Round 14: Plan my day changed only Mail, was kept, and Triage's tasks vanished.
 #[test]
