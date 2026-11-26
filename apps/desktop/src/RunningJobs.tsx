@@ -29,10 +29,13 @@ export function RunningJobs({ conversations, open, onOpen }: { conversations: re
     if (document.activeElement && document.activeElement !== document.body) return;
     (list.current?.querySelector<HTMLElement>('.msg-action') ?? document.querySelector<HTMLElement>('[aria-label="Message Mobius"]'))?.focus();
   }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
-  const background = new Set(readRuns().map((r) => r.conversation));
+  const handed = readRuns();
+  const background = new Set(handed.map((r) => r.conversation));
+  // A chat handed off is named as its Inbox row will be: by what was handed off, not the chat's first words.
+  const nameOf = (c: ConversationInfo) => handed.find((r) => r.conversation === c.id)?.ask || c.title;
   // Said politely as it changes: a job that starts, one that now needs you.
   const needing = jobs.filter((c) => jobState(c, background) === 'Needs you');
-  const said = jobs.length === 0 ? '' : needing.length > 0 ? `${needing.map((c) => c.title).join(', ')} ${needing.length === 1 ? 'needs' : 'need'} you` : `Also running: ${jobs.map((c) => c.title).join(', ')}`;
+  const said = jobs.length === 0 ? '' : needing.length > 0 ? `${needing.map(nameOf).join(', ')} ${needing.length === 1 ? 'needs' : 'need'} you` : `Also running: ${jobs.map(nameOf).join(', ')}`;
   // One status that stays on the page, its words changing: a live region added with its words already set can go unsaid.
   const status = <span className="sr-only" role="status" aria-label="Running jobs status">{said}</span>;
   return (
@@ -45,12 +48,12 @@ export function RunningJobs({ conversations, open, onOpen }: { conversations: re
       <ul ref={list} className="msg-queue-list">
         {jobs.map((c) => (
           <li key={c.id} className="msg-queue-item running-job" data-needs-you={jobState(c, background) === 'Needs you' || undefined}>
-            <button type="button" className="running-job-open" onClick={() => onOpen(c.id)} title={`Open ${c.title}`}>
+            <button type="button" className="running-job-open" onClick={() => onOpen(c.id)} title={`Open ${nameOf(c)}`}>
               <span className="running-job-mark" aria-hidden="true" />
-              <span className="msg-queue-text">{c.title}</span>
+              <span className="msg-queue-text">{nameOf(c)}</span>
               <span className="running-job-state">{jobState(c, background)}</span>
             </button>
-            <button type="button" className="msg-action" aria-label={`Stop ${c.title}`} onClick={() => { stopped.current = c.id; void window.mobius.agent.cancel(c.id); }}>Stop</button>
+            <button type="button" className="msg-action" aria-label={`Stop ${nameOf(c)}`} onClick={() => { stopped.current = c.id; void window.mobius.agent.cancel(c.id); }}>Stop</button>
           </li>
         ))}
       </ul>

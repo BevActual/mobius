@@ -122,6 +122,13 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     };
   }, [id, refresh]);
 
+  // A chat opened while its turn runs elsewhere (handed off, scheduled, left running) shows it running, with Stop and
+  // the pill, even before it says anything.
+  useEffect(() => {
+    const open = list.find((c) => c.id === id);
+    if (open) dispatch({ type: 'running', conversation: id, working: open.activity === 'working' });
+  }, [list, id]);
+
   // A restarting core has lost the turn that was running.
   useEffect(() => {
     if (coreStatus === 'restarting' && busy.current) {
