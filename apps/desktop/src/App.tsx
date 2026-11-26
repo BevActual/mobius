@@ -109,6 +109,7 @@ import { DEFAULT_LIST_NAME, nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
+import { WorkingPill } from './WorkingPill';
 import { findInSources, sourceCommands } from './launcher-sources';
 import { useDailyLauncherSources, useMoreLauncherSources } from './app-launcher';
 import { askInline, selectionNow, type LauncherAbout } from './launcher-ask';
@@ -2179,6 +2180,8 @@ export function App() {
             ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>
             : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
           {nativeMenus ? menuBar(appMenu) : appMenu && <MenuBar menus={[{ id: 'more', label: 'More', items: entryItems(appMenu.entries, 'more') }]} compact label="More" onOpenChange={setMenuOpen} />}
+          {/* Mobius at work with its panel closed: what it is doing, with Stop; a press shows it. */}
+          {hasRight && !rightOpen && activity && <WorkingPill activity={activity} onOpen={() => { openRight(); setFocusToken((n) => n + 1); }} onStop={conversation.stop} />}
           {hasRight && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
         </>,
       }}

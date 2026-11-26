@@ -2881,3 +2881,16 @@ button.waiting-row:focus-visible { outline: var(--focus-w) solid var(--ink); out
 .resting .action-row:hover { background: none; color: var(--ink); box-shadow: inset 0 0 0 var(--hairline-w) var(--faint); }
 /* The composer's foot in words: Agent ▾ Review ▾ at the start, Best fit ▾ at the end; Send only once there is text. */
 .dock.right .chat .composer .round.send:disabled { display: none; }
+
+/* Mobius at work while its panel is closed (WorkingPill.tsx): beside the Mobius button, with Stop. */
+.working-pill { display: inline-flex; align-items: center; height: 26px; margin-right: var(--sp-1); border: var(--hairline-w) dashed color-mix(in srgb, var(--mobius) 55%, transparent); border-radius: 13px; background: var(--paper); color: var(--ink); font-size: var(--fs-sm); max-width: 280px; animation: label-in var(--dur-med) var(--ease); }
+.working-pill-open { display: inline-flex; align-items: center; gap: 6px; min-width: 0; height: 100%; padding: 0 6px 0 9px; border: 0; border-radius: 13px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.working-pill-open:hover { color: var(--mobius); }
+.working-pill-mark { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--mobius); animation: pulse var(--dur-loop) var(--ease) infinite; }
+.working-pill-label { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.working-pill-step { flex: none; color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.working-pill-stop { flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 2px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.working-pill-stop:hover { background: var(--wash); color: var(--ink); }
+.working-pill-stop svg { width: 12px; height: 12px; fill: currentColor; }
+.working-pill[data-needs-you] { border-style: solid; border-color: var(--mobius); color: var(--mobius); }
+.working-pill[data-needs-you] .working-pill-mark { animation: none; }
