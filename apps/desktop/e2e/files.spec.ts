@@ -132,6 +132,27 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'), 'utf8')).toContain('From Mobius.');
 });
 
+test('one step of a turn is put back from its own Undo, and the turn\'s other steps stay', async () => {
+  await start([
+    callsTool('files-write', { path: 'notes/Work/Brief.md', content: '# Brief\n' }),
+    callsTool('files-write', { path: 'notes/Work/Plan.md', content: '# Plan\n\nChanged by Mobius.\n' }),
+    says(['I wrote a brief and changed the plan.']),
+  ]);
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Write a brief and change the plan');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  for (let i = 0; i < 2; i++) await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log.locator('.msg.assistant')).toContainText('I wrote a brief');
+  const undos = log.getByRole('button', { name: /^Undo: / });
+  await expect(undos).toHaveCount(2);
+  await undos.nth(1).click();
+  await expect(undos).toHaveCount(1);
+  await expect(log.locator('.tool-status', { hasText: 'Put back' })).toHaveCount(1);
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+  expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'))).toBe(true);
+});
+
 test('a file Mobius makes in the open folder shows dashed as the call lands, before the turn ends', async () => {
   // The answer comes slowly, so the turn is still running when the file is there.
   await start([

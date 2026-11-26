@@ -159,6 +159,24 @@ impl crate::sync_pairs::SyncHost for SyncHost {
     }
 }
 
+/// A checkpoint taken after one step of a turn: the turn it is part of (its start), the call, and the step's end.
+#[derive(Clone)]
+struct StepMark {
+    turn: String,
+    call: String,
+    after: String,
+    /// Put back already: listed as such, and not put back twice.
+    undone: bool,
+}
+
+/// Whether a tool may change the workspace, so its step gets a checkpoint of its own after it. Reading calls (named
+/// like `files.read` or `tasks.list`), the browser's, the web's and other programs' (MCP) tools do not.
+fn may_change_workspace(tool: &str) -> bool {
+    let verb = tool.rsplit('.').next().unwrap_or(tool);
+    let reading = matches!(verb, "read" | "list" | "search" | "get" | "find" | "now" | "output" | "status" | "tabs" | "info" | "query" | "preview");
+    !(reading || tool.starts_with("browser.") || tool.starts_with("web.") || mobius_mcp::hub::is_mcp_tool(tool))
+}
+
 /// An app's top workspace folder as a Keep names it, such as `tasks/`.
 fn is_app_folder(v: &str) -> bool {
     v.len() <= 64 && v.ends_with('/') && v[..v.len() - 1].bytes().all(|b| b.is_ascii_lowercase() || b == b'-') && v.len() > 1
@@ -292,6 +310,9 @@ pub struct Bridge {
     pages: Arc<crate::pages::Pages>,
     /// For each conversation, the checkpoint taken when its last turn began: what that turn changed, and the way back.
     turn_marks: Arc<Mutex<std::collections::HashMap<String, String>>>,
+    /// For each conversation, the checkpoint after each step of its last turn that may have changed the workspace, so
+    /// each step's changes can be listed and put back on their own.
+    step_marks: Mutex<std::collections::HashMap<String, Vec<StepMark>>>,
     /// Checkpoints being taken before a turn: the turn's tools wait for them, so the model is asked at once.
     marking: Arc<(Mutex<u32>, std::sync::Condvar)>,
     /// Turns whose end checkpoint is still being taken. What a turn changed is read once it is saved: from the two
@@ -515,6 +536,7 @@ impl Bridge {
             rewound: Mutex::new(None),
             tab_drivers: Mutex::new(std::collections::HashMap::new()),
             turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
+            step_marks: Mutex::new(std::collections::HashMap::new()),
             marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             ending: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             mcp: {
@@ -1630,9 +1652,51 @@ impl Bridge {
             }
         });
         let out = self.run_host_tool(params, &stage);
+        if out.is_ok() {
+            self.mark_step(params, &name);
+        }
         stage.store(2, std::sync::atomic::Ordering::Relaxed);
         slow("tool", &name, started);
         self.note_timing(json!({ "step": "tool", "conversation": params["conversation"], "name": name, "ms": started.elapsed().as_millis(), "ok": out.is_ok() }));
+        out
+    }
+
+    /// After a call that may have changed the workspace: a checkpoint, so what that one step changed can be listed and
+    /// put back on its own. Reading calls, the browser's and the web's change nothing there and take none.
+    fn mark_step(&self, params: &Value, tool: &str) {
+        if !may_change_workspace(tool) {
+            return;
+        }
+        let (Some(conversation), Some(call)) = (params["conversation"].as_str(), params["call_id"].as_str()) else {
+            return;
+        };
+        let Some(turn) = lock(&self.turn_marks).get(conversation).cloned() else {
+            return;
+        };
+        let started = std::time::Instant::now();
+        match self.workspace.mark("after a step of the assistant's turn") {
+            Ok(Some(after)) => {
+                let mut steps = lock(&self.step_marks);
+                let list = steps.entry(conversation.to_owned()).or_default();
+                // Only the last turn's steps are kept.
+                list.retain(|s| s.turn == turn);
+                list.push(StepMark { turn, call: call.to_owned(), after, undone: false });
+            }
+            Ok(None) => {}
+            Err(error) => eprintln!("[changes] no mark after {tool}: {error}"),
+        }
+        slow("tool", "checkpoint after the step", started);
+    }
+
+    /// The last turn's steps (begun at `turn`) with the checkpoint before each and after it.
+    fn steps_of(&self, conversation: &str, turn: &str) -> Vec<(StepMark, String)> {
+        let steps = lock(&self.step_marks);
+        let mut before = turn.to_owned();
+        let mut out = Vec::new();
+        for step in steps.get(conversation).into_iter().flatten().filter(|s| s.turn == turn) {
+            out.push((step.clone(), before.clone()));
+            before = step.after.clone();
+        }
         out
     }
 
@@ -4506,6 +4570,7 @@ impl Bridge {
         let Some(mark) = mark else {
             return Ok(match method {
                 "lastTurn" => json!({ "checkpoint": null, "files": [] }),
+                "steps" => json!({ "ok": true, "steps": [] }),
                 _ => failed("There is nothing to undo."),
             });
         };
@@ -4581,6 +4646,51 @@ impl Bridge {
                 },
                 None => failed("Which file?"),
             },
+            // Each step of the turn that changed something: its call, its files, and whether it was put back already.
+            "steps" => {
+                let steps: Vec<Value> = self
+                    .steps_of(conversation, &mark)
+                    .into_iter()
+                    .filter_map(|(step, before)| {
+                        let files = self.workspace.changed_between(&before, &step.after).ok()?;
+                        (!files.is_empty()).then(|| json!({ "callId": step.call, "files": files, "undone": step.undone }))
+                    })
+                    .collect();
+                json!({ "ok": true, "steps": steps })
+            }
+            // One step's files back as they were before it. A file changed again since (by a later step, or by the
+            // person) is left as it is, and said; when all of them were, nothing goes back.
+            "undoStep" => {
+                if end.is_none() {
+                    return Ok(failed("Mobius is still working on that turn."));
+                }
+                let Some(call) = arg(1).as_str() else {
+                    return Ok(failed("Which step?"));
+                };
+                let Some((step, before)) = self.steps_of(conversation, &mark).into_iter().find(|(s, _)| s.call == call) else {
+                    return Ok(failed("That step changed nothing that can be put back."));
+                };
+                if step.undone {
+                    return Ok(failed("That step was put back already."));
+                }
+                let files = match self.workspace.changed_between(&before, &step.after) {
+                    Ok(files) => files,
+                    Err(e) => return Ok(failed(e)),
+                };
+                let since = self.workspace.changed_since(&step.after).unwrap_or_default();
+                let (kept, back): (Vec<String>, Vec<String>) = files.into_iter().partition(|f| since.contains(f));
+                if back.is_empty() {
+                    return Ok(json!({ "ok": false, "later": true, "error": "That changed again after this step. Putting it back would lose those changes too." }));
+                }
+                if let Err(e) = self.workspace.restore_paths(&before, &back) {
+                    return Ok(failed(e));
+                }
+                if let Some(s) = lock(&self.step_marks).get_mut(conversation).and_then(|l| l.iter_mut().find(|s| s.turn == mark && s.call == call)) {
+                    s.undone = true;
+                }
+                self.reload_after_undo(None);
+                json!({ "ok": true, "files": back, "kept": kept })
+            }
             "undoFile" => match arg(1).as_str() {
                 Some(path) if changed_later(path) && arg(2).as_bool() != Some(true) => json!({ "ok": false, "later": true, "error": "This changed again after that turn. Putting it back would lose those changes too." }),
                 Some(path) if end.is_some() && !turn_files().is_ok_and(|f| f.iter().any(|p| p == path)) => failed("That turn did not change it."),

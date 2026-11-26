@@ -28,6 +28,7 @@ import { activityOf } from './activity';
 import { WorkingIndicator } from './Working';
 import { FirstRunModels } from './settings/ProviderKeys';
 import { SignInForTask } from './SignIn';
+import { TurnStepsContext, useTurnStep, useTurnSteps } from './useTurnSteps';
 
 const STATUS_TEXT: Record<ToolStatus, string> = {
   running: 'Running…',
@@ -278,6 +279,15 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
     if (next) void onDetails(item.callId).then(setDetails, () => setDetails({ result: null, arguments: undefined }));
   };
   const [sending, setSending] = useState(false);
+  // What this step changed, once the turn has ended: it can be put back on its own.
+  const { step, undo } = useTurnStep(item.callId);
+  const [undoing, setUndoing] = useState(false);
+  const [undoProblem, setUndoProblem] = useState<string | null>(null);
+  const undoStep = async () => {
+    setUndoing(true);
+    setUndoProblem(await undo(item.callId));
+    setUndoing(false);
+  };
   const shownArgs = describeArguments(item.args);
   // What a screen reader says for the step: the words shown, never the tool's own name.
   const spoken = (item.status === 'done' ? pastAction(item.name, item.args) : null) ?? plainAction(item.name, item.args);
@@ -299,9 +309,14 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
             ? <button type="button" className="tool-name link-btn" data-plain title={`Open it (${item.name})`} onClick={() => onOpenItem?.(target)}>{said ?? item.name}</button>
             : <span className="tool-name" data-plain={said ? true : undefined} title={item.name}>{said ?? item.name}</span>;
         })()}
-        <span className="tool-status">{STATUS_TEXT[item.status]}</span>
+        <span className="tool-status">{step?.undone ? 'Put back' : STATUS_TEXT[item.status]}</span>
+        {item.status === 'done' && step && !step.undone && (
+          <button type="button" className="msg-action tool-undo" disabled={undoing} aria-label={`Undo: ${spoken}`}
+            title={`Put back ${step.files.length === 1 ? 'what this step changed' : `the ${step.files.length} files this step changed`}, as they were before it`} onClick={() => void undoStep()}>Undo</button>
+        )}
         {finished && <button type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details: ${spoken}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
       </div>
+      {undoProblem && <p className="field-error tool-problem" role="alert">{undoProblem}</p>}
       {open && (
         <div className="tool-details" role="group" aria-label={`Details: ${spoken}`}>
           {!details ? <p className="dl-sub">Loading…</p> : (
@@ -781,8 +796,11 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
     if (item) setContext((items) => (items.some((i) => i.source === item.source && i.text === item.text) ? items : [...items, item].slice(-5)));
     queueMicrotask(() => field.current?.focus());
   }, [incoming]);
+  // Each finished step that changed files can be put back on its own.
+  const turnSteps = useTurnSteps(state.conversation, state.busy);
 
   return (
+    <TurnStepsContext.Provider value={turnSteps}>
     <Shell variant={variant} empty={state.items.length === 0}>
       <div className="chat-head" data-lead={lead || onPlace ? true : undefined}>
         {lead}
@@ -1000,6 +1018,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
         </>
       )}
     </Shell>
+    </TurnStepsContext.Provider>
   );
 }
 

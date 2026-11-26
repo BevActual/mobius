@@ -555,6 +555,10 @@ export interface MobiusBridge {
     undoFile(conversation: string, path: string): Promise<{ ok: true } | AgentFailure>;
     /** Several of the last turn's files back at once; all of them also moves back what its moves left behind. */
     undoFiles?(conversation: string, paths: readonly string[]): Promise<{ ok: true; kept?: string[] } | AgentFailure>;
+    /** Each step of the last turn that changed files, in the order they ran. */
+    steps?(conversation: string): Promise<{ ok: true; steps: TurnStep[] } | AgentFailure>;
+    /** One step's files back as they were before it; `kept` changed again since and stay. Refused with `later` when all did. */
+    undoStep?(conversation: string, callId: string): Promise<{ ok: true; files: string[]; kept: string[] } | (AgentFailure & { later?: boolean })>;
     /** A file as it was before the last turn: `text` is null when the turn made it. */
     before(conversation: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
     /** Every turn of the conversation, newest first, with what each changed between its start and its end. */
@@ -1698,6 +1702,8 @@ export interface AboutInfo {
 /** The files an agent turn changed, relative to the workspace, and the checkpoint taken before it began. */
 /** A moved (or renamed) file is in `files` by both its paths, and in `moves` once. */
 export interface TurnChanges { checkpoint: string | null; files: string[]; moves?: { from: string; to: string }[] }
+/** One step of the last turn that changed files: its call, the files it changed, and whether it was put back. */
+export interface TurnStep { callId: string; files: string[]; undone: boolean }
 export interface AgentFailure { ok: false; error: string }
 
 export interface AgentSettings {
