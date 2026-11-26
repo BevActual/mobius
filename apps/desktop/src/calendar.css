@@ -111,7 +111,7 @@
 .cal-editor-row > .ui-field:has(.ui-select) { flex: 0 1 auto; min-width: 0; }
 .cal-editor-group > .ui-switch-row.cal-editor-row > label > span { width: auto; }
 /* All day as a switch. */
-@media (prefers-reduced-motion: reduce) { .calendar-page .cal-event, .cal-going-btn { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .calendar-page .cal-event { transition: none; } }
 
 /* The mini month in the sidebar. */
 
@@ -248,6 +248,7 @@
 .cal-going > span { margin-right: 4px; }
 .cal-going-btn { min-height: 26px; padding: 2px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--ink); font: inherit; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .cal-going-btn[aria-disabled="true"] { cursor: progress; }
+@media (prefers-reduced-motion: reduce) { .cal-going-btn { transition: none; } }
 .cal-going-from { margin: 0; padding: 0 2px; font-size: var(--fs-sm); color: var(--muted); }
 .cal-going-btn:hover { background: var(--soft); }
 .cal-going-btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: var(--fw-semibold); }
