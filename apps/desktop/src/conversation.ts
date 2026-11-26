@@ -44,6 +44,8 @@ export interface ConversationState {
   context?: { used: number; limit: number };
   /** How the last turn ended: well, failed, or stopped. */
   ended?: 'done' | 'failed' | 'cancelled';
+  /** Busy only because the chat list said its turn was running when it was opened (handed off, scheduled, left running). */
+  adopted?: boolean;
 }
 
 export type ConversationAction =
@@ -68,7 +70,9 @@ export type ConversationAction =
   | { type: 'reset-busy' }
   | { type: 'rewound' }
   | { type: 'switch'; conversation: string }
-  | { type: 'control'; control: { step: number; of?: number } | null };
+  | { type: 'control'; control: { step: number; of?: number } | null }
+  /** What the chat list says of the open chat: a turn running elsewhere is shown as running here, with Stop. */
+  | { type: 'running'; conversation: string; working: boolean };
 
 export const initialConversation = (conversation: string): ConversationState => ({ conversation, items: [], busy: false, turn: null, nextId: 1 });
 
@@ -166,13 +170,20 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
       );
     case 'switch':
       return initialConversation(action.conversation);
+    case 'running':
+      if (action.conversation !== state.conversation) return state;
+      // A turn this window did not start, heard of only through the list: it runs until the list says otherwise or
+      // its own news ends it. One this window sent is left to its own news.
+      if (action.working) return state.busy ? state : { ...state, busy: true, adopted: true, ended: undefined };
+      return state.busy && state.adopted && state.turn === null ? { ...state, busy: false, adopted: false } : state;
     case 'control':
       return { ...state, control: action.control, ...(action.control ? { items: pauseRunning(state.items) } : {}) };
     case 'reset-busy':
       return finished({ ...state, items: cancelOpenTools(state.items) }, 'cancelled');
     case 'loaded':
       if (action.conversation !== undefined && action.conversation !== state.conversation) return state;
-      return state.busy || (action.onOpen && state.nextId !== 1) ? state : fromHistory(state, action.messages);
+      // Busy only on the list's word (nothing heard yet): what was said so far is still read in.
+      return (state.busy && !(state.adopted && state.turn === null)) || (action.onOpen && state.nextId !== 1) ? state : fromHistory(state, action.messages);
     case 'answer-failed':
       return updateTool(
         state,

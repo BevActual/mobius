@@ -265,6 +265,26 @@ test('a run assigned to Mobius and stopped says so in the Inbox, not that it fin
   await expect(composer()).toBeFocused();
 });
 
+test('a chat opened while it runs in the background shows it running, with Stop, and its pill once the panel closes', async () => {
+  // Long enough before its first word that only the chat list can say it is running.
+  await start([says(['Here it ', 'is.'], 8000)]);
+  await openApp('Notes');
+  if (!(await composer().isVisible())) await shell().keyboard.press('Control+Shift+M');
+  await composer().fill('Write a long brief');
+  await composer().press('Alt+Enter');
+  await shell().locator('.working-pill-open').click();
+  await shell().getByRole('button', { name: 'All chats' }).click();
+  await shell().getByRole('menu', { name: 'Conversations' }).getByRole('menuitem', { name: 'New chat' }).click();
+  await shell().getByRole('region', { name: 'Running jobs' }).getByRole('button', { name: /Write a long brief/ }).first().click();
+  await expect(log().locator('.msg.user')).toContainText('Write a long brief');
+  await expect(shell().getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+  await shell().keyboard.press('Control+Shift+M');
+  const pill = shell().locator('.working-pill');
+  await expect(pill).toBeVisible();
+  await pill.getByRole('button', { name: 'Stop Mobius' }).click();
+  await expect(pill).toHaveCount(0);
+});
+
 test('a chat a schedule starts is listed as running while it runs', async () => {
   await start([says(['Looking ', 'through it…'], 4000)]);
   await openApp('Agent');

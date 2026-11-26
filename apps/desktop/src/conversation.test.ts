@@ -509,3 +509,21 @@ describe('reads done before the model was asked', () => {
     expect(s.items[0]).toMatchObject({ kind: 'user', text: 'Plan my day\n\n<steps>\nRead my tasks.\n</steps>' });
   });
 });
+
+describe('a chat opened while its turn runs elsewhere', () => {
+  const said: Message[] = [{ role: 'user', text: 'Fix the tap' } as Message];
+  it('is shown running from the list, and still reads in what was said so far', () => {
+    const s = run({ type: 'running', conversation: 'main', working: true }, { type: 'loaded', messages: said, onOpen: true, conversation: 'main' });
+    expect(s.busy).toBe(true);
+    expect(kinds(s)).toEqual(['user']);
+  });
+  it('stops being running when the list says so, unless its own news has come', () => {
+    expect(run({ type: 'running', conversation: 'main', working: true }, { type: 'running', conversation: 'main', working: false }).busy).toBe(false);
+    expect(run({ type: 'running', conversation: 'main', working: true }, delta('Looking', 3), { type: 'running', conversation: 'main', working: false }).busy).toBe(true);
+    expect(run({ type: 'running', conversation: 'main', working: true }, delta('Looking', 3), note({ kind: 'done' } as AgentEvent, 3)).busy).toBe(false);
+  });
+  it('leaves a turn this window sent to its own news, and ignores other chats', () => {
+    expect(run({ type: 'sent', text: 'hi' }, { type: 'running', conversation: 'main', working: false }).busy).toBe(true);
+    expect(run({ type: 'running', conversation: 'other', working: true }).busy).toBe(false);
+  });
+});

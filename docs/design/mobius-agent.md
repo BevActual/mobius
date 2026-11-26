@@ -84,6 +84,8 @@ it, without opening the panel.
 - **Assign to Mobius.** Built in the fourth round: Assign to Mobius in a task's menu and on a mail message starts a
   chat of its own in the background (the open chat stays as it is), listed under Also running, landing in the Inbox.
   Any app offers it by sending `mobius:assign` (apps/desktop/src/assign.ts) with the ask, a title and its app.
+  A chat opened while its turn runs elsewhere (handed off, scheduled, assigned) shows it running, with Stop and the
+  pill, from the chat list's word, before it has said anything.
 
 ## Open standards, no account
 
