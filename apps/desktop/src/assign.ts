@@ -3,8 +3,8 @@ import type { ContextItem } from '@mobius/shared';
 /**
  * Assign to Mobius (docs/design/mobius-agent.md, "Hand it off, it comes back to the Inbox"): an item in an app is
  * handed to Mobius from its own menu. The work runs in a chat of its own, in the background, without opening the
- * panel or changing the chat that is open; it is listed under Also running while it runs, and lands as one row in
- * Home's Inbox with Keep all and Open. Any app can offer it: it sends this event, and the shell does the rest.
+ * panel or changing the chat that is open; the ask's first line is the item's name, so that chat is named after it. It
+ * is listed under Also running while it runs, and lands as one row in Home's Inbox with Keep all and Open. Any app can offer it: it sends this event, and the shell does the rest.
  */
 export const ASSIGN_EVENT = 'mobius:assign';
 
@@ -18,8 +18,20 @@ export interface Assignment {
   context?: ContextItem[];
 }
 
-export function assignToMobius(assignment: Assignment): void {
+/**
+ * Hand it to Mobius. `back` is where the keyboard goes once the menu it was chosen from has gone (the item's row):
+ * choosing it moves nothing on the page, so without it the focus would be left on nothing.
+ */
+export function assignToMobius(assignment: Assignment, back?: () => HTMLElement | null | undefined): void {
   window.dispatchEvent(new CustomEvent<Assignment>(ASSIGN_EVENT, { detail: assignment }));
+  if (!back) return;
+  const lost = () => !document.activeElement || document.activeElement === document.body || Boolean(document.activeElement.closest('.ui-menu'));
+  let tries = 0;
+  const settle = () => {
+    if (lost()) back()?.focus();
+    if (++tries < 10) window.setTimeout(settle, 40);
+  };
+  window.setTimeout(settle, 0);
 }
 
 const quote = (text: string) => `"${text.replace(/\s+/g, ' ').trim()}"`;
@@ -34,16 +46,18 @@ export function taskAssignment(list: string, task: { text: string; notes?: strin
     ...(task.due ? [`It is due ${task.due}.`] : []),
     'Do as much of it as you can in my apps, then tell me in a few lines what you did and what is left for me. Only mark the task done if it is completely finished.',
   ];
-  return { ask: lines.join(' '), title: short(task.text) || 'Task', app: 'tasks' };
+  const title = short(task.text) || 'Task';
+  return { ask: `${title}\n\n${lines.join(' ')}`, title, app: 'tasks' };
 }
 
 /** A message: read it and prepare what it needs (a draft reply, a task, an event), sending nothing. */
 export function mailAssignment(m: { id: string; subject: string; from: { name?: string | null; email: string } }): Assignment {
   const who = m.from.name ? `${m.from.name} <${m.from.email}>` : m.from.email;
   const subject = m.subject.trim() || '(no subject)';
+  const title = short(subject);
   return {
-    ask: `Deal with this email in Mail: ${quote(subject)} from ${who} (message id ${m.id}). Read it, then prepare what it needs, such as a draft reply, a task or a calendar event. Do not send anything: leave drafts for me to look over, and tell me in a few lines what you prepared.`,
-    title: short(subject),
+    ask: `${title}\n\nDeal with this email in Mail: ${quote(subject)} from ${who} (message id ${m.id}). Read it, then prepare what it needs, such as a draft reply, a task or a calendar event. Do not send anything: leave drafts for me to look over, and tell me in a few lines what you prepared.`,
+    title,
     app: 'mail',
   };
 }

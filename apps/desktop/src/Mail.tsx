@@ -442,7 +442,7 @@ function MessageTools({ mail, content, onLater }: { mail: MailState; content: Ma
           { label: 'Mark as Unread', icon: <Glyph name="unread" />, keys: 'U', run: () => { void mail.flag(content.id, 'seen', false); mail.setOpen(null); } },
           ...moveItems(mail, content.id, content.category, () => void mail.read(content.id)),
           // Shell: Assign to Mobius (assign.ts).
-          ...(row?.box !== 'sent' ? [{ label: 'Assign to Mobius', separated: true, run: () => assignToMobius(mailAssignment(content)) }] : []),
+          ...(row?.box !== 'sent' ? [{ label: 'Assign to Mobius', separated: true, run: () => assignToMobius(mailAssignment(content), () => rowFor(content.id)) }] : []),
         ]} />
       </ToolGroup>
     </div>
@@ -662,6 +662,9 @@ function Row({ t, on, onOpen, onMenu, onDone, onLater }: { t: Thread; on: boolea
 }
 
 /** A message row's right-click menu: what the toolbar does, without opening it first. */
+/** A message's row in the list, or the open one's: where the keyboard goes back to after a menu that moves nothing. */
+const rowFor = (id: string) => document.querySelector<HTMLElement>(`.mail-row[data-id="${CSS.escape(id)}"]`) ?? document.querySelector<HTMLElement>('.mail-row[aria-selected="true"]');
+
 function rowItems(mail: MailState, m: MailMessage, onLater: (id: string) => void) {
   const reopen = () => { if (mail.open?.id === m.id) void mail.read(m.id); };
   return [
@@ -672,7 +675,7 @@ function rowItems(mail: MailState, m: MailMessage, onLater: (id: string) => void
     ...(m.box === 'inbox' && !m.archived ? [(m.laterMs ?? 0) > Date.now() ? { label: 'Back to Inbox Now', run: () => void mail.later(m.id, null) } : { label: 'Later…', keys: 'H', run: () => onLater(m.id) }] : []),
     ...(m.box === 'inbox' ? moveItems(mail, m.id, m.category, reopen) : []),
     // Shell: Assign to Mobius (assign.ts) prepares what it needs in the background, sending nothing.
-    ...(m.box === 'inbox' ? [{ label: 'Assign to Mobius', separated: true, run: () => assignToMobius(mailAssignment(m)) }] : []),
+    ...(m.box === 'inbox' ? [{ label: 'Assign to Mobius', separated: true, run: () => assignToMobius(mailAssignment(m), () => rowFor(m.id)) }] : []),
   ];
 }
 

@@ -154,11 +154,20 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const [said, setSaid] = useState('');
   const inboxList = useRef<HTMLUListElement>(null);
   // A row that goes leaves the focus on the Inbox's first row, not on the page.
-  const focusInbox = () => setTimeout(() => (inboxList.current?.querySelector<HTMLElement>('button:not([disabled])') ?? document.querySelector<HTMLElement>('.desk button'))?.focus(), 0);
+  // `gone`: the row that is going, waited for first (a finished run's row goes once its list is read again), so the
+  // focus does not land on it as it leaves. With the Inbox empty, the message box takes it, not some other button.
+  const focusInbox = (gone?: string) => {
+    let waited = 0;
+    const go = () => {
+      if (gone && rowOf(gone) && waited++ < 30) { setTimeout(go, 30); return; }
+      (inboxList.current?.querySelector<HTMLElement>('button:not([disabled])') ?? document.querySelector<HTMLElement>('[aria-label="Message Mobius"]') ?? document.querySelector<HTMLElement>('.desk button'))?.focus();
+    };
+    setTimeout(go, 0);
+  };
   const finishRun = (run: BackgroundDone, keep: boolean) => {
     if (keep) background?.onKeep(run); else background?.onDone(run);
     setSaid(keep ? `Kept everything from ${run.ask}` : `Done with ${run.ask}`);
-    focusInbox();
+    focusInbox(`background:${run.conversation}`);
   };
   // A row that goes folds away first, so the rows under it slide up rather than jump.
   const rowOf = (key: string) => document.querySelector<HTMLElement>(`li[data-key="${CSS.escape(key)}"]`);
@@ -264,11 +273,11 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
               );
             })}
             {handedOff.map((run) => (
-              <li key={`background:${run.conversation}:${run.at}`} className="desk-row" data-changed={run.files.length > 0 || undefined} data-background>
-                <button type="button" className="desk-open" aria-label={`Open ${run.ask}: ${doneText(run.files)}`} onClick={() => background?.onOpen(run)}>
+              <li key={`background:${run.conversation}:${run.at}`} data-key={`background:${run.conversation}`} className="desk-row" data-changed={run.files.length > 0 || undefined} data-background>
+                <button type="button" className="desk-open" aria-label={`Open ${run.ask}: ${doneText(run.files, run)}`} onClick={() => background?.onOpen(run)}>
                   <Icon app="agent" />
                   <span className="desk-name">{run.ask}</span>
-                  <span className="desk-text">{doneText(run.files)}</span>
+                  <span className="desk-text">{doneText(run.files, run)}</span>
                   {go('Open')}
                 </button>
                 {run.files.length > 0

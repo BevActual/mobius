@@ -2025,7 +2025,7 @@ export function App() {
                 }}
                 background={{
                   items: handoffs.done,
-                  onOpen: (run) => { handoffs.drop(run.conversation); conversation.select(run.conversation); openRight(); },
+                  onOpen: (run) => { handoffs.drop(run.conversation); conversation.select(run.conversation); openRight(); setFocusToken((n) => n + 1); },
                   onKeep: handoffs.keep,
                   onDone: (run) => handoffs.drop(run.conversation),
                 }}
