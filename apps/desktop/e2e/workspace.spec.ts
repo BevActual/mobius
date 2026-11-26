@@ -139,9 +139,11 @@ test('the app hub shows every app with what is happening in it, starts new thing
   await expect(apps.getByRole('button', { name: /^Browser, 1 tab open/ })).toHaveAttribute('aria-current', 'page');
   // Apps sit in groups by what they are for.
   await expect(apps.getByRole('group', { name: 'Write and plan' }).getByRole('button', { name: 'Notes, 1 page' })).toBeVisible();
-  // A group of one joins the group beside it, so no app sits alone: Agent leads Browse and find, Review ends Create.
+  // A group of one joins the group beside it, so no app sits alone: Agent leads Browse and find. Review is gone (it is
+  // Home's Changes now).
   await expect(apps.getByRole('group', { name: 'Browse and find' }).getByRole('button', { name: /^Agent/ })).toBeVisible();
-  await expect(apps.getByRole('group', { name: 'Create' }).getByRole('button', { name: /^Review/ })).toBeEnabled();
+  await expect(apps.getByRole('group', { name: 'Create' }).getByRole('button', { name: /^Canvas/ })).toBeEnabled();
+  await expect(apps.getByRole('button', { name: /^Review/ })).toHaveCount(0);
   for (const group of await apps.getByRole('group').all()) expect(await group.getByRole('button').count()).toBeGreaterThan(1);
   // Nothing runs past the hub's right edge, and the Start actions show their whole words.
   expect(await hub.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
