@@ -86,6 +86,9 @@ it, without opening the panel.
   Any app offers it by sending `mobius:assign` (apps/desktop/src/assign.ts) with the ask, a title and its app.
   A chat opened while its turn runs elsewhere (handed off, scheduled, assigned) shows it running, with Stop and the
   pill, from the chat list's word, before it has said anything.
+- **Ask from anywhere.** Built in the fifth round: Ctrl+Shift+J on words or cells chosen in an app opens a card by
+  them (AskHere.tsx). The question goes in Ask mode to a chat of its own, with the item and the selection, and the answer
+  streams into the card; Continue in chat opens it in the panel. Changes from the card (Insert, Replace) come later.
 
 ## Open standards, no account
 

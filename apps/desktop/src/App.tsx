@@ -92,6 +92,8 @@ import { eventsOn, isoDay, rangeLabel as calendarRange } from './calendar-view';
 import { Desk } from './Desk';
 import { useBackgroundRuns } from './background';
 import { ASSIGN_EVENT, type Assignment } from './assign';
+import { AskHere, pickedNow, type Picked } from './AskHere';
+import { hereOf } from './surface';
 import type { SendOptions } from './composer/Composer';
 import { inboxItems } from './inbox';
 import { fitDocks } from './dock-fit';
@@ -1346,6 +1348,35 @@ export function App() {
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
+  // Ask from anywhere: Ctrl+Shift+J with something chosen in the open app asks about it there, in a card by it.
+  const [askHere, setAskHere] = useState<{ picked: Picked; back: Element | null; range: Range | null } | null>(null);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !pressIs('mod+shift+j', event, window.mobius.platform === 'darwin')) return;
+      // Open already: the key takes the keyboard back to its question.
+      const open = document.querySelector<HTMLElement>('.ask-here input');
+      if (open) { event.preventDefault(); open.focus(); return; }
+      const picked = pickedNow();
+      if (!picked) return;
+      event.preventDefault();
+      const selection = document.getSelection();
+      setAskHere({ picked, back: document.activeElement, range: selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const closeAskHere = useCallback(() => {
+    setAskHere((was) => {
+      if (was) {
+        // The keyboard goes back to where it was, with the words still chosen.
+        window.setTimeout(() => {
+          if (was.back instanceof HTMLElement && was.back.isConnected) was.back.focus();
+          if (was.range) { const s = document.getSelection(); s?.removeAllRanges(); s?.addRange(was.range); }
+        }, 0);
+      }
+      return null;
+    });
+  }, []);
   // Assign to Mobius, from an item's own menu in any app: the work runs in a chat of its own, in the background, and
   // lands in Home's Inbox; the open chat and the panel stay as they are.
   const assignNow = useRef<(a: Assignment) => void>(() => undefined);
@@ -2278,6 +2309,8 @@ export function App() {
               : [pane];
           })}
           {toast && <div className="toast" role="status">{toast}</div>}
+          {askHere && <AskHere picked={askHere.picked} here={hereOf(surface)} app={app} onClose={closeAskHere}
+            onContinue={(id) => { setAskHere(null); conversation.select(id); openRight(); setFocusToken((n) => n + 1); }} />}
           {/* An alert, unless the meeting's own nudge is already saying it is starting. */}
           {alerting && !(starting && meetingKey(starting) === meetingKey(alerting.event)) && <UndoToast text={alerting.said} undoLabel="Open" onUndo={() => { const day = new Date(`${alerting.event.start.slice(0, 10)}T12:00:00`); setAlerting(null); closeSettings(); openApp('calendar'); if (!Number.isNaN(day.getTime())) calendar.setAnchor(day); }} onDismiss={() => setAlerting(null)} />}
           {starting && <UndoToast text={`${starting.title.trim() || 'A meeting'} is starting`} undoLabel="Record" onUndo={() => { const event = starting; setStarting(null); void recordMeeting(event); }} onDismiss={() => setStarting(null)} />}

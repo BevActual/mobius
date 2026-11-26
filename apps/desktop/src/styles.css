@@ -2909,3 +2909,16 @@ button.waiting-row:focus-visible { outline: var(--focus-w) solid var(--ink); out
 .running-job-state { flex: none; color: var(--muted); font-size: var(--fs-xs); }
 .running-job[data-needs-you] .running-job-state { color: var(--mobius); }
 @media (prefers-reduced-motion: reduce) { .running-job-mark { animation: none; } }
+
+/* Ask from anywhere: a card by what is chosen in an app, its edge dashed indigo as Mobius's work is. */
+.ask-here { position: fixed; z-index: 40; width: 380px; max-width: calc(100vw - 16px); max-height: 60vh; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--radius-panel); border: 1px dashed var(--mobius); background: var(--raised); color: var(--ink); box-shadow: var(--shadow-2); font-size: var(--fs-sm); animation: app-in var(--dur-med) var(--ease); }
+.ask-here-head { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); }
+.ask-here-picked { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }
+.ask-here-asked { margin: 0; font-weight: var(--fw-medium); }
+.ask-here-answer { overflow: auto; min-height: 20px; line-height: 1.5; }
+.ask-here-wait, .ask-here-problem { color: var(--muted); }
+.ask-here-problem { margin: 4px 0 0; }
+.ask-here-form { display: flex; gap: 6px; }
+.ask-here-form input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: var(--radius-pill); background: var(--field); color: var(--ink); border: 0; font: inherit; }
+.ask-here-foot { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.ask-here-keys { margin-left: auto; color: var(--muted); font-size: var(--fs-xs, 11px); }

@@ -138,6 +138,10 @@ checkpoints live in their own store and never touch a folder's own git history.
 - **Also running.** Work Mobius is doing in other chats (sent in the background, started by a schedule, or left
   running when you moved on) is listed under the open chat, each with what it is doing (*In the background*,
   *Working*, *Needs you*) and **Stop**. Press one to open that chat.
+- **Ask from anywhere.** Select words in a note or document, or cells in a sheet, and press **Ctrl+Shift+J**. A card
+  opens beside them: ask about what you chose and the answer appears there, in Ask mode (Mobius reads and answers,
+  changing nothing), without opening the panel. Ask a follow-up in the same card, or **Continue in chat** to carry on
+  in the panel. **Esc** closes it and puts you back where you were, with the words still selected.
 - **Assign to Mobius.** Right-click a task in Tasks, or a message in Mail (or use the open message's ⋯), and choose
   **Assign to Mobius**. It works on it in a chat of its own, in the background, without opening the panel or touching
   the chat you have open. A task it does as far as it can, ticking it off only when it is finished; a message it reads

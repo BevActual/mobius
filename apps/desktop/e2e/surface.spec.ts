@@ -296,6 +296,45 @@ test('Stop in the panel leaves the keyboard in the message box', async () => {
   await expect(composer()).toBeFocused();
 });
 
+test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a card by them, without opening the panel', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Work'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), '# Trip\n\nThe ferry leaves Piraeus at dawn.\n');
+  await start([says(['Piraeus is ', 'the port of Athens.'], 300)]);
+  await openApp('Notes');
+  if (await composer().isVisible()) await shell().keyboard.press('Control+Shift+M');
+  await shell().getByRole('button', { name: 'Trip', exact: true }).click();
+  const note = shell().getByRole('textbox', { name: 'Note text' });
+  await expect(note).toContainText('Piraeus');
+  await note.evaluate((el) => {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const at = n.textContent?.indexOf('Piraeus') ?? -1;
+      if (at >= 0) { const r = document.createRange(); r.setStart(n, at); r.setEnd(n, at + 'Piraeus'.length); const s = document.getSelection()!; s.removeAllRanges(); s.addRange(r); break; }
+    }
+  });
+  await shell().keyboard.press('Control+Shift+J');
+  const card = shell().getByRole('dialog', { name: 'Ask Mobius about the selection' });
+  await expect(card).toContainText('Piraeus');
+  const field = card.getByRole('textbox', { name: 'Ask about the selection' });
+  await expect(field).toBeFocused();
+  await field.fill('Where is this?');
+  await field.press('Enter');
+  await expect(card.getByRole('status', { name: "Mobius's answer" })).toContainText('Piraeus is the port of Athens.');
+  // Asked in Ask mode, with the chosen words and the note they are in.
+  expect(model!.requests.at(-1)?.messages ? sent() : '').toContain('Selected text: \\"Piraeus\\"');
+  await expect(composer()).toBeHidden();
+  // Esc puts the keyboard back in the note.
+  await field.press('Escape');
+  await expect(card).toHaveCount(0);
+  await expect(note).toBeFocused();
+  // Esc closes it from the note too, though the note keeps Escape for itself.
+  await shell().keyboard.press('Control+Shift+J');
+  await expect(card).toBeVisible();
+  await note.focus();
+  await shell().keyboard.press('Escape');
+  await expect(card).toHaveCount(0);
+});
+
 test('a chat a schedule starts is listed as running while it runs', async () => {
   await start([says(['Looking ', 'through it…'], 4000)]);
   await openApp('Agent');
