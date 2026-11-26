@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tauri::{Webview, Wry};
 use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_DOWNLOAD_STATE, COREWEBVIEW2_DOWNLOAD_STATE_COMPLETED, COREWEBVIEW2_DOWNLOAD_STATE_IN_PROGRESS, ICoreWebView2DownloadOperation, ICoreWebView2Settings3, ICoreWebView2Settings8, ICoreWebView2_4, ICoreWebView2_8, COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN, COREWEBVIEW2_KEY_EVENT_KIND_SYSTEM_KEY_DOWN};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_CONTROL, VK_MENU, VK_SHIFT};
-use webview2_com::{AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, FocusChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
+use webview2_com::{AcceleratorKeyPressedEventHandler, BytesReceivedChangedEventHandler, FocusChangedEventHandler, IsDocumentPlayingAudioChangedEventHandler, ZoomFactorChangedEventHandler, DownloadStartingEventHandler, StateChangedEventHandler, take_pwstr};
 use windows::core::{Interface, PWSTR};
 use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW, COREWEBVIEW2_PERMISSION_STATE_DENY};
@@ -230,6 +230,26 @@ pub fn watch_audio(webview: &Webview<Wry>, on_audio: Arc<dyn Fn(bool) + Send + S
             }));
             let mut token = 0i64;
             let _ = core.add_IsDocumentPlayingAudioChanged(&handler, &mut token);
+        }
+    });
+}
+
+/// Calls `on_zoom` with the page's zoom factor each time it changes, whoever changed it.
+pub fn watch_zoom(webview: &Webview<Wry>, on_zoom: Arc<dyn Fn(f64) + Send + Sync>) {
+    let _ = webview.with_webview(move |platform| {
+        // SAFETY: same as above.
+        unsafe {
+            let handler = ZoomFactorChangedEventHandler::create(Box::new(move |sender, _| {
+                if let Some(controller) = sender {
+                    let mut factor = 1.0f64;
+                    if controller.ZoomFactor(&mut factor).is_ok() {
+                        on_zoom(factor);
+                    }
+                }
+                Ok(())
+            }));
+            let mut token = 0i64;
+            let _ = platform.controller().add_ZoomFactorChanged(&handler, &mut token);
         }
     });
 }
