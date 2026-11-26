@@ -224,6 +224,12 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   // The shared Undo toast takes it back.
   await page().getByRole('status').filter({ hasText: 'Done: “Terrace + lunch for the 13th”' }).getByRole('button', { name: 'Undo' }).click();
   await expect(list.getByRole('option')).toHaveCount(1);
+  // From the keyboard on the row itself: E is its Done, and Z takes it back.
+  await list.getByRole('option').first().focus();
+  await shell().keyboard.press('e');
+  await expect(list.getByRole('option')).toHaveCount(0);
+  await shell().keyboard.press('z');
+  await expect(list.getByRole('option')).toHaveCount(1);
   await list.getByRole('option').first().click();
   await tools.getByRole('button', { name: 'Done' }).click();
   await expect(list.getByRole('option')).toHaveCount(0);

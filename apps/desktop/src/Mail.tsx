@@ -13,7 +13,7 @@ import { MobiusMark } from './MobiusMark';
 import { REMIND_AFTER, remindAt, remindDay, useFollowUps, waitingOn } from './mail-follow-ups';
 
 import './mail.css';
-import { foldWhile } from './app-motion';
+import { foldWhile, unfold } from './app-motion';
 import { AccountDialog } from './MailAccounts';
 import { dayLabel, formatWith, timeLabel, weekdayLabel } from './dates';
 import { earlierIn, fileKind, sizeWords, type Thread } from './mail-threads';
@@ -38,7 +38,41 @@ const SPLITS: { id: Split; label: string; view: MailView }[] = [
 /** Which split tab a view is, or null when the list shows something else (a label, Sent, Drafts…). */
 /** A conversation leaving the list (Done, Later) folds its row away first; the open one is the selected row. */
 const mailRow = (id: string) => document.querySelector<HTMLElement>(`.mail-row[data-id="${CSS.escape(id)}"]`) ?? document.querySelector<HTMLElement>('.mail-row[aria-selected="true"][data-id]');
-const outOfList = (id: string, work: () => Promise<unknown>) => foldWhile(mailRow(id), work);
+/** The row that last left the list, so Undo can open it back out; and the rows to open out as they come back. */
+let lastOut: string | null = null;
+const returning = new Set<string>();
+const outOfList = async (id: string, work: () => Promise<unknown>) => {
+  const row = mailRow(id);
+  const rowId = row?.dataset.id ?? id;
+  // Where the keyboard goes when it was on that row (or nowhere): the row after it, or the one before at the end.
+  const after = row ? [...document.querySelectorAll<HTMLElement>('.mail-row[data-id]')] : [];
+  const at = row ? after.indexOf(row) : -1;
+  const nextId = (after[at + 1] ?? after[at - 1])?.dataset.id ?? null;
+  // (From the row's menu, the menu has the keys until it closes.)
+  const hadFocus = row?.contains(document.activeElement) || document.activeElement === document.body || Boolean(document.activeElement?.closest('[role=menu]'));
+  await foldWhile(row, work);
+  lastOut = rowId;
+  if (hadFocus && nextId) requestAnimationFrame(() => {
+    if (document.activeElement && document.activeElement !== document.body && !document.activeElement.closest('.mail-row')) return;
+    document.querySelector<HTMLElement>(`.mail-row[data-id="${CSS.escape(nextId)}"]`)?.focus();
+  });
+};
+/** Undo, from the toast or Z: the row that left comes back opening out, as it went. */
+let focusBack = false;
+const undoing = (run: (() => Promise<unknown>) | undefined, outOfList = true, fromToast = false) => {
+  if (lastOut && outOfList) { returning.add(lastOut); focusBack = fromToast; }
+  lastOut = null;
+  void run?.();
+};
+/** On a row's first time on the page: opens out if it is one coming back. */
+const comingBack = (id: string) => (el: HTMLButtonElement | null) => {
+  if (!el || 'seen' in el.dataset) return;
+  el.dataset.seen = '';
+  if (!returning.delete(id)) return;
+  void unfold(el);
+  // From the toast the keys were on its button, which goes: they go to the row that came back.
+  if (focusBack) { focusBack = false; requestAnimationFrame(() => { if (!document.activeElement || document.activeElement === document.body || document.activeElement.closest('[role=status]')) el.focus(); }); }
+};
 
 export function splitOf(v: MailView): Split | null {
   if (v.kind === 'waiting') return 'waiting';
@@ -598,9 +632,16 @@ function Row({ t, on, onOpen, onMenu, onDone, onLater }: { t: Thread; on: boolea
   const who = m.box === 'sent' ? `To ${m.to.map(shownName).join(', ')}` : shownName(m.from);
   const act = (run: () => void) => (e: ReactMouseEvent) => { e.stopPropagation(); e.preventDefault(); run(); };
   return (
-    <button type="button" role="option" aria-selected={on} className="mail-row" data-unread={t.unread || undefined} data-flagged={t.flagged || undefined} data-id={m.id} data-count={n > 1 ? n : undefined} onClick={onOpen}
+    <button ref={comingBack(m.id)} type="button" role="option" aria-selected={on} className="mail-row" aria-keyshortcuts={onDone || onLater ? [onDone && 'E', onLater && 'H'].filter(Boolean).join(' ') : undefined} data-unread={t.unread || undefined} data-flagged={t.flagged || undefined} data-id={m.id} data-count={n > 1 ? n : undefined} onClick={onOpen}
       onContextMenu={(e) => { e.preventDefault(); onMenu(e.clientX, e.clientY); }}
-      onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); onMenu(r.left + 16, r.bottom); } }}>
+      onKeyDown={(e) => {
+        if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); onMenu(r.left + 16, r.bottom); return; }
+        // E and H act on the row the keyboard is on, as its Done and Later buttons do, whichever message is open.
+        if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+        const key = e.key.toLowerCase();
+        if (key === 'e' && onDone) { e.preventDefault(); onDone(); }
+        else if (key === 'h' && onLater) { e.preventDefault(); onLater(); }
+      }}>
       <span className="mail-row-who">{who}{n > 1 && <span className="mail-row-count"><span aria-hidden="true">{n}</span><span className="sr-only">, {n} messages, </span></span>}</span>
       <span className="mail-row-what"><span className="mail-row-subject">{m.subject || '(no subject)'}</span>{m.needsReply && <span className="mail-needs-reply"> · Reply</span>}<span className="mail-row-preview">{m.preview}</span></span>
       <span className="mail-row-end">
@@ -746,7 +787,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
       const t = e.target instanceof HTMLElement ? e.target : null;
       const typing = t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role=menu]');
       // Ctrl+Z (or Z, as in Gmail) takes back the Done, Later or send the toast offers to undo.
-      if (m.undo && !typing && !m.editing && !e.defaultPrevented && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); void m.undo.run(); return; }
+      if (m.undo && !typing && !m.editing && !e.defaultPrevented && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undoing(m.undo.run, !m.undo.until); return; }
       if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || typing || m.editing) return;
       const onList = !t || t === document.body || t.matches('main.stage') || Boolean(t.closest('.mail-page'));
       // Tab moves between the split tabs, from the list or the open message (not from the page's other buttons).
@@ -759,13 +800,20 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
       }
       // The up and down arrows (or J and K, as in Gmail) open the message before or after the one open, as in Apple
       // Mail's list. Also from the stage itself, which has the keys once Mail is opened from Ctrl+K.
-      const down = e.key === 'ArrowDown' || (e.key === 'j' && !e.shiftKey);
-      const up = e.key === 'ArrowUp' || (e.key === 'k' && !e.shiftKey);
+      // In the message being read the arrows scroll it, as in other mail apps; J and K still move on.
+      const reading = Boolean(t?.closest('.mail-reader, article'));
+      const down = (e.key === 'ArrowDown' && !reading) || (e.key === 'j' && !e.shiftKey);
+      const up = (e.key === 'ArrowUp' && !reading) || (e.key === 'k' && !e.shiftKey);
       if ((down || up) && m.view.kind === 'box' && m.rows.length > 0 && onList) {
         e.preventDefault();
         const i = m.open ? m.rows.findIndex((t) => t.messages.some((x) => x.id === m.open!.id)) : -1;
         const next = m.rows[i < 0 ? 0 : Math.max(0, Math.min(m.rows.length - 1, i + (down ? 1 : -1)))]!.latest;
-        if (next.id !== m.open?.id) void m.read(next.id).then(() => document.querySelector(`.mail-row[data-id="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: 'nearest' }));
+        if (next.id !== m.open?.id) void m.read(next.id).then(() => {
+          const row = document.querySelector<HTMLElement>(`.mail-row[data-id="${CSS.escape(next.id)}"]`);
+          row?.scrollIntoView({ block: 'nearest' });
+          // The keys go with it when they were in the list, so E and H on the row act on the one now open.
+          if (row && (!document.activeElement || document.activeElement === document.body || document.activeElement.closest('.mail-row'))) row.focus({ preventScroll: true });
+        });
         return;
       }
       if (!m.open) return;
@@ -829,7 +877,12 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
               ? <EmptyState kind="mail" action={<Button kind="primary" onClick={() => setAdding(true)}>Add a mail account…</Button>}>Drafts are kept here on this computer. Add an account to send them.</EmptyState>
               // Nothing open: the list says where things stand; the reading panel waits quietly with the keys.
               : count > 0 && <p className="mail-reading-idle">↑ ↓ or J K to open a message</p>}
-        {laterFor && <LaterPicker onPick={pickLater} onClose={() => setLaterFor(null)} />}
+        {laterFor && <LaterPicker onPick={pickLater} onClose={() => {
+          // Closed without a choice: the keys go back to the row it was for.
+          const id = laterFor;
+          setLaterFor(null);
+          requestAnimationFrame(() => { if (!document.activeElement || document.activeElement === document.body) mailRow(id)?.focus(); });
+        }} />}
         {adding && mail.accounts.length === 0 && <AccountDialog connect={mail.connect} onClose={() => setAdding(false)} />}
         {/* The keys act on the open message, so their bar sits at the foot of the pane that shows it, and only then. */}
         {/* Not under the Undo toast: both sit at the foot of the message. */}
@@ -840,7 +893,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
         ...(waitMenu.f.sentId ? [{ label: 'Open', run: () => void mail.read(waitMenu.f.sentId!) }] : []),
         { label: 'Stop Waiting for a Reply', separated: Boolean(waitMenu.f.sentId), run: () => void follow.set(waitMenu.f.messageId, null) },
       ]} />}
-      {mail.undo && (mail.undo.until ? <SendCountdown key={mail.undo.until} text={mail.undo.text} until={mail.undo.until} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} /> : <UndoToast text={mail.undo.text} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} />)}
+      {mail.undo && (mail.undo.until ? <SendCountdown key={mail.undo.until} text={mail.undo.text} until={mail.undo.until} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} /> : <UndoToast text={mail.undo.text} onUndo={() => undoing(mail.undo?.run, true, true)} onDismiss={mail.clearUndo} />)}
       <MailToolbar mail={mail} onLater={setLaterFor} />
     </section>
   );
