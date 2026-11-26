@@ -800,8 +800,10 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
       }
       // The up and down arrows (or J and K, as in Gmail) open the message before or after the one open, as in Apple
       // Mail's list. Also from the stage itself, which has the keys once Mail is opened from Ctrl+K.
-      const down = e.key === 'ArrowDown' || (e.key === 'j' && !e.shiftKey);
-      const up = e.key === 'ArrowUp' || (e.key === 'k' && !e.shiftKey);
+      // In the message being read the arrows scroll it, as in other mail apps; J and K still move on.
+      const reading = Boolean(t?.closest('.mail-reader, article'));
+      const down = (e.key === 'ArrowDown' && !reading) || (e.key === 'j' && !e.shiftKey);
+      const up = (e.key === 'ArrowUp' && !reading) || (e.key === 'k' && !e.shiftKey);
       if ((down || up) && m.view.kind === 'box' && m.rows.length > 0 && onList) {
         e.preventDefault();
         const i = m.open ? m.rows.findIndex((t) => t.messages.some((x) => x.id === m.open!.id)) : -1;
@@ -875,7 +877,12 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
               ? <EmptyState kind="mail" action={<Button kind="primary" onClick={() => setAdding(true)}>Add a mail account…</Button>}>Drafts are kept here on this computer. Add an account to send them.</EmptyState>
               // Nothing open: the list says where things stand; the reading panel waits quietly with the keys.
               : count > 0 && <p className="mail-reading-idle">↑ ↓ or J K to open a message</p>}
-        {laterFor && <LaterPicker onPick={pickLater} onClose={() => setLaterFor(null)} />}
+        {laterFor && <LaterPicker onPick={pickLater} onClose={() => {
+          // Closed without a choice: the keys go back to the row it was for.
+          const id = laterFor;
+          setLaterFor(null);
+          requestAnimationFrame(() => { if (!document.activeElement || document.activeElement === document.body) mailRow(id)?.focus(); });
+        }} />}
         {adding && mail.accounts.length === 0 && <AccountDialog connect={mail.connect} onClose={() => setAdding(false)} />}
         {/* The keys act on the open message, so their bar sits at the foot of the pane that shows it, and only then. */}
         {/* Not under the Undo toast: both sit at the foot of the message. */}
