@@ -806,6 +806,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     if (!review || !path) return;
     const result = await window.mobius.changes.undoFile(review.conversation, `notes/${path}`).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
     if (!result.ok) setReviewProblem(result.error);
+    // The turn's summary and other reviews read the turn again: this note's change is no longer waiting.
+    else window.dispatchEvent(new CustomEvent(KEPT_EVENT));
     setDiff(null);
     setChanges(null);
   };
