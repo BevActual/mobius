@@ -973,6 +973,13 @@ impl Bridge {
                 }
                 Ok(Value::Null)
             }
+            // Peek: where the card over the pages is.
+            ("surface", "setPeekBounds") => {
+                if let Some(b) = self.browser.get() {
+                    b.set_peek_bounds(parse_bounds(arg(0)));
+                }
+                Ok(Value::Null)
+            }
             // Split view: where the page beside goes.
             ("surface", "setBesideBounds") => {
                 if let Some(b) = self.browser.get() {
@@ -1467,6 +1474,12 @@ impl Bridge {
                 }
                 Value::Null
             }
+            // Peek: a page over the others for a look (the browser opens only web addresses), or none to close it.
+            "peek" => {
+                b.peek(arg(0).as_str().filter(|u| u.len() <= 4096));
+                Value::Null
+            }
+            "keepPeek" => b.keep_peek().map_or(Value::Null, |id| json!(id)),
             // Split view: a tab beside the active one, or none to end it.
             "showBeside" => {
                 b.show_beside(tab());

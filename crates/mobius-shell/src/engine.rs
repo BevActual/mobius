@@ -136,6 +136,23 @@ impl PageEngine for WebViewEngine {
     }
 }
 
+/// The Escape key's virtual key code.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) const ESCAPE: u32 = 0x1B;
+
+/// Whether Shift is held down now (a link clicked with it asks for a new window).
+#[cfg(windows)]
+pub(crate) fn shift_held() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetKeyState, VK_SHIFT};
+    // SAFETY: reads the keyboard state of this thread; no pointers.
+    (unsafe { GetKeyState(i32::from(VK_SHIFT.0)) } as u16 & 0x8000) != 0
+}
+
+#[cfg(not(windows))]
+pub(crate) fn shift_held() -> bool {
+    false
+}
+
 fn weak_browser(slot: &Arc<OnceLock<Weak<Browser>>>) -> Option<Arc<Browser>> {
     slot.get().and_then(Weak::upgrade)
 }
@@ -166,6 +183,15 @@ impl Engine for WebViewEngine {
         let (nav_id, load_id, title_id) = (id.clone(), id.clone(), id.clone());
         let builder = WebviewBuilder::new(&id, WebviewUrl::External(parsed))
             .on_navigation(move |target| {
+                // A link that leaves a pinned tab's site opens in a peek; the tab stays where it is.
+                if let Some(b) = weak_browser(&nav_slot)
+                    && b.allows_navigation(target.as_str())
+                    && b.peeks_link(&nav_id, target.as_str(), None)
+                {
+                    let url = target.to_string();
+                    in_order(move || b.peek(Some(&url)));
+                    return false;
+                }
                 let allowed = weak_browser(&nav_slot).is_none_or(|b| b.allows_navigation(target.as_str()));
                 if allowed && let Some(b) = weak_browser(&nav_slot) {
                     let (id, url) = (nav_id.clone(), target.to_string());
@@ -205,7 +231,12 @@ impl Engine for WebViewEngine {
             .on_new_window(move |target, _| {
                 if let Some(b) = weak_browser(&window_slot) {
                     let target = target.to_string();
-                    in_order(move || b.new_window(&target));
+                    // Shift+click asks for a new window: it opens in a peek instead.
+                    if shift_held() {
+                        in_order(move || b.new_window_peek(&target));
+                    } else {
+                        in_order(move || b.new_window(&target));
+                    }
                 }
                 NewWindowResponse::Deny
             });
@@ -256,7 +287,15 @@ impl Engine for WebViewEngine {
                         }
                     }));
                     let key_slot = self.keys.clone();
-                    crate::cdp::watch_keys(&webview, Arc::new(move |key, control, alt, shift| key_slot.get().and_then(Weak::upgrade).is_some_and(|bridge| bridge.page_key(key, control, alt, shift))));
+                    let (escape_slot, escape_id) = (self.browser.clone(), id.clone());
+                    crate::cdp::watch_keys(&webview, Arc::new(move |key, control, alt, shift| {
+                        // Escape in a peek closes it.
+                        if key == ESCAPE && let Some(b) = weak_browser(&escape_slot).filter(|b| b.is_peek(&escape_id)) {
+                            in_order(move || b.peek(None));
+                            return true;
+                        }
+                        key_slot.get().and_then(Weak::upgrade).is_some_and(|bridge| bridge.page_key(key, control, alt, shift))
+                    }));
                     let (start_slot, progress_slot, end_slot) = (self.downloads.clone(), self.downloads.clone(), self.downloads.clone());
                     crate::cdp::watch_downloads(
                         &webview,
