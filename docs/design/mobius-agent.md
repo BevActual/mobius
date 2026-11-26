@@ -89,7 +89,7 @@ it, without opening the panel.
   pill, from the chat list's word, before it has said anything.
 - **Ask from anywhere.** Built in the fifth round: Ctrl+Shift+J on words or cells chosen in an app opens a card by
   them (AskHere.tsx). The question goes in Ask mode to a chat of its own, with the item and the selection, and the answer
-  streams into the card; Continue in chat opens it in the panel. Changes from the card (Insert, Replace) come later.
+  streams into the card; Continue in chat opens it in the panel. Replace selection and Copy came in the sixth round; Replace is typed in as the person's own, so one Undo takes it back.
 
 ## Open standards, no account
 

@@ -227,6 +227,11 @@ test('Assign to Mobius on a task runs it in a chat of its own and lands in the I
   await shell().locator('.tasks-page').getByRole('button', { name: 'Fix the tap', exact: true }).click({ button: 'right' });
   await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
   await expect(shell().locator('.toast')).toHaveText('Assigned to Mobius. It will be in your Inbox when done.');
+  // Assigned again while Mobius is on it: said, not started twice.
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Fix the tap', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
+  await expect(shell().locator('.toast')).toHaveText('Mobius is already working on Fix the tap.');
+  expect(model!.requests.length).toBe(1);
   // Choosing it moves nothing on the page: the keyboard is back on the task's row.
   await expect.poll(() => shell().evaluate(() => document.activeElement?.closest('li.task')?.textContent ?? '')).toContain('Fix the tap');
   // The ask names the task and its list, and starts in Tasks.
@@ -315,7 +320,7 @@ test('Stop in the panel leaves the keyboard in the message box', async () => {
 test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a card by them, without opening the panel', async () => {
   fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Work'), { recursive: true });
   fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), '# Trip\n\nThe ferry leaves Piraeus at dawn.\n');
-  await start([says(['Piraeus is ', 'the port of Athens.'], 300)]);
+  await start([says(['Piraeus is ', 'the port of Athens.'], 300), says(['**Athens**'], 100)]);
   await openApp('Notes');
   if (await composer().isVisible()) await shell().keyboard.press('Control+Shift+M');
   await shell().getByRole('button', { name: 'Trip', exact: true }).click();
@@ -348,7 +353,14 @@ test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a ca
   await expect(card).toBeVisible();
   await note.focus();
   await shell().keyboard.press('Escape');
+  await expect(card).toHaveCount(0);  // Replace selection: the answer goes in place of the chosen words, saved as the person's own typing.
+  await shell().keyboard.press('Control+Shift+J');
+  await card.getByRole('textbox', { name: 'Ask about the selection' }).fill('Name the city');
+  await card.getByRole('textbox', { name: 'Ask about the selection' }).press('Enter');
+  await card.getByRole('button', { name: 'Replace selection' }).click();
   await expect(card).toHaveCount(0);
+  await expect(note).toContainText('The ferry leaves Athens at dawn.');
+  await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), 'utf8')).toContain('The ferry leaves Athens at dawn.');
 });
 
 test('a chat a schedule starts is listed as running while it runs', async () => {
