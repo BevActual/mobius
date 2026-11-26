@@ -247,6 +247,22 @@ test('Assign to Mobius on a task runs it in a chat of its own and lands in the I
   await expect(composer()).toBeFocused();
 });
 
+test('Assign to Mobius on a note, from its row in Notebooks, asks about that note and lands in the Inbox', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Work'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Offsite.md'), '# Offsite\n\n- Find a venue\n');
+  await start([says(['I listed three venues.'])]);
+  await openApp('Notes');
+  const row = shell().getByRole('complementary', { name: 'Notebooks' }).getByRole('button', { name: 'Offsite', exact: true });
+  await row.click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
+  await expect(shell().locator('.toast')).toHaveText('Assigned to Mobius. It will be in your Inbox when done.');
+  await expect(row).toBeFocused();
+  await expect.poll(() => sent()).toContain('Work on my note in Notes \\"Offsite\\" (notes/Work/Offsite.md)');
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: 'Open Offsite: Finished in the background' })).toBeVisible();
+});
+
 test('a run assigned to Mobius and stopped says so in the Inbox, not that it finished', async () => {
   fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
   fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Book the train\n');

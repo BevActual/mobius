@@ -21,7 +21,9 @@ Quick pages, saved as you type.
 - **History** (Notes menu › Version history…) lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
 - **Share** copies the page, exports it as a web page or Markdown, or prints it.
-- Select text for Mobius's actions right where it is. A page Mobius changed shows its edits to keep or discard, line by
+- **Assign to Mobius**, in a page's menu in the Notebooks panel (right-click), hands the note to Mobius: it works on it
+  in a chat of its own, in the background, and what it did lands in Home's Inbox. Docs and Projects have it too.
+- Select text for Mobius's actions right where it is (Esc puts the bar away). A page Mobius changed shows its edits to keep or discard, line by
   line if you like, and is never overwritten while you type.
 
 **Kept in:** `workspace/notes/<notebook>/`, each page a Markdown file that opens in any editor.

@@ -235,6 +235,20 @@ test("a step's Undo after the person has typed in its note says why it cannot pu
   expect(onDisk('Work', 'Plan.md')).toContain('Two things.');
 });
 
+test('Esc hides the toolbar over chosen words and leaves the words chosen', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nOne thing to do.\n');
+  await start();
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await text().getByText('One thing to do.').dblclick({ position: { x: 5, y: 8 } });
+  const bar = shell().getByRole('toolbar', { name: 'Selected text' });
+  await expect(bar).toBeVisible();
+  await shell().keyboard.press('Escape');
+  await expect(bar).toHaveCount(0);
+  await expect(text()).toBeFocused();
+  expect(await shell().evaluate(() => window.getSelection()?.toString() ?? '')).not.toBe('');
+});
+
 test('a note written in another app keeps its front matter, footnotes, HTML and links when it is edited here', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   const before = '---\ntitle: Plan\ntags: [launch]\n---\n\n# Plan\n\nBody text.[^1] See [the brief](<Launch brief.md>).\n\n<details>\n<summary>More</summary>\n\nHidden\n\n</details>\n\nPress <kbd>Ctrl</kbd> to start.\n\n[^1]: The source.\n';

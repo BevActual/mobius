@@ -9,6 +9,7 @@ import type { NotesState } from './useNotes';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { assignToMobius, pageAssignment } from './assign';
 import { AppSidebar, SidebarRow, SidebarSection, SidebarSearch } from './ui';
 import { afterPaint } from './ui/frame';
 
@@ -100,7 +101,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   useEffect(() => onCommand(words === NOTES_WORDS ? 'new-notebook' : 'new-folder', () => setNaming(true)), [words]);
   const [name, setName] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number; page: NotePage } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; page: NotePage; row?: HTMLElement } | null>(null);
   // A notebook's own menu (Rename, Move to Trash), the notebook being renamed, and one thing in the Trash's menu.
   const [bookMenu, setBookMenu] = useState<{ x: number; y: number; name: string } | null>(null);
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
@@ -160,7 +161,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         tipAt={notesRow && date > 0 ? 'end' : undefined}
         current={notes.page?.path === pg.path} proposed={changed?.has(pg.path) === true}
         onSelect={() => void notes.open(pg.path, pg.title)}
-        onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }}
+        onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg, row: e.currentTarget }); }}
         trail={<>
           {date > 0 && <span className="note-side-when" aria-hidden="true">{listDate(date, now)}</span>}
           {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title}`} title={pinned?.has(pg.path) ? 'Unpin' : 'Pin'} onClick={() => onPin(pg.path, pg.title)}>
@@ -289,6 +290,9 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         <ContextMenu x={menu.x} y={menu.y} label={menu.page.title} onClose={() => setMenu(null)} items={([
           { action: 'open', run: () => void notes.open(menu.page.path, menu.page.title) },
           ...(onPin ? [{ action: pinned?.has(menu.page.path) ? 'unpin' : 'pin', run: () => onPin(menu.page.path, menu.page.title) }] : []),
+          // Assign to Mobius (marked; assign.ts): the note or document is worked on in a chat of its own, in the
+          // background, and comes back to Home's Inbox.
+          ...(notes.kind === 'notes' || notes.kind === 'docs' ? [{ label: 'Assign to Mobius', separated: true, run: () => { const { page, row } = menu; assignToMobius(pageAssignment(notes.kind as 'notes' | 'docs', page), () => row); } }] : []),
           ...(notes.move ? notes.notebooks.filter((nb) => nb.name !== menu.page.path.split('/')[0]).map((nb, i) => ({ action: 'move', label: `Move to ${nb.name}`, separated: i === 0, run: () => void notes.move?.(menu.page.path, nb.name) })) : []),
           notes.trash
             ? { action: 'delete', label: 'Move to Trash', danger: true, run: () => void notes.trash?.(menu.page.path) }

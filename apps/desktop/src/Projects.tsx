@@ -4,6 +4,7 @@ import { conversationIdFor, type Bot, type ConversationInfo, type Message, type 
 import { appName, isInstalled, type AppId } from './apps';
 import { APP_ICONS } from './Rail';
 import { ActionIcon, ContextMenu } from './ContextMenu';
+import { assignToMobius, projectAssignment } from './assign';
 import { AppMenu, AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SideNew } from './SideNew';
 import { changesSince, draftAsk, groupByStatus, healthName, latestUpdate, parseDraft, PROJECT_HEALTHS, PROJECT_STATUSES, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine, updateDue } from './projects-view';
@@ -228,7 +229,7 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
   useEffect(() => { const go = () => setNaming(true); window.addEventListener(NEW_PROJECT, go); return () => window.removeEventListener(NEW_PROJECT, go); }, []);
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
-  const [menu, setMenu] = useState<{ x: number; y: number; project: ProjectInfo } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; project: ProjectInfo; row?: HTMLElement } | null>(null);
   const waiting = (p: ProjectInfo) => conversations.filter((c) => p.threads.includes(c.id)).reduce((n, c) => n + c.waiting, 0);
   const shown = projects.list.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()));
   return (
@@ -257,7 +258,7 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
             {g.projects.map((p) => (
               <SidebarRow key={p.id} icon={p.status ? <StatusIcon status={p.status} /> : <svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>}
                 label={p.name} count={waiting(p)} current={projects.open?.id === p.id} onSelect={() => projects.setOpenId(p.id)}
-                onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, project: p }); }} />
+                onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, project: p, row: e.currentTarget }); }} />
             ))}
           </SidebarSection>
         ))}
@@ -267,6 +268,8 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
         <ContextMenu x={menu.x} y={menu.y} label={menu.project.name} onClose={() => setMenu(null)} items={[
           { action: 'open', run: () => projects.setOpenId(menu.project.id) },
           { action: 'rename', label: 'Rename…', keys: RENAME_KEYS, run: () => projects.ask(menu.project.id, 'rename') },
+          // Assign to Mobius (marked; assign.ts): its next steps run in a chat of their own and come back to the Inbox.
+          { label: 'Assign to Mobius', separated: true, run: () => { const { project, row } = menu; assignToMobius(projectAssignment(project), () => row); } },
           { action: 'delete', label: 'Delete project…', keys: DELETE_KEYS, danger: true, separated: true, run: () => projects.ask(menu.project.id, 'delete') },
         ]} />,
         document.body,
