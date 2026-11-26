@@ -87,3 +87,8 @@ li.desk-row:has(.desk-open:hover) { background: var(--line-soft, var(--soft)); }
 /* Home's quick starts, just above the message box and lined up with it. */
 .chat.full .desk-starters { width: 100%; max-width: 760px; margin: 0 auto 8px; padding: 0 2px; }
 .desk-count { margin-left: var(--sp-1); font-weight: var(--fw-regular); font-variant-numeric: tabular-nums; }
+
+/* The Inbox's own items: an overdue task says so in red; what is set aside folds under a quiet link. */
+.desk-text[data-late] { color: var(--danger); }
+.desk-later-toggle { margin: var(--sp-1) 0 0 var(--sp-2); font-size: var(--fs-sm); }
+.desk-row[data-later] .desk-name { color: var(--muted); }

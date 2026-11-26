@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { AgentWaiting, ConversationInfo, MailFollowUp, ScheduleInfo } from '@mobius/shared';
 import type { Activity } from './activity';
 import { describeAction } from './actions';
@@ -8,6 +8,8 @@ import type { HubTarget } from './search-hub';
 import { agoLabel, deskGreeting, deskQuiet, deskTitle, upcoming, whenLabel } from './desk-view';
 import { APP_ICONS } from './Rail';
 import { useFollowUps, waitingOn } from './mail-follow-ups';
+import { LATER, laterUntil, sortInbox, trimKept, type InboxItem, type InboxKept } from './inbox';
+import { Menu } from './ui';
 import './desk.css';
 
 export type { DeskRow } from './desk-apps';
@@ -37,7 +39,59 @@ interface Props {
   onOpenRecent?: (item: RecentItem) => void;
   /** Replies Mobius drafted in Mail that wait for the person, and where they are looked at. */
   suggested?: { count: number; onOpen: () => void };
+  /**
+   * The rest of the Inbox: tasks due, invitations, mail to answer, project updates due and suggested Knowledge changes.
+   * `onOpen` goes to an item; `onDone` does what Done means for it (a task is ticked off) and says whether it worked.
+   */
+  inbox?: { items: readonly InboxItem[]; onOpen: (item: InboxItem) => void; onDone: (item: InboxItem) => Promise<boolean> };
   now?: Date;
+}
+
+const KEPT_KEY = 'mobius.inbox';
+function readKept(): InboxKept {
+  try {
+    const v = JSON.parse(window.localStorage.getItem(KEPT_KEY) ?? '{}') as Partial<InboxKept>;
+    return { done: Array.isArray(v.done) ? v.done.filter((k): k is string => typeof k === 'string') : [], later: v.later && typeof v.later === 'object' ? v.later : {} };
+  } catch { return { done: [], later: {} }; }
+}
+
+/** Done and Later, kept on this device; a Later whose time comes shows the item again (checked each minute). */
+function useInboxKept() {
+  const [kept, setKept] = useState<InboxKept>(readKept);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 60_000); return () => window.clearInterval(t); }, []);
+  const put = (next: InboxKept) => {
+    const trimmed = trimKept(next, Date.now());
+    setKept(trimmed);
+    try { window.localStorage.setItem(KEPT_KEY, JSON.stringify(trimmed)); } catch { /* Not kept. */ }
+  };
+  return {
+    kept, now,
+    done: (key: string) => put({ done: [...kept.done.filter((k) => k !== key), key], later: Object.fromEntries(Object.entries(kept.later).filter(([k]) => k !== key)) }),
+    later: (key: string, until: number) => put({ ...kept, later: { ...kept.later, [key]: until } }),
+    back: (key: string) => put({ ...kept, later: Object.fromEntries(Object.entries(kept.later).filter(([k]) => k !== key)) }),
+  };
+}
+
+/** Up and Down (or J and K) move through the Inbox's rows, as in Linear's; E is Done and H is Later (tomorrow). */
+function inboxKeys(e: KeyboardEvent<HTMLUListElement>, act: (key: string, what: 'done' | 'later') => void) {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const rows = [...e.currentTarget.querySelectorAll<HTMLElement>(':scope > li > .desk-open, :scope > li > button.desk-row')];
+  const at = rows.findIndex((r) => r === document.activeElement);
+  const k = e.key.toLowerCase();
+  if (k === 'arrowdown' || k === 'j' || k === 'arrowup' || k === 'k') {
+    if (at < 0) return;
+    e.preventDefault();
+    rows[Math.max(0, Math.min(rows.length - 1, at + (k === 'arrowdown' || k === 'j' ? 1 : -1)))]?.focus();
+    return;
+  }
+  const key = (document.activeElement?.closest('li[data-key]') as HTMLElement | null)?.dataset.key;
+  if (!key || (k !== 'e' && k !== 'h')) return;
+  e.preventDefault();
+  // Focus goes to the row that takes this one's place.
+  const next = rows[at + 1] ?? rows[at - 1];
+  act(key, k === 'e' ? 'done' : 'later');
+  requestAnimationFrame(() => next?.focus());
 }
 
 /** The first thing each waiting conversation asks for, so it can be allowed from the desk. Questions have no approval. */
@@ -77,7 +131,7 @@ const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="
  * place; then what is open in your apps (an app Mobius changed carries its
  * dashed edge until you look); then the last things opened, to continue; then what is scheduled next.
  */
-export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, opened = [], onOpenRecent, suggested, now = new Date() }: Props) {
+export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, opened = [], onOpenRecent, suggested, inbox, now = new Date() }: Props) {
   const waiting = conversations.filter((c) => c.waiting > 0);
   const working = conversations.filter((c) => c.activity === 'working' && c.waiting === 0);
   const approvals = useFirstApprovals(waiting);
@@ -87,9 +141,25 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const follow = useFollowUps();
   const noReply: MailFollowUp[] = follow.due;
   const drafted = suggested && suggested.count > 0 ? suggested : null;
+  const kept = useInboxKept();
+  const { shown: more, later: setAside } = sortInbox(inbox?.items ?? [], kept.kept, kept.now);
+  const [showLater, setShowLater] = useState(false);
+  // Said to screen readers once Done or Later has acted, since the row itself goes.
+  const [said, setSaid] = useState('');
+  const doneWith = (item: InboxItem) => hold(item.key, async () => { if (await inbox!.onDone(item)) { kept.done(item.key); setSaid(`${item.kind === 'task' ? 'Completed' : 'Done with'} ${item.name}`); } });
+  const setAsideUntil = (item: InboxItem, choice: string) => {
+    const until = laterUntil(choice, new Date());
+    kept.later(item.key, until);
+    setSaid(`${item.name} set aside, back ${whenLabel(new Date(until), new Date()).replace(/^(Today|Tomorrow)/, (w) => w.toLowerCase())}`);
+  };
+  const act = (key: string, what: 'done' | 'later') => {
+    const item = more.find((i) => i.key === key);
+    if (!item) return;
+    if (what === 'done') doneWith(item); else setAsideUntil(item, 'tomorrow');
+  };
   // The Inbox: everything across apps that waits on the person, in one list. What Mobius changed is here, not in
   // In your apps, so it is said once.
-  const inboxCount = waiting.length + changed.size + noReply.length + (drafted ? 1 : 0);
+  const inboxCount = waiting.length + changed.size + noReply.length + (drafted ? 1 : 0) + more.length;
   const apps = rows;
   const title = deskTitle(now, { waiting: inboxCount, working: working.length, changed: 0 });
   // Chats are in the Chats panel; Continue is what was open in the other apps.
@@ -125,10 +195,11 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
           </ul>
         </div>
       )}
-      {inboxCount > 0 && (
+      {(inboxCount > 0 || setAside.length > 0) && (
         <div className="desk-group" role="group" aria-label="Inbox">
-          <h3 className="desk-head">Inbox <span className="desk-count">{inboxCount}</span></h3>
-          <ul className="desk-rows">
+          <h3 className="desk-head">Inbox {inboxCount > 0 && <span className="desk-count">{inboxCount}</span>}</h3>
+          <span className="sr-only" role="status">{said}</span>
+          <ul className="desk-rows" onKeyDown={(e) => inboxKeys(e, act)}>
             {waiting.map((c) => {
               const ask = approvals[c.id];
               const plain = ask ? describeAction(ask.tool, ask.arguments) : null;
@@ -175,7 +246,42 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                 <button type="button" className="desk-act" disabled={busy.has(f.messageId)} aria-label={`Stop waiting for a reply to ${f.subject || 'this message'}`} onClick={() => hold(f.messageId, () => follow.set(f.messageId, null))}>Stop waiting</button>
               </li>
             ))}
+            {more.map((item) => (
+              <li key={item.key} className="desk-row" data-key={item.key} data-kind={item.kind}>
+                <button type="button" className="desk-open" aria-label={`${item.name}: ${item.text}`} aria-keyshortcuts="E H" title="E: Done · H: Later" onClick={() => inbox?.onOpen(item)}>
+                  <Icon app={item.app} />
+                  <span className="desk-name">{item.name}</span>
+                  <span className="desk-text" data-late={item.text.startsWith('Overdue') || undefined}>{item.text}</span>
+                  {go(item.go)}
+                </button>
+                <Menu label={`Later: ${item.name}`} align="end" entries={LATER.map((l) => ({ label: l.label, run: () => setAsideUntil(item, l.id) }))}
+                  trigger={<button type="button" className="desk-act" aria-label={`Later: ${item.name}`} aria-keyshortcuts="H" title="Set it aside until later (H)">Later</button>} />
+                <button type="button" className="desk-act" disabled={busy.has(item.key)} aria-label={`${item.kind === 'task' ? 'Complete' : 'Done with'} ${item.name}`} aria-keyshortcuts="E" title={item.kind === 'task' ? 'Tick it off (E)' : 'Clear it from the Inbox (E)'} onClick={() => doneWith(item)}>Done</button>
+              </li>
+            ))}
           </ul>
+          {setAside.length > 0 && (
+            <>
+              <button type="button" className="btn link desk-later-toggle" aria-expanded={showLater} aria-controls={showLater ? 'desk-set-aside' : undefined} onClick={() => setShowLater((v) => !v)}>
+                {showLater ? 'Hide what is set aside' : `${setAside.length} set aside for later`}
+              </button>
+              {showLater && (
+                <ul id="desk-set-aside" className="desk-rows" aria-label="Set aside for later">
+                  {setAside.map((item) => (
+                    <li key={item.key} className="desk-row" data-later>
+                      <button type="button" className="desk-open" aria-label={`${item.name}, back ${whenLabel(new Date(item.until), now).replace(/^(Today|Tomorrow)/, (w) => w.toLowerCase())}`} onClick={() => inbox?.onOpen(item)}>
+                        <Icon app={item.app} />
+                        <span className="desk-name">{item.name}</span>
+                        <span className="desk-text">Back {whenLabel(new Date(item.until), now).replace(/^(Today|Tomorrow)/, (w) => w.toLowerCase())}</span>
+                        {go(item.go)}
+                      </button>
+                      <button type="button" className="desk-act" aria-label={`Bring back ${item.name}`} onClick={() => kept.back(item.key)}>Bring back</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
         </div>
       )}
       {working.length > 0 && (
