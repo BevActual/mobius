@@ -146,6 +146,8 @@ test('one step of a turn is put back from its own Undo, and the turn\'s other st
   await expect(log.locator('.msg.assistant')).toContainText('I wrote a brief');
   const undos = log.getByRole('button', { name: /^Undo: / });
   await expect(undos).toHaveCount(2);
+  const summary = shell().getByRole('region', { name: 'Changes from the last turn' });
+  await expect(summary.locator('.turn-summary-count')).toHaveText('2 changes');
   await undos.nth(1).click();
   await expect(undos).toHaveCount(1);
   // The focus stays on the row, and what happened is said.
@@ -154,6 +156,10 @@ test('one step of a turn is put back from its own Undo, and the turn\'s other st
   await expect(log.locator('.tool-status', { hasText: 'Put back' })).toHaveCount(1);
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
   expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'))).toBe(true);
+  // The step put back leaves the turn's summary; once every step is back, the summary goes.
+  await expect(summary.locator('.turn-summary-count')).toHaveText('1 change');
+  await undos.first().click();
+  await expect(summary).toHaveCount(0);
 });
 
 test('a file Mobius makes in the open folder shows dashed as the call lands, before the turn ends', async () => {

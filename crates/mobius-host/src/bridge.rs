@@ -4597,8 +4597,17 @@ impl Bridge {
         Ok(match method {
             // A move is listed as both its paths in `files`, and paired in `moves`, so the window counts it once.
             "lastTurn" => match self.workspace.turn_diff(&mark, end.as_deref()) {
-                Ok(diff) => {
+                Ok(mut diff) => {
                     let left_out = self.workspace.left_out_moves(&mark, end.as_deref(), &diff.files).unwrap_or_default();
+                    // Once the turn has ended, a file put back as it was before it (by a step's Undo, or one file's) is
+                    // no longer its change: it leaves the list, and an app's review bar goes with its last file.
+                    if end.is_some()
+                        && let Ok(now) = self.workspace.changed_since(&mark)
+                    {
+                        let now: std::collections::HashSet<String> = now.into_iter().collect();
+                        diff.files.retain(|f| now.contains(f));
+                        diff.moves.retain(|(from, to)| now.contains(from) || now.contains(to));
+                    }
                     let (files, moves) = turn_changes(diff, left_out);
                     json!({ "checkpoint": mark, "files": files, "moves": moves })
                 }
