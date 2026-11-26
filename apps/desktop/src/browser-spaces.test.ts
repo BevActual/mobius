@@ -92,4 +92,17 @@ describe('browser spaces', () => {
     expect(back.folders?.[0]?.name).toBe('Kept');
     expect(back.tabFolder).toEqual({ a: back.folders?.[0]?.id });
   });
+
+  it('puts pinned tabs back in their folders after a restart, when they come back with new ids', () => {
+    let s = syncSpaces(initialSpaces(), [tab('a', 'https://a.example/x', { pinned: true, active: true }), tab('b', 'https://b.example', { pinned: true })], 0);
+    s = addFolder(s, 'Work', ['a', 'b']);
+    s = syncSpaces(s, [tab('a', 'https://a.example/x', { pinned: true, active: true }), tab('b', 'https://b.example', { pinned: true })], 1);
+    const id = s.folders![0]!.id;
+    const back = readSpaces(JSON.stringify(s));
+    // Before the shell has its tabs, nothing is forgotten.
+    expect(syncSpaces(back, [], 2).tabFolder).toEqual({ a: id, b: id });
+    const after = syncSpaces(back, [tab('n1', 'https://b.example', { pinned: true, active: true }), tab('n2', 'https://a.example/x', { pinned: true }), tab('n3', 'https://a.example/x')], 2);
+    expect(after.tabFolder).toEqual({ n1: id, n2: id });
+    expect(after.folderUrl).toEqual({ n1: 'https://b.example', n2: 'https://a.example/x' });
+  });
 });

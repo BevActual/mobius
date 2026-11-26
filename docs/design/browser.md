@@ -45,7 +45,7 @@ split ends when either page closes or a tab outside it is chosen. The shell plac
 As Arc's Folders (resources.arc.net, "Folders"): pinned tabs can be kept in folders, per space. A tab's menu has
 **New folder with tab** (named in place), **Add to <folder>** and **Remove from folder**; Tabs options has **New
 folder**. A tab put in a folder is pinned, and unpinning one takes it out. A folder opens and closes in place with its
-count beside the name; closed, it still shows the tab you are on, as Arc's does. Right-click a folder to rename or
+count beside the name; closed, it still shows the tab you are on, as Arc's does. Folders come back after a restart: each folder tab's address is kept, since the shell restores pinned tabs with new ids. Right-click a folder to rename or
 delete it; deleting keeps its tabs pinned. A search shows the tabs without folders.
 
 ## Page zoom (round 2)
@@ -58,7 +58,7 @@ shell sets and keeps each tab's zoom (`browser.setZoom`); a zoom the page report
 ## Tab sound (round 2)
 
 As Chrome's and Arc's speaker: a tab playing sound shows a speaker in its row, and a muted tab a crossed one; a click
-on it mutes or unmutes the tab, and the tab's menu has **Mute tab** / **Unmute tab** (`browser.mute`). Only WebView2
+on it (its own button, first of the row's buttons and shown at rest too) mutes or unmutes the tab, and the tab's menu has **Mute tab** / **Unmute tab** (`browser.mute`). Only WebView2
 reports sound playing; on Chromium the speaker shows once a tab is muted.
 
 ## Later

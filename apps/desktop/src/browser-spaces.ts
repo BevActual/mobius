@@ -27,6 +27,8 @@ export interface SpacesState {
   folders?: Folder[];
   /** Tab id → folder id, for pinned tabs kept in a folder. */
   tabFolder?: Record<string, string>;
+  /** Tab id → its address when last seen, for each tab in a folder: tabs come back with new ids after a restart. */
+  folderUrl?: Record<string, string>;
 }
 
 const HOUR = 3_600_000;
@@ -58,6 +60,7 @@ export function readSpaces(raw: string | null): SpacesState {
       clearAfter: v.clearAfter === null || typeof v.clearAfter === 'number' ? v.clearAfter : start.clearAfter,
       ...(Array.isArray(v.folders) ? { folders: v.folders.filter((f) => f && typeof f.id === 'string' && typeof f.name === 'string').map((f) => ({ ...f, space: spaces.some((sp) => sp.id === f.space) ? f.space : current, open: f.open !== false })) } : {}),
       ...(v.tabFolder && typeof v.tabFolder === 'object' ? { tabFolder: v.tabFolder } : {}),
+      ...(v.folderUrl && typeof v.folderUrl === 'object' ? { folderUrl: v.folderUrl } : {}),
     };
   } catch { return start; }
 }
@@ -79,10 +82,35 @@ export function syncSpaces(s: SpacesState, tabs: readonly BrowserTabState[], now
   const active = tabs.find((t) => t.active);
   const current = active ? tabSpace[active.id]! : s.current;
   const last = active && s.last?.[current] !== active.id ? { ...s.last, [current]: active.id } : s.last;
-  // A closed tab leaves its folder (an unpinned one is taken out where it is unpinned).
-  const keptFolder = s.tabFolder && Object.keys(s.tabFolder).some((id) => !ids.has(id)) ? Object.fromEntries(Object.entries(s.tabFolder).filter(([id]) => ids.has(id))) : s.tabFolder;
-  const same = last === s.last && current === s.current && keptFolder === s.tabFolder && Object.keys(s.tabSpace).length === ids.size && tabs.every((t) => s.tabSpace[t.id] === tabSpace[t.id] && s.seen[t.id] === seen[t.id]);
-  return same ? s : { ...s, current, tabSpace, seen, ...(last ? { last } : {}), ...(keptFolder ? { tabFolder: keptFolder } : {}) };
+  const { tabFolder: keptFolder, folderUrl } = syncFolders(s, tabs);
+  const same = last === s.last && current === s.current && keptFolder === s.tabFolder && folderUrl === s.folderUrl && Object.keys(s.tabSpace).length === ids.size && tabs.every((t) => s.tabSpace[t.id] === tabSpace[t.id] && s.seen[t.id] === seen[t.id]);
+  return same ? s : { ...s, current, tabSpace, seen, ...(last ? { last } : {}), ...(keptFolder ? { tabFolder: keptFolder } : {}), ...(folderUrl ? { folderUrl } : {}) };
+}
+
+/**
+ * Folder places brought up to date: a tab that is gone gives its place to a pinned tab come back at its address (the
+ * shell restores pinned tabs with new ids after a restart), else it leaves its folder (an unpinned one is taken out
+ * where it is unpinned). Each folder tab's address is kept for next time. Nothing is dropped while there are no tabs yet.
+ */
+function syncFolders(s: SpacesState, tabs: readonly BrowserTabState[]): Pick<SpacesState, 'tabFolder' | 'folderUrl'> {
+  const was = s.tabFolder;
+  if (!was || tabs.length === 0) return { tabFolder: was, folderUrl: s.folderUrl };
+  const ids = new Set(tabs.map((t) => t.id));
+  const next: Record<string, string> = {};
+  const lost: { folder: string; url: string }[] = [];
+  for (const [id, folder] of Object.entries(was)) {
+    if (ids.has(id)) next[id] = folder;
+    else if (s.folderUrl?.[id]) lost.push({ folder, url: s.folderUrl[id]! });
+  }
+  for (const t of tabs) {
+    if (!t.pinned || next[t.id]) continue;
+    const i = lost.findIndex((l) => l.url === t.url);
+    if (i >= 0) { next[t.id] = lost[i]!.folder; lost.splice(i, 1); }
+  }
+  const urls: Record<string, string> = {};
+  for (const t of tabs) if (next[t.id]) urls[t.id] = t.url;
+  const sameMap = (a: Record<string, string> | undefined, b: Record<string, string>) => !!a && Object.keys(a).length === Object.keys(b).length && Object.entries(b).every(([k, v]) => a[k] === v);
+  return { tabFolder: sameMap(was, next) ? was : next, folderUrl: sameMap(s.folderUrl, urls) ? s.folderUrl : urls };
 }
 
 export const inSpace = (s: SpacesState, tabs: readonly BrowserTabState[], space = s.current) => tabs.filter((t) => (s.tabSpace[t.id] ?? s.current) === space);

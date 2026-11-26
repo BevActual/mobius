@@ -30,6 +30,7 @@ const TAB_DRIVER_TITLE = { reading: 'Mobius is reading this tab', mobius: 'Mobiu
 /** One tab's row: a click shows it, a middle click closes it, a right click opens its menu, and it can be dragged. */
 function TabRow({ tab, onMenu, drag, onShow, reading = false }: { tab: BrowserTabState; onMenu: (tab: BrowserTabState, x: number, y: number) => void; drag: TabDrag; onShow?: () => void; reading?: boolean }) {
   const still = useReducedMotion() ?? false;
+  const sound = (tab.audible === true || tab.muted === true) && typeof window.mobius.browser.mute === 'function';
   return (
     <motion.li
       layout="position"
@@ -42,6 +43,7 @@ function TabRow({ tab, onMenu, drag, onShow, reading = false }: { tab: BrowserTa
       className="tab"
       aria-current={tab.active && !reading ? 'page' : undefined}
       data-pinned={tab.pinned ? 'true' : undefined}
+      data-sound={sound || undefined}
       data-split={splitNow !== null && (splitNow.first === tab.id || splitNow.second === tab.id) ? 'true' : undefined}
       data-drop={drag.over?.id === tab.id ? (drag.over.after ? 'after' : 'before') : undefined}
       data-dragging={drag.dragging === tab.id || undefined}
@@ -56,15 +58,6 @@ function TabRow({ tab, onMenu, drag, onShow, reading = false }: { tab: BrowserTa
       <button type="button" className="tab-main" title={tab.url ? `${tab.title}\n${tab.url}` : tab.title} onClick={() => { window.mobius.browser.activate(tab.id); onShow?.(); }}>
         <SiteChip url={tab.url} icon={tab.icon} />
         <span className="tab-title">{tab.title}</span>
-        {(tab.audible || tab.muted) && window.mobius.browser.mute && (
-          // The speaker, as Chrome's and Arc's: shown while the tab plays sound or is muted. A click on it mutes or unmutes
-          // the tab (a pointer shortcut; the tab's menu has Mute tab for the keyboard), and the words are read with the row.
-          <span className="tab-sound" data-muted={tab.muted || undefined} title={tab.muted ? 'Unmute tab' : 'Mute tab'}
-            onClick={(e) => { e.stopPropagation(); window.mobius.browser.mute?.(tab.id, !tab.muted); }}>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6h2.5L9 3v10L5.5 10H3z" />{tab.muted ? <path d="m11 6 3 4m0-4-3 4" /> : <path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6 6 0 0 1 0 9" />}</svg>
-            <span className="sr-only">{tab.muted ? ', muted' : ', playing sound'}</span>
-          </span>
-        )}
         {tab.driver && (
           // A small mark, not a word, so the title keeps its room: Mobius's mark only while Mobius reads or uses the tab; once you
           // took it over it is a plain row again (the words stay for screen readers).
@@ -76,6 +69,13 @@ function TabRow({ tab, onMenu, drag, onShow, reading = false }: { tab: BrowserTa
         {tab.loading && <span className="tab-loading" aria-label="Loading" />}
       </button>
       <span className="tab-actions">
+        {sound && (
+          // The speaker, as Chrome's and Arc's: shown while the tab plays sound or is muted, kept clear of the row's other
+          // buttons; a click (or Enter on it) mutes or unmutes the tab.
+          <button type="button" className="tab-close tab-sound" data-muted={tab.muted || undefined} aria-label={`${tab.muted ? 'Unmute' : 'Mute'} ${tab.title}`} title={tab.muted ? 'Unmute tab' : 'Mute tab'} onClick={() => window.mobius.browser.mute?.(tab.id, !tab.muted)}>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6h2.5L9 3v10L5.5 10H3z" />{tab.muted ? <path d="m11 6 3 4m0-4-3 4" /> : <path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.5 3.5a6 6 0 0 1 0 9" />}</svg>
+          </button>
+        )}
         {window.mobius.browser.pin && (
           <button type="button" className="tab-close tab-pin" aria-label={`${tab.pinned ? 'Unpin' : 'Pin'} ${tab.title}`} aria-pressed={tab.pinned === true} title={tab.pinned ? 'Unpin tab' : 'Pin tab'} onClick={() => window.mobius.browser.pin?.(tab.id, !tab.pinned)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6l-1 5 3 3H5l3-3-1-5ZM10 11v6" /></svg>
@@ -270,7 +270,9 @@ const clearing = new Set<string>();
 
 /** Keeps spaces in step with the tabs, and closes Today tabs left unseen too long (checked now and every ten minutes). */
 function useSpacesSync(tabs: readonly BrowserTabState[]) {
-  useEffect(() => { setSpaces((s) => syncSpaces(s, tabs, Date.now())); }, [tabs]);
+  // Again when a tab goes in or out of a folder, so its address is kept for a restart.
+  const inFolders = useSpaces().tabFolder;
+  useEffect(() => { setSpaces((s) => syncSpaces(s, tabs, Date.now())); }, [tabs, inFolders]);
   const latest = useRef(tabs);
   // A web tab that has left the list since last time is remembered under Recently closed.
   useEffect(() => {
@@ -334,7 +336,7 @@ function FolderRow({ folder, tabs, row, renaming, onRenamed, onMenu }: { folder:
             onBlur={(e) => onRenamed(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } else if (e.key === 'Escape') { e.preventDefault(); e.currentTarget.value = folder.name; e.currentTarget.blur(); } }} />
         ) : (
-          <button type="button" className="tab-main" aria-expanded={folder.open} onClick={() => setSpaces((s) => toggleFolder(s, folder.id))}>
+          <button type="button" className="tab-main" aria-label={folder.name} aria-expanded={folder.open} onClick={() => setSpaces((s) => toggleFolder(s, folder.id))}>
             <svg className="folder-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h4l1.5 1.5h5.5v6.5h-11z" /></svg>
             <span className="tab-title">{folder.name}</span>
             <span className="folder-count" aria-hidden="true">{tabs.length}</span>
