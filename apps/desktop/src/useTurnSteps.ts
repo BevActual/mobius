@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { TurnStep } from '@mobius/shared';
 import type { Item } from './conversation';
+import { KEPT_EVENT } from './ReviewStrip';
 
 /** The last turn's steps that changed files, by the conversation item that shows each, and putting one back. */
 export interface TurnSteps {
@@ -54,6 +55,8 @@ export function useTurnSteps(conversation: string, busy: boolean, items: readonl
     if (!result) return 'That step could not be put back.';
     if (!result.ok) return result.error;
     await load();
+    // What the turn left to review is read again everywhere: the step put back leaves the turn's summary and its app's bar.
+    window.dispatchEvent(new CustomEvent(KEPT_EVENT));
     return null;
   }, [conversation, load]);
   const steps = useMemo(() => matchSteps(items, listed), [items, listed]);
