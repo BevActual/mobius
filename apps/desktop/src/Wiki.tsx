@@ -3,7 +3,8 @@ import type { MemoryCategory, MemoryItem, WikiChange, WikiVersion } from '@mobiu
 import type { NotesState } from './useNotes';
 import type { Item } from './conversation';
 import { createPortal } from 'react-dom';
-import { ContextMenu } from './ContextMenu';
+import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { trashLeft } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { SideNew } from './SideNew';
 import { PanelTab, UndoToast } from './ui';
@@ -50,6 +51,21 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
   const [naming, setNaming] = useState(false);
   const [title, setTitle] = useState('');
   const [query, setQuery] = useState('');
+  // A page's menu (right-click, or Shift+F10 on its row): open it, move it to another folder, or move it to the Trash.
+  const [menu, setMenu] = useState<{ x: number; y: number; path: string; title: string } | null>(null);
+  const [trashMenu, setTrashMenu] = useState<{ x: number; y: number; id: string; title: string } | null>(null);
+  const [emptying, setEmptying] = useState(false);
+  const now = Date.now();
+  // A project's memory page belongs to its project (Projects reads it by name): it is not moved or deleted from here.
+  const ownedByProject = (path: string) => path.split('/')[0] === 'Projects';
+  const nav = useRef<HTMLElement>(null);
+  /** Into the Trash, then focus goes to the row after it (or before), so the keyboard stays in the list. */
+  const trashPage = (path: string) => {
+    const rows = [...(nav.current?.querySelectorAll<HTMLButtonElement>('button.list-row[data-path]') ?? [])];
+    const at = rows.findIndex((b) => b.dataset.path === path);
+    const near = (rows[at + 1] ?? rows[at - 1])?.dataset.path;
+    void wiki.trash?.(path).then(() => { if (near) requestAnimationFrame(() => nav.current?.querySelector<HTMLButtonElement>(`button.list-row[data-path="${CSS.escape(near)}"]`)?.focus()); });
+  };
   const create = async () => {
     const name = title.trim() || 'New page';
     if (!wiki.notebooks.some((n) => n.name === 'Pages')) await wiki.createNotebook('Pages');
@@ -84,14 +100,19 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
           {row('Suggested changes', place.kind === 'shared', () => onPlace({ kind: 'shared' }), incoming.waiting.length)}
         </ul>
       </nav>
-      <nav className="task-lists wiki-pages" aria-label="Pages">
+      <nav className="task-lists wiki-pages" aria-label="Pages" ref={nav}>
         {sections(wiki.notebooks, query).map((nb) => (
           <section key={nb.name} className="kn-side-section" aria-label={nb.name}>
             <h2 className="kn-side-heading">{nb.name}</h2>
             <ul role="list">
               {nb.pages.map((pg) => (
                 <li key={pg.path}>
-                  <button type="button" className="list-row" aria-current={place.kind === 'page' && wiki.page?.path === pg.path ? 'page' : undefined} onClick={() => { void wiki.open(pg.path, pg.title); onPlace({ kind: 'page' }); }}>
+                  <button type="button" className="list-row" data-path={pg.path} aria-current={place.kind === 'page' && wiki.page?.path === pg.path ? 'page' : undefined} onClick={() => { void wiki.open(pg.path, pg.title); onPlace({ kind: 'page' }); }}
+                    onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, path: pg.path, title: pg.title }); }}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') { e.preventDefault(); const b = e.currentTarget.getBoundingClientRect(); setMenu({ x: b.left + 16, y: b.bottom, path: pg.path, title: pg.title }); }
+                      else if (e.key === 'Delete' && wiki.trash && !ownedByProject(pg.path)) { e.preventDefault(); trashPage(pg.path); }
+                    }}>
                     <span className="list-name">{pg.title}</span>
                   </button>
                 </li>
@@ -99,7 +120,56 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
             </ul>
           </section>
         ))}
+        {/* The Trash, as in Notes: pages deleted here wait 30 days, to put back or delete for good. */}
+        {wiki.trashed.length > 0 && (
+          <section className="kn-side-section" aria-label="Trash">
+            <h2 className="kn-side-heading kn-trash-head">
+              <span>Trash</span>
+              {emptying ? (
+                <button type="button" autoFocus className="note-delete confirm" aria-label="Confirm empty Trash" onClick={() => { setEmptying(false); void wiki.forget(null); }} onBlur={() => setEmptying(false)} onKeyDown={(e) => { if (e.key === 'Escape') setEmptying(false); }}>Empty</button>
+              ) : (
+                <button type="button" className="strip-btn" aria-label="Empty Trash" title="Empty Trash" onClick={() => setEmptying(true)}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M6 6l.8 10h6.4L14 6" /></svg>
+                </button>
+              )}
+            </h2>
+            <ul role="list">
+              {wiki.trashed.map((item) => (
+                <li key={item.id}>
+                  <button type="button" className="list-row kn-trashed" aria-label={`${item.title}, in the Trash, ${trashLeft(item.deletedMs, now).toLowerCase()}`}
+                    onClick={(e) => { const b = e.currentTarget.getBoundingClientRect(); setTrashMenu({ x: b.left + 16, y: b.bottom, id: item.id, title: item.title }); }}
+                    onContextMenu={(e) => { e.preventDefault(); setTrashMenu({ x: e.clientX, y: e.clientY, id: item.id, title: item.title }); }}>
+                    <span className="list-name">{item.title}</span>
+                    <span className="list-count">{trashLeft(item.deletedMs, now)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </nav>
+      {/* An open page shows its own Undo (in the editor); elsewhere in Knowledge it shows here. */}
+      {wiki.justTrashed && place.kind !== 'page' && createPortal(
+        <UndoToast text={wiki.justTrashed.text} onUndo={() => void wiki.restore(wiki.justTrashed!.id)} onDismiss={wiki.clearJustTrashed} />,
+        document.body,
+      )}
+      {menu && createPortal(
+        <ContextMenu x={menu.x} y={menu.y} label={menu.title} onClose={() => setMenu(null)} items={([
+          { action: 'open', run: () => { void wiki.open(menu.path, menu.title); onPlace({ kind: 'page' }); } },
+          ...(ownedByProject(menu.path) ? [] : [
+            ...wiki.notebooks.filter((nb) => nb.name !== menu.path.split('/')[0] && nb.name !== 'Projects').map((nb, i) => ({ action: 'move', label: `Move to ${nb.name}`, separated: i === 0, run: () => void wiki.move?.(menu.path, nb.name) })),
+            { action: 'delete', label: 'Move to Trash', keys: 'Del', danger: true, separated: true, run: () => trashPage(menu.path) },
+          ]),
+        ] as ContextMenuItem[])} />,
+        document.body,
+      )}
+      {trashMenu && createPortal(
+        <ContextMenu x={trashMenu.x} y={trashMenu.y} label={trashMenu.title} onClose={() => setTrashMenu(null)} items={([
+          { action: 'undo', label: 'Put back', run: () => { void wiki.restore(trashMenu.id); onPlace({ kind: 'page' }); } },
+          { action: 'delete', label: 'Delete forever', danger: true, run: () => void wiki.forget(trashMenu.id) },
+        ] as ContextMenuItem[])} />,
+        document.body,
+      )}
     </aside>
   );
 }

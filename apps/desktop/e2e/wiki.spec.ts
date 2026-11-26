@@ -193,3 +193,52 @@ test('the launcher finds a Knowledge page by its title from another app, and ope
   await shell().getByRole('option', { name: /Team rules/ }).first().click();
   await expect(shell().getByRole('textbox', { name: 'Document text' })).toContainText('Builds start on Mondays.');
 });
+
+test('a Knowledge page can move to another folder and to the Trash, with Undo, Put back and Delete forever', async () => {
+  const pages = path.join(userData, 'workspace', 'wiki', 'Pages');
+  fs.mkdirSync(pages, { recursive: true });
+  fs.mkdirSync(path.join(userData, 'workspace', 'wiki', 'Team'), { recursive: true });
+  fs.writeFileSync(path.join(pages, 'Team rules.md'), '# Team rules\n\nBuilds start on Mondays.\n');
+  fs.writeFileSync(path.join(pages, 'Old plan.md'), '# Old plan\n\nGone soon.\n');
+  fs.writeFileSync(path.join(userData, 'workspace', 'wiki', 'Team', 'Rota.md'), '# Rota\n');
+  fs.mkdirSync(path.join(userData, 'workspace', 'wiki', 'Projects'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'wiki', 'Projects', 'Kestrel.md'), '# Kestrel\n');
+  await start();
+  await openWiki();
+  const side = shell().getByRole('navigation', { name: 'Pages' });
+  // Move to another folder, from the page's menu.
+  await side.getByRole('button', { name: /Team rules/ }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Move to Team' }).click();
+  await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'wiki', 'Team', 'Team rules.md'))).toBe(true);
+  await expect(side.getByRole('region', { name: 'Team' })).toContainText('Team rules');
+  // Move to Trash, and Undo puts it back.
+  await side.getByRole('button', { name: /Old plan/ }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Move to Trash' }).click();
+  await expect.poll(() => fs.existsSync(path.join(pages, 'Old plan.md'))).toBe(false);
+  const trash = side.getByRole('region', { name: 'Trash' });
+  await expect(trash.getByRole('button', { name: /Old plan, in the Trash, 30 days left/ })).toBeVisible();
+  await shell().getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => fs.existsSync(path.join(pages, 'Old plan.md'))).toBe(true);
+  await expect(trash).toHaveCount(0);
+  // A project's memory page stays with its project: its menu has no Move or Trash, and Delete leaves it.
+  await side.getByRole('button', { name: /^Kestrel$/ }).click({ button: 'right' });
+  await expect(shell().getByRole('menuitem', { name: 'Open' })).toBeVisible();
+  await expect(shell().getByRole('menuitem', { name: /Move to/ })).toHaveCount(0);
+  await shell().keyboard.press('Escape');
+  await side.getByRole('button', { name: /^Kestrel$/ }).focus();
+  await shell().keyboard.press('Delete');
+  expect(fs.existsSync(path.join(userData, 'workspace', 'wiki', 'Projects', 'Kestrel.md'))).toBe(true);
+  // Delete from the keyboard (focus goes to a row beside it), then Put back from the Trash; then Delete forever.
+  await side.getByRole('button', { name: /Old plan/ }).focus();
+  await shell().keyboard.press('Delete');
+  await expect(side.locator('button.list-row[data-path]:focus')).toHaveCount(1);
+  await trash.getByRole('button', { name: /Old plan/ }).click();
+  await shell().getByRole('menuitem', { name: 'Put back' }).click();
+  await expect.poll(() => fs.existsSync(path.join(pages, 'Old plan.md'))).toBe(true);
+  await side.getByRole('button', { name: /^Old plan$/ }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Move to Trash' }).click();
+  await trash.getByRole('button', { name: /Old plan/ }).click();
+  await shell().getByRole('menuitem', { name: 'Delete forever' }).click();
+  await expect(trash).toHaveCount(0);
+  expect(fs.existsSync(path.join(pages, 'Old plan.md'))).toBe(false);
+});
