@@ -350,6 +350,12 @@ moves.
 - Use the tokens: `--dur-fast` (120ms) for small changes, `--dur-med` (200ms) for panels and views, `--ease` to
   arrive, `--dur-exit` (150ms) with `--ease-exit` to leave. React uses `spring` and `quick` from `motion.tsx`.
 - Things leave the way they came, a little faster. Moving through time slides in the direction you moved.
+- Changing app: picked with the pointer, the new app settles out of what was clicked (a fade from 98.5%, 180ms, never
+  a big scale that blows text up). From the keyboard it only lifts out of a dim in 120ms: a shortcut never waits on
+  motion (`switchIn`).
+- A dock of panels slides out of its window edge as it opens and back as it closes (200ms in, 150ms out). The panels
+  keep their full size while the dock's own size grows, and the app beside it gives up its room smoothly
+  (`dockIn`, `dockOut`). Switching app does not slide docks: the whole app settles in instead.
 - Keep settles a proposal solid in place; Discard fades it out and the space closes.
 - Only one thing loops at a time: Mobius working, or the playhead.
 - Hover and press change colour only.
