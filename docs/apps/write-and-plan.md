@@ -265,5 +265,9 @@ What Mobius knows: your private **How I work** page, grouped by kind with what M
 shared pages such as each project's memory, listed by folder in the Knowledge panel. Lines offered to a shared page wait under
 **Suggested changes**. See [Memory and Knowledge](../guide/memory-and-knowledge.md).
 
+Right-click a page in the panel (or press Shift+F10 on it) to open it, **Move to** another folder (links to it
+follow), or **Move to Trash** (Delete does the same). Undo takes the delete back. Deleted pages wait in the panel's
+**Trash** for 30 days, where you can **Put back** a page or **Delete forever**, and Empty Trash clears them all.
+
 
 ![The Knowledge app in Mobius](../readme/apps/knowledge.png)
