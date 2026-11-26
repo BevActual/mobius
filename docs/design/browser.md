@@ -79,6 +79,11 @@ Escape, Close or a click outside closes it. Only the peek page is drawn while it
 as a dimmed picture taken just before. The shell routes the links and places the page (`browser.peek`,
 `browser.keepPeek`, `surface.setPeekBounds`).
 
+Known gap: on WebView2 a pinned tab's link to another site is still asked for twice (the tab's request leaves before
+the shell cancels it, then the peek loads it fresh, without the referer). The fix is to catch the click in the page
+before it becomes a navigation; it is planned as its own shell change. Shift+click peeks on Windows only, and on Linux
+pinned-tab links open in the tab.
+
 ## Later
 
 - Separate sign-ins per space.
