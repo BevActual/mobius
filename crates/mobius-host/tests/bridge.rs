@@ -312,6 +312,24 @@ mod browser {
     }
 
     #[test]
+    fn a_page_can_be_peeked_at_kept_or_closed() {
+        let (b, engine, br, _e, _d) = with_browser(None);
+        br.open(None);
+        call(&b, "surface", "setBounds", json!([{ "x": 0, "y": 0, "width": 600, "height": 400 }]));
+        call(&b, "browser", "peek", json!(["example.com"]));
+        call(&b, "surface", "setPeekBounds", json!([{ "x": 50, "y": 30, "width": 500, "height": 340 }]));
+        let last = engine.layouts.lock().unwrap().last().cloned().unwrap();
+        assert_eq!(last.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(), vec!["tab-2"]);
+        assert_eq!(call(&b, "browser", "keepPeek", json!([])), json!("tab-2"));
+        assert_eq!(call(&b, "browser", "getState", json!([]))["activeId"], "tab-2");
+        call(&b, "browser", "peek", json!([42]));
+        assert_eq!(call(&b, "browser", "getState", json!([]))["peek"], serde_json::Value::Null);
+        call(&b, "browser", "peek", json!(["example.com"]));
+        call(&b, "browser", "peek", json!([null]));
+        assert_eq!(call(&b, "browser", "getState", json!([]))["peek"], serde_json::Value::Null);
+    }
+
+    #[test]
     fn a_page_can_be_zoomed_and_silenced_and_bad_requests_change_nothing() {
         let (b, engine, br, _e, _d) = with_browser(None);
         br.open(None);
