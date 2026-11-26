@@ -29,12 +29,16 @@ export function RunningJobs({ conversations, open, onOpen }: { conversations: re
     if (document.activeElement && document.activeElement !== document.body) return;
     (list.current?.querySelector<HTMLElement>('.msg-action') ?? document.querySelector<HTMLElement>('[aria-label="Message Mobius"]'))?.focus();
   }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (jobs.length === 0) return null;
   const background = new Set(readRuns().map((r) => r.conversation));
+  // Said politely as it changes: a job that starts, one that now needs you.
+  const needing = jobs.filter((c) => jobState(c, background) === 'Needs you');
+  const said = jobs.length === 0 ? '' : needing.length > 0 ? `${needing.map((c) => c.title).join(', ')} ${needing.length === 1 ? 'needs' : 'need'} you` : `Also running: ${jobs.map((c) => c.title).join(', ')}`;
+  if (jobs.length === 0) return <span className="sr-only" role="status" />;
   return (
     <section className="msg-queue running-jobs" aria-label="Running jobs">
+      <span className="sr-only" role="status">{said}</span>
       <div className="msg-queue-head">
-        <span className="msg-queue-title">{jobs.length === 1 ? 'Also running' : `Also running · ${jobs.length}`}</span>
+        <span className="msg-queue-title" aria-hidden="true">{jobs.length === 1 ? 'Also running' : `Also running · ${jobs.length}`}</span>
       </div>
       <ul ref={list} className="msg-queue-list">
         {jobs.map((c) => (

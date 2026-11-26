@@ -69,6 +69,8 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   stateNow.current = state;
   botRef.current = botOfConversation(id, knownBots);
 
+  /** Conversations whose running turn this window has heard from (and listed) since it began. */
+  const heard = useRef(new Set<string>());
   const refresh = useCallback(async () => {
     setList(await window.mobius.agent.conversations());
   }, []);
@@ -79,6 +81,13 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
         if (notification.method === 'agent.event' && TIMED.has(notification.params.event.kind)) turnLog(notification.params.event.kind);
         dispatch({ type: 'notification', notification });
         if (notification.method === 'agent.event' && ['done', 'failed', 'cancelled', 'needs_approval', 'tool_result', 'question'].includes(notification.params.event.kind)) void refresh();
+        // A turn that started elsewhere (a schedule, the background) is listed as working from its first word, not only
+        // once it ends: Running jobs and All chats show it while it runs.
+        if (notification.method === 'agent.event') {
+          const { conversation, event } = notification.params;
+          if (['done', 'failed', 'cancelled'].includes(event.kind)) heard.current.delete(conversation);
+          else if (!heard.current.has(conversation)) { heard.current.add(conversation); void refresh(); }
+        }
         // A turn started elsewhere (a schedule, Little Mobius) was opened while it ran, before its request was saved:
         // once it ends, read it again so the request shows above the reply.
         const ended = notification.method === 'agent.event' && ['done', 'failed', 'cancelled'].includes(notification.params.event.kind);

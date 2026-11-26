@@ -216,6 +216,20 @@ test('work running in another chat is listed under this one, with Stop', async (
   await expect(composer()).toBeFocused();
 });
 
+test('a chat a schedule starts is listed as running while it runs', async () => {
+  await start([says(['Looking ', 'through it…'], 4000)]);
+  await openApp('Agent');
+  const ran = await shell().evaluate(async () => {
+    const made = await window.mobius.schedules!.add({ title: 'Morning brief', prompt: 'Brief me', time: '07:00', days: [1], enabled: false });
+    return made.ok ? window.mobius.schedules!.runNow(made.schedule.id) : made;
+  });
+  expect(ran.ok).toBe(true);
+  const jobs = shell().getByRole('region', { name: 'Running jobs' });
+  await expect(jobs.locator('.running-job')).toHaveCount(1);
+  await expect(jobs).toContainText('Working');
+  await expect(jobs.getByRole('status')).toContainText('Also running');
+});
+
 test('the Inbox gathers tasks due and project updates due, each with Done and Later, as Linear’s', async () => {
   fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
   fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Pay rent (due 2001-01-01)\n- [ ] Call the plumber (due 2001-01-02)\n');
