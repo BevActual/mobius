@@ -643,6 +643,21 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const { speech, speak, stop: stopSpeaking, dismiss: dismissSpeech } = useSpeech();
   // Messages written while Mobius works: kept above the box and sent in order as each turn ends. Stop keeps them, paused.
   const [queue, setQueue] = useState<MessageQueue>(EMPTY_QUEUE);
+  // Stop goes away with the work it stopped: the keyboard goes to the message box, not to nothing.
+  const stopHere = useCallback(() => {
+    const from = document.activeElement;
+    onStop();
+    let tries = 0;
+    const settle = () => {
+      const now = document.activeElement;
+      if (!now || now === document.body) {
+        document.querySelector<HTMLElement>('[aria-label="Message Mobius"]')?.focus();
+        return;
+      }
+      if (now === from && ++tries < 75) window.setTimeout(settle, 40);
+    };
+    window.setTimeout(settle, 0);
+  }, [onStop]);
   const queueWasBusy = useRef(state.busy);
   const sendQueued = useRef<(item: Queued) => void>(() => undefined);
   sendQueued.current = (item) => onSend(item.text, item.context, item.options);
@@ -963,7 +978,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                   )}
                 </Fragment>
               ) : item.kind === 'plan' ? (
-                <PlanCard key={item.id} item={item} busy={state.busy} proposal={index === proposalAt} onStart={(text) => onSend(text, [])} onDrive={onDrive} onStop={onStop} />
+                <PlanCard key={item.id} item={item} busy={state.busy} proposal={index === proposalAt} onStart={(text) => onSend(text, [])} onDrive={onDrive} onStop={stopHere} />
               ) : item.kind === 'question' ? (
                 <QuestionCard key={item.id} item={item} onReply={onReply} />
               ) : item.kind === 'notice' ? (
@@ -987,13 +1002,13 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {/* Paused (you have control): the control bar below says so, nothing here claims Mobius is working. */}
             {state.busy && !state.control && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
-              <WorkingIndicator state={state} onStop={onStop} />
+              <WorkingIndicator state={state} onStop={stopHere} />
             )}
           </div>
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
           {/* Not on the start page: earlier changes belong to a chat that is open. */}
           {state.items.length > 0 && <TurnHistory conversation={state.conversation} busy={state.busy} />}
-          {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
+          {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={stopHere} />}
           <RunningJobs conversations={conversations} open={activeConversation} onOpen={onSelectConversation} />
           {queue.items.length > 0 && (
             <QueuePanel
@@ -1028,7 +1043,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             onEffort={onEffort}
             onSend={(text, items, options) => { onSend(text, items, options); setDraft(''); setContext([]); }}
             onQueue={(text, items, options) => { setQueue((q) => enqueue(q, text, items, options)); setDraft(''); setContext([]); }}
-            onStop={onStop}
+            onStop={stopHere}
             {...(onTakeOver && !state.control ? { onTakeOver } : {})}
             onModelChanged={onModelChanged}
             onOpenSettings={onOpenSettings}

@@ -285,6 +285,17 @@ test('a chat opened while it runs in the background shows it running, with Stop,
   await expect(pill).toHaveCount(0);
 });
 
+test('Stop in the panel leaves the keyboard in the message box', async () => {
+  await start([says(['Thinking it ', 'through…'], 6000)]);
+  await openApp('Notes');
+  if (!(await composer().isVisible())) await shell().keyboard.press('Control+Shift+M');
+  await composer().fill('Write a long brief');
+  await composer().press('Enter');
+  await shell().getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(shell().getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+  await expect(composer()).toBeFocused();
+});
+
 test('a chat a schedule starts is listed as running while it runs', async () => {
   await start([says(['Looking ', 'through it…'], 4000)]);
   await openApp('Agent');
