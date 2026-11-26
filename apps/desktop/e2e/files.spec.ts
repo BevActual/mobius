@@ -148,6 +148,9 @@ test('one step of a turn is put back from its own Undo, and the turn\'s other st
   await expect(undos).toHaveCount(2);
   await undos.nth(1).click();
   await expect(undos).toHaveCount(1);
+  // The focus stays on the row, and what happened is said.
+  await expect(log.getByRole('button', { name: /^Show details: .*Plan/ })).toBeFocused();
+  await expect(log.getByRole('status').filter({ hasText: /^Put back: / })).toHaveCount(1);
   await expect(log.locator('.tool-status', { hasText: 'Put back' })).toHaveCount(1);
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
   expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'))).toBe(true);

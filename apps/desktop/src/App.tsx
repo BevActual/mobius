@@ -851,7 +851,11 @@ export function App() {
     const { background: away, ...rest } = options ?? {};
     if (away) {
       handoffs.start(conversation.state.conversation, (text.trim().split('\n')[0] ?? '').slice(0, 80) || 'Background task');
-      if (rightOpen && app !== 'agent') hideRight();
+      if (rightOpen && app !== 'agent') {
+        hideRight();
+        // The focus goes to the pill that now says what Mobius is doing, not to the page.
+        setTimeout(() => document.querySelector<HTMLElement>('.working-pill-open')?.focus(), 400);
+      }
     }
     void conversation.send(expandSlash(text, skills.names), items, Object.keys(rest).length > 0 ? rest : undefined);
   };

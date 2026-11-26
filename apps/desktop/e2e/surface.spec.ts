@@ -180,6 +180,7 @@ test('a message sent in the background leaves the panel, and what it did lands i
   await expect(composer()).toBeHidden();
   const pill = shell().locator('.working-pill');
   await expect(pill).toContainText('Mobius needs you');
+  await expect(pill.getByRole('button').first()).toBeFocused();
   await pill.getByRole('button').first().click();
   await log().getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toContainText('I wrote the brief.');
@@ -191,6 +192,7 @@ test('a message sent in the background leaves the panel, and what it did lands i
   await expect(inbox.getByRole('button', { name: 'Open Write a brief: Finished in the background · 1 change to keep' })).toBeVisible();
   await inbox.getByRole('button', { name: 'Keep all of Write a brief' }).click();
   await expect(inbox.getByRole('button', { name: /^Open Write a brief/ })).toHaveCount(0);
+  await expect(shell().getByRole('region', { name: 'Desk' }).getByRole('status').first()).toHaveText('Kept everything from Write a brief');
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'), 'utf8')).toBe('# Brief\n');
 });
 

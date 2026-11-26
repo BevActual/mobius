@@ -27,10 +27,15 @@ export function useStageSelection(resetKey: string | null): StageSelection {
       setNow(cellsNow() ?? words.current);
     };
     // Cells are chosen with the pointer and the arrow keys, which change no text selection: look again after each.
+    // A drag's words are read again when it ends, in case its selectionchange came before the text was chosen.
     const settled = (event: Event) => {
       if (!(event.target instanceof Element) || !event.target.closest('.stage')) return;
+      changed();
       setNow(cellsNow() ?? words.current);
     };
+    // What was chosen before the panel opened (Ctrl+Shift+M after selecting) counts too.
+    changed();
+    setNow((was) => was ?? cellsNow());
     document.addEventListener('selectionchange', changed);
     document.addEventListener('pointerup', settled);
     document.addEventListener('keyup', settled);

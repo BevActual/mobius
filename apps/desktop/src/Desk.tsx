@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { AgentWaiting, ConversationInfo, MailFollowUp, ScheduleInfo } from '@mobius/shared';
 import type { Activity } from './activity';
 import { describeAction } from './actions';
@@ -149,6 +149,14 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const [showLater, setShowLater] = useState(false);
   // Said to screen readers once Done or Later has acted, since the row itself goes.
   const [said, setSaid] = useState('');
+  const inboxList = useRef<HTMLUListElement>(null);
+  // A row that goes leaves the focus on the Inbox's first row, not on the page.
+  const focusInbox = () => setTimeout(() => (inboxList.current?.querySelector<HTMLElement>('button:not([disabled])') ?? document.querySelector<HTMLElement>('.desk button'))?.focus(), 0);
+  const finishRun = (run: BackgroundDone, keep: boolean) => {
+    if (keep) background?.onKeep(run); else background?.onDone(run);
+    setSaid(keep ? `Kept everything from ${run.ask}` : `Done with ${run.ask}`);
+    focusInbox();
+  };
   const doneWith = (item: InboxItem) => hold(item.key, async () => { if (await inbox!.onDone(item)) { kept.done(item.key); setSaid(`${item.kind === 'task' ? 'Completed' : 'Done with'} ${item.name}`); } });
   const setAsideUntil = (item: InboxItem, choice: string) => {
     const until = laterUntil(choice, new Date());
@@ -178,6 +186,8 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const go = (word: string) => <span className="desk-go" aria-hidden="true">{word}</span>;
   return (
     <section className="desk" aria-label="Desk">
+      {/* Said whether or not the Inbox is still shown: clearing its last row takes the Inbox away. */}
+      <span className="sr-only" role="status">{said}</span>
       <header className="desk-hello">
         <h2 className="greeting">{deskGreeting(now)}</h2>
         <p className="desk-title">{title.map((part, i) => <span key={part}>{i > 0 && <span aria-hidden="true"> · </span>}{part}</span>)}{quiet && <span><span aria-hidden="true"> · </span>{deskQuiet(rows)}</span>}</p>
@@ -202,8 +212,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
       {(inboxCount > 0 || setAside.length > 0) && (
         <div className="desk-group" role="group" aria-label="Inbox">
           <h3 className="desk-head">Inbox {inboxCount > 0 && <span className="desk-count">{inboxCount}</span>}</h3>
-          <span className="sr-only" role="status">{said}</span>
-          <ul className="desk-rows" onKeyDown={(e) => inboxKeys(e, act)}>
+          <ul ref={inboxList} className="desk-rows" onKeyDown={(e) => inboxKeys(e, act)}>
             {waiting.map((c) => {
               const ask = approvals[c.id];
               const plain = ask ? describeAction(ask.tool, ask.arguments) : null;
@@ -228,8 +237,8 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                   {go('Open')}
                 </button>
                 {run.files.length > 0
-                  ? <button type="button" className="desk-act" data-primary aria-label={`Keep all of ${run.ask}`} title="Keep everything it changed" onClick={() => background?.onKeep(run)}>Keep all</button>
-                  : <button type="button" className="desk-act" aria-label={`Done with ${run.ask}`} title="Clear it from the Inbox" onClick={() => background?.onDone(run)}>Done</button>}
+                  ? <button type="button" className="desk-act" data-primary aria-label={`Keep all of ${run.ask}`} title="Keep everything it changed" onClick={() => finishRun(run, true)}>Keep all</button>
+                  : <button type="button" className="desk-act" aria-label={`Done with ${run.ask}`} title="Clear it from the Inbox" onClick={() => finishRun(run, false)}>Done</button>}
               </li>
             ))}
             {[...changed].map((app) => (

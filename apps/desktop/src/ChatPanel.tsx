@@ -283,10 +283,16 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
   const { step, undo } = useTurnStep(item.id);
   const [undoing, setUndoing] = useState(false);
   const [undoProblem, setUndoProblem] = useState<string | null>(null);
+  const [putBack, setPutBack] = useState(false);
+  const detailsButton = useRef<HTMLButtonElement>(null);
   const undoStep = async () => {
+    if (!step) return;
     setUndoing(true);
-    if (step) setUndoProblem(await undo(step));
+    const problem = await undo(step);
+    setUndoProblem(problem);
     setUndoing(false);
+    // The Undo button goes: the focus stays on the row, on its Details, and the change is said.
+    if (!problem) { setPutBack(true); queueMicrotask(() => detailsButton.current?.focus()); }
   };
   const shownArgs = describeArguments(item.args);
   // What a screen reader says for the step: the words shown, never the tool's own name.
@@ -314,7 +320,8 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
           <button type="button" className="msg-action tool-undo" disabled={undoing} aria-label={`Undo: ${spoken}`}
             title={`Put back ${step.files.length === 1 ? 'what this step changed' : `the ${step.files.length} files this step changed`}, as they were before it`} onClick={() => void undoStep()}>Undo</button>
         )}
-        {finished && <button type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details: ${spoken}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
+        {step && <span className="sr-only" role="status">{putBack ? `Put back: ${spoken}` : ''}</span>}
+        {finished && <button ref={detailsButton} type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details: ${spoken}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
       </div>
       {undoProblem && <p className="field-error tool-problem" role="alert">{undoProblem}</p>}
       {open && (
