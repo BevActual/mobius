@@ -50,6 +50,31 @@ export function taskAssignment(list: string, task: { text: string; notes?: strin
   return { ask: `${title}\n\n${lines.join(' ')}`, title, app: 'tasks' };
 }
 
+/** A note or a document: do what it asks for, or its next steps, adding to it only where it says so. */
+export function pageAssignment(app: 'notes' | 'docs', page: { path: string; title: string }): Assignment {
+  const where = app === 'docs' ? 'document in Docs' : 'note in Notes';
+  const title = short(page.title) || (app === 'docs' ? 'Document' : 'Note');
+  return {
+    ask: `${title}\n\nWork on my ${where} ${quote(page.title)} (${app}/${page.path}). Read it, then do what it asks for or the next steps it lists, as far as you can in my apps. Add to it only where it asks you to. Tell me in a few lines what you did and what is left for me.`,
+    title,
+    app,
+  };
+}
+
+/** A project: its next steps, from its Tasks list and its last update, as far as Mobius can take them. */
+export function projectAssignment(p: { name: string; list?: string; target?: string; updates?: readonly { text: string }[] }): Assignment {
+  const title = short(p.name) || 'Project';
+  const last = p.updates?.at(-1)?.text.trim();
+  const lines = [
+    `Move my project ${quote(p.name)} in Projects forward.`,
+    ...(p.list ? [`Its work is in my Tasks list ${quote(p.list)}.`] : []),
+    ...(p.target ? [`It should be done by ${p.target}.`] : []),
+    ...(last ? [`Its last update says: ${quote(last.slice(0, 2000))}.`] : []),
+    'Take the next steps you can in my apps, leaving ticks and anything that sends or deletes to me, then tell me in a few lines what you did and what is left for me.',
+  ];
+  return { ask: `${title}\n\n${lines.join(' ')}`, title, app: 'projects' };
+}
+
 /** A message: read it and prepare what it needs (a draft reply, a task, an event), sending nothing. */
 export function mailAssignment(m: { id: string; subject: string; from: { name?: string | null; email: string } }): Assignment {
   const who = m.from.name ? `${m.from.name} <${m.from.email}>` : m.from.email;

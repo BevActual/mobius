@@ -330,6 +330,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   sourceNow.current = source;
   // The selection bar sits just above the selection.
   const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null);
+  const barShown = useRef(false);
+  barShown.current = selection !== null;
   const selectionFor = useRef(onSelection);
   selectionFor.current = onSelection;
 
@@ -398,6 +400,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     contentType: 'markdown',
     editorProps: {
       attributes: { class: 'note-page', 'aria-label': 'Note text', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'true' },
+      // Esc puts away the bar over the chosen words, as in Docs and Google Docs; the words stay chosen. Only then is it
+      // taken here: with no bar, Esc goes on as before.
+      handleKeyDown: (_view, event) => {
+        if (event.key !== 'Escape' || !barShown.current) return false;
+        setSelection(null);
+        return true;
+      },
       // Files pasted or dropped on the page are added to it: pictures show, anything else is a link.
       handlePaste: (_view, event) => {
         const files = [...(event.clipboardData?.files ?? [])];
