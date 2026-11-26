@@ -229,7 +229,8 @@ export function useDailyLauncherSources(d: Daily): void {
         window.mobius.bookmarks.get(query).catch(() => []),
       ]);
       if (signal.aborted) return [];
-      return pagesFound(marks.slice(0, 40), seen.entries.slice(0, 40), ws).slice(0, 5).map((p) => ({ id: p.key, app: 'browser' as const, label: p.title, detail: `Browser, ${p.where}`, run: () => d.openTarget(p.target, p.title) }));
+      const marked = new Set(marks.map((m) => m.url));
+      return pagesFound(marks.slice(0, 40), seen.entries.slice(0, 40), ws).slice(0, 5).map((p) => ({ id: p.key, app: 'browser' as const, label: p.title, detail: `${marked.has(p.key.slice(2)) ? 'Bookmark' : 'Browser'}, ${p.where}`, run: () => d.openTarget(p.target, p.title) }));
     },
   });
   useLauncherSource({ app: 'files', commands: () => [{ id: 'trash', label: 'Trash', detail: 'Files', run: d.filesTrash }] });
