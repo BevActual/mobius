@@ -246,7 +246,7 @@
 /* Going?: the person's answer to an invitation, as Google Calendar's Yes / No / Maybe, the chosen one filled. */
 .cal-going { display: flex; align-items: center; gap: 6px; padding: 0 2px; font-size: var(--fs-sm); color: var(--muted); }
 .cal-going > span { margin-right: 4px; }
-.cal-going-btn { min-height: 26px; padding: 2px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--ink); font: inherit; cursor: pointer; transition: background-color 140ms ease-out, border-color 140ms ease-out, color 140ms ease-out; }
+.cal-going-btn { min-height: 26px; padding: 2px 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: none; color: var(--ink); font: inherit; cursor: pointer; transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .cal-going-btn[aria-disabled="true"] { cursor: progress; }
 .cal-going-from { margin: 0; padding: 0 2px; font-size: var(--fs-sm); color: var(--muted); }
 .cal-going-btn:hover { background: var(--soft); }
