@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { ConversationInfo } from '@mobius/shared';
 import { readRuns } from './background';
 
@@ -18,6 +19,16 @@ export function jobState(c: ConversationInfo, background: ReadonlySet<string>): 
  */
 export function RunningJobs({ conversations, open, onOpen }: { conversations: readonly ConversationInfo[]; open: string; onOpen: (id: string) => void }) {
   const jobs = runningElsewhere(conversations, open);
+  // A stopped row goes with the focus on it: the next row's Stop, or the message box, takes it.
+  const list = useRef<HTMLUListElement>(null);
+  const stopped = useRef<string | null>(null);
+  const ids = jobs.map((c) => c.id).join('\u0000');
+  useEffect(() => {
+    if (!stopped.current || jobs.some((c) => c.id === stopped.current)) return;
+    stopped.current = null;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    (list.current?.querySelector<HTMLElement>('.msg-action') ?? document.querySelector<HTMLElement>('[aria-label="Message Mobius"]'))?.focus();
+  }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
   if (jobs.length === 0) return null;
   const background = new Set(readRuns().map((r) => r.conversation));
   return (
@@ -25,7 +36,7 @@ export function RunningJobs({ conversations, open, onOpen }: { conversations: re
       <div className="msg-queue-head">
         <span className="msg-queue-title">{jobs.length === 1 ? 'Also running' : `Also running · ${jobs.length}`}</span>
       </div>
-      <ul className="msg-queue-list">
+      <ul ref={list} className="msg-queue-list">
         {jobs.map((c) => (
           <li key={c.id} className="msg-queue-item running-job" data-needs-you={jobState(c, background) === 'Needs you' || undefined}>
             <button type="button" className="running-job-open" onClick={() => onOpen(c.id)} title={`Open ${c.title}`}>
@@ -33,7 +44,7 @@ export function RunningJobs({ conversations, open, onOpen }: { conversations: re
               <span className="msg-queue-text">{c.title}</span>
               <span className="running-job-state">{jobState(c, background)}</span>
             </button>
-            <button type="button" className="msg-action" aria-label={`Stop ${c.title}`} onClick={() => void window.mobius.agent.cancel(c.id)}>Stop</button>
+            <button type="button" className="msg-action" aria-label={`Stop ${c.title}`} onClick={() => { stopped.current = c.id; void window.mobius.agent.cancel(c.id); }}>Stop</button>
           </li>
         ))}
       </ul>

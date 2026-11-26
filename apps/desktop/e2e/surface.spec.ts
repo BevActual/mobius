@@ -212,6 +212,8 @@ test('work running in another chat is listed under this one, with Stop', async (
   await expect(jobs).toContainText('In the background');
   await jobs.getByRole('button', { name: 'Stop Write a long brief' }).click();
   await expect(jobs).toHaveCount(0);
+  // The row went with the focus on it: the message box takes it.
+  await expect(composer()).toBeFocused();
 });
 
 test('the Inbox gathers tasks due and project updates due, each with Done and Later, as Linear’s', async () => {
