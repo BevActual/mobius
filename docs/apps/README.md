@@ -14,11 +14,11 @@ its new home works; until then they are here as before. See the [roadmap](../roa
 
 | Group | Apps |
 | --- | --- |
-| [Assistant](assistant.md) | [Agent](assistant.md#agent), [Agents](assistant.md#agents), [Activity](assistant.md#activity), [Store](assistant.md#store) |
+| [Assistant](assistant.md) | [Agent](assistant.md#agent), [Agents](assistant.md#agents), [Activity](assistant.md#activity), [Changes](assistant.md#changes), [Store](assistant.md#store) |
 | [Browse and find](browse-and-find.md) | [Browser](browse-and-find.md#browser), [Mail](browse-and-find.md#mail), [Search](browse-and-find.md#search), [Research](browse-and-find.md#research), [Reader](browse-and-find.md#reader), [Files](browse-and-find.md#files) |
 | [Write and plan](write-and-plan.md) | [Notes](write-and-plan.md#notes), [Docs](write-and-plan.md#docs), [Tasks](write-and-plan.md#tasks), [Calendar](write-and-plan.md#calendar), [Sheets](write-and-plan.md#sheets), [Database](write-and-plan.md#database), [Projects](write-and-plan.md#projects), [Knowledge](write-and-plan.md#knowledge) |
 | [Create](create.md) | [Slides](create.md#slides), [Design](create.md#design), [Photo](create.md#photo), [Music](create.md#music), [Video](create.md#video), [Code](create.md#code), [Terminal](create.md#terminal), [Canvas](create.md#canvas) |
-| [Review](review.md) | [Review](review.md#review), [Views](review.md#views), [Comments](review.md#comments) |
+| [Review](review.md) | [Views](review.md#views), [Comments](review.md#comments) |
 
 ## What every app shares
 

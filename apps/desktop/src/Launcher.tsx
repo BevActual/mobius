@@ -61,15 +61,15 @@ export interface LauncherField { label: string; value: string }
 /** What the chosen row is, shown beside the list before it is opened: a mail's first lines, an event's time. */
 export interface LauncherPreview { title: string; meta?: string; body?: string; rows?: readonly (readonly [string, string])[] }
 
-export type Place = 'home' | 'activity' | 'abilities' | 'settings';
+export type Place = 'home' | 'activity' | 'changes' | 'abilities' | 'settings';
 
 /** Something waiting for you, at the top of an empty launcher: "Plan the P2 build week, needs your answer". */
 export interface LauncherHomeRow { id: string; label: string; detail?: string; app?: AppId; run: () => void }
 /** An agent at work, drawn as its dot character. */
 export interface LauncherAgentRow { id: string; name: string; state: CharacterState; detail?: string; run: () => void }
-const PLACE_NAMES: Record<Place, string> = { home: 'Home', activity: 'Activity', abilities: 'Store', settings: 'Settings' };
+const PLACE_NAMES: Record<Place, string> = { home: 'Home', activity: 'Activity', changes: 'Changes', abilities: 'Store', settings: 'Settings' };
 const HOME_ICON = <><path d="M3.5 9 10 3.5 16.5 9" /><path d="M5 7.8V16h10V7.8" /></>;
-const PLACE_ICONS: Record<Place, ReactNode> = { home: HOME_ICON, activity: OWN_ICONS.activity, abilities: OWN_ICONS.extensions, settings: OWN_ICONS.settings };
+const PLACE_ICONS: Record<Place, ReactNode> = { home: HOME_ICON, activity: OWN_ICONS.activity, changes: OWN_ICONS.changes, abilities: OWN_ICONS.extensions, settings: OWN_ICONS.settings };
 
 interface Props {
   open: boolean;
@@ -628,7 +628,7 @@ export function Launcher({
       })),
       // As in Spotlight and Raycast: names that start with what was typed come before names that only contain it.
       // Settings and Store are places, not apps: their own group, above Apps.
-      ...(Object.keys(PLACE_NAMES) as Place[]).filter((p) => places[p] && has(p === 'abilities' ? `${PLACE_NAMES[p]} Abilities Extensions Skills Connectors Plugins` : PLACE_NAMES[p])).map<LauncherItem>((p) => ({
+      ...(Object.keys(PLACE_NAMES) as Place[]).filter((p) => places[p] && has(p === 'abilities' ? `${PLACE_NAMES[p]} Abilities Extensions Skills Connectors Plugins` : p === 'changes' ? `${PLACE_NAMES[p]} Review History Put back` : PLACE_NAMES[p])).map<LauncherItem>((p) => ({
         id: `place-${p}`, kind: 'place', place: p, label: PLACE_NAMES[p], run: () => places[p]!(),
       })),
       ...rankApps(APPS.filter((app) => app.id !== 'skills' && has(`${app.name} ${app.also ?? ''}`)), q).map<LauncherItem>((app) => ({

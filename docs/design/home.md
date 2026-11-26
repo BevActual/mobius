@@ -27,8 +27,7 @@ the Inbox.
 
 ## Later
 
-- **Review folds in.** The Review app's history of every change (by day, put back one file) moves to Home once the
-  Inbox has been used for a while; until then Review stays, as the app-list decision says to remove an app only once its
-  replacement works.
+- **Review folded in (2026-11-26).** The Review app's history of every change (by day, put back one file) is now
+  Home's Changes, beside Agents and Activity; its "Waiting for you" was already Activity's Needs you.
 - Tasks that are overdue, and calendar invitations to answer, can join the Inbox once each has an answer in place.
 - Home's panel look (rounded panels, the two-row top bar) is its own pass.

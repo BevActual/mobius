@@ -24,7 +24,7 @@ test.afterEach(async () => {
   removeTestData(userData);
 });
 
-test('Review lists what Mobius changed in every app, by turn, to open or put back', async () => {
+test('Changes, in Home beside Activity, lists what Mobius changed in every app, by turn, to open or put back (the Review app folded in)', async () => {
   model = await startModel([
     callsTool('files-write', { path: 'notes/Trip/Plan.md', content: '# Plan\n\nLisbon in March, eight of us.\n' }),
     says(['Added who is coming.']),
@@ -46,9 +46,11 @@ test('Review lists what Mobius changed in every app, by turn, to open or put bac
   await expect(shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);
 
   await shell.keyboard.press('Control+k');
+  // Still found by its old name.
   await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Review');
+  await expect(shell.getByRole('option', { name: /^Changes/ })).toBeVisible();
   await shell.keyboard.press('Enter');
-  const page = shell.getByRole('region', { name: 'Review' });
+  const page = shell.getByRole('region', { name: 'Changes made by Mobius' });
   await expect(page.getByRole('article')).toHaveCount(2);
   await expect(page.getByRole('article').first()).toContainText('“Start a board”');
   await expect(page.getByRole('article').nth(1)).toContainText('“Say who is coming”');

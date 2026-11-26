@@ -1,17 +1,6 @@
 # Review
 
-## Review
-
-Everything Mobius changed, from every conversation, in one place.
-
-![The Review app in Mobius](../readme/apps/review.png)
-
-- **The Changes panel** filters to everything, what still waits for you, or one app's changes, with counts.
-- **The list** groups changes by day. Each turn shows what you asked, and each file it changed opens in its app or can be
-  put back from here.
-
-Review is the place to check what Mobius did while you were away. Changes themselves are kept or discarded in their
-apps; see [Keep, Discard, Try another](../guide/working-with-mobius.md#keep-discard-try-another).
+The Review app is now **Changes**, in Home beside Agents and Activity: see [Changes](assistant.md#changes).
 
 ## Views
 

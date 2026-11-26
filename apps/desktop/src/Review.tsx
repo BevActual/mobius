@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { ConversationInfo } from '@mobius/shared';
 import { appName, type AppId } from './apps';
-import { APP_ICONS } from './Rail';
+import { APP_ICONS, OWN_ICONS } from './Rail';
 import { EmptyState } from './EmptyState';
 import { appOf, countByApp, dayOf, describeChange, filterTurns, gatherTurns, type ReviewTurn } from './review-view';
 import { timeLabel } from './dates';
 
-/** How many conversations, newest first, the Review app looks through. */
+/** How many conversations, newest first, Changes looks through. */
 const CONVERSATIONS = 40;
 
-/** Everything Mobius changed, from every conversation: what it is, where it is, and putting it back. */
+/** Everything Mobius changed, from every conversation: what it is, where it is, and putting it back. Home's Changes
+ *  (the Review app, folded in); what waits for an answer is in Activity. */
 export function useReview(conversations: readonly ConversationInfo[], busy: boolean) {
   const [turns, setTurns] = useState<ReviewTurn[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<AppId | 'all' | 'waiting'>('all');
+  const [filter, setFilter] = useState<AppId | 'all'>('all');
   const recent = useMemo(() => [...conversations].sort((a, b) => b.updated_ms - a.updated_ms).slice(0, CONVERSATIONS), [conversations]);
   const key = recent.map((c) => `${c.id}:${c.updated_ms}`).join(',');
   const load = useCallback(async () => {
@@ -25,8 +26,7 @@ export function useReview(conversations: readonly ConversationInfo[], busy: bool
     setLoading(false);
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!busy) void load(); }, [busy, load]);
-  const waiting = conversations.filter((c) => c.waiting > 0);
-  return { turns, loading, filter, setFilter, waiting, reload: load };
+  return { turns, loading, filter, setFilter, reload: load };
 }
 export type ReviewState = ReturnType<typeof useReview>;
 
@@ -36,7 +36,7 @@ const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="
 export function ReviewSidebar({ review, pin }: { review: ReviewState; pin: ReactNode }) {
   const counts = countByApp(review.turns);
   const total = review.turns.reduce((n, t) => n + t.files.length, 0);
-  const row = (id: AppId | 'all' | 'waiting', label: string, count: number, icon?: ReactNode) => (
+  const row = (id: AppId | 'all', label: string, count: number, icon?: ReactNode) => (
     <li key={id}>
       <button type="button" className="note-row review-filter" aria-current={review.filter === id ? 'page' : undefined} onClick={() => review.setFilter(id)}>
         {icon}<span>{label}</span>{count > 0 && <span className="review-count">{count}</span>}
@@ -45,10 +45,9 @@ export function ReviewSidebar({ review, pin }: { review: ReviewState; pin: React
   );
   return (
     <aside className="side review-side" aria-label="Changes">
-      <div className="side-head"><span className="side-title">Review</span><span className="side-actions">{pin}</span></div>
+      <div className="side-head"><span className="side-title">Changes</span><span className="side-actions">{pin}</span></div>
       <ul className="review-filters" aria-label="Show">
         {row('all', 'Everything Mobius changed', total)}
-        {row('waiting', 'Waiting for you', review.waiting.reduce((n, c) => n + c.waiting, 0))}
       </ul>
       {counts.size > 0 && (
         <>
@@ -67,25 +66,6 @@ export function ReviewPage({ review, onOpenFile, onOpenConversation }: { review:
   const [asking, setAsking] = useState<{ turn: ReviewTurn; path: string; why: string } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<Set<string>>(new Set());
-  if (review.filter === 'waiting') {
-    return (
-      <section className="review-page" aria-label="Review">
-        <h1 className="review-title">Waiting for you</h1>
-        {review.waiting.length === 0 && <EmptyState app="review" label="Nothing waiting" title="Nothing is waiting for you" line="When Mobius needs you to allow something or answer a question, it is listed here." />}
-        <ul className="review-waiting">
-          {review.waiting.map((c) => (
-            <li key={c.id}>
-              <button type="button" className="review-waiting-row" onClick={() => onOpenConversation(c.id)}>
-                <span className="review-dot" aria-hidden="true" />
-                <span className="review-waiting-title">{c.title || 'Conversation'}</span>
-                <span className="review-count">{c.waiting === 1 ? '1 question' : `${c.waiting} questions`}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-    );
-  }
   const shown = filterTurns(review.turns, review.filter);
   const putBack = async (turn: ReviewTurn, path: string, force = false) => {
     setProblem(null);
@@ -100,11 +80,11 @@ export function ReviewPage({ review, onOpenFile, onOpenConversation }: { review:
   };
   let lastDay = '';
   return (
-    <section className="review-page" aria-label="Review">
+    <section className="review-page" aria-label="Changes made by Mobius">
       <h1 className="review-title">{review.filter === 'all' ? 'Everything Mobius changed' : `What Mobius changed in ${appName(review.filter)}`}</h1>
       <p className="review-lede">Each change is listed with what was asked. Open it to look, or put it back as it was before that turn.</p>
       {problem && <p className="review-problem" role="alert">{problem}</p>}
-      {!review.loading && shown.length === 0 && <EmptyState app="review" label="No changes yet" title="No changes yet" line="When Mobius changes a note, a board, a database or anything else, it is listed here." />}
+      {!review.loading && shown.length === 0 && <EmptyState icon={OWN_ICONS.changes} label="No changes yet" title="No changes yet" line="When Mobius changes a note, a board, a database or anything else, it is listed here." />}
       {shown.map((t) => {
         const day = dayOf(t.when);
         const heading = day !== lastDay ? day : null;

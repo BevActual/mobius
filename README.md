@@ -86,7 +86,7 @@ own models, and are happy to try something unfinished and tell us what breaks.
 ## Every app
 
 A new install starts with **Notes, Tasks, Calendar, Mail, Docs and Browser**, beside Mobius's own Home, Agents, Activity,
-Store, Settings, Projects, Files, Review and Views. Add the rest from **Store** whenever you want them; apps load the first time you open them, so the ones you don't use cost nothing. Every app shares one
+Changes, Store, Settings, Projects, Files and Views. Add the rest from **Store** whenever you want them; apps load the first time you open them, so the ones you don't use cost nothing. Every app shares one
 window layout, one look and one way of reviewing what Mobius changed: rounded panels on a darker frame, with Mobius in its own panel that you open when you want it. Pictures follow your light or dark setting. More in the [app guide](docs/apps/README.md), and how the look is coming along app by app in the [design guide](docs/design/panel-look.md).
 
 ### Assistant
@@ -163,18 +163,15 @@ Mobius's own apps, always there.
 </tr>
 </table>
 
-### Review
+### Views and Activity
 
-What Mobius did, at a glance, and what is waiting for you.
+What Mobius did, at a glance, and what is waiting for you. Everything Mobius changed is in **Changes**, in Home beside
+Agents and Activity (Ctrl+K, "Changes" or "Review").
 
 <table>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/review-dark.png"><img src="docs/readme/apps/review.png" alt="The Review app in Mobius"></picture><br><b>Review</b> · Everything Mobius changed, from every conversation, in one place.<br><sub>Check what happened while you were away, then keep or roll back.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/views-dark.png"><img src="docs/readme/apps/views.png" alt="The Views app in Mobius"></picture><br><b>Views</b> · Dashboards of live tiles from your other apps.<br><sub>Tasks due, today's events, unread mail, recent notes and what Mobius is doing, at a glance. Ask Mobius to make one.</sub></td>
-</tr>
-<tr>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/activity-dark.png"><img src="docs/readme/apps/activity.png" alt="The Activity app in Mobius"></picture><br><b>Activity</b> · What Mobius did across your apps, a day at a time, and what needs you.<br><sub>Filter by who did it, by app, or to what can't be undone. Rewind a conversation from here.</sub></td>
-<td width="50%" valign="top"></td>
 </tr>
 </table>
 

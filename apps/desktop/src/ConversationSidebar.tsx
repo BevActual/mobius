@@ -41,7 +41,7 @@ interface Props {
   onMoveBot: (id: string, direction: 'up' | 'down') => Promise<BotResult>;
 }
 
-export type SideMode = 'sessions' | 'activity' | 'bots';
+export type SideMode = 'sessions' | 'activity' | 'bots' | 'changes';
 
 const COLLAPSED_KEY = 'mobius.sidebar.collapsed';
 function readCollapsed(): string[] {
