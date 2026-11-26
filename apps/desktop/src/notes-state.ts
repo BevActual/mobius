@@ -45,3 +45,17 @@ export function findTodayNote<P extends { title: string; path: string }>(noteboo
   const title = todayNoteTitle(now);
   return notebooks.find((nb) => nb.name === JOURNAL)?.pages.find((pg) => pg.title === title);
 }
+
+/**
+ * The page to open when the open one has gone from disk (Undo took away a page Mobius made, or another app deleted
+ * it): the one now where it was in its notebook, else the one before it, else the first page of the first notebook
+ * that has one. Null when no page is left. `before` is the list as it was while the page was there.
+ */
+export function nearestPage<P extends { path: string }>(before: readonly { name: string; pages: readonly P[] }[],
+  after: readonly { name: string; pages: readonly P[] }[], gone: string): P | null {
+  const notebook = gone.split('/')[0];
+  const was = before.find((nb) => nb.name === notebook)?.pages.findIndex((pg) => pg.path === gone) ?? -1;
+  const left = after.find((nb) => nb.name === notebook)?.pages.filter((pg) => pg.path !== gone) ?? [];
+  if (left.length) return left[Math.min(Math.max(was, 0), left.length - 1)] ?? null;
+  return after.flatMap((nb) => nb.pages).find((pg) => pg.path !== gone) ?? null;
+}

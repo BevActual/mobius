@@ -156,6 +156,85 @@ test('the agent panel sits beside a note, and a change the agent makes shows up 
   await expect(text().locator('li')).toHaveText(['one', 'two']);
 });
 
+test('when Undo takes away the note Mobius made and it is open, the nearest note opens instead', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nThe plan.\n');
+  await start([callsTool('files-write', { path: 'notes/Work/Brief.md', content: '# Brief\n\nFrom Mobius.\n' }), says(['I wrote a brief.'])]);
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('Write a brief');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await expect(log.locator('.msg.assistant').last()).toHaveText('I wrote a brief.');
+  await side().getByRole('button', { name: 'Brief', exact: true }).click();
+  await expect(text()).toContainText('From Mobius.');
+  await log.getByRole('button', { name: /^Undo: / }).click();
+  await expect.poll(() => fs.existsSync(file('Work', 'Brief.md'))).toBe(false);
+  // The note that is left in its notebook opens, the list stays, and nothing says a page is missing.
+  await expect(text()).toContainText('The plan.');
+  await expect(side()).toBeVisible();
+  await expect(side().getByRole('button', { name: 'Brief', exact: true })).toHaveCount(0);
+  await expect(shell().getByText(/not there/)).toHaveCount(0);
+});
+
+test("a step's Undo of Mobius's change to the open note takes its review away with it", async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nOne thing.\n');
+  await start([callsTool('files-edit', { path: 'notes/Work/Plan.md', old: 'One thing.', new: 'One better thing.' }), says(['Added it.'])]);
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect(text()).toContainText('One thing.');
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('add another');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await expect(log.locator('.msg.assistant').last()).toHaveText('Added it.');
+  const added = shell().getByRole('button', { name: 'Keep this change' });
+  await expect(added).toBeVisible();
+  await log.getByRole('button', { name: /^Undo: / }).click();
+  await expect.poll(() => onDisk('Work', 'Plan.md')).toBe('# Plan\n\nOne thing.\n');
+  await expect(text()).not.toContainText('better');
+  await expect(added).toHaveCount(0);
+  await expect(side().getByRole('button', { name: /^From Mobius/ })).toHaveCount(0);
+  // What is typed next is the person's own.
+  await text().locator('p', { hasText: 'One thing.' }).click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' Mine.');
+  await expect.poll(() => onDisk('Work', 'Plan.md')).toBe('# Plan\n\nOne thing. Mine.\n');
+  await expect(added).toHaveCount(0);
+});
+
+test("a step's Undo after the person has typed in its note says why it cannot put it back", async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nOne thing.\n');
+  await start([
+    callsTool('files-edit', { path: 'notes/Work/Plan.md', old: 'One thing.', new: 'One better thing.' }),
+    callsTool('files-edit', { path: 'notes/Work/Plan.md', old: 'One better thing.', new: 'One better thing.\n\nTwo things.' }),
+    says(['Changed it.']),
+  ]);
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('make it better');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await expect(log.locator('.msg.assistant').last()).toHaveText('Changed it.');
+  await text().locator('h1').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' mine');
+  await expect.poll(() => onDisk('Work', 'Plan.md')).toContain('# Plan mine');
+  // Each step says so before it is pressed, and again when it is, the later one first, then the earlier one.
+  await expect(log.getByRole('button', { name: /^Undo: / })).toHaveCount(2);
+  for (const undo of await log.getByRole('button', { name: /^Undo: / }).all()) {
+    await expect(undo).toHaveAttribute('aria-disabled', 'true');
+    await expect(undo).toHaveAttribute('title', /changed again/);
+  }
+  for (const nth of [1, 0]) {
+    // Pressed anyway (Playwright waits on an aria-disabled button), it says why.
+    await log.getByRole('button', { name: /^Undo: / }).nth(nth).click({ force: true });
+    await expect(log.getByRole('alert').nth(nth === 1 ? 0 : 1)).toContainText('changed again');
+    await expect(log.getByRole('alert').nth(nth === 1 ? 0 : 1)).toBeInViewport();
+  }
+  expect(onDisk('Work', 'Plan.md')).toContain('Two things.');
+});
+
 test('a note written in another app keeps its front matter, footnotes, HTML and links when it is edited here', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   const before = '---\ntitle: Plan\ntags: [launch]\n---\n\n# Plan\n\nBody text.[^1] See [the brief](<Launch brief.md>).\n\n<details>\n<summary>More</summary>\n\nHidden\n\n</details>\n\nPress <kbd>Ctrl</kbd> to start.\n\n[^1]: The source.\n';

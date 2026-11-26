@@ -50,6 +50,13 @@ export function useTurnSteps(conversation: string, busy: boolean, items: readonl
   useEffect(() => {
     if (busy) { reads.current++; setListed([]); } else void load();
   }, [busy, load]);
+  // A page edited after the turn can leave a step with nothing to put back: read again, its Undo says so before a press.
+  useEffect(() => {
+    if (busy) return undefined;
+    const again = (change: { by: string }) => { if (change.by !== 'assistant') void load(); };
+    const offs = [window.mobius.notes, window.mobius.docs, window.mobius.tasks, window.mobius.sheets, window.mobius.slides].map((api) => api?.onChanged(again));
+    return () => { for (const off of offs) off?.(); };
+  }, [busy, load]);
   const undo = useCallback(async (step: TurnStep): Promise<string | null> => {
     const result = await window.mobius.changes?.undoStep?.(conversation, step.callId, step.tool, step.nth).catch(() => null);
     if (!result) return 'That step could not be put back.';

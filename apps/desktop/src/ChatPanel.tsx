@@ -31,6 +31,9 @@ import { FirstRunModels } from './settings/ProviderKeys';
 import { SignInForTask } from './SignIn';
 import { TurnStepsContext, useTurnStep, useTurnSteps } from './useTurnSteps';
 
+/** Why a step's Undo puts nothing back: what it changed was changed again since. The host says the same when pressed. */
+const LATER = 'That changed again after this step. Putting it back would lose those changes too.';
+
 const STATUS_TEXT: Record<ToolStatus, string> = {
   running: 'Running…',
   waiting: 'Waiting for you',
@@ -290,6 +293,7 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
   const detailsButton = useRef<HTMLButtonElement>(null);
   const undoStep = async () => {
     if (!step) return;
+    if (step.later) { setUndoProblem(LATER); return; }
     setUndoing(true);
     const problem = await undo(step);
     setUndoProblem(problem);
@@ -320,8 +324,8 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
         })()}
         <span className="tool-status">{step?.undone ? 'Put back' : STATUS_TEXT[item.status]}</span>
         {item.status === 'done' && step && !step.undone && (
-          <button type="button" className="msg-action tool-undo" disabled={undoing} aria-label={`Undo: ${spoken}`}
-            title={`Put back ${step.files.length === 1 ? 'what this step changed' : `the ${step.files.length} files this step changed`}, as they were before it`} onClick={() => void undoStep()}>Undo</button>
+          <button type="button" className="msg-action tool-undo" disabled={undoing} aria-label={`Undo: ${spoken}`} aria-disabled={step.later || undefined}
+            title={step.later ? LATER : `Put back ${step.files.length === 1 ? 'what this step changed' : `the ${step.files.length} files this step changed`}, as they were before it`} onClick={() => void undoStep()}>Undo</button>
         )}
         {step && <span className="sr-only" role="status">{putBack ? `Put back: ${spoken}` : ''}</span>}
         {finished && <button ref={detailsButton} type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details: ${spoken}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}

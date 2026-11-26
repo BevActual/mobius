@@ -1815,12 +1815,12 @@ fn one_step_of_a_turn_goes_back_on_its_own() {
     assert_eq!(
         steps["steps"],
         json!([
-            { "callId": "s1", "tool": "files.write", "nth": 0, "files": ["notes/A.md"], "undone": false },
-            { "callId": "s2", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false },
-            { "callId": "s1", "tool": "files.write", "nth": 1, "files": ["notes/Old.md"], "undone": false },
-            { "callId": "s4", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false },
+            { "callId": "s1", "tool": "files.write", "nth": 0, "files": ["notes/A.md"], "undone": false, "later": false },
+            { "callId": "s2", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false, "later": true },
+            { "callId": "s1", "tool": "files.write", "nth": 1, "files": ["notes/Old.md"], "undone": false, "later": false },
+            { "callId": "s4", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false, "later": false },
         ]),
-        "the read is not a step that changed anything"
+        "the read is not a step that changed anything; B's first step has nothing left to put back"
     );
     // The third step only: the old note is as it was, the new ones stay.
     let undone = call(&b, "changes", "undoStep", json!(["c-1", "s1", "files.write", 1]));
@@ -1838,7 +1838,43 @@ fn one_step_of_a_turn_goes_back_on_its_own() {
     assert!(!ws.join("notes/A.md").exists());
     // What was put back is no longer the turn's change: only B, changed twice, is left to review.
     assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/B.md"]));
+    // The person then edits the note put back: it is theirs, and does not come back as the turn's.
+    std::fs::write(ws.join("notes/Old.md"), "# Old, mine\n").unwrap();
+    assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/B.md"]));
     assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "r1", "files.read", 0]))["ok"], false, "a read changed nothing");
+}
+
+/// A note two steps changed: putting back only the second leaves the first step's change the turn's, before and after
+/// the person edits the note.
+#[test]
+fn a_step_put_back_leaves_an_earlier_step_on_the_same_file() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("notes")).unwrap();
+    std::fs::write(ws.join("notes/Plan.md"), "# Plan\n").unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "change the plan twice"]))["ok"], true);
+    let wait = |what: &dyn Fn() -> bool| {
+        let start = Instant::now();
+        while !what() {
+            assert!(start.elapsed() < Duration::from_secs(20), "timed out");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"].as_array().is_some_and(|t| !t.is_empty()));
+    let write = |call_id: &str, content: &str| {
+        b.host_request("host.tool", &json!({ "call_id": call_id, "tool": "files.write", "arguments": { "path": "notes/Plan.md", "content": content }, "conversation": "c-1" })).unwrap();
+    };
+    write("s1", "# Plan\n\nOne.\n");
+    write("s2", "# Plan\n\nOne.\n\nTwo.\n");
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"][0]["ended"] == true);
+    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "s2", "files.write", 0]))["ok"], true);
+    assert_eq!(std::fs::read_to_string(ws.join("notes/Plan.md")).unwrap(), "# Plan\n\nOne.\n");
+    assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/Plan.md"]));
+    std::fs::write(ws.join("notes/Plan.md"), "# Plan\n\nOne. Mine.\n").unwrap();
+    assert_eq!(call(&b, "changes", "lastTurn", json!(["c-1"]))["files"], json!(["notes/Plan.md"]));
+    // The person's edit leaves the first step nothing to put back, and it says so before its Undo is pressed.
+    assert_eq!(call(&b, "changes", "steps", json!(["c-1"]))["steps"][0]["later"], true);
 }
 
 /// A turn that changed no files, then another: the second has a start of its own, so keeping the first (by its start)

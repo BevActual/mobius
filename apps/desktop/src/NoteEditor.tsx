@@ -770,6 +770,16 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       if (d.some((l) => l.kind !== 'same')) setChanges(d);
     });
   }, [review?.conversation, kept, path, working ? notes.page?.base : null]); // eslint-disable-line react-hooks/exhaustive-deps
+  // After the turn, the page read again (a step of it put back by its Undo) is compared again with the page before it:
+  // what was put back stops showing as Mobius's, and with nothing left the review goes.
+  const reckoned = useRef(notes.reloads);
+  useEffect(() => {
+    if (reckoned.current === notes.reloads) return;
+    reckoned.current = notes.reloads;
+    if (working || was === null || !changes) return;
+    const d = diffLines(was, notes.text);
+    setChanges(d.some((l) => l.kind !== 'same') ? d : null);
+  }, [notes.reloads]); // eslint-disable-line react-hooks/exhaustive-deps
   // One change kept takes it into "before", so it stops showing; one discarded is put back. The last one settles the turn.
   const lastChange = (lines: DiffLine[]) => new Set(changeGroups(lines).filter((g) => g !== null)).size <= 1;
   const keepOne = (group: number) => {
