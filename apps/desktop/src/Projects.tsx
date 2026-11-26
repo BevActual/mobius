@@ -153,7 +153,7 @@ function ProjectProps({ projects, project, onOpenList }: { projects: ProjectsSta
         trigger={<button type="button" className="proj-prop" aria-label={`Status: ${statusName(project.status)}`}><StatusIcon status={project.status} /><span>{statusName(project.status)}</span></button>} />
       <label className="proj-prop proj-target" data-late={target?.late || undefined} title={target?.late ? 'The target day has passed' : 'Target day'}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6.5h12v9H4zM4 9h12M7.5 4.5v3M12.5 4.5v3" /></svg>
-        <span>{target ? target.text : 'Target day'}</span>
+        <span>{target ? target.text : 'Target day'}{target?.late && <span className="sr-only">, late</span>}</span>
         <input ref={dateField} type="date" className="proj-target-field" aria-label="Target day" value={project.target ?? ''} onChange={(e) => set({ target: e.target.value })} onClick={(e) => { try { e.currentTarget.showPicker(); } catch { /* the field itself takes the day */ } }} />
       </label>
       {project.target && <button type="button" className="proj-prop proj-clear" aria-label="Clear the target day" title="Clear the target day" onClick={() => set({ target: '' })}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 7 6 6m0-6-6 6" /></svg></button>}
