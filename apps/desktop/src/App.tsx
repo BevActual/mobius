@@ -804,13 +804,15 @@ export function App() {
   // Mobius beside the page goes back toward where it is asked from (its corner) before it is put away.
   // An app opened from the switcher, All apps or the launcher settles out of the tile or row that was clicked; one
   // opened from the keyboard only lifts out of a dim (switchIn).
-  const shownApp = useRef(app);
+  // Settings opening or closing is a change of place too.
+  const shownApp = useRef(`${app}|${settingsOpen}`);
   useLayoutEffect(() => {
-    if (shownApp.current === app) return;
-    shownApp.current = app;
+    const now = `${app}|${settingsOpen}`;
+    if (shownApp.current === now) return;
+    shownApp.current = now;
     const stage = document.querySelector<HTMLElement>('.stage');
     if (stage) switchIn(stage);
-  }, [app]);
+  }, [app, settingsOpen]);
   // Shown again while it was on its way out (a shortcut, Mobius in the sidebar), it stays: a hide
   // still finishing would otherwise close it, since chatOpen never went false and the effect below does not run.
   const hides = useRef(0);
@@ -894,7 +896,7 @@ export function App() {
       if (shellStandsDown(event)) return;
       const t = event.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-      if (document.querySelector('dialog[open]')) return;
+      if (document.querySelector('dialog[open]:not([data-leaving])')) return;
       event.preventDefault();
       setCommenting((on) => !on);
     };
