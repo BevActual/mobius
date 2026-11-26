@@ -890,6 +890,8 @@ export function createTauriBridge(): MobiusBridge {
       pin: (id, pinned) => fire('browser', 'pin', [id, pinned]),
       moveTab: (id, index) => fire('browser', 'moveTab', [id, index]),
       showBeside: (id) => fire('browser', 'showBeside', [id]),
+      setZoom: (id, factor) => fire('browser', 'setZoom', [id, factor]),
+      mute: (id, muted) => fire('browser', 'mute', [id, muted]),
       getState: () => call('browser', 'getState', [], () => EMPTY_BROWSER),
       onState: (listener) => on<BrowserState>('mobius:browser-state', listener, () => call('browser', 'getState', [], () => EMPTY_BROWSER)),
     },

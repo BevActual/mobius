@@ -883,4 +883,29 @@ impl Engine for CefEngine {
             });
         }
     }
+
+    fn zoom_page(&self, tab: &str, factor: f64) {
+        use cef::{ImplBrowser, ImplBrowserHost};
+        // Chromium counts zoom in levels: each one is 20% more (or less) than the one before.
+        let level = factor.ln() / 1.2f64.ln();
+        if let Some(browser) = chromium::with_browser(&self.shared, tab, Clone::clone) {
+            self.shared.ui(move || {
+                if let Some(host) = browser.host() {
+                    host.set_zoom_level(level);
+                }
+            });
+        }
+    }
+
+    // Whether a page plays sound is not reported here: CEF's audio handler takes the sound instead of playing it.
+    fn mute(&self, tab: &str, muted: bool) {
+        use cef::{ImplBrowser, ImplBrowserHost};
+        if let Some(browser) = chromium::with_browser(&self.shared, tab, Clone::clone) {
+            self.shared.ui(move || {
+                if let Some(host) = browser.host() {
+                    host.set_audio_muted(i32::from(muted));
+                }
+            });
+        }
+    }
 }
