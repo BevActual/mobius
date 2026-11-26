@@ -1,39 +1,61 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { TurnStep } from '@mobius/shared';
+import type { Item } from './conversation';
 
-/** The last turn's steps that changed files, by call, and putting one back. Given to each step row in the conversation. */
+/** The last turn's steps that changed files, by the conversation item that shows each, and putting one back. */
 export interface TurnSteps {
   steps: ReadonlyMap<string, TurnStep>;
   /** Puts one step's files back; resolves with what went wrong, or null. */
-  undo: (callId: string) => Promise<string | null>;
+  undo: (step: TurnStep) => Promise<string | null>;
 }
 
 const NONE: TurnSteps = { steps: new Map(), undo: async () => 'That step cannot be put back.' };
 export const TurnStepsContext = createContext<TurnSteps>(NONE);
-export const useTurnStep = (callId: string): { step: TurnStep | undefined; undo: TurnSteps['undo'] } => {
+/** The step a tool row shows, by the row's item id, once the turn has ended. */
+export const useTurnStep = (itemId: string): { step: TurnStep | undefined; undo: TurnSteps['undo'] } => {
   const { steps, undo } = useContext(TurnStepsContext);
-  return { step: steps.get(callId), undo };
+  return { step: steps.get(itemId), undo };
 };
 
+/**
+ * Each step the host listed, matched to the last turn's tool row that shows it: by call id and tool, and, where a
+ * model gave two calls the same id (some number them afresh in each answer), by how many such calls came before.
+ */
+export function matchSteps(items: readonly Item[], steps: readonly TurnStep[]): Map<string, TurnStep> {
+  const from = items.findLastIndex((i) => i.kind === 'user') + 1;
+  const seen = new Map<string, number>();
+  const out = new Map<string, TurnStep>();
+  for (const item of items.slice(from)) {
+    if (item.kind !== 'tool') continue;
+    const key = `${item.callId}\u0000${item.name}`;
+    const nth = seen.get(key) ?? 0;
+    seen.set(key, nth + 1);
+    const step = steps.find((s) => s.callId === item.callId && s.tool === item.name && s.nth === nth);
+    if (step) out.set(item.id, step);
+  }
+  return out;
+}
+
 /** Read when a turn ends and when another conversation is shown; while a turn runs, its steps cannot be put back. */
-export function useTurnSteps(conversation: string, busy: boolean): TurnSteps {
-  const [steps, setSteps] = useState<ReadonlyMap<string, TurnStep>>(new Map());
+export function useTurnSteps(conversation: string, busy: boolean, items: readonly Item[]): TurnSteps {
+  const [listed, setListed] = useState<readonly TurnStep[]>([]);
   const reads = useRef(0);
   const load = useCallback(async () => {
     const n = ++reads.current;
     const result = await window.mobius.changes?.steps?.(conversation).catch(() => null);
     if (n !== reads.current) return;
-    setSteps(new Map(result && 'steps' in result && Array.isArray(result.steps) ? result.steps.map((s) => [s.callId, s]) : []));
+    setListed(result && 'steps' in result && Array.isArray(result.steps) ? result.steps : []);
   }, [conversation]);
   useEffect(() => {
-    if (busy) { reads.current++; setSteps(new Map()); } else void load();
+    if (busy) { reads.current++; setListed([]); } else void load();
   }, [busy, load]);
-  const undo = useCallback(async (callId: string): Promise<string | null> => {
-    const result = await window.mobius.changes?.undoStep?.(conversation, callId).catch(() => null);
+  const undo = useCallback(async (step: TurnStep): Promise<string | null> => {
+    const result = await window.mobius.changes?.undoStep?.(conversation, step.callId, step.tool, step.nth).catch(() => null);
     if (!result) return 'That step could not be put back.';
     if (!result.ok) return result.error;
     await load();
     return null;
   }, [conversation, load]);
-  return { steps, undo };
+  const steps = useMemo(() => matchSteps(items, listed), [items, listed]);
+  return useMemo(() => ({ steps, undo }), [steps, undo]);
 }

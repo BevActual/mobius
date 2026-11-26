@@ -8,6 +8,7 @@ import type { HubTarget } from './search-hub';
 import { agoLabel, deskGreeting, deskQuiet, deskTitle, upcoming, whenLabel } from './desk-view';
 import { APP_ICONS } from './Rail';
 import { useFollowUps, waitingOn } from './mail-follow-ups';
+import { doneText, type BackgroundDone } from './background';
 import { LATER, laterUntil, sortInbox, trimKept, type InboxItem, type InboxKept } from './inbox';
 import { Menu } from './ui';
 import './desk.css';
@@ -44,6 +45,8 @@ interface Props {
    * `onOpen` goes to an item; `onDone` does what Done means for it (a task is ticked off) and says whether it worked.
    */
   inbox?: { items: readonly InboxItem[]; onOpen: (item: InboxItem) => void; onDone: (item: InboxItem) => Promise<boolean> };
+  /** Work handed to Mobius in the background that has finished: Open goes to its chat, Keep all keeps what it changed. */
+  background?: { items: readonly BackgroundDone[]; onOpen: (run: BackgroundDone) => void; onKeep: (run: BackgroundDone) => void; onDone: (run: BackgroundDone) => void };
   now?: Date;
 }
 
@@ -131,7 +134,7 @@ const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="
  * place; then what is open in your apps (an app Mobius changed carries its
  * dashed edge until you look); then the last things opened, to continue; then what is scheduled next.
  */
-export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, opened = [], onOpenRecent, suggested, inbox, now = new Date() }: Props) {
+export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, opened = [], onOpenRecent, suggested, inbox, background, now = new Date() }: Props) {
   const waiting = conversations.filter((c) => c.waiting > 0);
   const working = conversations.filter((c) => c.activity === 'working' && c.waiting === 0);
   const approvals = useFirstApprovals(waiting);
@@ -159,7 +162,8 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   };
   // The Inbox: everything across apps that waits on the person, in one list. What Mobius changed is here, not in
   // In your apps, so it is said once.
-  const inboxCount = waiting.length + changed.size + noReply.length + (drafted ? 1 : 0) + more.length;
+  const handedOff = background?.items ?? [];
+  const inboxCount = waiting.length + handedOff.length + changed.size + noReply.length + (drafted ? 1 : 0) + more.length;
   const apps = rows;
   const title = deskTitle(now, { waiting: inboxCount, working: working.length, changed: 0 });
   // Chats are in the Chats panel; Continue is what was open in the other apps.
@@ -215,6 +219,19 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                 </li>
               );
             })}
+            {handedOff.map((run) => (
+              <li key={`background:${run.conversation}:${run.at}`} className="desk-row" data-changed={run.files.length > 0 || undefined} data-background>
+                <button type="button" className="desk-open" aria-label={`Open ${run.ask}: ${doneText(run.files)}`} onClick={() => background?.onOpen(run)}>
+                  <Icon app="agent" />
+                  <span className="desk-name">{run.ask}</span>
+                  <span className="desk-text">{doneText(run.files)}</span>
+                  {go('Open')}
+                </button>
+                {run.files.length > 0
+                  ? <button type="button" className="desk-act" data-primary aria-label={`Keep all of ${run.ask}`} title="Keep everything it changed" onClick={() => background?.onKeep(run)}>Keep all</button>
+                  : <button type="button" className="desk-act" aria-label={`Done with ${run.ask}`} title="Clear it from the Inbox" onClick={() => background?.onDone(run)}>Done</button>}
+              </li>
+            ))}
             {[...changed].map((app) => (
               <li key={`changed:${app}`}>
                 <button type="button" className="desk-row" data-changed aria-label={`${appName(app)}: changed by Mobius while you were away`} onClick={() => onOpenApp(app)}>

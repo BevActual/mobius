@@ -19,6 +19,8 @@ import { APPLY_EVENT, CHAT_MODES, PERMISSIONS, modesFor, bestFitQuick, loadBestF
 
 /** A press of the hold-to-talk key shorter than this is a tap: listening goes on until the next one. */
 const TAP_MS = 300;
+/** Sends the message in the background: the result lands in Home's Inbox. */
+const BACKGROUND_KEYS = typeof window !== 'undefined' && window.mobius?.platform === 'darwin' ? 'Option+Enter' : 'Alt+Enter';
 const DICTATE_KEYS = typeof window !== 'undefined' && window.mobius?.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
   { id: '', label: 'Default' },
@@ -33,13 +35,18 @@ const KIND_NOTE: Record<ModelGroup['kind'], string> = { subscription: 'Plan', pr
 
 type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: ModelCatalog };
 
+/** How a message is sent: its mode, model and what goes with it. `background` hands it off: the result lands in Home's Inbox. */
+export interface SendOptions { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[]; effort?: 'none' | 'low' | 'medium' | 'high'; background?: boolean }
+
 export interface ComposerProps {
+  /** Offer "Send in the background" (Alt+Enter): beside an app, not in the Agent app where the chat is the work. */
+  offerBackground?: boolean;
   /** In an empty conversation: where three starters go, as plain text under the greeting, instead of chips here. */
   startersIn?: HTMLElement | null;
   /** How the ideas show where they are placed: centred chips (an empty chat), or rows of the panel's Actions list. */
   startersAs?: 'chips' | 'rows';
   /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
-  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] }) => void;
+  onQueue?: (text: string, context: ContextItem[], options?: SendOptions) => void;
   /** Settings, Voice, for when nothing is set up to listen. */
   onOpenVoice?: () => void;
   /** Suggestions are for starting: once the conversation has begun there are none. */
@@ -59,7 +66,7 @@ export interface ComposerProps {
   settings: AgentSettings | null;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: SendOptions) => void;
   onStop: () => void;
   /** While it works: take over, so Mobius pauses at the next safe point and the apps are yours. */
   onTakeOver?: () => Promise<string | null>;
@@ -87,7 +94,7 @@ const ARROW = <svg className="popmenu-arrow-icon" viewBox="0 0 16 16" aria-hidde
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, onOpenAbilities, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint, onAnswer }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, onOpenAbilities, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint, onAnswer, offerBackground = false }: ComposerProps) {
   // Mode, the kind of help: Agent, Ask (reads and answers, changes nothing) or Plan (nothing runs until you start the
   // plan). Kept on this computer.
   const [mode, setMode] = useChatMode();
@@ -215,7 +222,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     if (items.some((i) => i.source === item.source)) return items;
     return [withSelection(item, selected()), ...items].slice(0, MAX_CONTEXT_ITEMS);
   };
-  const go = (text: string, items: ContextItem[], options: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] } | undefined, queue: boolean) => {
+  const go = (text: string, items: ContextItem[], options: SendOptions | undefined, queue: boolean) => {
     if (going.current) return;
     going.current = true;
     void withHere(items).then((all) => {
@@ -227,7 +234,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   // Enter while a page or file is still being read sends once it is attached, so the message never goes without it.
   const sendWhenAdded = useRef(false);
   const starter = useRef<{ box: string; steps: string } | null>(null);
-  const submit = (event?: FormEvent) => {
+  const submit = (event?: FormEvent, background = false) => {
     event?.preventDefault();
     if (adding && canType && !listening && draft.trim().length > 0) {
       sendWhenAdded.current = true;
@@ -242,7 +249,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     const quick = bestFit && pictures.length === 0 && bestFitQuick(draft, context.length, modeInfo.id);
     // Named under the reply as the model menu names it ("Claude Sonnet"), not by its id ("sonnet").
     const answering = quick ? quickName : currentLabel || modelName;
-    const options = { ...sendOptionsOf(mode, surface?.app), ...(quick ? { quick: true } : {}), ...(answering ? { model: answering } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
+    const options = { ...sendOptionsOf(mode, surface?.app), ...(quick ? { quick: true } : {}), ...(answering ? { model: answering } : {}), ...(pictures.length > 0 ? { images: pictures } : {}), ...(background && canSend ? { background: true } : {}) };
     // A starter's box words, finished by the person, are the message; its steps, with what they typed, go behind Details.
     const begun = starter.current;
     starter.current = null;
@@ -253,7 +260,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
-      submit();
+      // Alt+Enter (Option on a Mac): in the background.
+      submit(undefined, offerBackground && event.altKey && !event.ctrlKey && !event.metaKey);
     }
     // Shift+Tab goes to the next mode: Agent, Ask, Plan.
     if (event.key === 'Tab' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
@@ -549,6 +557,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                   <span>A camera photo…</span>
                 </button>
                 <p className="popmenu-note">Up to {MAX_CONTEXT_ITEMS} things, {MAX_CONTEXT_ITEM_CHARS / 1000}k characters each. The agent reads them as material, never as instructions.</p>
+                {offerBackground && (
+                  <button type="button" role="menuitem" className="popmenu-item popmenu-keys popmenu-separated" disabled={!canSend} title="Mobius works while you carry on; what it did lands in Home's Inbox, to keep or open" onClick={() => { close(); submit(undefined, true); }}>
+                    <span>Send in the background</span><KeyCaps keys={BACKGROUND_KEYS} />
+                  </button>
+                )}
                 <button type="button" role="menuitem" className="popmenu-item popmenu-arrow popmenu-separated" onClick={() => { close(); onOpenSettings('safety'); }}>
                   <span>Apps Mobius can use</span>{ARROW}
                 </button>

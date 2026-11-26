@@ -164,7 +164,11 @@ impl crate::sync_pairs::SyncHost for SyncHost {
 struct StepMark {
     turn: String,
     call: String,
-    after: String,
+    tool: String,
+    /// How many calls of the turn with the same id and tool came before it.
+    nth: usize,
+    /// None for a call that changes nothing in the workspace.
+    after: Option<String>,
     /// Put back already: listed as such, and not put back twice.
     undone: bool,
 }
@@ -1664,38 +1668,46 @@ impl Bridge {
     /// After a call that may have changed the workspace: a checkpoint, so what that one step changed can be listed and
     /// put back on its own. Reading calls, the browser's and the web's change nothing there and take none.
     fn mark_step(&self, params: &Value, tool: &str) {
-        if !may_change_workspace(tool) {
-            return;
-        }
         let (Some(conversation), Some(call)) = (params["conversation"].as_str(), params["call_id"].as_str()) else {
             return;
         };
         let Some(turn) = lock(&self.turn_marks).get(conversation).cloned() else {
             return;
         };
-        let started = std::time::Instant::now();
-        match self.workspace.mark("after a step of the assistant's turn") {
-            Ok(Some(after)) => {
-                let mut steps = lock(&self.step_marks);
-                let list = steps.entry(conversation.to_owned()).or_default();
-                // Only the last turn's steps are kept.
-                list.retain(|s| s.turn == turn);
-                list.push(StepMark { turn, call: call.to_owned(), after, undone: false });
-            }
-            Ok(None) => {}
-            Err(error) => eprintln!("[changes] no mark after {tool}: {error}"),
-        }
-        slow("tool", "checkpoint after the step", started);
+        // Every call is noted, a reading one without a checkpoint, so a call is told apart from an earlier one with the
+        // same id (some models number their calls afresh in each answer) by how many came before it.
+        let after = if may_change_workspace(tool) {
+            let started = std::time::Instant::now();
+            let after = match self.workspace.mark("after a step of the assistant's turn") {
+                Ok(after) => after,
+                Err(error) => {
+                    eprintln!("[changes] no mark after {tool}: {error}");
+                    None
+                }
+            };
+            slow("tool", "checkpoint after the step", started);
+            after
+        } else {
+            None
+        };
+        let mut steps = lock(&self.step_marks);
+        let list = steps.entry(conversation.to_owned()).or_default();
+        // Only the last turn's steps are kept.
+        list.retain(|s| s.turn == turn);
+        let nth = list.iter().filter(|s| s.call == call && s.tool == tool).count();
+        list.push(StepMark { turn, call: call.to_owned(), tool: tool.to_owned(), nth, after, undone: false });
     }
 
-    /// The last turn's steps (begun at `turn`) with the checkpoint before each and after it.
-    fn steps_of(&self, conversation: &str, turn: &str) -> Vec<(StepMark, String)> {
+    /// The last turn's steps (begun at `turn`) that took a checkpoint, with the checkpoint before each.
+    fn steps_of(&self, conversation: &str, turn: &str) -> Vec<(StepMark, String, String)> {
         let steps = lock(&self.step_marks);
         let mut before = turn.to_owned();
         let mut out = Vec::new();
         for step in steps.get(conversation).into_iter().flatten().filter(|s| s.turn == turn) {
-            out.push((step.clone(), before.clone()));
-            before = step.after.clone();
+            if let Some(after) = &step.after {
+                out.push((step.clone(), before.clone(), after.clone()));
+                before = after.clone();
+            }
         }
         out
     }
@@ -4651,9 +4663,9 @@ impl Bridge {
                 let steps: Vec<Value> = self
                     .steps_of(conversation, &mark)
                     .into_iter()
-                    .filter_map(|(step, before)| {
-                        let files = self.workspace.changed_between(&before, &step.after).ok()?;
-                        (!files.is_empty()).then(|| json!({ "callId": step.call, "files": files, "undone": step.undone }))
+                    .filter_map(|(step, before, after)| {
+                        let files = self.workspace.changed_between(&before, &after).ok()?;
+                        (!files.is_empty()).then(|| json!({ "callId": step.call, "tool": step.tool, "nth": step.nth, "files": files, "undone": step.undone }))
                     })
                     .collect();
                 json!({ "ok": true, "steps": steps })
@@ -4664,20 +4676,20 @@ impl Bridge {
                 if end.is_none() {
                     return Ok(failed("Mobius is still working on that turn."));
                 }
-                let Some(call) = arg(1).as_str() else {
+                let (Some(call), Some(tool), nth) = (arg(1).as_str(), arg(2).as_str(), arg(3).as_u64().unwrap_or(0) as usize) else {
                     return Ok(failed("Which step?"));
                 };
-                let Some((step, before)) = self.steps_of(conversation, &mark).into_iter().find(|(s, _)| s.call == call) else {
+                let Some((step, before, after)) = self.steps_of(conversation, &mark).into_iter().find(|(s, _, _)| s.call == call && s.tool == tool && s.nth == nth) else {
                     return Ok(failed("That step changed nothing that can be put back."));
                 };
                 if step.undone {
                     return Ok(failed("That step was put back already."));
                 }
-                let files = match self.workspace.changed_between(&before, &step.after) {
+                let files = match self.workspace.changed_between(&before, &after) {
                     Ok(files) => files,
                     Err(e) => return Ok(failed(e)),
                 };
-                let since = self.workspace.changed_since(&step.after).unwrap_or_default();
+                let since = self.workspace.changed_since(&after).unwrap_or_default();
                 let (kept, back): (Vec<String>, Vec<String>) = files.into_iter().partition(|f| since.contains(f));
                 if back.is_empty() {
                     return Ok(json!({ "ok": false, "later": true, "error": "That changed again after this step. Putting it back would lose those changes too." }));
@@ -4685,7 +4697,7 @@ impl Bridge {
                 if let Err(e) = self.workspace.restore_paths(&before, &back) {
                     return Ok(failed(e));
                 }
-                if let Some(s) = lock(&self.step_marks).get_mut(conversation).and_then(|l| l.iter_mut().find(|s| s.turn == mark && s.call == call)) {
+                if let Some(s) = lock(&self.step_marks).get_mut(conversation).and_then(|l| l.iter_mut().find(|s| s.turn == mark && s.call == call && s.tool == tool && s.nth == nth)) {
                     s.undone = true;
                 }
                 self.reload_after_undo(None);

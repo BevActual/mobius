@@ -1804,38 +1804,39 @@ fn one_step_of_a_turn_goes_back_on_its_own() {
     write("s1", "notes/A.md", "# A\n");
     b.host_request("host.tool", &json!({ "call_id": "r1", "tool": "files.read", "arguments": { "path": "notes/A.md" }, "conversation": "c-1" })).unwrap();
     write("s2", "notes/B.md", "# B\n");
-    write("s3", "notes/Old.md", "# Old, changed\n");
+    // Some models number their calls afresh in each answer: a second "s1" is a step of its own.
+    write("s1", "notes/Old.md", "# Old, changed\n");
     write("s4", "notes/B.md", "# B, again\n");
     // Still running: no step goes back yet.
-    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "s1"]))["ok"], false);
+    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "s1", "files.write", 0]))["ok"], false);
     b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
     wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"][0]["ended"] == true);
     let steps = call(&b, "changes", "steps", json!(["c-1"]));
     assert_eq!(
         steps["steps"],
         json!([
-            { "callId": "s1", "files": ["notes/A.md"], "undone": false },
-            { "callId": "s2", "files": ["notes/B.md"], "undone": false },
-            { "callId": "s3", "files": ["notes/Old.md"], "undone": false },
-            { "callId": "s4", "files": ["notes/B.md"], "undone": false },
+            { "callId": "s1", "tool": "files.write", "nth": 0, "files": ["notes/A.md"], "undone": false },
+            { "callId": "s2", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false },
+            { "callId": "s1", "tool": "files.write", "nth": 1, "files": ["notes/Old.md"], "undone": false },
+            { "callId": "s4", "tool": "files.write", "nth": 0, "files": ["notes/B.md"], "undone": false },
         ]),
         "the read is not a step that changed anything"
     );
     // The third step only: the old note is as it was, the new ones stay.
-    let undone = call(&b, "changes", "undoStep", json!(["c-1", "s3"]));
+    let undone = call(&b, "changes", "undoStep", json!(["c-1", "s1", "files.write", 1]));
     assert_eq!(undone["ok"], true, "{undone}");
     assert_eq!(std::fs::read_to_string(ws.join("notes/Old.md")).unwrap(), "# Old\n");
     assert!(ws.join("notes/A.md").exists() && ws.join("notes/B.md").exists());
     assert_eq!(call(&b, "changes", "steps", json!(["c-1"]))["steps"][2]["undone"], true);
-    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "s3"]))["ok"], false, "not twice");
+    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "s1", "files.write", 1]))["ok"], false, "not twice");
     // B changed again in a later step: its first step leaves it.
-    let later = call(&b, "changes", "undoStep", json!(["c-1", "s2"]));
+    let later = call(&b, "changes", "undoStep", json!(["c-1", "s2", "files.write", 0]));
     assert_eq!((later["ok"].clone(), later["later"].clone()), (json!(false), json!(true)), "{later}");
     assert_eq!(std::fs::read_to_string(ws.join("notes/B.md")).unwrap(), "# B, again\n");
     // The first step: the note it made goes.
-    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "s1"]))["ok"], true);
+    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "s1", "files.write", 0]))["ok"], true);
     assert!(!ws.join("notes/A.md").exists());
-    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "r1"]))["ok"], false, "a read changed nothing");
+    assert_eq!(call(&b, "changes", "undoStep", json!(["c-1", "r1", "files.read", 0]))["ok"], false, "a read changed nothing");
 }
 
 /// A turn that changed no files, then another: the second has a start of its own, so keeping the first (by its start)

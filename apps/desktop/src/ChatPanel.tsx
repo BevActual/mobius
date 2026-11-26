@@ -12,7 +12,7 @@ import { ClaimChecks, RichText } from './RichText';
 import { unsureClaims, withoutMarks, withoutToolTags } from './markdown';
 import { ReviewStrip, TurnHistory } from './ReviewStrip';
 import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type AnswerFor, type EffortChoice, FOR_THIS_QUESTION, type TodoItem } from '@mobius/shared';
-import { Composer } from './composer/Composer';
+import { Composer, type SendOptions } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { ActionsList, ActionsSlotContext, actionKey } from './ActionsSlot';
 import { GlanceSlotContext, ResultSlotContext } from './PanelSlots';
@@ -280,12 +280,12 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
   };
   const [sending, setSending] = useState(false);
   // What this step changed, once the turn has ended: it can be put back on its own.
-  const { step, undo } = useTurnStep(item.callId);
+  const { step, undo } = useTurnStep(item.id);
   const [undoing, setUndoing] = useState(false);
   const [undoProblem, setUndoProblem] = useState<string | null>(null);
   const undoStep = async () => {
     setUndoing(true);
-    setUndoProblem(await undo(item.callId));
+    if (step) setUndoProblem(await undo(step));
     setUndoing(false);
   };
   const shownArgs = describeArguments(item.args);
@@ -381,7 +381,7 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[]; effort?: 'none' | 'low' | 'medium' | 'high' }) => void;
+  onSend: (text: string, context: ContextItem[], options?: SendOptions) => void;
   /** Show a browser tab to the person (to sign in themselves). */
   onShowTab?: (tab: string) => void;
   onStop: () => void;
@@ -797,7 +797,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
     queueMicrotask(() => field.current?.focus());
   }, [incoming]);
   // Each finished step that changed files can be put back on its own.
-  const turnSteps = useTurnSteps(state.conversation, state.busy);
+  const turnSteps = useTurnSteps(state.conversation, state.busy, state.items);
 
   return (
     <TurnStepsContext.Provider value={turnSteps}>
@@ -983,6 +983,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
           {/* On Home the quick starts sit just above the message box, where the hand already is. */}
           {state.items.length === 0 && configured && desk && <div ref={setStarterSlot} className="empty-starters desk-starters" />}
           <Composer
+            offerBackground={variant === 'panel'}
             takeFocus={takeFocus}
             contextUse={state.context}
             {...(onOpenVoice ? { onOpenVoice } : {})}

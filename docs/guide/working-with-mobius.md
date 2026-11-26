@@ -83,13 +83,20 @@ changes with what Mobius is doing.
   and **Try another**. Then the **Actions** list: the app's own actions first (Mail's **Get to zero** and **Triage**),
   then Mobius's ideas for what is open, four at most. Press 1 to 4 to pick one while the panel has the focus. Last,
   **Earlier chats** to pick up again.
-- **Working.** Mobius's plan as a checklist and each tool it uses as a plain sentence, with **Stop**.
+- **Working.** Mobius's plan as a checklist and each tool it uses as a plain sentence, with **Stop**. With the panel
+  closed, a small pill beside the Mobius icon says what it is doing (and *Mobius needs you* when it waits for you);
+  press it to open the panel.
 - **Asking.** A question is a card of numbered choices, the first outlined as the suggestion; press its number, or
   type your own answer in the message box. An approval is a dashed card that says what will happen. **Allow once**
   is on the right (it names the action, such as **Send** or **Delete**, for what can't be undone); **Decline** and
   **Always allow** sit quietly on the left. What can't be undone never offers Always allow.
 - **Done.** A card naming each app the turn changed, and, where the app has one, its own **Result** view of what was
-  made. Both end in **Discard**, **Try another** and **Keep**.
+  made. Both end in **Discard**, **Try another** and **Keep**. Each step that changed something has its own **Undo**,
+  which puts back only what that step changed; a file a later step changed again is left as it is.
+
+**Send in the background** (Alt+Enter, or the plus menu) hands a message off: the panel steps aside while Mobius
+works, and when it is done the result waits in Home's Inbox with **Keep all** and **Open**. Text you have selected in
+the app goes with a message as its own chip, which you can remove before sending.
 - **Failed.** A turn that failed is marked in red until the next one. In [Activity](../apps/assistant.md#activity)
   it is listed with what needs you, with **Try again**, which sends the same request once more.
 
