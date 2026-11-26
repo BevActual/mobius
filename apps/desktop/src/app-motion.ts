@@ -56,3 +56,16 @@ export async function unfold(row: HTMLElement | null): Promise<void> {
   await run.finished.catch(() => undefined);
   row.style.overflow = '';
 }
+
+/**
+ * Folds a row away while `work` takes it out of its list (Done, delete, set aside), so the rows under it slide up. When
+ * the row is still on the page afterwards (the work failed, or the view keeps such rows), it opens back out.
+ */
+export async function foldWhile<T>(row: HTMLElement | null, work: () => Promise<T>): Promise<T> {
+  await foldAway(row);
+  try {
+    return await work();
+  } finally {
+    requestAnimationFrame(() => { if (row?.isConnected && 'leaving' in row.dataset) void unfold(row); });
+  }
+}
