@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrowserTabState } from '@mobius/shared';
-import { addFolder, addSpace, favouriteTab, foldersIn, putInFolder, removeFolder, renameFolder, toggleFolder, inSpace, initialSpaces, readSpaces, removeSpace, staleTabs, syncSpaces, tabToShow, toggleFavourite } from './browser-spaces';
+import { addFolder, addRoute, addSpace, removeRoute, routeFor, favouriteTab, foldersIn, putInFolder, removeFolder, renameFolder, toggleFolder, inSpace, initialSpaces, readSpaces, removeSpace, staleTabs, syncSpaces, tabToShow, toggleFavourite } from './browser-spaces';
 
 const tab = (id: string, url: string, extra: Partial<BrowserTabState> = {}): BrowserTabState => ({ id, url, title: id, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra });
 const HOUR = 3_600_000;
@@ -104,5 +104,46 @@ describe('browser spaces', () => {
     const after = syncSpaces(back, [tab('n1', 'https://b.example', { pinned: true, active: true }), tab('n2', 'https://a.example/x', { pinned: true }), tab('n3', 'https://a.example/x')], 2);
     expect(after.tabFolder).toEqual({ n1: id, n2: id });
     expect(after.folderUrl).toEqual({ n1: 'https://b.example', n2: 'https://a.example/x' });
+  });
+
+  it('sends a new tab on a routed site to its space and shows that space, as Arc\'s Air Traffic Control; old tabs stay put', () => {
+    let s = syncSpaces(initialSpaces(), [tab('a', 'https://a.example', { active: true })], 0);
+    s = addSpace(s, 'Work');
+    const work = s.current;
+    s = { ...s, current: 's1' };
+    s = addRoute(s, 'https://www.example.com/inbox', work);
+    expect(s.routes).toEqual([{ host: 'example.com', space: work }]);
+    expect(routeFor(s, 'https://mail.example.com/x')).toBe(work);
+    expect(routeFor(s, 'https://notexample.com')).toBeNull();
+    s = syncSpaces(s, [tab('a', 'https://a.example'), tab('b', 'https://example.com/doc', { active: true })], 1);
+    expect(s.tabSpace).toEqual({ a: 's1', b: work });
+    expect(s.current).toBe(work);
+    // A tab already placed is not moved by a route, nor a new tab with no address yet.
+    s = { ...s, current: 's1' };
+    s = syncSpaces(s, [tab('a', 'https://example.com/later', { active: true }), tab('b', 'https://example.com/doc'), tab('c', '')], 2);
+    expect(s.tabSpace).toEqual({ a: 's1', b: work, c: 's1' });
+    // The shell opens a tab with no address and then loads it: its first address routes it. A start page (not a web
+    // address) or what is typed into it later does not.
+    s = { ...s, current: 's1' };
+    const base = [tab('a', 'https://example.com/later'), tab('b', 'https://example.com/doc')];
+    s = syncSpaces(s, [...base, tab('d', '', { active: true }), tab('e', '')], 3);
+    expect(s.tabSpace.d).toBe('s1');
+    s = syncSpaces(s, [...base, tab('d', 'https://docs.example.com/x', { active: true }), tab('e', 'mobius://start')], 4);
+    expect(s.tabSpace.d).toBe(work);
+    expect(s.current).toBe(work);
+    s = syncSpaces({ ...s, current: 's1' }, [...base, tab('d', 'https://docs.example.com/x'), tab('e', 'https://example.com/typed', { active: true })], 5);
+    expect(s.tabSpace.e).toBe('s1');
+    // A tab the person opened themselves (New tab), first seen empty, stays where they are whatever they type.
+    s = syncSpaces({ ...s, current: 's1' }, [...base, tab('f', '', { active: true })], 6, new Set(['f']));
+    s = syncSpaces(s, [...base, tab('f', 'https://example.com/typed', { active: true })], 7, new Set(['f']));
+    expect(s.tabSpace.f).toBe('s1');
+    // A blank tab left open for a while and typed into later stays where it is.
+    s = syncSpaces({ ...s, current: 's1' }, [...base, tab('g', '', { active: true })], 10);
+    s = syncSpaces(s, [...base, tab('g', 'https://example.com/later', { active: true })], 60_000);
+    expect(s.tabSpace.g).toBe('s1');
+    expect(s.unplaced).toEqual({});
+    expect(removeRoute(s, 'example.com').routes).toEqual([]);
+    expect(removeSpace(s, work).routes).toEqual([]);
+    expect(readSpaces(JSON.stringify(s)).routes).toEqual([{ host: 'example.com', space: work }]);
   });
 });

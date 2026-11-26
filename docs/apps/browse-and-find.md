@@ -31,6 +31,8 @@ A full web browser, with Mobius able to read and work on pages for you.
 - **Folders**: right-click a tab and choose **New folder with tab** to keep pinned tabs together, as in Arc. A folder opens and closes with a click; right-click it to rename or delete it.
 - **Zoom**: Ctrl+= and Ctrl+- zoom the page and Ctrl+0 resets it. Each site keeps its size; the address shows it, and a click resets it.
 - **Sound**: a speaker shows on a tab playing sound. Click it, or choose **Mute tab** from the tab's menu, to mute that tab.
+- **Air Traffic Control**: right-click a tab and choose **Always open <site> in <space>**, and links to that site open in that space from then on. Tabs options lists them.
+- **Peek**: Shift+click a link, or follow a link off a pinned tab's site, to see it in a card over the page. **Open as tab** keeps it; Escape closes it.
 - **Split view**: right-click a tab and choose **Open in split view** to show it beside the page you are on, or press **Ctrl+Shift+=**. Drag the divider to resize; **End split view** (or Ctrl+Shift+= again) goes back to one page.
 
 Settings: **Settings › Browser** (allowed sites, local addresses, bookmarks, history).

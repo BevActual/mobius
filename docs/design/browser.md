@@ -61,6 +61,29 @@ As Chrome's and Arc's speaker: a tab playing sound shows a speaker in its row, a
 on it (its own button, first of the row's buttons and shown at rest too) mutes or unmutes the tab, and the tab's menu has **Mute tab** / **Unmute tab** (`browser.mute`). Only WebView2
 reports sound playing; on Chromium the speaker shows once a tab is muted.
 
+## Air Traffic Control (round 3)
+
+As Arc's Air Traffic Control (resources.arc.net, "Air Traffic Control"): a site can be set to open in a space. With
+two or more spaces, a web tab's menu has **Always open <site> in <space>** (its own space), or **Stop opening …**
+once set. From then on a tab that opens already on that site (a link from Mail, another app or a page) goes to that
+space, and the space shows; a site's subdomains follow it. Tabs already placed are never moved, and a new tab you type
+into stays where you are. **Tabs options** lists each route, ticked; choosing one stops it. Deleting a space drops its
+routes.
+
+## Peek (round 3)
+
+As Arc's Peek (resources.arc.net, "Peek"): a link that leaves a pinned tab's site (once the tab has loaded, so sign-in
+redirects stay put) or a Shift+click on any link opens in a card over the page panel, not a new tab. The card shows
+the page's title and site, **Open as tab** (keeps it as a tab beside the active one, without reloading) and Close.
+Escape, Close or a click outside closes it. Only the peek page is drawn while it is open, so the pages under it show
+as a dimmed picture taken just before. The shell routes the links and places the page (`browser.peek`,
+`browser.keepPeek`, `surface.setPeekBounds`).
+
+Known gap: on WebView2 a pinned tab's link to another site is still asked for twice (the tab's request leaves before
+the shell cancels it, then the peek loads it fresh, without the referer). The fix is to catch the click in the page
+before it becomes a navigation; it is planned as its own shell change. Shift+click peeks on Windows only, and on Linux
+pinned-tab links open in the tab.
+
 ## Later
 
 - Separate sign-ins per space.
