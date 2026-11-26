@@ -434,6 +434,13 @@ describe('taking over', () => {
     s = reduce(s, note({ kind: 'cancelled' }));
     expect(s.control).toBeNull();
   });
+  it('a step in hand waits as paused, and one not run because the person took over says so, not Failed', () => {
+    let s = run({ type: 'sent', text: 'go', turn: 1 }, note({ kind: 'tool_call', call_id: 'c1', name: 'files.read', arguments: {} }), note({ kind: 'paused', step: 2 }));
+    expect(s.items.find((i) => i.kind === 'tool')).toMatchObject({ status: 'paused' });
+    s = reduce(s, note({ kind: 'resumed' }));
+    s = reduce(s, note({ kind: 'tool_result', call_id: 'c1', name: 'files.read', is_error: true }));
+    expect(s.items.find((i) => i.kind === 'tool')).toMatchObject({ status: 'skipped' });
+  });
   it('a tool answer is shown without the envelope it went to the model in', () => {
     expect(dataOf('<<untrusted-data source="files.read a">>\n{"x":1}\n<</untrusted-data>>')).toBe('{"x":1}');
   });
