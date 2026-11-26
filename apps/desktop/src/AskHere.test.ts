@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellsText, plainAnswer, placeCard } from './AskHere';
+import { cellsText, inlineAnswer, plainAnswer, placeCard } from './AskHere';
 
 describe('Ask from anywhere: where its card goes', () => {
   const view = { width: 1200, height: 800 };
@@ -27,5 +27,19 @@ describe('Ask from anywhere: chosen cells', () => {
 describe('Ask from anywhere: Replace selection', () => {
   it('puts plain words in place: no hashes, stars, ticks or link brackets', () => {
     expect(plainAnswer('## The port\n\n**Piraeus** is *the* port of `Athens`, see [map](https://x.example).')).toBe('The port\n\nPiraeus is the port of Athens, see map.');
+  });
+});
+
+describe('Ask from anywhere: Replace inside one line', () => {
+  const answer = '## Summary 1\n\nThe **budget** review uses `Q3` numbers\nand *final* totals.';
+  it('goes in as one line, without its heading, keeping its stop at the end of the line', () => {
+    expect(inlineAnswer(answer, '')).toBe('The budget review uses Q3 numbers and final totals.');
+  });
+  it('drops its stop where the sentence goes on after it', () => {
+    expect(inlineAnswer(answer, ' by Friday.')).toBe('The budget review uses Q3 numbers and final totals');
+    expect(inlineAnswer(answer, '. Then lunch.')).toBe('The budget review uses Q3 numbers and final totals');
+  });
+  it('keeps a heading that is all there is', () => {
+    expect(inlineAnswer('# Athens', '')).toBe('Athens');
   });
 });

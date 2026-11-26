@@ -320,7 +320,7 @@ test('Stop in the panel leaves the keyboard in the message box', async () => {
 test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a card by them, without opening the panel', async () => {
   fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Work'), { recursive: true });
   fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), '# Trip\n\nThe ferry leaves Piraeus at dawn.\n');
-  await start([says(['Piraeus is ', 'the port of Athens.'], 300), says(['**Athens**'], 100)]);
+  await start([says(['Piraeus is ', 'the port of Athens.'], 300), says(['## City\n\n**Athens**.'], 100)]);
   await openApp('Notes');
   if (await composer().isVisible()) await shell().keyboard.press('Control+Shift+M');
   await shell().getByRole('button', { name: 'Trip', exact: true }).click();
@@ -359,6 +359,7 @@ test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a ca
   await card.getByRole('textbox', { name: 'Ask about the selection' }).press('Enter');
   await card.getByRole('button', { name: 'Replace selection' }).click();
   await expect(card).toHaveCount(0);
+  // Inside one line: one line, without the answer's heading or a second full stop.
   await expect(note).toContainText('The ferry leaves Athens at dawn.');
   await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), 'utf8')).toContain('The ferry leaves Athens at dawn.');
 });

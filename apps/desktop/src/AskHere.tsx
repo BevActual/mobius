@@ -82,14 +82,28 @@ export function plainAnswer(markdown: string): string {
     .trim();
 }
 
+/**
+ * The answer for words chosen inside one line: one line of its own, without a heading of its own, and without a full
+ * stop of its own unless the words chosen ended the line.
+ */
+export function inlineAnswer(markdown: string, after: string): string {
+  const text = withoutToolTags(markdown);
+  // A heading of its own goes, unless it is all there is.
+  const body = text.replace(/^#{1,6}\s+.*$/gm, '').trim() || text;
+  const lines = plainAnswer(body).split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const one = lines.join(' ').replace(/\s+/g, ' ').trim();
+  // The sentence goes on after it (or ends with its own stop): the answer's own stop would sit in its middle.
+  return after.trim() ? one.replace(/[.,;:!?…]+$/, '') : one;
+}
+
 export function AskHere({ picked, here, app, onClose, onContinue, onReplace }: {
   picked: Picked;
   here: Here | null;
   app: string;
   onClose: () => void;
   onContinue: (conversation: string) => void;
-  /** Offered for words in an editor: the answer goes in their place. */
-  onReplace?: (text: string) => void;
+  /** Offered for words in an editor: the answer (as written, in markdown) goes in their place. */
+  onReplace?: (markdown: string) => void;
 }) {
   const [question, setQuestion] = useState('');
   const [asked, setAsked] = useState<string | null>(null);
@@ -191,8 +205,9 @@ export function AskHere({ picked, here, app, onClose, onContinue, onReplace }: {
           : <button type="submit" className="btn primary" disabled={!question.trim()}>Ask</button>}
       </form>
       <div className="ask-here-foot">
-        {onReplace && state === 'done' && shown && <button type="button" className="btn" onClick={() => onReplace(plainAnswer(shown))}>Replace selection</button>}
-        {state === 'done' && shown && <button type="button" className="btn ghost" onClick={() => { void navigator.clipboard?.writeText(plainAnswer(shown)).then(() => setCopied(true), () => undefined); }}>{copied ? 'Copied' : 'Copy'}</button>}
+        {onReplace && state === 'done' && shown && <button type="button" className="btn" onClick={() => onReplace(shown)}>Replace selection</button>}
+        {state === 'done' && shown && <button type="button" className="btn ghost" onClick={() => { void navigator.clipboard?.writeText(plainAnswer(shown)).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 2000); }, () => undefined); }}>{copied ? 'Copied' : 'Copy'}</button>}
+        <span className="sr-only" role="status">{copied ? 'Copied the answer' : ''}</span>
         {asked && state !== 'working' && <button type="button" className="btn ghost" onClick={() => onContinue(chat.current)}>Continue in chat</button>}
         <span className="ask-here-keys" aria-hidden="true"><KeyCaps keys="Esc" /> to close</span>
       </div>
