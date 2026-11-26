@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNotesFailure, type DeletedNote, type NoteHit, type Notebook } from '@mobius/shared';
-import { liveTitle, onPageChanged, type SaveStatus } from './notes-state';
+import { liveTitle, nearestPage, onPageChanged, type SaveStatus } from './notes-state';
 import { saveBeforeQuit } from './saveBeforeQuit';
 
 const SAVE_DELAY_MS = 500;
@@ -46,6 +46,9 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   const [reloads, setReloads] = useState(0);
   const live = useRef({ page, text, status });
   live.current = { page, text, status };
+  // The list as last shown, so a page gone from disk can be followed by the one that was beside it.
+  const shown = useRef<Notebook[]>([]);
+  shown.current = notebooks;
   const timer = useRef<number | undefined>(undefined);
 
   // Lists overlap (a change on disk, a delete, a new page each list again); only the newest is shown, so an older
@@ -318,6 +321,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
       if (found && !live.current.page) void load(found.path, found.title);
     });
     return api?.onChanged((change) => {
+      const before = shown.current;
       const listed = refresh();
       void readTrash();
       // Something Mobius made or changed opens when nothing else is open, so it can be seen and reviewed.
@@ -330,11 +334,27 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
         return;
       }
       const { page: p, status: s } = live.current;
-      const action = onPageChanged(s, p !== null && change.path === p.path, change.by);
-      if (action === 'reload' && p) void load(p.path, p.title).then(() => setReloads((n) => n + 1));
+      // An Undo of one step names no page: the open one is read again in case it was among them.
+      const action = onPageChanged(s, p !== null && (change.path === p.path || (!change.path && change.by === 'undo')), change.by);
+      // A change can take the open page away altogether (Undo of a page Mobius made, or a delete in another app): the
+      // page beside it opens, or none, so the window never sits on a page that is not there with the list hidden. The
+      // person's own moves, renames and deletes here look after the open page themselves.
+      if (p && s === 'saved' && change.by !== 'person') {
+        void listed.then(async (list) => {
+          if (live.current.page?.path !== p.path || live.current.status !== 'saved') return;
+          if (list && !list.some((nb) => nb.pages.some((pg) => pg.path === p.path))) {
+            const next = nearestPage(before, list, p.path);
+            if (remembered() === p.path) remember(null);
+            setPage(null); setText(''); setStatus('saved');
+            if (next) await load(next.path, next.title);
+            return;
+          }
+          if (action === 'reload') { await load(p.path, p.title); setReloads((n) => n + 1); }
+        });
+      }
       if (action === 'ask') setStatus('conflict');
     });
-  }, [active, api, refresh, readTrash, load, remembered, kind]);
+  }, [active, api, refresh, readTrash, load, remembered, remember, kind]);
 
   // Nothing typed is lost when the window goes away.
   useEffect(() => () => { void keepBeforeGoing(); }, [keepBeforeGoing]);

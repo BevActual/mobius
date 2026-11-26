@@ -156,6 +156,26 @@ test('the agent panel sits beside a note, and a change the agent makes shows up 
   await expect(text().locator('li')).toHaveText(['one', 'two']);
 });
 
+test('when Undo takes away the note Mobius made and it is open, the nearest note opens instead', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nThe plan.\n');
+  await start([callsTool('files-write', { path: 'notes/Work/Brief.md', content: '# Brief\n\nFrom Mobius.\n' }), says(['I wrote a brief.'])]);
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('Write a brief');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await expect(log.locator('.msg.assistant').last()).toHaveText('I wrote a brief.');
+  await side().getByRole('button', { name: 'Brief', exact: true }).click();
+  await expect(text()).toContainText('From Mobius.');
+  await log.getByRole('button', { name: /^Undo: / }).click();
+  await expect.poll(() => fs.existsSync(file('Work', 'Brief.md'))).toBe(false);
+  // The note that is left in its notebook opens, the list stays, and nothing says a page is missing.
+  await expect(text()).toContainText('The plan.');
+  await expect(side()).toBeVisible();
+  await expect(side().getByRole('button', { name: 'Brief', exact: true })).toHaveCount(0);
+  await expect(shell().getByText(/not there/)).toHaveCount(0);
+});
+
 test('a note written in another app keeps its front matter, footnotes, HTML and links when it is edited here', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   const before = '---\ntitle: Plan\ntags: [launch]\n---\n\n# Plan\n\nBody text.[^1] See [the brief](<Launch brief.md>).\n\n<details>\n<summary>More</summary>\n\nHidden\n\n</details>\n\nPress <kbd>Ctrl</kbd> to start.\n\n[^1]: The source.\n';
