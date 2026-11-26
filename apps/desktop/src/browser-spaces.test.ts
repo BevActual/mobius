@@ -133,6 +133,10 @@ describe('browser spaces', () => {
     expect(s.current).toBe(work);
     s = syncSpaces({ ...s, current: 's1' }, [...base, tab('d', 'https://docs.example.com/x'), tab('e', 'https://example.com/typed', { active: true })], 5);
     expect(s.tabSpace.e).toBe('s1');
+    // A tab the person opened themselves (New tab), first seen empty, stays where they are whatever they type.
+    s = syncSpaces({ ...s, current: 's1' }, [...base, tab('f', '', { active: true })], 6, new Set(['f']));
+    s = syncSpaces(s, [...base, tab('f', 'https://example.com/typed', { active: true })], 7, new Set(['f']));
+    expect(s.tabSpace.f).toBe('s1');
     expect(s.unplaced).toEqual([]);
     expect(removeRoute(s, 'example.com').routes).toEqual([]);
     expect(removeSpace(s, work).routes).toEqual([]);

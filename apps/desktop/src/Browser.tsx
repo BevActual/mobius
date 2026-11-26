@@ -246,6 +246,11 @@ function useSiteZoom(tabs: readonly BrowserTabState[]) {
   }, [tabs, map]);
 }
 
+/** Tabs the person opened with New tab: Air Traffic Control never moves them, whatever is typed there. */
+const ownTabs = new Set<string>();
+/** A tab the person opened: kept in the space they are in. */
+export function ownTab(id: string | null | undefined) { if (id) ownTabs.add(id); }
+
 /** The spaces, favourites and Today's clock, kept for the window (and across restarts) and shared by the tabs panel and the keys. */
 const SPACES_KEY = 'mobius.browser.spaces';
 let spaces: SpacesState = readSpaces((() => { try { return localStorage.getItem(SPACES_KEY); } catch { return null; } })());
@@ -282,7 +287,7 @@ const clearing = new Set<string>();
 function useSpacesSync(tabs: readonly BrowserTabState[]) {
   // Again when a tab goes in or out of a folder, so its address is kept for a restart.
   const inFolders = useSpaces().tabFolder;
-  useEffect(() => { setSpaces((s) => syncSpaces(s, tabs, Date.now())); }, [tabs, inFolders]);
+  useEffect(() => { setSpaces((s) => syncSpaces(s, tabs, Date.now(), ownTabs)); }, [tabs, inFolders]);
   const latest = useRef(tabs);
   // A web tab that has left the list since last time is remembered under Recently closed.
   useEffect(() => {

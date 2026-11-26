@@ -64,7 +64,7 @@ import { useDatabases } from './useDatabases';
 import { TerminalPage, TerminalSidebar } from './Terminal';
 import { useTerminal } from './useTerminal';
 import { ReviewPage, ReviewSidebar, useReview } from './Review';
-import { BrowserChrome, BrowserPage, BrowserSidebar, stepSpace } from './Browser';
+import { BrowserChrome, BrowserPage, BrowserSidebar, ownTab, stepSpace } from './Browser';
 import { hostOf } from './browser-view';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar, StudioSub } from './Studio';
@@ -1050,7 +1050,8 @@ export function App() {
   // However Settings closes, the next opening starts at its first page again.
   const closeSettings = useCallback(() => { setSettingsOpen(false); setSettingsSection(undefined); }, []);
   const newTab = useCallback(() => {
-    void window.mobius.browser.open().then(() => address.current?.focus());
+    // The person's own new tab: Air Traffic Control leaves it in the space they are in.
+    void window.mobius.browser.open().then((id) => { ownTab(id); address.current?.focus(); });
   }, []);
   // The same as the toolbar's split and Little Mobius buttons, for their shortcuts.
   const toggleSplit = useCallback(() => {

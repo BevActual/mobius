@@ -75,7 +75,7 @@ export function readSpaces(raw: string | null): SpacesState {
  * Brought up to date with the shell's tabs: new tabs join the current space, closed ones are forgotten, the shown tab
  * is marked seen now, and when the shown tab is in another space (picked from the address bar, say) that space shows.
  */
-export function syncSpaces(s: SpacesState, tabs: readonly BrowserTabState[], now: number): SpacesState {
+export function syncSpaces(s: SpacesState, tabs: readonly BrowserTabState[], now: number, own: ReadonlySet<string> = new Set()): SpacesState {
   const ids = new Set(tabs.map((t) => t.id));
   const known = new Set(s.spaces.map((sp) => sp.id));
   const tabSpace: Record<string, string> = {};
@@ -84,10 +84,10 @@ export function syncSpaces(s: SpacesState, tabs: readonly BrowserTabState[], now
   for (const t of tabs) {
     const sp = s.tabSpace[t.id];
     // A tab opened on a site with a route (a link from another app or page) goes to that space: by its first address,
-    // as the shell opens a tab before loading it. A new tab's start page, and what is typed there later, never move it.
-    const waiting = s.unplaced?.includes(t.id) === true;
-    if ((sp === undefined || waiting) && t.url === '') unplaced.push(t.id);
-    const routed = (sp === undefined || waiting) && t.url !== '' ? routeFor(s, t.url) : null;
+    // as the shell opens a tab before loading it. A tab the person opened (New tab), and what they type there, never move.
+    const waiting = s.unplaced?.includes(t.id) === true && !own.has(t.id);
+    if ((sp === undefined || waiting) && t.url === '' && !own.has(t.id)) unplaced.push(t.id);
+    const routed = (sp === undefined || waiting) && t.url !== '' && !own.has(t.id) ? routeFor(s, t.url) : null;
     tabSpace[t.id] = routed ?? (sp && known.has(sp) ? sp : s.current);
     seen[t.id] = t.active ? now : (s.seen[t.id] ?? now);
   }
