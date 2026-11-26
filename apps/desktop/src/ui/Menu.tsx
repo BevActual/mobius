@@ -129,6 +129,8 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
       onClick={() => pick(entry.run)}
     >
       {entry.checked ? TICK : GAP}
+      {/* A choice can carry its own mark after the tick (Projects: each status's mark, as Linear's menu). */}
+      {entry.icon}
       {entry.detail ? (
         <span className="ui-choice-text"><span className="ui-menu-label">{entry.label}</span><span className="ui-choice-meaning" id={`${base}-${i}`}>{entry.detail}</span></span>
       ) : <span className="ui-menu-label">{entry.label}</span>}

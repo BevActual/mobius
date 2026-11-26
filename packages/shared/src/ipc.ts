@@ -883,6 +883,8 @@ export interface MobiusBridge {
     /** A new name: its folder in Files and its memory page in the Wiki follow it. */
     rename(id: string, name: string): Promise<ProjectInfo | NotesFailure>;
     setRule(id: string, app: string, level: ProjectLevel | 'follow'): Promise<ProjectInfo | NotesFailure>;
+    /** Its status, target day or task list. */
+    setDetails?(id: string, details: ProjectDetails): Promise<ProjectInfo | NotesFailure>;
     addThread(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
     /** A thread leaves the project, with the side threads asked from it; the conversation is kept. */
     removeThread?(id: string, conversation: string): Promise<ProjectInfo | NotesFailure>;
@@ -2208,6 +2210,10 @@ export interface MailPlan { archive: MailPlanRow[]; reply: MailPlanRow[]; todos:
 /** How much Mobius may do in one app of a project: Ask first, Propose or Act. */
 export type ProjectLevel = 'ask' | 'propose' | 'act';
 /** A project: its name, its rules by app, and its conversations (threads). */
-export interface ProjectInfo { id: string; name: string; rules: Partial<Record<string, ProjectLevel>>; threads: string[]; sides?: ProjectSide[] }
+/** Where a project stands, as Linear's project statuses. */
+export type ProjectStatus = 'backlog' | 'planned' | 'started' | 'paused' | 'completed' | 'canceled';
+export interface ProjectInfo { id: string; name: string; rules: Partial<Record<string, ProjectLevel>>; threads: string[]; sides?: ProjectSide[]; status?: ProjectStatus; /** The day it should be done by (YYYY-MM-DD). */ target?: string; /** The Tasks list holding its work, for its progress. */ list?: string }
+/** A change to a project's status, target or task list: an absent field stays, an empty string clears it. */
+export interface ProjectDetails { status?: ProjectStatus | ''; target?: string; list?: string }
 /** A bot asked from a project thread to do something in a side thread of its own, and what it reported back. */
 export interface ProjectSide { conversation: string; parent: string; bot: string; botName: string; ask: string; report?: string | null }
