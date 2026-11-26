@@ -550,15 +550,22 @@ impl Browser {
         }
         let then = {
             let mut s = lock(&self.state);
-            match (url, s.peek.as_ref().map(|p| p.id.clone())) {
-                (Some(url), Some(id)) => Then::Navigate(id, url),
+            match (url, s.peek.as_ref().map(|p| (p.id.clone(), p.url.clone()))) {
+                // The same link asked for twice (one click can report more than once): it is already on its way.
+                (Some(url), Some((_, at))) if at == url => Then::Nothing,
+                (Some(url), Some((id, _))) => {
+                    if let Some(p) = s.peek.as_mut() {
+                        p.url.clone_from(&url);
+                    }
+                    Then::Navigate(id, url)
+                }
                 (Some(url), None) => {
                     s.counter += 1;
                     let id = format!("tab-{}", s.counter);
-                    s.peek = Some(Tab::new(id.clone()));
+                    s.peek = Some(Tab { url: url.clone(), ..Tab::new(id.clone()) });
                     Then::Open(id, url)
                 }
-                (None, Some(id)) => {
+                (None, Some((id, _))) => {
                     s.peek = None;
                     Then::Close(id)
                 }
@@ -961,6 +968,8 @@ mod tests {
         assert_eq!(b.state()["peek"], json!({ "url": "https://example.com/", "title": "Example", "loading": true }));
         b.peek(Some("other.example"));
         assert!(engine.calls().contains(&"navigate tab-2 https://other.example/".to_owned()), "one peek at a time");
+        b.peek(Some("https://other.example/"));
+        assert_eq!(engine.calls().iter().filter(|c| c.contains("other.example")).count(), 1, "the same link twice loads once");
         b.peek(None);
         assert!(engine.calls().contains(&"close tab-2".to_owned()));
         assert_eq!(b.state()["peek"], Value::Null);

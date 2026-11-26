@@ -183,16 +183,12 @@ impl Engine for WebViewEngine {
         let (nav_id, load_id, title_id) = (id.clone(), id.clone(), id.clone());
         let builder = WebviewBuilder::new(&id, WebviewUrl::External(parsed))
             .on_navigation(move |target| {
-                // A link that leaves a pinned tab's site opens in a peek; the tab stays where it is.
-                if let Some(b) = weak_browser(&nav_slot)
-                    && b.allows_navigation(target.as_str())
-                    && b.peeks_link(&nav_id, target.as_str(), None)
-                {
-                    let url = target.to_string();
-                    in_order(move || b.peek(Some(&url)));
-                    return false;
-                }
                 let allowed = weak_browser(&nav_slot).is_none_or(|b| b.allows_navigation(target.as_str()));
+                // On Windows the tab learns of the move from `watch_navigation`, which also knows whether it was a
+                // click and can send it to a peek instead.
+                #[cfg(windows)]
+                let _ = &nav_id;
+                #[cfg(not(windows))]
                 if allowed && let Some(b) = weak_browser(&nav_slot) {
                     let (id, url) = (nav_id.clone(), target.to_string());
                     in_order(move || {
@@ -262,6 +258,22 @@ impl Engine for WebViewEngine {
                             let _ = engine_cdp(&engine_pages, &tab, "Browser.setPermission", json!({ "permission": { "name": name }, "setting": "denied" }));
                         }
                     });
+                    // The page is moving: the tab learns where. A link clicked that leaves a pinned tab's site opens
+                    // in a peek instead, and the tab stays where it is; a redirect or a script's move (no click) stays.
+                    let (move_slot, move_id) = (self.browser.clone(), id.clone());
+                    crate::cdp::watch_navigation(&webview, Arc::new(move |url: String, clicked: bool| {
+                        let Some(b) = weak_browser(&move_slot).filter(|b| b.allows_navigation(&url)) else { return false };
+                        let id = move_id.clone();
+                        if b.peeks_link(&id, &url, Some(clicked)) {
+                            in_order(move || b.peek(Some(&url)));
+                            return true;
+                        }
+                        in_order(move || {
+                            b.navigated(&id, &url, false, false);
+                            b.loading(&id, true);
+                        });
+                        false
+                    }));
                     // Ctrl and the mouse wheel zoom the page itself: the tab learns the new factor.
                     let (zoom_slot, zoom_id) = (self.browser.clone(), id.clone());
                     crate::cdp::watch_zoom(&webview, Arc::new(move |factor| {
