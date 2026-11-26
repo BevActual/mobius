@@ -80,6 +80,8 @@ test('an account signs in with an app password, mail is sorted here, and only th
   await expect(frame).toBeVisible();
   expect(await frame.getAttribute('sandbox')).toBe('allow-same-origin');
   expect(await frame.getAttribute('srcdoc')).toContain("default-src 'none'");
+  // The frame fits the whole message, so nothing is clipped and it has no scrollbar of its own.
+  await expect.poll(() => frame.evaluate((f: HTMLIFrameElement) => (f.contentDocument!.documentElement.scrollHeight - f.clientHeight))).toBeLessThanOrEqual(0);
   // A link in it opens in the Browser (with Ctrl, without leaving Mail), as a link in a note does.
   await shell().evaluate(() => { const w = window as unknown as { links: string[] }; w.links = []; window.addEventListener('mobius:web-link', (e) => w.links.push((e as CustomEvent<{ url: string; background: boolean }>).detail.url + (((e as CustomEvent<{ background: boolean }>).detail.background) ? ' (background)' : ''))); });
   await frame.contentFrame().getByRole('link', { name: 'Manage booking' }).click({ modifiers: ['Control'] });

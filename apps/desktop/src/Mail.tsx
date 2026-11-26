@@ -161,17 +161,29 @@ function HtmlBody({ html }: { html: string }) {
     if (!el) return undefined;
     let tries = 0;
     let timer = 0;
+    let sizer: ResizeObserver | undefined;
     const ready = () => {
       const d = el.contentDocument;
       if (d && d.URL !== 'about:blank' && d.body) {
-        if (d.documentElement.dataset.links !== 'on') { links(d); setHeight(Math.min(6000, d.body.scrollHeight + 24)); }
+        if (d.documentElement.dataset.links !== 'on') {
+          links(d);
+          // Fit the frame to the whole page, body margins included, and grow it as images come in.
+          const fit = () => {
+            const tall = Math.ceil(d.documentElement.getBoundingClientRect().height);
+            d.documentElement.style.overflow = tall <= 6000 ? 'hidden' : '';
+            setHeight(Math.min(6000, tall));
+          };
+          fit();
+          sizer = new ResizeObserver(fit);
+          sizer.observe(d.documentElement);
+        }
         return;
       }
       if (tries++ < 50) timer = window.setTimeout(ready, 60);
     };
     ready();
     el.addEventListener('load', ready);
-    return () => { window.clearTimeout(timer); el.removeEventListener('load', ready); };
+    return () => { window.clearTimeout(timer); sizer?.disconnect(); el.removeEventListener('load', ready); };
   }, [doc]);
   return <iframe ref={frame} className="mail-html" title="Message" sandbox="allow-same-origin" srcDoc={doc} style={{ height }} />;
 }
