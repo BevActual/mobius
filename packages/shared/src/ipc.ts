@@ -22,6 +22,12 @@ export interface BrowserTabState {
   pinned?: boolean;
   /** Who is using the tab while a task runs: Mobius reading it, Mobius driving it, or you after taking over. None: yours, as usual. */
   driver?: 'reading' | 'mobius' | 'yours' | null;
+  /** How much the page is scaled (1 is its own size). Only the Tauri shell sets it. */
+  zoom?: number;
+  /** The page is playing sound. Only WebView2 reports it; Chromium pages say false. */
+  audible?: boolean;
+  /** The person silenced the page. */
+  muted?: boolean;
 }
 
 export interface SavedServer {
@@ -1521,6 +1527,10 @@ export interface MobiusBridge {
     moveTab?(tabId: string, index: number): void;
     /** Split view: show this tab beside the active one; null ends the split. Activating a tab outside the split ends it too. */
     showBeside?(tabId: string | null): void;
+    /** Scale a tab's page (1 is its own size); the shell keeps it within 0.25 to 5. Remembering it per site is the window's. */
+    setZoom?(tabId: string, factor: number): void;
+    /** Silence a tab's page, or let it be heard again. */
+    mute?(tabId: string, muted: boolean): void;
   };
 }
 

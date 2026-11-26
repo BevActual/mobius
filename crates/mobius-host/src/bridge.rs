@@ -1511,6 +1511,19 @@ impl Bridge {
                 }
                 Value::Null
             }
+            // Page zoom: the browser keeps the factor within 25% to 500%.
+            "setZoom" => {
+                if let (Some(t), Some(factor)) = (tab(), arg(1).as_f64()) {
+                    b.set_zoom(t, factor);
+                }
+                Value::Null
+            }
+            "mute" => {
+                if let (Some(t), Some(muted)) = (tab(), arg(1).as_bool()) {
+                    b.mute(t, muted);
+                }
+                Value::Null
+            }
             "moveTab" => {
                 if let (Some(t), Some(to)) = (tab(), arg(1).as_u64().and_then(|n| usize::try_from(n).ok()).filter(|n| *n < 1000)) {
                     b.move_tab(t, to);

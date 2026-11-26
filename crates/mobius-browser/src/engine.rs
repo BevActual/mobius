@@ -27,6 +27,10 @@ pub trait Engine: Send + Sync {
     fn picture(&self, tab: &str) -> Option<Vec<u8>>;
     fn find(&self, tab: &str, text: &str, forward: bool, again: bool);
     fn stop_find(&self, tab: &str);
+    /// Scale the page's content: 1 is its own size. The tab keeps it as it navigates.
+    fn zoom_page(&self, tab: &str, factor: f64);
+    /// Silence the page, or let it be heard again.
+    fn mute(&self, tab: &str, muted: bool);
 }
 
 #[cfg(any(test, feature = "fake"))]
@@ -101,6 +105,12 @@ pub mod fake {
         }
         fn stop_find(&self, tab: &str) {
             self.note(format!("stop_find {tab}"));
+        }
+        fn zoom_page(&self, tab: &str, factor: f64) {
+            self.note(format!("zoom {tab} {factor}"));
+        }
+        fn mute(&self, tab: &str, muted: bool) {
+            self.note(format!("mute {tab} {muted}"));
         }
     }
 }
