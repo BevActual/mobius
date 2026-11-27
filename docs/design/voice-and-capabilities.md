@@ -184,6 +184,11 @@ This is mostly moving and renaming what exists, done in small PRs with the old s
    starts with Listen and Speak.
 2. **Better transcription.** Parakeet v3 as the accurate local listener, speaker labels in meeting notes (pyannote
    segmentation + 3D-Speaker), Moonshine for live captions. Chat, Second and Quick move onto the router.
+   *Round 2a (mobius-voice 0.3.0):* Parakeet v3 is "Most accurate" under Settings > Models > Listening; "Who spoke, in
+   meeting notes" is its own 31 MB download (pyannote segmentation-3.0 int8 + 3D-Speaker CAM++ English). Each 2-minute
+   part is told apart on its own, then each voice print is matched (cosine ≥ 0.5) against the voices already heard in
+   that meeting, so Speaker 1 stays Speaker 1 all through it; two voices in one part are never merged. The transcript
+   reads as turns, `**Speaker 1:** …`. Moonshine captions and the router come next.
 3. **Live voice.** Talk to Mobius hands-free: Silero VAD + Smart Turn v3 decide when you have finished, the reply
    is spoken and you can interrupt it. All the usual approvals still appear on screen.
 4. **Clean-up tools.** Clean up a recording (DeepFilterNet, GTCRN) in Notes and Video; separate stems (Spleeter)

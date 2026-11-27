@@ -1,5 +1,6 @@
-//! Listening on this computer: Whisper through sherpa-onnx, with Silero VAD cutting the sound into pieces of speech
-//! under Whisper's 30-second window, each written down with the time it starts.
+//! Listening on this computer: Whisper or Parakeet through sherpa-onnx, with Silero VAD cutting the sound into pieces
+//! of speech under Whisper's 30-second window, each written down with the time it starts, and, for a meeting, who
+//! said it (pyannote segmentation and a 3D-Speaker voice print).
 //!
 //! Mobius talks to this program one JSON object per line on stdin and stdout. Each request has an `id`, which its
 //! answer repeats.
@@ -7,7 +8,10 @@
 //! - `{"id":1,"op":"ping"}` answers `{"id":1,"ok":true,"version":"0.1.0"}`.
 //! - `{"id":2,"op":"transcribe","audio":"<16 kHz mono WAV>","whisper":{"encoder":…,"decoder":…,"tokens":…},
 //!   "vad":"<silero_vad.onnx>","language":"en"}` answers `{"id":2,"ok":true,"seconds":12.5,"segments":[{"start":0.4,
-//!   "end":3.1,"text":"…"}]}`.
+//!   "end":3.1,"text":"…"}]}`. `"parakeet":{"encoder":…,"decoder":…,"joiner":…,"tokens":…}` in place of `whisper`
+//!   listens with Parakeet TDT v3 (it finds the language itself). `"speakers":{"segmentation":…,"embedding":…,
+//!   "meeting":"<id>"}` labels each piece `"speaker":"Speaker 1"`; the parts of one meeting keep the same names, as
+//!   each voice is matched against the ones already heard in it.
 //!
 //! - `{"id":3,"op":"speak","text":"…","kokoro":{"model":…,"voices":…,"tokens":…,"lexicon":…},"voice":3,"speed":1.0,
 //!   "out":"<where to write the WAV>"}` answers `{"id":3,"ok":true,"seconds":4.2}`. Kokoro through sherpa-onnx, with the
@@ -18,7 +22,10 @@
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sherpa_onnx::{GenerationConfig, OfflineRecognizer, OfflineRecognizerConfig, OfflineTts, OfflineTtsConfig, OfflineTtsKokoroModelConfig, VadModelConfig, VoiceActivityDetector, Wave};
+use sherpa_onnx::{
+    GenerationConfig, OfflineRecognizer, OfflineRecognizerConfig, OfflineSpeakerDiarization, OfflineSpeakerDiarizationConfig, OfflineTts, OfflineTtsConfig, OfflineTtsKokoroModelConfig, SpeakerEmbeddingExtractor,
+    SpeakerEmbeddingExtractorConfig, VadModelConfig, VoiceActivityDetector, Wave,
+};
 
 pub mod g2p;
 
@@ -41,6 +48,37 @@ pub struct WhisperFiles {
     pub tokens: String,
 }
 
+/// Parakeet TDT 0.6B v3 (NVIDIA, CC-BY-4.0), as sherpa-onnx exports it int8: a transducer in three parts.
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
+pub struct ParakeetFiles {
+    pub encoder: String,
+    pub decoder: String,
+    pub joiner: String,
+    pub tokens: String,
+}
+
+/// Who listens.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Ear {
+    Whisper(WhisperFiles),
+    Parakeet(ParakeetFiles),
+}
+
+/// Telling voices apart: pyannote's segmentation (MIT) and a 3D-Speaker voice print (Apache-2.0). `meeting` names the
+/// meeting a part belongs to, so its speakers keep their names from one part to the next.
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
+pub struct SpeakerFiles {
+    pub segmentation: String,
+    pub embedding: String,
+    #[serde(default)]
+    pub meeting: String,
+}
+
+/// How alike two voice prints must be (cosine) to be taken for the same person.
+pub const SAME_VOICE: f32 = 0.5;
+/// The most of one speaker's voice used for their print, in seconds: enough to tell them apart, quick to compute.
+const PRINT_SECONDS: usize = 20;
+
 /// Kokoro's files, with misaki's word list (both Apache-2.0).
 #[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
 pub struct KokoroFiles {
@@ -56,10 +94,15 @@ pub enum Op {
     Ping,
     Transcribe {
         audio: String,
-        whisper: WhisperFiles,
+        #[serde(default)]
+        whisper: Option<WhisperFiles>,
+        #[serde(default)]
+        parakeet: Option<ParakeetFiles>,
         vad: String,
         #[serde(default)]
         language: Option<String>,
+        #[serde(default)]
+        speakers: Option<SpeakerFiles>,
     },
     Speak {
         text: String,
@@ -109,13 +152,78 @@ pub struct Segment {
     pub start: f32,
     pub end: f32,
     pub text: String,
+    /// Who said it, when speakers were asked for and heard.
+    pub speaker: Option<String>,
+}
+
+/// One stretch of one voice, as the speaker segmentation heard it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Turn {
+    pub start: f32,
+    pub end: f32,
+    pub speaker: usize,
+}
+
+/// The speaker of each piece: whoever spoke most of it, or nobody when no turn overlaps it.
+#[must_use]
+pub fn speaker_of(segment: &Segment, turns: &[Turn]) -> Option<usize> {
+    let mut most: Option<(usize, f32)> = None;
+    for turn in turns {
+        let overlap = segment.end.min(turn.end) - segment.start.max(turn.start);
+        if overlap > 0.0 && most.is_none_or(|(_, m)| overlap > m) {
+            most = Some((turn.speaker, overlap));
+        }
+    }
+    most.map(|(s, _)| s)
+}
+
+fn cosine(a: &[f32], b: &[f32]) -> f32 {
+    let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
+    let norm = |v: &[f32]| v.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let n = norm(a) * norm(b);
+    if n > 0.0 { dot / n } else { 0.0 }
+}
+
+/// The voices heard so far in a meeting, each a voice print kept as the mean of the prints it was matched with.
+#[derive(Debug, Default, Clone)]
+pub struct Voices {
+    meeting: String,
+    prints: Vec<(Vec<f32>, f32)>,
+}
+
+impl Voices {
+    /// The number (from 0) of the voice `print` is, among those not `taken` in this part already; a new voice when it
+    /// is like none of them.
+    pub fn place(&mut self, print: &[f32], taken: &[usize]) -> usize {
+        let best = self.prints.iter().enumerate().filter(|(i, (p, _))| !taken.contains(i) && p.len() == print.len()).map(|(i, (p, _))| (i, cosine(p, print))).max_by(|a, b| a.1.total_cmp(&b.1));
+        if let Some((i, _)) = best.filter(|(_, l)| *l >= SAME_VOICE) {
+            let (mean, n) = &mut self.prints[i];
+            for (m, x) in mean.iter_mut().zip(print) {
+                *m = (*m * *n + x) / (*n + 1.0);
+            }
+            *n += 1.0;
+            return i;
+        }
+        self.prints.push((print.to_vec(), 1.0));
+        self.prints.len() - 1
+    }
 }
 
 /// The answer to a transcription: pieces with no words left out, the rest trimmed.
 #[must_use]
 pub fn answer(id: &Value, seconds: f32, segments: &[Segment]) -> Value {
     let round = |x: f32| (f64::from(x) * 100.0).round() / 100.0;
-    let pieces: Vec<Value> = segments.iter().filter(|s| !s.text.trim().is_empty()).map(|s| json!({ "start": round(s.start), "end": round(s.end), "text": s.text.trim() })).collect();
+    let pieces: Vec<Value> = segments
+        .iter()
+        .filter(|s| !s.text.trim().is_empty())
+        .map(|s| {
+            let mut piece = json!({ "start": round(s.start), "end": round(s.end), "text": s.text.trim() });
+            if let Some(who) = &s.speaker {
+                piece["speaker"] = json!(who);
+            }
+            piece
+        })
+        .collect();
     json!({ "id": id, "ok": true, "seconds": round(seconds), "segments": pieces })
 }
 
@@ -123,8 +231,10 @@ pub fn answer(id: &Value, seconds: f32, segments: &[Segment]) -> Value {
 #[derive(Default)]
 pub struct Listener {
     kokoro: Option<(KokoroFiles, g2p::Lexicon, OfflineTts)>,
-    whisper: Option<(WhisperFiles, String, OfflineRecognizer)>,
+    ear: Option<(Ear, String, OfflineRecognizer)>,
     vad: Option<(String, VadModelConfig)>,
+    speakers: Option<(SpeakerFiles, OfflineSpeakerDiarization, SpeakerEmbeddingExtractor)>,
+    voices: Voices,
     cores: usize,
 }
 
@@ -134,26 +244,39 @@ impl Listener {
         Listener { cores, ..Listener::default() }
     }
 
-    fn recognizer(&mut self, files: &WhisperFiles, language: &str) -> Result<&OfflineRecognizer, String> {
-        let fresh = !matches!(&self.whisper, Some((f, l, _)) if f == files && l == language);
+    fn recognizer(&mut self, ear: &Ear, language: &str) -> Result<&OfflineRecognizer, String> {
+        let fresh = !matches!(&self.ear, Some((e, l, _)) if e == ear && l == language);
         if fresh {
-            self.whisper = None;
-            for path in [&files.encoder, &files.decoder, &files.tokens] {
-                if !std::path::Path::new(path).is_file() {
-                    return Err("A file of the speech model is missing. Set up listening on this computer again in Settings, Models.".to_owned());
-                }
+            self.ear = None;
+            let paths: Vec<&String> = match ear {
+                Ear::Whisper(f) => vec![&f.encoder, &f.decoder, &f.tokens],
+                Ear::Parakeet(f) => vec![&f.encoder, &f.decoder, &f.joiner, &f.tokens],
+            };
+            if paths.iter().any(|p| !std::path::Path::new(p).is_file()) {
+                return Err("A file of the speech model is missing. Set up listening on this computer again in Settings, Models.".to_owned());
             }
             let mut config = OfflineRecognizerConfig::default();
-            config.model_config.whisper.encoder = Some(files.encoder.clone());
-            config.model_config.whisper.decoder = Some(files.decoder.clone());
-            config.model_config.whisper.language = Some(language.to_owned());
-            config.model_config.whisper.task = Some("transcribe".to_owned());
-            config.model_config.tokens = Some(files.tokens.clone());
+            match ear {
+                Ear::Whisper(files) => {
+                    config.model_config.whisper.encoder = Some(files.encoder.clone());
+                    config.model_config.whisper.decoder = Some(files.decoder.clone());
+                    config.model_config.whisper.language = Some(language.to_owned());
+                    config.model_config.whisper.task = Some("transcribe".to_owned());
+                    config.model_config.tokens = Some(files.tokens.clone());
+                }
+                Ear::Parakeet(files) => {
+                    config.model_config.transducer.encoder = Some(files.encoder.clone());
+                    config.model_config.transducer.decoder = Some(files.decoder.clone());
+                    config.model_config.transducer.joiner = Some(files.joiner.clone());
+                    config.model_config.model_type = Some("nemo_transducer".to_owned());
+                    config.model_config.tokens = Some(files.tokens.clone());
+                }
+            }
             config.model_config.num_threads = threads(self.cores);
             let recognizer = OfflineRecognizer::create(&config).ok_or("The speech model could not be loaded. Set up listening on this computer again in Settings, Models.")?;
-            self.whisper = Some((files.clone(), language.to_owned(), recognizer));
+            self.ear = Some((ear.clone(), language.to_owned(), recognizer));
         }
-        self.whisper.as_ref().map(|(_, _, r)| r).ok_or_else(|| "The speech model could not be loaded.".to_owned())
+        self.ear.as_ref().map(|(_, _, r)| r).ok_or_else(|| "The speech model could not be loaded.".to_owned())
     }
 
     fn vad(&mut self, model: &str) -> Result<VadModelConfig, String> {
@@ -179,8 +302,9 @@ impl Listener {
     }
 
     /// Write down a recording: speech pieces from the VAD, each through Whisper, with their times.
-    pub fn transcribe(&mut self, audio: &str, files: &WhisperFiles, vad: &str, language: Option<&str>) -> Result<(f32, Vec<Segment>), String> {
-        let language = self::language(language)?;
+    pub fn transcribe(&mut self, audio: &str, ear: &Ear, vad: &str, language: Option<&str>, speakers: Option<&SpeakerFiles>) -> Result<(f32, Vec<Segment>), String> {
+        // Parakeet finds the language itself; Whisper is told it.
+        let language = if matches!(ear, Ear::Parakeet(_)) { String::new() } else { self::language(language)? };
         let wave = Wave::read(audio).ok_or("The recording could not be read.")?;
         if wave.sample_rate() != SAMPLE_RATE {
             return Err(format!("The recording is at {} Hz; this program takes 16 kHz.", wave.sample_rate()));
@@ -193,7 +317,7 @@ impl Listener {
         let seconds = samples.len() as f32 / SAMPLE_RATE as f32;
         let vad_config = self.vad(vad)?;
         let detector = VoiceActivityDetector::create(&vad_config, MAX_SPEECH_SECONDS + 10.0).ok_or("The speech detector could not be loaded.")?;
-        let recognizer = self.recognizer(files, &language)?;
+        let recognizer = self.recognizer(ear, &language)?;
         let mut out = Vec::new();
         let take = |detector: &VoiceActivityDetector, out: &mut Vec<Segment>| {
             while let Some(piece) = detector.front() {
@@ -204,7 +328,7 @@ impl Listener {
                 let start = piece.start() as f32 / SAMPLE_RATE as f32;
                 #[allow(clippy::cast_precision_loss)]
                 let end = start + piece.samples().len() as f32 / SAMPLE_RATE as f32;
-                out.push(Segment { start, end, text: stream.get_result().map(|r| r.text).unwrap_or_default() });
+                out.push(Segment { start, end, text: stream.get_result().map(|r| r.text).unwrap_or_default(), speaker: None });
                 detector.pop();
             }
         };
@@ -214,7 +338,81 @@ impl Listener {
         }
         detector.flush();
         take(&detector, &mut out);
+        if let Some(files) = speakers {
+            if out.iter().any(|s| !s.text.trim().is_empty()) {
+                let turns = self.turns(samples, files)?;
+                for segment in &mut out {
+                    segment.speaker = speaker_of(segment, &turns).map(|n| format!("Speaker {}", n + 1));
+                }
+            }
+        }
         Ok((seconds, out))
+    }
+
+    fn diarizer(&mut self, files: &SpeakerFiles) -> Result<&(SpeakerFiles, OfflineSpeakerDiarization, SpeakerEmbeddingExtractor), String> {
+        let same = |a: &SpeakerFiles| a.segmentation == files.segmentation && a.embedding == files.embedding;
+        if !matches!(&self.speakers, Some((f, ..)) if same(f)) {
+            self.speakers = None;
+            if [&files.segmentation, &files.embedding].iter().any(|p| !std::path::Path::new(p).is_file()) {
+                return Err("A file for telling speakers apart is missing. Set it up again in Settings, Models.".to_owned());
+            }
+            let embedding = SpeakerEmbeddingExtractorConfig { model: Some(files.embedding.clone()), num_threads: threads(self.cores), ..SpeakerEmbeddingExtractorConfig::default() };
+            let mut config = OfflineSpeakerDiarizationConfig { embedding: embedding.clone(), ..OfflineSpeakerDiarizationConfig::default() };
+            config.segmentation.pyannote.model = Some(files.segmentation.clone());
+            config.segmentation.num_threads = threads(self.cores);
+            config.clustering.threshold = SAME_VOICE;
+            let diarizer = OfflineSpeakerDiarization::create(&config).ok_or("Telling speakers apart could not be loaded. Set it up again in Settings, Models.")?;
+            if diarizer.sample_rate() != SAMPLE_RATE {
+                return Err("The speaker model takes another kind of recording.".to_owned());
+            }
+            let extractor = SpeakerEmbeddingExtractor::create(&embedding).ok_or("Telling speakers apart could not be loaded. Set it up again in Settings, Models.")?;
+            self.speakers = Some((files.clone(), diarizer, extractor));
+        }
+        self.speakers.as_ref().ok_or_else(|| "Telling speakers apart could not be loaded.".to_owned())
+    }
+
+    /// Who spoke when, numbered across the meeting: this part's voices are told apart, then each one's print is
+    /// matched with the voices heard in the meeting's earlier parts.
+    fn turns(&mut self, samples: &[f32], files: &SpeakerFiles) -> Result<Vec<Turn>, String> {
+        if self.voices.meeting != files.meeting || files.meeting.is_empty() {
+            self.voices = Voices { meeting: files.meeting.clone(), prints: Vec::new() };
+        }
+        let (_, diarizer, extractor) = self.diarizer(files)?;
+        let heard = diarizer.process(samples).ok_or("The speakers could not be told apart.")?.sort_by_start_time();
+        let rate = usize::try_from(SAMPLE_RATE).unwrap_or(16_000);
+        let mut local: Vec<i32> = heard.iter().map(|t| t.speaker).collect();
+        local.sort_unstable();
+        local.dedup();
+        let mut prints = Vec::new();
+        for who in &local {
+            let mut voice: Vec<f32> = Vec::new();
+            for turn in heard.iter().filter(|t| t.speaker == *who) {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                let (a, b) = ((turn.start.max(0.0) * SAMPLE_RATE as f32) as usize, (turn.end.max(0.0) * SAMPLE_RATE as f32) as usize);
+                voice.extend_from_slice(&samples[a.min(samples.len())..b.min(samples.len())]);
+                if voice.len() >= PRINT_SECONDS * rate {
+                    break;
+                }
+            }
+            voice.truncate(PRINT_SECONDS * rate);
+            let print = extractor.create_stream().and_then(|stream| {
+                stream.accept_waveform(SAMPLE_RATE, &voice);
+                stream.input_finished();
+                if extractor.is_ready(&stream) { extractor.compute(&stream) } else { None }
+            });
+            prints.push(print);
+        }
+        let mut names: Vec<(i32, usize)> = Vec::new();
+        let mut taken = Vec::new();
+        for (who, print) in local.iter().zip(prints) {
+            // A voice heard too briefly for a print is left without a name rather than guessed.
+            if let Some(print) = print {
+                let n = self.voices.place(&print, &taken);
+                taken.push(n);
+                names.push((*who, n));
+            }
+        }
+        Ok(heard.iter().filter_map(|t| names.iter().find(|(w, _)| *w == t.speaker).map(|(_, n)| Turn { start: t.start, end: t.end, speaker: *n })).collect())
     }
 
     fn speaker(&mut self, files: &KokoroFiles) -> Result<&(KokoroFiles, g2p::Lexicon, OfflineTts), String> {
@@ -265,10 +463,15 @@ impl Listener {
     pub fn handle(&mut self, request: Request) -> Value {
         match request.op {
             Op::Ping => json!({ "id": request.id, "ok": true, "version": env!("CARGO_PKG_VERSION") }),
-            Op::Transcribe { audio, whisper, vad, language } => match self.transcribe(&audio, &whisper, &vad, language.as_deref()) {
-                Ok((seconds, segments)) => answer(&request.id, seconds, &segments),
-                Err(message) => failed(&request.id, &message),
-            },
+            Op::Transcribe { audio, whisper, parakeet, vad, language, speakers } => {
+                let Some(ear) = parakeet.map(Ear::Parakeet).or(whisper.map(Ear::Whisper)) else {
+                    return failed(&request.id, "Mobius did not say which speech model to listen with.");
+                };
+                match self.transcribe(&audio, &ear, &vad, language.as_deref(), speakers.as_ref()) {
+                    Ok((seconds, segments)) => answer(&request.id, seconds, &segments),
+                    Err(message) => failed(&request.id, &message),
+                }
+            }
             Op::Speak { text, kokoro, voice, speed, out } => match self.speak(&text, &kokoro, voice, speed, &out) {
                 Ok(seconds) => json!({ "id": request.id, "ok": true, "seconds": (f64::from(seconds) * 100.0).round() / 100.0 }),
                 Err(message) => failed(&request.id, &message),
@@ -310,14 +513,51 @@ mod tests {
 
     #[test]
     fn the_answer_leaves_out_empty_pieces_and_rounds_times() {
-        let segments = [Segment { start: 0.333, end: 2.0, text: " Hello. ".to_owned() }, Segment { start: 3.0, end: 3.5, text: " ".to_owned() }];
-        assert_eq!(answer(&json!(1), 4.004, &segments), json!({ "id": 1, "ok": true, "seconds": 4.0, "segments": [{ "start": 0.33, "end": 2.0, "text": "Hello." }] }));
+        let segments = [
+            Segment { start: 0.333, end: 2.0, text: " Hello. ".to_owned(), speaker: None },
+            Segment { start: 3.0, end: 3.5, text: " ".to_owned(), speaker: None },
+            Segment { start: 4.0, end: 5.0, text: "Hi.".to_owned(), speaker: Some("Speaker 2".to_owned()) },
+        ];
+        assert_eq!(
+            answer(&json!(1), 6.004, &segments),
+            json!({ "id": 1, "ok": true, "seconds": 6.0, "segments": [{ "start": 0.33, "end": 2.0, "text": "Hello." }, { "start": 4.0, "end": 5.0, "text": "Hi.", "speaker": "Speaker 2" }] })
+        );
+    }
+
+    #[test]
+    fn a_parakeet_request_with_speakers_is_read_and_one_with_no_model_says_so() {
+        let r = parse(r#"{"id":1,"op":"transcribe","audio":"a.wav","parakeet":{"encoder":"e","decoder":"d","joiner":"j","tokens":"t"},"vad":"v","speakers":{"segmentation":"s","embedding":"m","meeting":"7"}}"#);
+        assert!(matches!(r.map(|r| r.op), Ok(Op::Transcribe { parakeet: Some(_), whisper: None, speakers: Some(SpeakerFiles { meeting, .. }), .. }) if meeting == "7"));
+        let none = parse(r#"{"id":2,"op":"transcribe","audio":"a.wav","vad":"v"}"#).map(|r| Listener::new(1).handle(r)).unwrap_or_default();
+        assert_eq!(none["ok"], false);
+    }
+
+    #[test]
+    fn each_piece_goes_to_whoever_spoke_most_of_it() {
+        let piece = |start: f32, end: f32| Segment { start, end, text: "x".into(), speaker: None };
+        let turns = [Turn { start: 0.0, end: 2.0, speaker: 0 }, Turn { start: 1.5, end: 6.0, speaker: 1 }];
+        assert_eq!(speaker_of(&piece(0.0, 1.8), &turns), Some(0));
+        assert_eq!(speaker_of(&piece(1.0, 5.0), &turns), Some(1));
+        assert_eq!(speaker_of(&piece(7.0, 8.0), &turns), None);
+    }
+
+    #[test]
+    fn a_voice_keeps_its_number_through_a_meeting_and_two_in_one_part_are_never_merged() {
+        let mut voices = Voices::default();
+        assert_eq!(voices.place(&[1.0, 0.0, 0.0], &[]), 0);
+        assert_eq!(voices.place(&[0.0, 1.0, 0.0], &[0]), 1);
+        // The next part: the same two people, a little different, and someone new.
+        assert_eq!(voices.place(&[0.1, 0.9, 0.0], &[]), 1);
+        assert_eq!(voices.place(&[0.9, 0.2, 0.0], &[1]), 0);
+        assert_eq!(voices.place(&[0.0, 0.0, 1.0], &[1, 0]), 2);
+        // Like voice 0, but voice 0 already spoke in this part as someone else: a new voice, not a merge.
+        assert_eq!(voices.place(&[1.0, 0.05, 0.0], &[0]), 3);
     }
 
     #[test]
     fn a_missing_model_says_how_to_put_it_right() {
         let files = WhisperFiles { encoder: "/nowhere/e.onnx".into(), decoder: "/nowhere/d.onnx".into(), tokens: "/nowhere/t.txt".into() };
-        let got = Listener::new(2).handle(Request { id: json!(3), op: Op::Transcribe { audio: "/nowhere/a.wav".into(), whisper: files, vad: "/nowhere/v.onnx".into(), language: None } });
+        let got = Listener::new(2).handle(Request { id: json!(3), op: Op::Transcribe { audio: "/nowhere/a.wav".into(), whisper: Some(files), parakeet: None, vad: "/nowhere/v.onnx".into(), language: None, speakers: None } });
         assert_eq!(got["ok"], false);
     }
 
@@ -352,7 +592,7 @@ mod tests {
         let wav16 = std::env::temp_dir().join("mobius-voice-speak-test-16k.wav");
         assert!(sherpa_onnx::write(&wav16.to_string_lossy(), &resampled, SAMPLE_RATE));
         let whisper = WhisperFiles { encoder: at("tiny.en-encoder.int8.onnx"), decoder: at("tiny.en-decoder.int8.onnx"), tokens: at("tiny.en-tokens.txt") };
-        let (_, segments) = listener.transcribe(&wav16.to_string_lossy(), &whisper, &at("silero_vad.onnx"), None).unwrap_or_default();
+        let (_, segments) = listener.transcribe(&wav16.to_string_lossy(), &Ear::Whisper(whisper), &at("silero_vad.onnx"), None, None).unwrap_or_default();
         let words: String = segments.iter().map(|s| s.text.to_lowercase()).collect::<Vec<_>>().join(" ");
         // Whisper tiny can split a word it hears ("two lips"), so each word may be heard one of a few ways.
         for heard in [&["plant", "plants"][..], &["tulips", "two lips", "tulip"], &["frost"], &["may"]] {
@@ -370,11 +610,74 @@ mod tests {
         let at = |f: &str| format!("{dir}/{f}");
         let files = WhisperFiles { encoder: at("tiny.en-encoder.int8.onnx"), decoder: at("tiny.en-decoder.int8.onnx"), tokens: at("tiny.en-tokens.txt") };
         let mut listener = Listener::new(4);
-        let got = listener.transcribe(&at("test_wavs/0.wav"), &files, &at("silero_vad.onnx"), None);
+        let got = listener.transcribe(&at("test_wavs/0.wav"), &Ear::Whisper(files), &at("silero_vad.onnx"), None, None);
         let (seconds, segments) = got.unwrap_or_default();
         assert!(seconds > 6.0, "{seconds}");
         let words: String = segments.iter().map(|s| s.text.to_lowercase()).collect::<Vec<_>>().join(" ");
         assert!(words.contains("yellow lamps"), "{words}");
         assert!(segments.iter().all(|s| s.end - s.start <= MAX_SPEECH_SECONDS + 0.5));
+    }
+
+    /// sherpa-onnx's four-speaker test recording, told apart and written down in two parts of one meeting: every
+    /// piece gets a speaker, more than one is heard, and the second part's voices are named as in the first. Needs
+    /// MOBIUS_SPEAKERS, a folder with pyannote-segmentation.int8.onnx, campplus-en.onnx and four-speakers.wav, beside
+    /// MOBIUS_VOICE_MODELS. The build workflow runs it.
+    #[test]
+    #[ignore = "needs the speaker and speech models on disk"]
+    fn speakers_are_told_apart_and_keep_their_names_across_parts() {
+        let dir = std::env::var("MOBIUS_VOICE_MODELS").unwrap_or_default();
+        let spk = std::env::var("MOBIUS_SPEAKERS").unwrap_or_default();
+        let at = |f: &str| format!("{dir}/{f}");
+        let s = |f: &str| format!("{spk}/{f}");
+        let ear = Ear::Whisper(WhisperFiles { encoder: at("tiny.en-encoder.int8.onnx"), decoder: at("tiny.en-decoder.int8.onnx"), tokens: at("tiny.en-tokens.txt") });
+        let files = SpeakerFiles { segmentation: s("pyannote-segmentation.int8.onnx"), embedding: s("campplus-en.onnx"), meeting: "test".into() };
+        let wave = Wave::read(&s("four-speakers.wav"));
+        assert!(wave.is_some(), "no recording");
+        let samples = wave.map(|w| w.samples().to_vec()).unwrap_or_default();
+        let half = samples.len() / 2;
+        let mut listener = Listener::new(4);
+        let mut heard = Vec::new();
+        for (n, part) in [&samples[..half], &samples[half..]].into_iter().enumerate() {
+            let path = std::env::temp_dir().join(format!("mobius-voice-speakers-{n}.wav"));
+            assert!(sherpa_onnx::write(&path.to_string_lossy(), part, SAMPLE_RATE));
+            let (_, segments) = listener.transcribe(&path.to_string_lossy(), &ear, &at("silero_vad.onnx"), None, Some(&files)).unwrap_or_default();
+            heard.push(segments.into_iter().filter(|s| !s.text.trim().is_empty()).collect::<Vec<_>>());
+        }
+        let names = |part: &[Segment]| {
+            let mut n: Vec<String> = part.iter().filter_map(|s| s.speaker.clone()).collect();
+            n.sort();
+            n.dedup();
+            n
+        };
+        let (first, second) = (names(&heard[0]), names(&heard[1]));
+        assert!(heard.iter().flatten().all(|s| s.speaker.is_some()), "{heard:?}");
+        assert!(first.len() >= 2, "{first:?}");
+        // Four people in all; told apart well, the second part names at least one voice from the first.
+        assert!(second.iter().any(|n| first.contains(n)), "{first:?} then {second:?}");
+        assert!(names(&heard.concat()).len() <= 6, "{heard:?}");
+    }
+
+    /// Writes down sherpa-onnx's English test recording with Parakeet v3. Needs MOBIUS_PARAKEET, a folder with
+    /// sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8's files (about 670 MB, so the workflow leaves it out), and
+    /// MOBIUS_VOICE_MODELS for the speech detector.
+    #[test]
+    #[ignore = "needs Parakeet on disk"]
+    fn parakeet_writes_a_recording_down() {
+        let dir = std::env::var("MOBIUS_PARAKEET").unwrap_or_default();
+        if dir.is_empty() {
+            return;
+        }
+        let vad = format!("{}/silero_vad.onnx", std::env::var("MOBIUS_VOICE_MODELS").unwrap_or_default());
+        let at = |f: &str| format!("{dir}/{f}");
+        let ear = Ear::Parakeet(ParakeetFiles { encoder: at("encoder.int8.onnx"), decoder: at("decoder.int8.onnx"), joiner: at("joiner.int8.onnx"), tokens: at("tokens.txt") });
+        // The test recording is not 16 kHz everywhere, so it is resampled first.
+        let wave = Wave::read(&at("test_wavs/en.wav"));
+        let samples = wave.and_then(|w| if w.sample_rate() == SAMPLE_RATE { Some(w.samples().to_vec()) } else { sherpa_onnx::LinearResampler::create(w.sample_rate(), SAMPLE_RATE).map(|r| r.resample(w.samples(), true)) }).unwrap_or_default();
+        let wav16 = std::env::temp_dir().join("mobius-voice-parakeet-16k.wav");
+        assert!(sherpa_onnx::write(&wav16.to_string_lossy(), &samples, SAMPLE_RATE));
+        let got = Listener::new(4).transcribe(&wav16.to_string_lossy(), &ear, &vad, None, None);
+        assert!(got.is_ok(), "{got:?}");
+        let words: String = got.unwrap_or_default().1.iter().map(|s| s.text.to_lowercase()).collect::<Vec<_>>().join(" ");
+        assert!(words.split_whitespace().count() >= 5, "{words}");
     }
 }

@@ -1987,12 +1987,14 @@ export type MeetingEvent =
   | { kind: 'part'; index: number; start: number; seconds: number }
   | { kind: 'problem'; message: string }
   | { kind: 'ended'; seconds?: number; error?: string };
-/** The Whisper models for listening on this computer: quick, or more accurate for meetings. */
-export const LISTEN_MODELS = ['base.en', 'small.en'] as const;
+/** The models for listening on this computer: Whisper quick, Whisper more accurate, or Parakeet v3, the most accurate
+ * (25 European languages, found by itself) and the largest download. */
+export const LISTEN_MODELS = ['base.en', 'small.en', 'parakeet-v3'] as const;
 export type ListenModel = (typeof LISTEN_MODELS)[number];
 /** Listening on this computer: not set up, downloading, ready, or failed (`offline` when GitHub couldn't be reached). */
-/** A model Mobius runs in its own voice program: a Whisper model to listen with, or Kokoro to speak with. */
-export type DeviceModel = ListenModel | 'kokoro';
+/** A model Mobius runs in its own voice program: one to listen with, Kokoro to speak with, or the speaker models that
+ * label who spoke in a meeting's transcript. */
+export type DeviceModel = ListenModel | 'kokoro' | 'speakers';
 /** Kokoro's English voices on this computer: its own names, American (a…) and British (b…). */
 export const KOKORO_VOICES = [
   { id: 'af_heart', label: 'Heart (American)' }, { id: 'af_bella', label: 'Bella (American)' }, { id: 'af_nicole', label: 'Nicole (American)' },

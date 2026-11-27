@@ -56,6 +56,9 @@ export const DOWNLOADED = [
   { name: 'onnxruntime (inside sherpa-onnx\'s library)', version: '1.32.0', license: 'MIT', file: 'crates/mobius-voice/licences/LICENSE-onnxruntime.txt' },
   { name: 'Kokoro-82M v1.0 (hexgrad), int8', version: 'v1.0', license: 'Apache-2.0', file: 'crates/mobius-voice/licences/LICENSE-kokoro.txt' },
   { name: 'misaki word lists (hexgrad), lexicon-us-en and lexicon-gb-en', version: 'v1.0', license: 'Apache-2.0', file: 'crates/mobius-voice/licences/LICENSE-misaki.txt' },
+  { name: 'Parakeet TDT 0.6B v3 (NVIDIA), int8', version: 'v3', license: 'CC-BY-4.0', file: 'crates/mobius-voice/licences/LICENSE-parakeet.txt' },
+  { name: 'pyannote segmentation-3.0, int8', version: '3.0', license: 'MIT', file: 'crates/mobius-voice/licences/LICENSE-pyannote.txt' },
+  { name: '3D-Speaker CAM++ English voice print', version: 'voxceleb 16k', license: 'Apache-2.0', file: 'crates/mobius-voice/licences/LICENSE-3d-speaker.txt' },
 ];
 
 function downloaded() {

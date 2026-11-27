@@ -24,6 +24,10 @@ env:
   MODELS: https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models
   # Kokoro v1.0 int8 with misaki's word lists, for speaking (sherpa-onnx's tts-models release).
   KOKORO: https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2
+  # Telling speakers apart: pyannote segmentation-3.0 and 3D-Speaker's CAM++ English voice print, with sherpa-onnx's
+  # four-speaker test recording.
+  SPEAKERS: https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models
+  PRINTS: https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models
 
 jobs:
   test:
@@ -60,10 +64,16 @@ jobs:
           # Named in full: macOS's tar has no --wildcards.
           k=kokoro-int8-multi-lang-v1_0
           curl -sSfL "$KOKORO" | tar xjf - "$k/model.int8.onnx" "$k/voices.bin" "$k/tokens.txt" "$k/lexicon-us-en.txt"
-      - name: Test, writing down a recording and reading a sentence aloud
+          mkdir -p speakers
+          curl -sSfL "$SPEAKERS/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2" | tar xjf - sherpa-onnx-pyannote-segmentation-3-0/model.int8.onnx
+          mv sherpa-onnx-pyannote-segmentation-3-0/model.int8.onnx speakers/pyannote-segmentation.int8.onnx
+          curl -sSfL -o speakers/campplus-en.onnx "$PRINTS/3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx"
+          curl -sSfL -o speakers/four-speakers.wav "$SPEAKERS/0-four-speakers-zh.wav"
+      - name: Test, writing down a recording, telling speakers apart and reading a sentence aloud
         env:
           MOBIUS_VOICE_MODELS: ${{ runner.temp }}/models/sherpa-onnx-whisper-tiny.en
           MOBIUS_KOKORO: ${{ runner.temp }}/models/kokoro-int8-multi-lang-v1_0
+          MOBIUS_SPEAKERS: ${{ runner.temp }}/models/speakers
         run: cargo test --locked --release --target ${{ matrix.target }} -- --include-ignored
       - name: Answer once
         run: |
@@ -145,7 +155,8 @@ jobs:
 
   # The models, re-published from sherpa-onnx's asr-models release so Mobius downloads only the int8 files it uses
   # (sherpa-onnx's archives carry full-size copies and test recordings too) and every pin points at this repository.
-  # Whisper (OpenAI) and Silero VAD are MIT. The host pins each file's SHA-256; a file that changed upstream would
+  # Whisper (OpenAI) and Silero VAD are MIT; Parakeet v3 (NVIDIA) is CC-BY-4.0, credited in its licence file and in
+  # Settings; pyannote segmentation is MIT and 3D-Speaker's CAM++ Apache-2.0. The host pins each file's SHA-256; a file that changed upstream would
   # fail that check and not be used.
   models:
     if: ${{ github.event_name == 'workflow_dispatch' }}
@@ -165,9 +176,18 @@ jobs:
           curl -sSfL "$KOKORO" | tar xjf - "$k/model.int8.onnx" "$k/voices.bin" "$k/tokens.txt" "$k/lexicon-us-en.txt" "$k/lexicon-gb-en.txt"
           for f in kokoro-int8-multi-lang-v1_0/*; do mv "$f" "kokoro-$(basename "$f")"; done
           rmdir kokoro-int8-multi-lang-v1_0
+          # Parakeet v3, int8 only (the archive's test recordings stay behind).
+          p=sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8
+          curl -sSfL "$MODELS/$p.tar.bz2" | tar xjf - "$p/encoder.int8.onnx" "$p/decoder.int8.onnx" "$p/joiner.int8.onnx" "$p/tokens.txt"
+          for f in $p/*; do mv "$f" "parakeet-v3-$(basename "$f")"; done
+          rmdir $p
+          curl -sSfL "$SPEAKERS/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2" | tar xjf - sherpa-onnx-pyannote-segmentation-3-0/model.int8.onnx
+          mv sherpa-onnx-pyannote-segmentation-3-0/model.int8.onnx speakers-pyannote-segmentation.int8.onnx
+          rmdir sherpa-onnx-pyannote-segmentation-3-0
+          curl -sSfL -o speakers-campplus-en.onnx "$PRINTS/3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx"
           ls -la
           sha256sum *
-      # Each licence goes beside what it covers, all four kept in the repository (crates/mobius-voice/licences says
+      # Each licence goes beside what it covers, all kept in the repository (crates/mobius-voice/licences says
       # where each came from). onnxruntime's used to be fetched from GitHub here, but both its raw address and GitHub's
       # licence API answered 404 from the runner (runs 45574070105 and 45578278630).
       - name: Put the licences beside them
@@ -200,7 +220,7 @@ jobs:
           tag="voice-$version"
           cd out
           sha256sum *
-          notes="mobius-voice $version: listening on this computer with Whisper and Silero VAD, and speaking with Kokoro, through sherpa-onnx (Apache-2.0, https://github.com/k2-fsa/sherpa-onnx). The kokoro-* files are Kokoro-82M v1.0 int8 (Apache-2.0, https://huggingface.co/hexgrad/Kokoro-82M) with misaki's word lists (Apache-2.0, https://github.com/hexgrad/misaki), from sherpa-onnx's tts-models release. The whisper-* and silero_vad files are the int8 models from sherpa-onnx's asr-models release: Whisper by OpenAI (MIT, https://github.com/openai/whisper) and Silero VAD (MIT, https://github.com/snakers4/silero-vad). sherpa-onnx's library links onnxruntime (MIT, https://github.com/microsoft/onnxruntime). Each licence is beside the files, as LICENSE-*.txt. Mobius downloads what it needs and checks each file against the SHA-256 pinned in its own build.
+          notes="mobius-voice $version: listening on this computer with Whisper or Parakeet and Silero VAD, telling speakers apart, and speaking with Kokoro, through sherpa-onnx (Apache-2.0, https://github.com/k2-fsa/sherpa-onnx). The kokoro-* files are Kokoro-82M v1.0 int8 (Apache-2.0, https://huggingface.co/hexgrad/Kokoro-82M) with misaki's word lists (Apache-2.0, https://github.com/hexgrad/misaki), from sherpa-onnx's tts-models release. The whisper-* and silero_vad files are the int8 models from sherpa-onnx's asr-models release: Whisper by OpenAI (MIT, https://github.com/openai/whisper) and Silero VAD (MIT, https://github.com/snakers4/silero-vad). The parakeet-v3-* files are Parakeet TDT 0.6B v3 by NVIDIA (CC-BY-4.0, https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), int8 as sherpa-onnx exports it. The speakers-* files tell the voices in a meeting apart: pyannote segmentation-3.0 (MIT, https://huggingface.co/pyannote/segmentation-3.0) and 3D-Speaker's CAM++ English voice print (Apache-2.0, https://github.com/modelscope/3D-Speaker), from sherpa-onnx's speaker models releases. sherpa-onnx's library links onnxruntime (MIT, https://github.com/microsoft/onnxruntime). Each licence is beside the files, as LICENSE-*.txt. Mobius downloads what it needs and checks each file against the SHA-256 pinned in its own build.
 
           $(sha256sum *)"
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then

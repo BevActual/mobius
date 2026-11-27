@@ -129,6 +129,12 @@ impl Meetings {
         Ok((bytes, part.start, part.seconds))
     }
 
+    /// Which meeting this is, so the voices heard in its parts keep their names from one part to the next.
+    #[must_use]
+    pub fn number(&self) -> u64 {
+        self.meeting.load(std::sync::atomic::Ordering::Acquire)
+    }
+
     /// Ends a meeting still being heard, as Mobius quits; nothing is kept.
     pub fn shut(&self) {
         let _ = self.cancel();

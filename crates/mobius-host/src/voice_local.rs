@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// Where the files are published: a prerelease that is never Latest.
-const RELEASE: &str = "https://github.com/BevActual/mobius/releases/download/voice-0.2.0/";
+const RELEASE: &str = "https://github.com/BevActual/mobius/releases/download/voice-0.3.0/";
 /// The program for each computer and its SHA-256, from the workflow's run.
 const PROGRAMS: &[(&str, &str, &str)] = &[
     ("windows-x86_64", "mobius-voice-0.2.0-x86_64-pc-windows-msvc.gz", "d999999cad917604cf76b9af1c406504c8f193ecdc370710d5e5fac3051cda01"),
@@ -48,6 +48,22 @@ const WHISPER: &[(&str, File, File, File)] = &[
         File { name: "whisper-small.en-tokens.txt", size: 835_554, sha: "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930" },
     ),
 ];
+/// The accurate listener: Parakeet TDT 0.6B v3 int8 (NVIDIA, CC-BY-4.0), as sherpa-onnx exports it. 25 European
+/// languages, found by itself. (encoder, decoder, joiner, tokens)
+pub const PARAKEET_MODEL: &str = "parakeet-v3";
+const PARAKEET: [File; 4] = [
+    File { name: "parakeet-v3-encoder.int8.onnx", size: 652_282_294, sha: "1afbe69c1ffdabee94755f42e4daf1d93549131a3da11356bda84fcef0f2c479" },
+    File { name: "parakeet-v3-decoder.int8.onnx", size: 11_845_274, sha: "0222a86147299d4dee90edf95b6d13827edb42ad8b7c9cf0b2582f030937c0b5" },
+    File { name: "parakeet-v3-joiner.int8.onnx", size: 6_355_277, sha: "cbd02f3696e9944970111fb439d9c3fd365a80374565f13f2b9c7007d253fc98" },
+    File { name: "parakeet-v3-tokens.txt", size: 93_939, sha: "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d" },
+];
+/// Telling the voices in a meeting apart: pyannote segmentation-3.0 int8 (MIT) and 3D-Speaker's CAM++ English voice
+/// print (Apache-2.0). (segmentation, voice print)
+pub const SPEAKERS_MODEL: &str = "speakers";
+const SPEAKERS: [File; 2] = [
+    File { name: "speakers-pyannote-segmentation.int8.onnx", size: 1_540_506, sha: "d582f4b4c6b48205de7e0643c57df0df5615a3c176189be3fc461e9d18827b5d" },
+    File { name: "speakers-campplus-en.onnx", size: 29_596_979, sha: "98daf9bcf1c8abf3db374fec4c27a5eda7c58705bb3f180d057b085a72a88bb5" },
+];
 /// Speaking: Kokoro-82M v1.0 int8 and misaki's American and British word lists (all Apache-2.0), the same bytes as
 /// sherpa-onnx's kokoro-int8-multi-lang-v1_0.
 pub const SPEAK_MODEL: &str = "kokoro";
@@ -73,8 +89,8 @@ pub const DEFAULT_MODEL: &str = "base.en";
 const IDLE: Duration = Duration::from_secs(5 * 60);
 /// The longest one recording may take to write down before the program is stopped.
 const ANSWER_WITHIN: Duration = Duration::from_secs(5 * 60);
-/// Larger than any file here (the largest is about 262 MB); a download past this is stopped.
-const MAX_BYTES: u64 = 512 * 1024 * 1024;
+/// Larger than any file here (the largest is Parakeet's encoder, about 652 MB); a download past this is stopped.
+const MAX_BYTES: u64 = 768 * 1024 * 1024;
 const EVENT: &str = "mobius:voice-device";
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -96,12 +112,21 @@ fn whisper(model: &str) -> Option<&'static (&'static str, File, File, File)> {
     WHISPER.iter().find(|(m, ..)| *m == model)
 }
 
-/// Every file a model needs: a Whisper model with the speech detector, or Kokoro. None for a name Mobius doesn't know.
+/// Every file a model needs: a Whisper model or Parakeet with the speech detector, Kokoro, or the speaker models. None
+/// for a name Mobius doesn't know.
 fn files(model: &str) -> Vec<&'static File> {
-    if model == SPEAK_MODEL {
-        return KOKORO.iter().collect();
+    match model {
+        SPEAK_MODEL => KOKORO.iter().collect(),
+        SPEAKERS_MODEL => SPEAKERS.iter().collect(),
+        PARAKEET_MODEL => std::iter::once(&VAD).chain(PARAKEET.iter()).collect(),
+        _ => whisper(model).map_or_else(Vec::new, |(_, e, d, t)| vec![&VAD, e, d, t]),
     }
-    whisper(model).map_or_else(Vec::new, |(_, e, d, t)| vec![&VAD, e, d, t])
+}
+
+/// Whether `model` is one Mobius listens with.
+#[must_use]
+pub fn is_listen_model(model: &str) -> bool {
+    model == PARAKEET_MODEL || whisper(model).is_some()
 }
 
 /// About what the packed program takes to download (it is counted before its size is known).
@@ -339,12 +364,16 @@ impl DeviceVoice {
             Err(e) => Err(e),
         };
         let mut result = Ok(());
-        let listening: Vec<&File> = WHISPER.iter().flat_map(|(_, e, d, t)| [e, d, t]).chain([&VAD]).collect();
-        let taken: Vec<&File> = if model == SPEAK_MODEL { KOKORO.iter().collect() } else { listening };
+        let listening: Vec<&File> = WHISPER.iter().flat_map(|(_, e, d, t)| [e, d, t]).chain(PARAKEET.iter()).chain([&VAD]).collect();
+        let taken: Vec<&File> = match model {
+            SPEAK_MODEL => KOKORO.iter().collect(),
+            SPEAKERS_MODEL => SPEAKERS.iter().collect(),
+            _ => listening,
+        };
         for f in taken {
             result = result.and(gone(&self.file_path(f)));
         }
-        let any_left = WHISPER.iter().any(|(m, ..)| self.ready(m)) || self.ready(SPEAK_MODEL);
+        let any_left = WHISPER.iter().any(|(m, ..)| self.ready(m)) || [PARAKEET_MODEL, SPEAK_MODEL, SPEAKERS_MODEL].iter().any(|m| self.ready(m));
         if !any_left {
             result = result.and(gone(&self.program_path()));
         }
@@ -450,9 +479,12 @@ impl DeviceVoice {
         }
     }
 
-    /// Writes down a 16 kHz mono WAV with `model`: the words, and each piece with its times.
-    pub fn transcribe(&self, wav: &[u8], model: &str) -> Value {
-        let Some((_, e, d, t)) = whisper(model) else { return failed("That is not a model Mobius can listen with.") };
+    /// Writes down a 16 kHz mono WAV with `model`: the words, and each piece with its times. With `meeting`, and the
+    /// speaker models set up, each piece also says who spoke, named the same through every part of that meeting.
+    pub fn transcribe(&self, wav: &[u8], model: &str, meeting: Option<&str>) -> Value {
+        if !is_listen_model(model) {
+            return failed("That is not a model Mobius can listen with.");
+        }
         if self.program.is_none() {
             return failed("Listening on this computer isn't available on this computer yet.");
         }
@@ -468,11 +500,17 @@ impl DeviceVoice {
             return failed(format!("Mobius could not keep the recording to write it down: {e}"));
         }
         let path = |p: PathBuf| p.to_string_lossy().into_owned();
-        let request = json!({
-            "id": id, "op": "transcribe", "audio": path(file.clone()),
-            "whisper": { "encoder": path(self.file_path(e)), "decoder": path(self.file_path(d)), "tokens": path(self.file_path(t)) },
-            "vad": path(self.file_path(&VAD)), "language": "en",
-        });
+        let mut request = json!({ "id": id, "op": "transcribe", "audio": path(file.clone()), "vad": path(self.file_path(&VAD)), "language": "en" });
+        if let Some((_, e, d, t)) = whisper(model) {
+            request["whisper"] = json!({ "encoder": path(self.file_path(e)), "decoder": path(self.file_path(d)), "tokens": path(self.file_path(t)) });
+        } else {
+            let [e, d, j, t] = &PARAKEET;
+            request["parakeet"] = json!({ "encoder": path(self.file_path(e)), "decoder": path(self.file_path(d)), "joiner": path(self.file_path(j)), "tokens": path(self.file_path(t)) });
+        }
+        if let Some(meeting) = meeting.filter(|_| self.ready(SPEAKERS_MODEL)) {
+            let [seg, print] = &SPEAKERS;
+            request["speakers"] = json!({ "segmentation": path(self.file_path(seg)), "embedding": path(self.file_path(print)), "meeting": meeting });
+        }
         let answer = self.ask(&request);
         let _ = std::fs::remove_file(&file);
         match answer {
@@ -522,9 +560,28 @@ impl Drop for DeviceVoice {
 }
 
 /// The program's answer as the window takes it: the words in one go, and the pieces with their times.
+/// The words of an answer: the pieces joined, or, when it says who spoke, a paragraph for each turn beginning with
+/// the speaker's name in bold, as a meeting's transcript reads.
 fn words(answer: &Value) -> Value {
     let segments = answer["segments"].as_array().cloned().unwrap_or_default();
-    let text: String = segments.iter().filter_map(|s| s["text"].as_str()).map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" ");
+    let mut turns: Vec<(Option<&str>, Vec<&str>)> = Vec::new();
+    for s in &segments {
+        let Some(text) = s["text"].as_str().map(str::trim).filter(|t| !t.is_empty()) else { continue };
+        let who = s["speaker"].as_str();
+        match turns.last_mut() {
+            Some((last, said)) if *last == who => said.push(text),
+            _ => turns.push((who, vec![text])),
+        }
+    }
+    let labelled = turns.iter().any(|(who, _)| who.is_some());
+    let text: String = turns
+        .iter()
+        .map(|(who, said)| match who {
+            Some(who) if labelled => format!("**{who}:** {}", said.join(" ")),
+            _ => said.join(" "),
+        })
+        .collect::<Vec<_>>()
+        .join(if labelled { "\n\n" } else { " " });
     let text: String = text.chars().take(20_000).collect();
     if text.is_empty() { failed("No speech was heard.") } else { json!({ "ok": true, "text": text, "segments": segments }) }
 }
@@ -581,6 +638,17 @@ mod tests {
     }
 
     #[test]
+    fn a_meeting_reads_as_turns_with_who_spoke() {
+        let answer = json!({ "segments": [
+            { "start": 0.0, "end": 1.0, "text": "Hello.", "speaker": "Speaker 1" },
+            { "start": 1.0, "end": 2.0, "text": "Shall we start?", "speaker": "Speaker 1" },
+            { "start": 2.0, "end": 3.0, "text": "Yes.", "speaker": "Speaker 2" },
+            { "start": 3.0, "end": 4.0, "text": "Mm." },
+        ] });
+        assert_eq!(words(&answer)["text"], "**Speaker 1:** Hello. Shall we start?\n\n**Speaker 2:** Yes.\n\nMm.");
+    }
+
+    #[test]
     fn the_words_are_the_pieces_joined_and_nothing_heard_says_so() {
         let answer = json!({ "ok": true, "segments": [{ "start": 0.3, "end": 2.0, "text": " Hello there. " }, { "start": 3.0, "end": 4.0, "text": "How are you?" }] });
         let got = words(&answer);
@@ -608,6 +676,29 @@ mod tests {
         }
         assert!(model_bytes(SPEAK_MODEL) > 150_000_000 && model_bytes(SPEAK_MODEL) < 160_000_000);
         assert!(VOICES.iter().any(|(n, ..)| *n == DEFAULT_VOICE));
+        for (prefix, list) in [("parakeet-v3-", &PARAKEET[..]), ("speakers-", &SPEAKERS[..])] {
+            for f in list {
+                assert_eq!(f.sha.len(), 64, "{}", f.name);
+                assert!(f.name.starts_with(prefix) && f.size > 0 && f.size < MAX_BYTES);
+            }
+        }
+        assert!(is_listen_model(PARAKEET_MODEL) && !is_listen_model(SPEAKERS_MODEL) && !is_listen_model(SPEAK_MODEL));
+        assert!(model_bytes(PARAKEET_MODEL) > 660_000_000 && model_bytes(PARAKEET_MODEL) < 680_000_000);
+        assert!(model_bytes(SPEAKERS_MODEL) > 30_000_000 && model_bytes(SPEAKERS_MODEL) < 32_000_000);
+    }
+
+    #[test]
+    fn removing_the_speaker_models_keeps_listening() {
+        let dir = tempfile::tempdir().unwrap();
+        let voice = DeviceVoice::new(dir.path().to_path_buf(), quiet());
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(voice.program_path(), b"x").unwrap();
+        for f in std::iter::once(&VAD).chain(PARAKEET.iter()).chain(SPEAKERS.iter()) {
+            std::fs::File::create(voice.file_path(f)).unwrap().set_len(f.size).unwrap();
+        }
+        assert!(voice.ready(PARAKEET_MODEL) && voice.ready(SPEAKERS_MODEL));
+        assert_eq!(voice.remove(SPEAKERS_MODEL)["ok"], true);
+        assert!(!voice.ready(SPEAKERS_MODEL) && voice.ready(PARAKEET_MODEL) && voice.program_path().exists());
     }
 
     /// Serves each request from `files` by its path, or 404.
@@ -678,9 +769,9 @@ mod tests {
     fn a_recording_before_set_up_points_to_settings_and_another_model_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let voice = DeviceVoice::serving(dir.path().to_path_buf(), quiet(), "http://127.0.0.1:9/".into(), Some(("prog.gz".into(), "0".repeat(64))));
-        let got = voice.transcribe(&wav(16_000, 1), "base.en");
+        let got = voice.transcribe(&wav(16_000, 1), "base.en", None);
         assert_eq!((got["ok"].clone(), got["setup"].clone()), (json!(false), json!(true)));
-        assert_eq!(voice.transcribe(&wav(16_000, 1), "large")["ok"], false);
+        assert_eq!(voice.transcribe(&wav(16_000, 1), "large", None)["ok"], false);
         assert_eq!(voice.status("base.en")["state"], "absent");
     }
 
@@ -701,12 +792,12 @@ mod tests {
         assert_eq!(wait_until_settled(&voice, "base.en")["state"], "ready");
         assert!(lock(&seen).iter().any(|s| s == "downloading"));
         let wav = std::fs::read(recording).unwrap();
-        let first = voice.transcribe(&wav, "base.en");
+        let first = voice.transcribe(&wav, "base.en", None);
         assert_eq!(first["ok"], true, "{first}");
         assert!(first["text"].as_str().unwrap().to_lowercase().contains("yellow lamps"), "{first}");
         // The program stays up for the next one, and a webm is sent back to be converted.
-        assert_eq!(voice.transcribe(&wav, "base.en")["ok"], true);
-        assert_eq!(voice.transcribe(b"\x1aE\xdf\xa3 webm", "base.en")["wav"], true);
+        assert_eq!(voice.transcribe(&wav, "base.en", None)["ok"], true);
+        assert_eq!(voice.transcribe(b"\x1aE\xdf\xa3 webm", "base.en", None)["wav"], true);
         assert_eq!(voice.remove("base.en")["ok"], true);
         assert_eq!(voice.status("base.en")["state"], "absent");
     }
@@ -715,7 +806,7 @@ mod tests {
     fn with_no_build_for_this_computer_a_recording_does_not_point_to_settings() {
         let dir = tempfile::tempdir().unwrap();
         let voice = DeviceVoice::serving(dir.path().to_path_buf(), quiet(), "http://127.0.0.1:9/".into(), None);
-        let got = voice.transcribe(&wav(16_000, 1), "base.en");
+        let got = voice.transcribe(&wav(16_000, 1), "base.en", None);
         assert_eq!((got["ok"].clone(), got["setup"].clone()), (json!(false), Value::Null), "{got}");
     }
 

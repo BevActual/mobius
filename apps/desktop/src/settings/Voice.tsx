@@ -33,7 +33,11 @@ export function chatCannotListen(baseUrl: string): string | null {
 const MODELS: ReadonlyArray<{ id: ListenModel; label: string }> = [
   { id: 'base.en', label: 'Quick' },
   { id: 'small.en', label: 'More accurate' },
+  { id: 'parakeet-v3', label: 'Most accurate (Parakeet)' },
 ];
+
+/** The listener's own name, as Settings shows it. */
+export const listenerName = (model: ListenModel): string => (model === 'parakeet-v3' ? 'Parakeet' : 'Whisper');
 
 /** Kokoro's voice for a saved name: the name itself when it is one of Kokoro's, otherwise Heart, the default. */
 export const kokoroVoice = (saved: string): string => (KOKORO_VOICES.some((v) => v.id === saved) ? saved : 'af_heart');
@@ -66,7 +70,7 @@ function DeviceModelSetup({ model, name }: { model: DeviceModel; name: string })
   return (
     <div className="inline-form device-voice">
       {status.state === 'downloading' && <progress max={status.total || 1} value={status.done ?? 0} aria-label={`Downloading ${name}`} />}
-      <p className={failed ? 'field-error' : 'srow-text'} role={failed ? 'alert' : 'status'} data-testid={model === 'kokoro' ? 'voice-device-speak' : 'voice-device'}>{deviceText(status)}</p>
+      <p className={failed ? 'field-error' : 'srow-text'} role={failed ? 'alert' : 'status'} data-testid={model === 'kokoro' ? 'voice-device-speak' : model === 'speakers' ? 'voice-device-speakers' : 'voice-device'}>{deviceText(status)}</p>
       {problem && <p className="field-error" role="alert">{problem}</p>}
       {status.available && (status.state === 'absent' || failed) && (
         <button type="button" className="btn" onClick={() => void setUp()}>{failed ? 'Try again' : `Set up (${megabytes(status.bytes)})`}</button>
@@ -139,7 +143,7 @@ function LocalStatus({ job, url }: { job: 'listen' | 'speak'; url: string }) {
 export function VoiceModelRows({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
   const path = (row: string) => settingPath('model', subpage, row);
   const cannot = preferences.listenWith === 'chat' ? chatCannotListen(settings?.baseUrl ?? '') : null;
-  const listening = preferences.listenWith === 'off' ? null : preferences.listenWith === 'elevenlabs' ? 'ElevenLabs Scribe' : preferences.listenWith === 'device' ? `Whisper ${preferences.listenModel}, on this computer` : preferences.dictationModel;
+  const listening = preferences.listenWith === 'off' ? null : preferences.listenWith === 'elevenlabs' ? 'ElevenLabs Scribe' : preferences.listenWith === 'device' ? `${listenerName(preferences.listenModel)}${preferences.listenModel === 'parakeet-v3' ? '' : ` ${preferences.listenModel}`}, on this computer` : preferences.dictationModel;
   const kokoro = KOKORO_VOICES.find((v) => v.id === kokoroVoice(preferences.speakVoice))?.label ?? '';
   const speaking = preferences.speakWith === 'off' ? null : preferences.speakWith === 'elevenlabs' ? 'ElevenLabs' : preferences.speakWith === 'device' ? `Kokoro, ${kokoro}, on this computer` : `${preferences.speakModel}${preferences.speakVoice ? `, ${preferences.speakVoice}` : ''}`;
   return (
@@ -217,13 +221,19 @@ export function VoiceSection({ subpage, highlight, settings, preferences, onPref
         {(preferences.listenWith === 'elevenlabs' || preferences.listenFallback === 'elevenlabs') && <p className="srow-text">ElevenLabs needs its key, added in Gateways.</p>}
       </Row>
       {device && (
-        <Row path={path('listen-device')} title="Whisper on this computer" description="Free and private: a one-time download, then nothing you say leaves this computer." highlight={highlight === 'listen-device'}>
-          <DeviceModelSetup model={preferences.listenModel} name="Whisper" />
+        <Row path={path('listen-device')} title={`${listenerName(preferences.listenModel)} on this computer`} description="Free and private: a one-time download, then nothing you say leaves this computer." highlight={highlight === 'listen-device'}>
+          <DeviceModelSetup model={preferences.listenModel} name={listenerName(preferences.listenModel)} />
+          {preferences.listenModel === 'parakeet-v3' && <p className="srow-text">Parakeet TDT 0.6B v3 by NVIDIA, under CC-BY-4.0. It hears 25 European languages and finds the language itself.</p>}
         </Row>
       )}
       {device && (
-        <Row path={path('listen-accuracy')} title="Accuracy" description="Quick suits dictation. More accurate is slower and a larger download, and suits meetings." highlight={highlight === 'listen-accuracy'}>
+        <Row path={path('listen-accuracy')} title="Accuracy" description="Quick suits dictation. More accurate is slower and a larger download, and suits meetings. Most accurate is Parakeet, about 670 MB." highlight={highlight === 'listen-accuracy'}>
           <PopUp label="Accuracy" value={preferences.listenModel} options={MODELS} onChange={(listenModel) => set({ listenModel })} />
+        </Row>
+      )}
+      {device && (
+        <Row path={path('listen-speakers')} title="Who spoke, in meeting notes" description="A meeting's transcript reads in turns, Speaker 1, Speaker 2 and on, the same names all through the meeting. Set up to turn it on; remove to turn it off." highlight={highlight === 'listen-speakers'}>
+          <DeviceModelSetup model="speakers" name="Speaker labels" />
         </Row>
       )}
       {served && (
