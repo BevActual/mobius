@@ -180,7 +180,7 @@
 }
 .ui-key-hint { display: inline-flex; align-items: center; gap: var(--sp-1); }
 
-/* The dot matrix and agent characters (DotMatrix.tsx): indigo for Mobius, an agent's own content colour for it. */
+/* The dot matrix and agent characters (DotMatrix.tsx): Mobius's colour for Mobius, an agent's own content colour for it. */
 .ui-dot-matrix { display: block; width: calc(var(--sp-8) * 3); height: auto; flex: none; color: var(--mobius); }
 .ui-dot-character { display: inline-grid; place-items: center; flex: none; color: var(--character); border-radius: var(--radius-panel); background: color-mix(in srgb, var(--character) 12%, var(--paper)); padding: var(--sp-1); }
 .ui-dot-character canvas { display: block; width: var(--sp-5); aspect-ratio: 1; }

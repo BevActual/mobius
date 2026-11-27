@@ -155,7 +155,7 @@ The shell's panels (Mobius, then pieces) already sit in the same menu as the app
   - At most one piece per turn is brought, and it stays put for the rest of the turn.
 - **Its changes are shown there:** dashed, with Keep or Discard, as in the app.
 - **Put away when done**, after Keep or Discard, unless you clicked into it, in which case it is yours and stays.
-  Pieces Mobius brought carry the indigo dashed edge until then; yours never do.
+  Pieces Mobius brought carry the dashed Mobius edge until then; yours never do.
 - **A `show` tool** lets Mobius bring up a piece on purpose ("Show me today beside this"). It picks only from the
   catalogue, by app, piece and item id.
 - **Background work never brings pieces.** Its result stays in the Inbox, which opens the piece when you click it.
@@ -181,7 +181,7 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
    places with it.
 5. **Interruptible.** Esc puts away what Mobius brought. Clicking a piece makes it yours. A piece on its way out can
    be caught back by clicking it.
-6. **Changing state, not place.** When a piece goes from Mobius's to yours, only its edge changes (dashed indigo to
+6. **Changing state, not place.** When a piece goes from Mobius's to yours, only its edge changes (dashed to
    none, `--dur-fast`).
 7. **Reduce Motion:** slides become a short fade.
 
@@ -190,7 +190,7 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
 - **Pieces as shell panels** (`pieces.ts`, `ShellPanelsContext` in `ui/PanelLayout.tsx`): open pieces are kept on this
   device (at most three, the oldest goes first) and added to every app's layout in the right dock, so they move,
   float, resize and show in the View menu like any panel. In split view they sit in the right pane. The header has
-  **Open in …** and **Put away** (the panel's ×). A piece Mobius brings carries the dashed indigo edge until the
+  **Open in …** and **Put away** (the panel's ×). A piece Mobius brings carries the dashed Mobius edge until the
   person clicks into it.
 - **Tasks list:** a list's menu › Show beside. Adding and ticking work there; a renamed list keeps its piece.
 - **Calendar day:** Window › Today beside the work. The day's events as a list, ‹ › and Today to step, Mobius's

@@ -40,11 +40,11 @@
   color: var(--ink); font: inherit; font-size: var(--fs-sm); text-overflow: ellipsis;
   cursor: default;
 }
-.settings-page select:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.settings-page select:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 
 /* Text and number fields in a row: the same height and corners as the pop-ups beside them. */
 .settings-page .settings-card .srow-body input:not([type="checkbox"]):not([type="radio"]):not([role="switch"]):not([type="range"]) { height: var(--control-h); padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--hairline); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
-.settings-page .settings-card .srow-body input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.settings-page .settings-card .srow-body input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .settings-page .settings-card .srow-body input[type="text"] { width: var(--settings-control-w); box-sizing: border-box; }
 .settings-page input.steps-field { width: 64px; text-align: right; }
 
@@ -102,7 +102,7 @@
 .settings-sheet-text { margin: 0 0 var(--sp-3); font-size: var(--fs-xs); color: var(--muted); }
 .settings-sheet-field { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); }
 .settings-sheet-field input { flex: 1; height: var(--control-h); padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--hairline); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
-.settings-sheet-field input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.settings-sheet-field input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .settings-sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
 /* Usage: three totals as tiles, tokens by day as thin bars, and the breakdown as a plain table. */

@@ -34,7 +34,7 @@ one only, while teams wait on Andrew), and Details. Icons have tooltips that nam
 - **Sections** for each account with the panel look's 28 px rows and outline icons: `#` for a channel, the person's
   avatar for a direct chat, stacked avatars for a group. Sections fold; the folded state is remembered.
 - **Unread** is the name in ink and semibold, with no dot. **A mention of you** adds a grey count pill on the right.
-  Muted chats are in the faint tone. Nothing here is indigo.
+  Muted chats are in the faint tone. Nothing here is coloured.
 - **From Mobius** is the last section when Mobius has something waiting (a draft reply, a "catch me up"), using the
   grey Mobius mark like Files. It's hidden when empty.
 - The list ends with a quiet note ("That's every chat", with counts), not an empty panel.
@@ -49,7 +49,7 @@ one only, while teams wait on Andrew), and Details. Icons have tooltips that nam
 - **Day headings** are a small centred label in the secondary tone that sticks to the top while scrolling. No rule
   across the log.
 - **New** marks the first unread message: the word in ink with a thin ink line at 50 %, as today. Not red, not
-  indigo.
+  coloured.
 - **A mention of you** is the name as an ink chip on the soft tone, and a faint grey fill behind that run.
 - **On hover** a small floating panel at the run's top right offers React, Reply in thread, Copy, and More. The same
   tools are on the keyboard (R react, T thread, C copy, Shift F10 more).
@@ -66,7 +66,7 @@ one only, while teams wait on Andrew), and Details. Icons have tooltips that nam
   Enter new line" under it while it's empty.
 - **Formatting** (bold, italic, code, list, link) appears in a small row inside the box only once you type or press
   Ctrl Shift X, so the box stays quiet.
-- **Draft with Mobius** sits inside the box on the left, as in Mail. The draft appears in the box dashed in indigo
+- **Draft with Mobius** sits inside the box on the left, as in Mail. The draft appears in the box dashed
   with the panel look's floating **Why · Discard · Try another · Keep** bar. Keep turns it into ordinary text in the
   box. It is never sent until the person presses Send.
 - Send is a round button that turns ink when there is something to send.
@@ -83,12 +83,12 @@ one only, while teams wait on Andrew), and Details. Icons have tooltips that nam
 ## Mobius in Messages
 
 - **Catch me up.** In a chat with more unread than fits on screen, the New marker gets a "Catch me up" button.
-  Pressing it puts a summary above the New marker: a dashed indigo block with the points, who raised each one, and a
+  Pressing it puts a summary above the New marker: a dashed block with the points, who raised each one, and a
   link to jump to each. It is Mobius's work, so it is dashed until the person keeps or dismisses it. Across chats,
   the same summary comes from the Mobius panel ("Catch me up on everything").
 - **Agents as members.** An agent in a Mobius space room is a member like a person, with the Mobius mark as its
   avatar and "Agent" after its name in the faint tone. What an agent posts in the space is plain text like anyone's;
-  the dashed indigo look is only for work waiting on the person's say.
+  the dashed look is only for work waiting on the person's say.
 - **Nothing outside the space speaks for the person.** In Slack, Teams or a bridge, agents never post; they only
   draft into the reply box.
 

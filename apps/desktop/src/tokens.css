@@ -2,7 +2,7 @@
  * Mobius design tokens. Every size, space, colour and motion value the interface uses comes from here, so the
  * applications look like one product. Grounded in Apple's Human Interface Guidelines (macOS): a 4-pt grid, a small
  * type scale, semantic colours with a dark counterpart, and quick, interruptible motion. The timeless theme
- * (docs/design/theme-tokens.md): a flat neutral frame, ink for controls and state, indigo only for Mobius.
+ * (docs/design/theme-tokens.md): a flat neutral frame, ink for controls and state, Mobius's colour only for Mobius.
  */
 :root {
   color-scheme: light dark;
@@ -57,7 +57,7 @@
 
   /*
    * Colour roles: the timeless theme (docs/design/theme-tokens.md). The frame is neutral, controls and state are ink,
-   * indigo is Mobius and only Mobius, red is record, error or delete, and colour belongs to the person's content.
+   * Mobius is ink at rest and a travelling colour only while it works (marked by its dashed edge), red is record, error or delete, and colour belongs to the person's content.
    * A theme is only these values; Light is here, Dark under prefers-color-scheme, Mid grey and Cool dark below.
    */
   --frame: #f4f3ef;
@@ -74,9 +74,16 @@
   --panel-edge: var(--line);
   --panel-highlight: rgba(255, 255, 255, 0.6);
   --sel: #e9e7e0;
-  --mobius: #4b48c8;
-  --mobius-wash: #f0effb;
-  --on-mobius: #ffffff;
+  /* Mobius has no colour of its own at rest: its mark and what it touched are ink, told apart by the dashed edge.
+     While it works (:root[data-mobius-working]) --mobius takes a soft colour that travels slowly round the hues; the
+     lightness and chroma below keep that colour readable as text on this theme's paper. */
+  --mobius-l: 0.55;
+  --mobius-c: 0.15;
+  /* A link in long reading (Docs, Mail, Reader): a quiet blue, the one colour the chrome keeps; elsewhere links are ink. */
+  --link: #2f5fa8;
+  --mobius: var(--ink);
+  --mobius-wash: color-mix(in srgb, var(--mobius) 6%, var(--paper));
+  --on-mobius: var(--on-ink);
   --red: #b3261e;
   /* A destructive primary button: one error red with white words, the same in every theme. */
   --danger-fill: #b3261e;
@@ -175,6 +182,9 @@
   --dur-fade: 150ms;
   /* The period of anything that repeats while something is going on, and of a spinner. */
   --dur-loop: 1.6s;
+  /* One trip of Mobius's colour round the hues while it works: the page's (stepped) and the mark's own (smooth). */
+  --dur-hue: 24s;
+  --dur-hue-mark: 9s;
   --dur-spin: 800ms;
 
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%236f6e69' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -300,9 +310,9 @@
     --panel-edge: rgba(255, 255, 255, 0.06);
     --panel-highlight: rgba(255, 255, 255, 0.04);
     --sel: #232327;
-    --mobius: #8b88ff;
-    --mobius-wash: #1d1c33;
-    --on-mobius: #12112e;
+    --mobius-l: 0.78;
+    --mobius-c: 0.12;
+    --link: #8fb3e8;
     --red: #f08a80;
     --red-wash: #3d1f1d;
     --success: #7bd88f;
@@ -332,9 +342,9 @@
   --line: #aeaeaa;
   --line-soft: #c9c9c5;
   --sel: #b6b6b2;
-  --mobius: #3a37b8;
-  --mobius-wash: #c9c8ea;
-  --on-mobius: #ffffff;
+  --mobius-l: 0.48;
+  --mobius-c: 0.14;
+  --link: #234d8f;
   --red: #a3221b;
   --red-wash: #e3c4c1;
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%234f4f49' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -362,9 +372,9 @@
   --line: #303843;
   --line-soft: #262d36;
   --sel: #2b333e;
-  --mobius: #a3a1ff;
-  --mobius-wash: #2a2c50;
-  --on-mobius: #12112e;
+  --mobius-l: 0.8;
+  --mobius-c: 0.11;
+  --link: #9dbdeb;
   --red: #f08a80;
   --red-wash: #3d2324;
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2397a1ae' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -422,6 +432,17 @@ html[data-density='compact'], .app[data-density='compact'] {
 }
 @media (prefers-contrast: more) {
   :root[data-theme="cool"] { --muted: #cfd5dd; --line: #97a1ae; --line-soft: #97a1ae; }
+}
+/* Mobius at work: one slow trip round the hues, in steps so the whole page restyles a few times a second, not every
+   frame. With Reduce Motion the colour stays still at its first hue. */
+@property --mobius-hue { syntax: '<angle>'; inherits: true; initial-value: 265deg; }
+@keyframes mobius-hue { from { --mobius-hue: 265deg; } to { --mobius-hue: 625deg; } }
+:root[data-mobius-working] {
+  --mobius: oklch(var(--mobius-l) var(--mobius-c) var(--mobius-hue));
+  animation: mobius-hue var(--dur-hue) steps(120) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-mobius-working] { animation: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   /* No movement: what moved now fades (--dur-fade), and nothing repeats. */

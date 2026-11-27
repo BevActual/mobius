@@ -66,7 +66,7 @@ export function useSync(accounts: readonly DriveAccount[]) {
 export type SyncState = ReturnType<typeof useSync>;
 
 /**
- * The sync glyph: two arcs, in muted ink (indigo is Mobius's, never sync's). It turns slowly while syncing, and a
+ * The sync glyph: two arcs, in muted ink (Mobius's colour is Mobius's, never sync's). It turns slowly while syncing, and a
  * problem adds an amber or red dot rather than colouring it.
  */
 export function SyncGlyph({ line, drive }: { line: SyncLine; drive: string }) {

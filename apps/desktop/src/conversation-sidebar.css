@@ -3,9 +3,9 @@
 /* An agent's group reads like a section heading (sentence case, grey), not a shouted label. */
 .agent-side .group-toggle { padding: 2px 4px; font-size: 11px; letter-spacing: 0.01em; text-transform: none; }
 .agent-side .group-toggle:hover { background: none; color: var(--ink); }
-/* What a conversation is doing is a quiet word, not a coloured pill: Mobius is the only indigo, and nothing here shouts. */
+/* What a conversation is doing is a quiet word, not a coloured pill: Mobius is the only Mobius's colour, and nothing here shouts. */
 .ui-side.agent-side .badge, .ui-side.agent-side .badge[data-tone] { margin-left: 0; padding: 0; border-radius: 0; background: none; font-size: var(--fs-xs); color: var(--muted); }
-/* Waiting on you is Mobius asking: indigo, in the same words as the Mobius panel and the launcher. */
+/* Waiting on you is Mobius asking: Mobius's colour, in the same words as the Mobius panel and the launcher. */
 .ui-side.agent-side .badge[data-tone="mobius"] { font-weight: var(--fw-medium); color: var(--mobius); }
 .ui-side.agent-side .badge[data-tone="bad"] { color: var(--red); }
 

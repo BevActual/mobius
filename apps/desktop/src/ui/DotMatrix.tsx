@@ -58,7 +58,7 @@ export interface DotMatrixProps {
   className?: string;
 }
 
-/** Mobius's working matrix: 24 × 6 indigo dots that move with what Mobius is doing. */
+/** Mobius's working matrix: 24 × 6 Mobius's colour dots that move with what Mobius is doing. */
 export function DotMatrix({ mode, progress, cols = 24, rows = 6, at, className }: DotMatrixProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   useFrames(ref, (ctx, t, el) => {

@@ -62,7 +62,7 @@ const BUBBLE = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4.5h12a1.
 /*
  * Mobius's open suggestions on the page an app shows (Docs, Notes: the changes of its last turn still to answer). They
  * count on the Comments badge with the open threads, so what is left to review is one number in one place (the panel
- * look: indigo is only Mobius, and the count is not a separate indigo link).
+ * look: Mobius's colour is only Mobius, and the count is not a separate Mobius's colour link).
  */
 const suggestionCounts = new Map<string, number>();
 const suggestionWatchers = new Set<() => void>();

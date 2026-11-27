@@ -11,7 +11,7 @@ import { ListRow } from './ListRow';
  * Every row has one order: a leading mark that says the kind (a check, a colour bar, an unread dot, a kind icon,
  * initials), the title in ink, one grey detail, then the date or count at the trailing edge in tabular figures.
  * Dates and times come in already formatted, from dates.ts, so they follow the person's clock setting.
- * Anything Mobius proposed or changed (`byMobius`) has the dashed indigo edge in every form.
+ * Anything Mobius proposed or changed (`byMobius`) has the dashed Mobius edge in every form.
  */
 
 interface Common {
@@ -203,7 +203,7 @@ function fields(thing: Thing): [string, ReactNode][] {
 }
 
 /**
- * A shared object as a card: a kind line (the kind's icon and name in small caps, "changed by Mobius" in indigo when it
+ * A shared object as a card: a kind line (the kind's icon and name in small caps, "changed by Mobius" in Mobius's colour when it
  * is, and Open), the title, then two or three label and value lines. An email shows its sender and first words; a
  * person leads with their initials and name. 280px wide unless the panel is narrower.
  */

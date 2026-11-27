@@ -3,7 +3,7 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 /**
  * Buttons (Instrument, "Controls"). Three kinds, one height per density:
  *
- * - `primary`: solid ink with paper text. One per view at most, never indigo.
+ * - `primary`: solid ink with paper text. One per view at most, never Mobius's colour.
  * - `secondary` (the default): paper with a hairline border and ink text.
  * - `quiet`: text only, a grey fill on hover. For toolbars, rows and the plain Discard and Try another beside Keep.
  *

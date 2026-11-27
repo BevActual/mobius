@@ -49,7 +49,7 @@ export interface PanelSpec {
   actions?: ReactNode;
   /** What Hide is called, when it does more than hide (a piece is put away). */
   hideLabel?: string;
-  /** Mobius brought it and it is not the person's yet: the dashed indigo edge. */
+  /** Mobius brought it and it is not the person's yet: the dashed Mobius edge. */
   mobius?: boolean;
 }
 
