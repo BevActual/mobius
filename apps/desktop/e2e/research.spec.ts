@@ -112,6 +112,15 @@ test('Research mode, from anywhere, turns the question into a Doc that Mobius fi
   const shell = mobius.shell;
   const box = shell.getByRole('textbox', { name: 'Message Mobius' });
   await expect(box).toBeEnabled({ timeout: 15_000 });
+  // From the Browser (which puts Mobius away and back as it was) to Home, with Mobius closed beside: the report still
+  // shows Mobius, so its approvals can be answered.
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Browser');
+  await shell.keyboard.press('Enter');
+  await expect(shell.locator('.app')).toHaveAttribute('data-app', 'browser');
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Home');
+  await shell.keyboard.press('Enter');
   // Agent, Ask, Plan, then Research.
   await box.click();
   for (let i = 0; i < 3; i++) await box.press('Shift+Tab');
@@ -123,7 +132,10 @@ test('Research mode, from anywhere, turns the question into a Doc that Mobius fi
   const file = path.join(userData, 'workspace', ...doc.split('/'));
   await expect.poll(() => fs.existsSync(file) && fs.readFileSync(file, 'utf8')).toContain('> Boutique hotels in Principe Real?');
   await expect(shell.locator('.doc-editor').getByRole('textbox', { name: 'Document text' })).toContainText('Boutique hotels in Principe Real');
+  // Mobius shows beside the report (it was the Home page a moment ago), with its approvals in view.
+  await expect(shell.locator('.doc-editor')).toBeVisible();
   const log = shell.getByRole('log', { name: 'Conversation' });
+  await expect(log.getByRole('group', { name: 'Approval needed: web.search' })).toBeVisible();
   await log.getByRole('group', { name: 'Approval needed: web.search' }).getByRole('button', { name: 'Allow once' }).click();
   await log.getByRole('group', { name: 'Approval needed: web.read' }).getByRole('button', { name: 'Allow once' }).click();
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();

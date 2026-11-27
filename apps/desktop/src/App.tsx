@@ -867,8 +867,11 @@ export function App() {
     const book = docs.notebooks.find((n) => n.name === RESEARCH_FOLDER)?.name ?? (await docs.createNotebook(RESEARCH_FOLDER));
     const path = book ? await docs.createPage(book, title, startingPage(question)) : null;
     if (!path) { setToast('Mobius could not make the report’s document.'); return; }
-    // Mobius beside the report: its approvals (searches, pages to read) are where they can be answered.
-    if (!shows('agent')) setChatOpen(true);
+    // Mobius beside the report: its approvals (searches, pages to read) are where they can be answered. Opened whatever
+    // was showing before, as Home (where the Agent page is Mobius) gives way to Docs, and not put back as it was when
+    // leaving the Browser (that would close it again on the way to Docs).
+    chatBeforeBrowser.current = null;
+    setChatOpen(true);
     // One report per question: the next message goes back to Agent (Research is chosen again for another).
     setChatMode('agent');
     void conversation.send(researchPrompt(question, 'thorough', `docs/${path}`, 'doc'), items, Object.keys(options).length > 0 ? options : undefined);

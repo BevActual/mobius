@@ -1,5 +1,6 @@
 import { settleGone, settleIn, settleKept } from './settle';
 import { useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { openWebLink } from './web-link';
 import { createPortal } from 'react-dom';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
 import { Extension, generateHTML } from '@tiptap/core';
@@ -583,7 +584,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
         // Docs and Word; a plain click only places the caret, so the text stays easy to edit.
         if (/^https?:\/\//i.test(href) && (event.ctrlKey || event.metaKey)) {
           event.preventDefault();
-          void window.mobius.browser.open(href);
+          // In its open tab or a new one (never twice), without leaving the document.
+          openWebLink(href, true);
           return true;
         }
         const page = a && pathNow.current ? pageOfLink(href, pathNow.current) : null;
