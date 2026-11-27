@@ -73,4 +73,16 @@ describe('recent items', () => {
     expect(isAvailable('views')).toBe(false);
     setInstalledApps(null);
   });
+
+  it('Terminal is Code’s: not listed on its own, and one added before the fold brings Code with it', () => {
+    expect(isListed(APPS.find((a) => a.id === 'terminal')!)).toBe(false);
+    setInstalledApps(['code']);
+    expect(isAvailable('terminal')).toBe(true);
+    setInstalledApps(['terminal']);
+    expect(isAvailable('code')).toBe(true);
+    expect(isAvailable('terminal')).toBe(true);
+    setInstalledApps(['notes']);
+    expect(isAvailable('terminal')).toBe(false);
+    setInstalledApps(null);
+  });
 });

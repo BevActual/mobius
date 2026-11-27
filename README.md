@@ -158,7 +158,7 @@ Mobius's own apps, always there.
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/code-dark.png"><img src="docs/readme/apps/code.png" alt="The Code app in Mobius"></picture><br><b>Code</b> · A code editor for projects in your workspace, with git.<br><sub>Edit, find, run tests and commit. Mobius proposes changes you review line by line.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/terminal-dark.png"><img src="docs/readme/apps/terminal.png" alt="The Terminal app in Mobius"></picture><br><b>Terminal</b> · Run commands in a folder of your workspace.<br><sub>For the jobs that need a command line. Mobius always asks before running one.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/terminal-dark.png"><img src="docs/readme/apps/terminal.png" alt="The Terminal in Mobius"></picture><br><b>Terminal</b> · Code's Terminal panel, or opened alone from Ctrl+K: run commands in a folder of your workspace.<br><sub>For the jobs that need a command line. Mobius always asks before running one.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/canvas-dark.png"><img src="docs/readme/apps/canvas.png" alt="The Canvas app in Mobius"></picture><br><b>Canvas</b> · A whiteboard of stickies, shapes, arrows and pen lines.<br><sub>Think out loud on a board. Send a sticky to Mobius to turn it into a plan.</sub></td>
 </tr>
 </table>

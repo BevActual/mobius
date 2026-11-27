@@ -631,7 +631,7 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
 
 
 /** The open file: as Mobius changed it (to keep or discard) or as you type it, and the project's tests below. */
-export function CodeEditor({ code, review, listPanels = [] }: { code: CodeState; review?: { conversation: string; settled?: boolean } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
+export function CodeEditor({ code, review, listPanels = [], terminal }: { code: CodeState; review?: { conversation: string; settled?: boolean } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[]; /** The workspace's terminal, Code's Terminal panel (the Terminal app folded in). */ terminal?: ReactNode }) {
   const file = code.open && code.project ? `code/${code.project}/${code.open.path}` : null;
   const [bar, setBar] = useState<'find' | 'line' | null>(null);
   const [quick, setQuick] = useState(false);
@@ -697,12 +697,15 @@ export function CodeEditor({ code, review, listPanels = [] }: { code: CodeState;
     return () => window.removeEventListener('keydown', onKey);
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!code.available) return <PanelLayout app="code" panels={listPanels}><section className="code-page empty" aria-label="Code"><EmptyState app="code" title="Code is not available here" /></section></PanelLayout>;
-  if (!code.project) return <PanelLayout app="code" panels={listPanels}><section className="code-page empty" aria-label="Code"><EmptyState app="code" title="No project open" line="A project is a folder of files Mobius can read, suggest changes to and test." action={{ label: 'New project', run: () => void code.createProject('Project') }} /></section></PanelLayout>;
+  // Terminal (bottom dock, beside Tests and Console): the workspace's own terminal, there with or without a project.
+  const terminalPanels: PanelSpec[] = terminal ? [{ id: 'terminal', name: 'Terminal', dock: 'bottom', group: 'run', shown: false, render: () => terminal }] : [];
+  if (!code.available) return <PanelLayout app="code" panels={[...listPanels, ...terminalPanels]}><section className="code-page empty" aria-label="Code"><EmptyState app="code" title="Code is not available here" /></section></PanelLayout>;
+  if (!code.project) return <PanelLayout app="code" panels={[...listPanels, ...terminalPanels]}><section className="code-page empty" aria-label="Code"><EmptyState app="code" title="No project open" line="A project is a folder of files Mobius can read, suggest changes to and test." action={{ label: 'New project', run: () => void code.createProject('Project') }} /></section></PanelLayout>;
   // Tests and Console (bottom dock, side by side): the test run and a shell in the project.
   const bottomPanels: PanelSpec[] = [
     { id: 'tests', name: 'Tests', dock: 'bottom', group: 'run', shown: true, render: () => <TestsPanel code={code} /> },
     { id: 'console', name: 'Console', dock: 'bottom', group: 'run', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
+    ...terminalPanels,
   ];
   const lang = code.open ? langOf(code.open.path) : 'plain';
   // Outline (right, hidden until asked for): what the open file defines; a click goes to its line.

@@ -122,3 +122,16 @@ export function TerminalPage({ term, focusToken, onAsk }: { term: TerminalState;
     </section>
   );
 }
+
+/**
+ * The terminal as Code's bottom panel (Terminal folded into Code, as in VS Code): the same terminal, with its places
+ * and what keeps running beside it.
+ */
+export function TerminalPanel({ term, onAsk }: { term: TerminalState; onAsk?: (title: string, text: string) => void }) {
+  return (
+    <div className="term-panel">
+      <TerminalPage term={term} onAsk={onAsk} />
+      <TerminalSidebar term={term} pin={null} />
+    </div>
+  );
+}

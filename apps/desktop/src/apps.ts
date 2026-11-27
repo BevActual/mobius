@@ -29,7 +29,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'studio', name: 'Music', available: true, group: 'Create', also: 'Studio songs' },
   { id: 'video', name: 'Video', available: true, group: 'Create' },
   { id: 'code', name: 'Code', available: true, group: 'Create' },
-  { id: 'terminal', name: 'Terminal', available: true, group: 'Create' },
+  { id: 'terminal', name: 'Terminal', available: true, group: 'Create', modeOf: 'code', also: 'Shell Command line Console' },
   { id: 'canvas', name: 'Canvas', available: true, group: 'Create' },
   { id: 'files', name: 'Files', available: true, group: 'Browse and find', also: 'Drive Made by Mobius Artifacts' },
   { id: 'views', name: 'Views', available: true, group: 'Browse and find', modeOf: 'database', also: 'Dashboard Dashboards Live view Overview Widgets Tiles' },
@@ -56,8 +56,8 @@ export function setInstalledApps(list: readonly string[] | null | undefined): vo
 export const isInstalled = (id: string): boolean => {
   const mode = findApp(id)?.modeOf;
   if (mode) return isInstalled(mode);
-  // Views are Database's now: Views added before it was folded in brings Database with it.
-  return installed === null || installed.has(id) || (id === 'database' && installed.has('views')) || (CORE_APPS as readonly string[]).includes(id);
+  // Terminal is Code's now, and Views Database's: one added before it was folded in brings its app with it.
+  return installed === null || installed.has(id) || (id === 'code' && installed.has('terminal')) || (id === 'database' && installed.has('views')) || (CORE_APPS as readonly string[]).includes(id);
 };
 /** Listed as an app of its own (not a mode folded into another). */
 export const isListed = (app: AppInfo): boolean => !app.modeOf;
