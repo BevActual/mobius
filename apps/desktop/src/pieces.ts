@@ -36,7 +36,8 @@ export interface OpenPiece {
   title?: string;
 }
 
-export const pieceKey = (p: { kind: PieceKind; item: string }): string => `${p.kind}:${p.item}`;
+/** One Calendar day at a time: stepping to another day keeps the same piece (and where it was moved to). */
+export const pieceKey = (p: { kind: PieceKind; item: string }): string => (p.kind === 'calendar.day' ? p.kind : `${p.kind}:${p.item}`);
 /** Its panel's id in the layouts. */
 export const piecePanelId = (p: { kind: PieceKind; item: string }): string => `piece:${pieceKey(p)}`;
 
@@ -66,7 +67,13 @@ export function parsePieces(raw: string | null): OpenPiece[] {
 /** Opens a piece (or keeps the one open, made the person's when they asked for it); the oldest goes past the limit. */
 export function withPiece(open: readonly OpenPiece[], piece: OpenPiece): OpenPiece[] {
   const at = open.findIndex((o) => pieceKey(o) === pieceKey(piece));
-  if (at >= 0) return piece.by === 'you' && open[at]!.by === 'mobius' ? open.map((o, i) => (i === at ? { ...o, by: 'you' } : o)) : [...open];
+  if (at >= 0) {
+    const was = open[at]!;
+    const title = piece.title ?? (piece.item === was.item ? was.title : undefined);
+    // Mobius bringing it again does not take it back from the person.
+    const now: OpenPiece = { kind: was.kind, item: piece.item, by: piece.by === 'you' || was.by === 'you' ? 'you' : 'mobius', ...(title ? { title } : {}) };
+    return open.map((o, i) => (i === at ? now : o));
+  }
   return [...open, piece].slice(-MAX_PIECES);
 }
 

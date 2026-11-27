@@ -555,13 +555,16 @@ test('today beside the work is a piece in other apps: its events, the next day, 
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
   await shell().keyboard.press('Enter');
-  const piece = shell().getByRole('region', { name: 'Today, from Calendar' });
+  // One day piece, whatever day it shows; its header names the day.
+  const piece = shell().locator('section[data-panel="piece:calendar.day"]');
+  await expect(piece).toHaveAttribute('aria-label', 'Today, from Calendar');
   const budget = piece.getByRole('button', { name: /^Budget review/ });
   await expect(budget).toContainText('Room 4');
   await expect(budget).toContainText(new RegExp(at('11:00')));
   // The next day has nothing; Today comes back to it.
   await piece.getByRole('button', { name: 'Day after' }).click();
   await expect(piece.getByText('Nothing planned.')).toBeVisible();
+  await expect(piece).not.toHaveAttribute('aria-label', 'Today, from Calendar');
   await piece.getByRole('button', { name: 'Today', exact: true }).click();
   await expect(budget).toBeVisible();
   // A row opens the event in Calendar.

@@ -331,6 +331,13 @@ test('a conversation shown beside stays as a piece in other apps, and a reply is
   await piece.getByRole('button', { name: /^Reply to/ }).click();
   const compose = piece.getByRole('form', { name: 'Reply' });
   await expect(compose.getByRole('combobox', { name: 'To' })).toHaveValue('rui@example.com');
+  // Ready to type, and Close keeps one draft (a field letting go as Close is pressed saves the same one).
+  await expect(compose.getByRole('textbox', { name: 'Message' })).toBeFocused();
+  await shell().keyboard.type('Hi Rui, eight of us.');
+  await compose.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(piece.getByRole('region', { name: 'Your draft reply' })).toHaveCount(1);
+  await piece.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(compose.getByRole('textbox', { name: 'Message' })).toHaveValue(/^Hi Rui, eight of us\./);
   await compose.getByRole('textbox', { name: 'Message' }).fill('Hi Rui, eight of us. Thanks!');
   await compose.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(compose).toHaveCount(0);

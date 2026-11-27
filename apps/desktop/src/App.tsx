@@ -1397,7 +1397,7 @@ export function App() {
     if (event) setShowEvent((was) => ({ id: event, date, n: (was?.n ?? 0) + 1 }));
   };
   const pieceBody = (p: OpenPiece): ReactNode => (p.kind === 'tasks.list' ? <TasksListPiece tasks={tasks} list={p.item} />
-    : p.kind === 'calendar.day' ? <CalendarDayPiece calendar={calendar} day={p.item} onOpen={(date, event) => openCalendarAt(date, event)} />
+    : p.kind === 'calendar.day' ? <CalendarDayPiece calendar={calendar} day={p.item} onDay={(day) => showPiece('calendar.day', day, p.by)} onOpen={(date, event) => openCalendarAt(date, event)} />
     : p.kind === 'mail.thread' ? <MailThreadPiece mail={mail} id={p.item} /> : null);
   const pieceBodyRef = useRef(pieceBody);
   pieceBodyRef.current = pieceBody;
@@ -1626,7 +1626,7 @@ export function App() {
     apps: APPS.filter((a) => isListed(a) && isAvailable(a.id)),
     keys: bindings,
     state: {
-      commenting, split, canSplit: !narrow, miniOpen, todayBeside: openPieces.some((p) => p.kind === 'calendar.day' && p.item === 'today'),
+      commenting, split, canSplit: !narrow, miniOpen, todayBeside: openPieces.some((p) => p.kind === 'calendar.day'),
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn, sort: notesSort, isTemplate: isTemplate(notes.page?.path), templates: noteTemplates(notes.notebooks) },
@@ -1648,7 +1648,7 @@ export function App() {
       toggleComments: () => setCommenting((on) => !on),
       toggleSplit,
       toggleMini,
-      toggleTodayBeside: () => { if (openPieces.some((p) => p.kind === 'calendar.day' && p.item === 'today')) putAway('calendar.day', 'today'); else showPiece('calendar.day', 'today'); },
+      toggleTodayBeside: () => { if (openPieces.some((p) => p.kind === 'calendar.day')) putAway('calendar.day', 'today'); else showPiece('calendar.day', 'today'); },
       zoom: (zoom) => void appearance.set({ zoom }),
       open: (id) => { closeSettings(); openApp(id); },
       allApps: openHub,

@@ -1,5 +1,5 @@
 import { assignEntries, mailAssignment } from './assign';
-import { showPiece } from './pieces';
+import { showPiece, usePieces } from './pieces';
 import { openWebLink } from './web-link';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -289,7 +289,13 @@ function DraftEditor({ mail, draft, inline = false }: { mail: MailState; draft: 
     if (draft.id) return;
     if (draft.to) { body.current?.focus({ preventScroll: true }); body.current?.setSelectionRange(0, 0); } else to.current?.focus({ preventScroll: true });
   }, [draft]);
-  const keep = async (next: MailDraft) => { const saved = await mail.saveDraft({ ...next, by: 'you' }); if (saved) setD((cur) => ({ ...cur, id: saved.id, account: saved.account })); };
+  // The id the draft was saved under, at once: Close right after a field lets go saves over it, not beside it.
+  const savedAs = useRef<{ id: string; account: string } | null>(null);
+  const keep = async (next: MailDraft) => {
+    const known = !next.id && savedAs.current ? { ...next, ...savedAs.current } : next;
+    const saved = await mail.saveDraft({ ...known, by: 'you' });
+    if (saved) { savedAs.current = { id: saved.id, account: saved.account }; setD((cur) => ({ ...cur, id: saved.id, account: saved.account })); }
+  };
   const send = async () => {
     setSending(true);
     setProblem(await mail.send({ ...d, by: 'you' }));
@@ -791,6 +797,9 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
   const drafts = v.kind === 'drafts' && v.only ? mail.drafts.filter((d) => d.by === v.only) : mail.drafts;
   // A reply to the open message is written in its box under it; any other draft takes the pane.
   const replying = mail.editing && mail.open && mail.editing.replyTo === mail.open.id ? mail.editing : null;
+  // A reply being written in its conversation's piece beside the work is written there only, not here as well.
+  const pieces = usePieces();
+  const inPiece = !replying && !!mail.editing?.replyTo && pieces.some((p) => p.kind === 'mail.thread' && p.item === mail.editing!.replyTo);
   // J and K (or the arrows) move through the list. E is Done, R replies (Shift+R to all), F forwards, U marks unread, H
   // asks when to bring the open message back. Tab and Shift+Tab move between Important, Waiting and Other. Not while
   // typing, and not with Ctrl or Alt.
@@ -884,9 +893,9 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
       </div>
       <div className="mail-reading-pane">
         {/* Too narrow for the list and a readable message side by side: the message takes the list's place, with Back. */}
-        {(mail.open || mail.editing) && <button type="button" className="btn mail-back" onClick={() => { if (mail.editing) mail.setEditing(null); else mail.setOpen(null); }}>‹ Back to {mailPlace(v)}</button>}
+        {(mail.open || (mail.editing && !inPiece)) && <button type="button" className="btn mail-back" onClick={() => { if (mail.editing) mail.setEditing(null); else mail.setOpen(null); }}>‹ Back to {mailPlace(v)}</button>}
         {mail.message && <p className="tasks-message" role="alert">{mail.message}</p>}
-        {mail.editing && !replying ? <DraftEditor key={mail.editing.id || 'new'} mail={mail} draft={mail.editing} />
+        {mail.editing && !replying && !inPiece ? <DraftEditor key={mail.editing.id || 'new'} mail={mail} draft={mail.editing} />
           : mail.open ? <Reader mail={mail} content={mail.open} replying={replying} {...(onDraftReply ? { onDraftReply } : {})} />
             : mail.accounts.length === 0
               ? <EmptyState kind="mail" action={<Button kind="primary" onClick={() => setAdding(true)}>Add a mail account…</Button>}>Drafts are kept here on this computer. Add an account to send them.</EmptyState>

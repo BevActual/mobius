@@ -1464,12 +1464,11 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
  * with Mobius's suggestions dashed where they would go and answered in place. ‹ and › step the day; a row opens the
  * event in Calendar. The shell draws its header (the day, Open in Calendar, Put away).
  */
-export function CalendarDayPiece({ calendar, day: item, onOpen }: { calendar: CalendarState; /** "today", or a day as YYYY-MM-DD. */ day: string; onOpen: (date: string, id?: string) => void }) {
+export function CalendarDayPiece({ calendar, day: item, onDay, onOpen }: { calendar: CalendarState; /** "today", or a day as YYYY-MM-DD. */ day: string; /** Steps the piece to another day (its header names it). */ onDay: (day: string) => void; onOpen: (date: string, id?: string) => void }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(t); }, []);
-  const [by, setBy] = useState(0);
-  useEffect(() => { setBy(0); }, [item]);
-  const day = addDays(item === 'today' ? now : localDate(item), by);
+  const day = item === 'today' ? now : localDate(item);
+  const stepTo = (by: number) => { const next = addDays(day, by); onDay(sameDay(next, now) ? 'today' : isoDay(next)); };
   const iso = isoDay(day);
   const [events, setEvents] = useState<CalendarEvent[] | null>(null);
   useEffect(() => {
@@ -1483,9 +1482,9 @@ export function CalendarDayPiece({ calendar, day: item, onOpen }: { calendar: Ca
     <div className="cal-piece">
       <div className="cal-piece-bar">
         <h3 className="cal-piece-day" aria-live="polite">{formatWith(day, { weekday: 'long' })}<span>{formatWith(day, { day: 'numeric', month: 'long' })}</span></h3>
-        <button type="button" className="strip-btn" aria-label="Day before" title="Day before" onClick={() => setBy((n) => n - 1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
-        {!sameDay(day, now) && <button type="button" className="strip-btn cal-piece-today" onClick={() => setBy(item === 'today' ? 0 : Math.round((now.getTime() - localDate(item).getTime()) / 86_400_000))}>Today</button>}
-        <button type="button" className="strip-btn" aria-label="Day after" title="Day after" onClick={() => setBy((n) => n + 1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
+        <button type="button" className="strip-btn" aria-label="Day before" title="Day before" onClick={() => stepTo(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
+        {!sameDay(day, now) && <button type="button" className="strip-btn cal-piece-today" onClick={() => onDay('today')}>Today</button>}
+        <button type="button" className="strip-btn" aria-label="Day after" title="Day after" onClick={() => stepTo(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
       </div>
       {events === null ? <div className="cal-loading" aria-hidden="true">{[0, 1, 2].map((i) => <span key={i} className="cal-loading-bar" />)}</div>
         : shown.length === 0 ? <p className="cal-piece-empty">Nothing planned.</p> : (

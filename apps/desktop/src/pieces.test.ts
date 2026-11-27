@@ -27,4 +27,9 @@ describe('pieces', () => {
     expect(open).toHaveLength(MAX_PIECES);
     expect(open.map(pieceKey)).not.toContain(pieceKey(a));
   });
+
+  it('keeps one Calendar day piece, which follows the day it is stepped to', () => {
+    const today: OpenPiece = { kind: 'calendar.day', item: 'today', by: 'you' };
+    expect(withPiece([today], { kind: 'calendar.day', item: '2026-11-28', by: 'mobius' })).toEqual([{ kind: 'calendar.day', item: '2026-11-28', by: 'you' }]);
+  });
 });
