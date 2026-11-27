@@ -216,11 +216,16 @@
 .ui-panels[data-moving-panel] { cursor: grabbing; }
 .ui-panels[data-moving-panel] * { cursor: grabbing !important; }
 .ui-dock-targets { position: absolute; inset: 0; z-index: 40; pointer-events: none; animation: ui-dock-targets-in var(--dur-fast) var(--ease); }
-.ui-dock-target { position: absolute; border: var(--hairline-w) dashed var(--line-strong); border-radius: var(--radius-panel); background: transparent; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
-.ui-dock-target[data-dock="left"] { left: var(--sp-2); top: var(--sp-2); bottom: var(--sp-2); width: min(28%, calc(var(--sp-8) * 9)); }
-.ui-dock-target[data-dock="right"] { right: var(--sp-2); top: var(--sp-2); bottom: var(--sp-2); width: min(28%, calc(var(--sp-8) * 10)); }
-.ui-dock-target[data-dock="bottom"] { left: calc(min(28%, calc(var(--sp-8) * 9)) + var(--sp-4)); right: calc(min(28%, calc(var(--sp-8) * 10)) + var(--sp-4)); bottom: var(--sp-2); height: 30%; }
-.ui-dock-target[data-over] { border-style: solid; border-color: var(--muted); background: color-mix(in srgb, var(--ink) 7%, transparent); box-shadow: 0 var(--sp-2) var(--sp-6) color-mix(in srgb, var(--ink) 10%, transparent); }
+.ui-dock-target { position: absolute; border-radius: var(--radius-panel); background: color-mix(in srgb, var(--ink) 10%, transparent); transition: left var(--dur-fast) var(--ease), right var(--dur-fast) var(--ease), width var(--dur-fast) var(--ease), height var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); border: var(--hairline-w) solid transparent; }
+/* At rest each dock is a thin bar along its edge, so it marks where to go without covering the page (or a floating
+   panel); the one under the pointer opens to where the panel would sit. */
+.ui-dock-target[data-dock="left"] { left: var(--sp-1); top: var(--sp-2); bottom: var(--sp-2); width: var(--sp-1); }
+.ui-dock-target[data-dock="right"] { right: var(--sp-1); top: var(--sp-2); bottom: var(--sp-2); width: var(--sp-1); }
+.ui-dock-target[data-dock="bottom"] { left: calc(var(--sp-8) * 2); right: calc(var(--sp-8) * 2); bottom: var(--sp-1); height: var(--sp-1); }
+.ui-dock-target[data-over] { border-color: var(--muted); background: color-mix(in srgb, var(--ink) 7%, transparent); box-shadow: 0 var(--sp-2) var(--sp-6) color-mix(in srgb, var(--ink) 10%, transparent); }
+.ui-dock-target[data-dock="left"][data-over] { width: min(28%, calc(var(--sp-8) * 9)); left: var(--sp-2); }
+.ui-dock-target[data-dock="right"][data-over] { width: min(28%, calc(var(--sp-8) * 10)); right: var(--sp-2); }
+.ui-dock-target[data-dock="bottom"][data-over] { height: 30%; left: var(--sp-2); right: var(--sp-2); bottom: var(--sp-2); }
 @keyframes ui-dock-targets-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ui-dock-targets { animation: none; } .ui-dock-target { transition: none; } }
 .ui-panel-head[data-movable] { user-select: none; -webkit-user-select: none; }
@@ -239,7 +244,7 @@
 /* Columns break only between blocks: the list's own wrappers flow as blocks in a strip, its rows stay whole. */
 .ui-panel[data-shape="strip"] .side :is(nav, section, ul, ol) { display: block; overflow: visible; min-height: auto; }
 .ui-panel[data-shape="strip"] .side :is(nav, section) + :is(nav, section), .ui-panel[data-shape="strip"] .side nav > * + * { margin-top: var(--sp-3); }
-.ui-panel[data-shape="strip"] .side :is(li, .side-head) { break-inside: avoid; }
+.ui-panel[data-shape="strip"] .side :is(li, .side-head, section, .ui-side-section) { break-inside: avoid; }
 /* A popped-out panel floats over the page: moved by its header, sized from its corner, docked again from its menu or
    by dragging it to a dock. */
 .ui-float { position: absolute; z-index: 30; display: flex; min-width: calc(var(--sp-8) * 7); min-height: calc(var(--sp-8) * 5); border-radius: var(--radius-panel); background: var(--bg); box-shadow: 0 0 0 var(--hairline-w) var(--line), 0 var(--sp-3) var(--sp-8) color-mix(in srgb, var(--ink) 16%, transparent), 0 calc(var(--sp-1) / 2) calc(var(--sp-1) * 1.5) color-mix(in srgb, var(--ink) 8%, transparent); overflow: hidden; animation: ui-float-in var(--dur-med, 180ms) var(--ease); }

@@ -126,10 +126,11 @@ describe('panels', () => {
 
   it('take a panel dragged near the page\'s sides or bottom to that dock, and anywhere else to none', () => {
     const page = { left: 0, top: 0, width: 1000, height: 800 };
-    expect(dockAt(100, 400, page)).toBe('left');
-    expect(dockAt(900, 400, page)).toBe('right');
-    expect(dockAt(500, 700, page)).toBe('bottom');
+    expect(dockAt(40, 400, page)).toBe('left');
+    expect(dockAt(960, 400, page)).toBe('right');
+    expect(dockAt(500, 770, page)).toBe('bottom');
     expect(dockAt(500, 300, page)).toBeNull();
+    expect(dockAt(150, 400, page)).toBeNull();
     expect(dockAt(-5, 300, page)).toBeNull();
   });
 

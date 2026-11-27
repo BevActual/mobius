@@ -418,13 +418,16 @@ export function placedPanels(declared: readonly PanelSpec[], moved: SavedLayout[
   });
 }
 
-/** Where a panel dragged to (x, y) over the page would go: near its left or right side, or its bottom; else nowhere. */
+/** How near the page's side or bottom a dragged panel must be to dock there, in pixels. */
+export const DOCK_REACH = 72;
+/** Where a panel dragged to (x, y) over the page would go: close to its left or right side, or its bottom; else
+ *  nowhere (a floating panel just moves). */
 export function dockAt(x: number, y: number, page: { left: number; top: number; width: number; height: number }): PanelDock | null {
-  const [dx, dy] = [(x - page.left) / page.width, (y - page.top) / page.height];
-  if (dx < 0 || dx > 1 || dy < 0 || dy > 1) return null;
-  if (dx < 0.22) return 'left';
-  if (dx > 0.78) return 'right';
-  if (dy > 0.7) return 'bottom';
+  const [dx, dy] = [x - page.left, y - page.top];
+  if (dx < 0 || dx > page.width || dy < 0 || dy > page.height) return null;
+  if (dx < DOCK_REACH) return 'left';
+  if (page.width - dx < DOCK_REACH) return 'right';
+  if (page.height - dy < DOCK_REACH) return 'bottom';
   return null;
 }
 
