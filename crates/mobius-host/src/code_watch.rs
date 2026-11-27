@@ -107,7 +107,8 @@ pub fn watch(root: &Path, changed: Changed) -> Option<CodeWatch> {
                         }
                     }
                 }
-                if let Some(change) = change_in(&top, &path) {
+                // A folder is told of as changed when a file in it is (Windows does): the file is what changed.
+                if let Some(change) = change_in(&top, &path).filter(|_| !path.is_dir()) {
                     seen.push(change);
                 }
             };
