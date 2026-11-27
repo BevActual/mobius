@@ -188,7 +188,9 @@ This is mostly moving and renaming what exists, done in small PRs with the old s
    meeting notes" is its own 31 MB download (pyannote segmentation-3.0 int8 + 3D-Speaker CAM++ English). Each 2-minute
    part is told apart on its own, then each voice print is matched (cosine ≥ 0.5) against the voices already heard in
    that meeting, so Speaker 1 stays Speaker 1 all through it; two voices in one part are never merged. The transcript
-   reads as turns, `**Speaker 1:** …`. Moonshine captions and the router come next.
+   reads as turns, `**Speaker 1:** …`. *0.3.1:* within a part, moments are grouped as one person up to a cosine distance of 0.7 (was 0.5),
+   which stops one person now and then showing up as a third; real voices in sherpa-onnx's four-speaker recording stay
+   apart well past that. Meetings are also cut at a pause (#961). Moonshine captions and the router come next.
 3. **Live voice.** Talk to Mobius hands-free: Silero VAD + Smart Turn v3 decide when you have finished, the reply
    is spoken and you can interrupt it. All the usual approvals still appear on screen.
 4. **Clean-up tools.** Clean up a recording (DeepFilterNet, GTCRN) in Notes and Video; separate stems (Spleeter)
