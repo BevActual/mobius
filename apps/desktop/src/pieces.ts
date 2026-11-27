@@ -87,8 +87,12 @@ function set(next: OpenPiece[]): void {
 const subscribe = (l: () => void) => { listeners.add(l); return () => listeners.delete(l); };
 export const usePieces = (): readonly OpenPiece[] => useSyncExternalStore(subscribe, () => pieces, () => pieces);
 
+/** Today's date as YYYY-MM-DD, here. */
+const isoToday = (): string => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 export function showPiece(kind: PieceKind, item: string, by: OpenPiece['by'] = 'you', title?: string): void {
-  set(withPiece(pieces, { kind, item, by, ...(title ? { title } : {}) }));
+  // Today is "today" however it is asked for, so it is named Today and follows the date at midnight.
+  const shown = kind === 'calendar.day' && item === isoToday() ? 'today' : item;
+  set(withPiece(pieces, { kind, item: shown, by, ...(title ? { title } : {}) }));
 }
 export function putAway(kind: PieceKind, item: string): void {
   set(pieces.filter((o) => pieceKey(o) !== pieceKey({ kind, item })));
