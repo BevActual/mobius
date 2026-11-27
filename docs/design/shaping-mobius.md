@@ -246,7 +246,8 @@ Andrew answered on 27 November 2026 ("Will go with your recommendations"):
    Its results land in Home's Inbox, its changes dashed for Keep or Discard, and the floors still ask before anything
    leaves his hands.
 2. **Embeddings: yes, as an optional download, off by default.** Word search comes first either way.
-3. **Store into Settings: asked again.** Andrew agreed to fold the Store into Settings, but this plan finds a reason
-   to keep it as an app: an Ability is a kind of thing of its own, written and edited there (its own page, `/name`).
-   The Store's catalogue of apps and extensions is also opened on purpose to add things. The question went back to
-   him before anything moves.
+3. **Store stays its own app.** He had first agreed to fold it into Settings. When this plan found the reason above
+   to keep it (an Ability is a kind of thing of its own, written and edited in the Store), he chose to keep it, on
+   27 November 2026.
+4. **Abilities Mobius writes itself: yes** (same day). After a job of several steps, Mobius offers "Save this as an
+   Ability" as an Inbox row. This goes into the agent rounds.
