@@ -24,6 +24,23 @@ export function ViewsSidebar(props: { views: NotesState; pin: ReactNode; changed
 /** A new view in the open view's folder, or the first, or a folder made for it. */
 export const newView = (views: NotesState) => newItemIn(views, views.page?.path.split('/')[0], VIEWS_WORDS.defaultGroup);
 
+/** The view pinned to Home (one at a time), kept on this computer. */
+const PIN_KEY = 'mobius.home.view';
+const PIN_EVENT = 'mobius:home-view';
+export function pinnedViewPath(): string | null {
+  try { return window.localStorage.getItem(PIN_KEY) || null; } catch { return null; }
+}
+export function setPinnedViewPath(path: string | null): void {
+  try { if (path) window.localStorage.setItem(PIN_KEY, path); else window.localStorage.removeItem(PIN_KEY); } catch { /* Not kept. */ }
+  window.dispatchEvent(new CustomEvent(PIN_EVENT));
+}
+/** The pinned view's path, following a pin or unpin anywhere in the window. */
+export function usePinnedView(): string | null {
+  const [path, setPath] = useState(pinnedViewPath);
+  useEffect(() => { const on = () => setPath(pinnedViewPath()); window.addEventListener(PIN_EVENT, on); return () => window.removeEventListener(PIN_EVENT, on); }, []);
+  return path;
+}
+
 /** What the change bar says about Mobius's change to a view. */
 export function viewReviewText(changed: number, removed: number): string {
   const n = (k: number) => (k === 1 ? 'one tile' : `${k} tiles`);
@@ -79,6 +96,7 @@ interface Props {
 /** One view: its tiles in a grid, each live from its app. Edit rearranges them; Mobius's changes come dashed. */
 export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) {
   const schedules = useSchedules();
+  const pinned = usePinnedView();
   const sources: ViewSources = { ...apps, schedules };
   const parsed = useMemo(() => (views.page ? parseView(views.text) : null), [views.page, views.text]);
   const view = parsed && 'view' in parsed ? parsed.view : null;
@@ -155,6 +173,7 @@ export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) 
     <section className="views-page" aria-label={views.page.title} data-editing={editing || undefined}>
       <div className="views-bar" role="toolbar" aria-label="View">
         <span className="views-bar-gap" />
+        <button type="button" className="btn" aria-pressed={pinned === views.page.path} title={pinned === views.page.path ? 'Take this view off Home' : 'Show this view on Home, above the Inbox'} onClick={() => setPinnedViewPath(pinned === views.page!.path ? null : views.page!.path)}>{pinned === views.page.path ? 'Pinned to Home' : 'Pin to Home'}</button>
         <div className="views-add">
           <button ref={addButton} type="button" className="btn" aria-haspopup="menu" aria-expanded={adding} onClick={() => setAdding((a) => !a)}>Add tile</button>
           {adding && (
@@ -257,5 +276,66 @@ export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) 
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * The view pinned to Home: its tiles, live, read from its file (Home shows it whatever is open in Views). A tile's
+ * rows open what they show; the title opens the view.
+ */
+export function PinnedView({ path, apps, onOpen, onOpenView, now: fixedNow }: { path: string; apps: Omit<ViewSources, 'schedules'>; onOpen: (target: TileTarget) => void; onOpenView: (path: string, title: string) => void; now?: Date }) {
+  const schedules = useSchedules();
+  const [view, setView] = useState<View | null>(null);
+  useEffect(() => {
+    let live = true;
+    const api = window.mobius.views;
+    const load = () => void api?.read(path).then((r) => {
+      if (!live) return;
+      const parsed = 'content' in r ? parseView(r.content) : null;
+      setView(parsed && 'view' in parsed ? parsed.view : null);
+    }).catch(() => undefined);
+    load();
+    const id = window.setInterval(load, 60_000);
+    return () => { live = false; window.clearInterval(id); };
+  }, [path]);
+  if (!view || view.tiles.length === 0) return null;
+  const now = fixedNow ?? new Date();
+  const sources: ViewSources = { ...apps, schedules };
+  const title = path.split('/').pop()!.replace(/\.json$/, '');
+  return (
+    <div className="desk-group home-view" role="group" aria-label={`Pinned view: ${title}`}>
+      <h3 className="desk-head home-view-head">
+        <button type="button" className="home-view-title" title="Open this view" onClick={() => onOpenView(path, title)}>{title}</button>
+        <button type="button" className="home-view-unpin" onClick={() => setPinnedViewPath(null)}>Unpin from Home</button>
+      </h3>
+      <ul className="views-grid" role="list" aria-label="Tiles">
+        {view.tiles.map((tile) => {
+          const content = tileContent(tile, sources, now);
+          const name = tileTitle(tile);
+          return (
+            <li key={tile.id} className="view-tile" data-size={tile.size} data-kind={tile.kind} aria-label={tileSummary(name, content)}>
+              <header className="view-tile-head">
+                <button type="button" className="view-tile-name" onClick={() => onOpen(content.target)}><AppIcon app={content.app} /><span>{name}</span></button>
+              </header>
+              {content.count && <p className="view-tile-count"><span className="view-tile-number">{content.count.value}</span> <span>{content.count.label}</span></p>}
+              {content.rows.length > 0 ? (
+                <ul className="view-tile-rows" role="list">
+                  {content.rows.map((row) => (
+                    <li key={row.key}>
+                      <button type="button" className="view-tile-row" data-tone={row.tone} onClick={() => onOpen(row.target)}>
+                        {row.color && <span className="view-tile-dot" aria-hidden="true" style={{ background: row.color }} />}
+                        <span className="view-tile-text">{row.text}</span>
+                        {row.detail && <span className="view-tile-detail">{row.detail}</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : content.empty ? <p className="view-tile-empty">{content.empty}</p> : null}
+              {content.more > 0 && <button type="button" className="view-tile-all" onClick={() => onOpen(content.target)}>{content.more} more</button>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

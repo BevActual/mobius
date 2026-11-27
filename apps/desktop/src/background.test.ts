@@ -5,6 +5,9 @@ describe('work handed off to the background', () => {
   it('keeps one run per chat, the newest', () => {
     const runs = addRun(addRun([], { conversation: 'c-1', ask: 'Tidy my notes', at: 1 }), { conversation: 'c-2', ask: 'Plan the week', at: 2 });
     expect(addRun(runs, { conversation: 'c-1', ask: 'Tidy them again', at: 3 }).map((r) => r.ask)).toEqual(['Plan the week', 'Tidy them again']);
+    // A new morning brief replaces the last one, in whatever chat it was.
+    const briefs = addRun(addRun(runs, { conversation: 'b-1', ask: 'Morning brief', at: 4, kind: 'brief' }), { conversation: 'b-2', ask: 'Morning brief', at: 5, kind: 'brief' });
+    expect(briefs.map((r) => r.conversation)).toEqual(['c-1', 'c-2', 'b-2']);
     expect(dropRun(runs, 'c-1').map((r) => r.conversation)).toEqual(['c-2']);
   });
 

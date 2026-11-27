@@ -347,8 +347,13 @@ fn a_server_left_behind_by_a_killed_daemon_is_cleaned_up_by_the_next_one() {
     assert!(reachable(port), "killing the daemon leaves the server running: that is the problem");
     let mut second = Daemon::start(&args(&s, "http://127.0.0.1:1"));
     second.call(3, "core.ping", json!({}));
-    std::thread::sleep(Duration::from_millis(400));
-    assert!(!reachable(port), "the new daemon stopped it");
+    // The new daemon kills it as it starts; the system takes a moment to end it and free its port, longer on a busy
+    // runner, so this waits up to five seconds rather than a fixed 400 ms (which CI once missed).
+    let gone = (0..50).any(|_| {
+        std::thread::sleep(Duration::from_millis(100));
+        !reachable(port)
+    });
+    assert!(gone, "the new daemon stopped it");
     second.finish();
     let _ = Path::new(&s.dir);
 }

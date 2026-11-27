@@ -67,3 +67,27 @@ test('commands run in the workspace, cd stays inside it, one keeps running until
   await running.getByRole('button', { name: 'Stop' }).click();
   await expect(running.locator('li[data-running]')).toHaveCount(0);
 });
+
+test('the terminal is a bottom panel in Code too, with its places beside it, and Ctrl+K still opens it alone', async () => {
+  model = await startModel([says(['Done.'])]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  const shell = mobius.shell;
+  await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Code');
+  await shell.keyboard.press('Enter');
+  await shell.getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
+  await shell.getByRole('menuitemcheckbox', { name: 'Terminal' }).click();
+  const panel = shell.getByRole('region', { name: 'Terminal' }).filter({ has: shell.getByRole('log', { name: 'Terminal output' }) }).first();
+  const line = panel.getByRole('textbox', { name: 'Command' });
+  await line.fill('cd code/site');
+  await line.press('Enter');
+  await expect(panel.locator('.term-input .term-prompt')).toHaveText('~/code/site $');
+  await expect(shell.locator('.term-panel').getByRole('list', { name: 'Places' })).toBeVisible();
+  // The Terminal is no longer an app of its own in the list, but Ctrl+K opens it alone, where it was left.
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Terminal');
+  await shell.keyboard.press('Enter');
+  await expect(shell.locator('.term-panel')).toHaveCount(0);
+  await expect(shell.getByRole('region', { name: 'Terminal' }).locator('.term-input .term-prompt')).toHaveText('~/code/site $');
+});

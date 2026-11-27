@@ -40,7 +40,8 @@ export interface Conversation {
   /** Switch to a new, empty conversation even before the open one has loaded. For start-up. */
   startFresh(bot?: string): void;
   /** Start work in a chat of its own, in the background, leaving the open chat as it is (Assign to Mobius). Resolves with the new chat's id, or what went wrong. */
-  assign(text: string, context: ContextItem[], app: string): Promise<{ id: string } | { error: string }>;
+  /** `ask` sends it in Ask mode (it only reads); `tools` offers only those apps' tools. */
+  assign(text: string, context: ContextItem[], app: string, options?: { ask?: boolean; tools?: readonly string[] }): Promise<{ id: string } | { error: string }>;
   select(id: string): void;
   /** Resolves with an explanation when it could not be deleted, otherwise null. */
   remove(id: string): Promise<string | null>;
@@ -242,10 +243,10 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     setId(next);
   }, []);
 
-  const assign = useCallback(async (text: string, context: ContextItem[], app: string): Promise<{ id: string } | { error: string }> => {
+  const assign = useCallback(async (text: string, context: ContextItem[], app: string, options: { ask?: boolean; tools?: readonly string[] } = {}): Promise<{ id: string } | { error: string }> => {
     const target = newId(MAIN_BOT_ID);
     await preferencesSettled();
-    const result = await window.mobius.agent.send(target, text, context, { app }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+    const result = await window.mobius.agent.send(target, text, context, { app, ...options }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
     void refresh();
     return result.ok ? { id: target } : { error: result.error };
   }, [refresh]);

@@ -158,7 +158,7 @@ Mobius's own apps, always there.
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/code-dark.png"><img src="docs/readme/apps/code.png" alt="The Code app in Mobius"></picture><br><b>Code</b> · A code editor for projects in your workspace, with git.<br><sub>Edit, find, run tests and commit. Mobius proposes changes you review line by line.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/terminal-dark.png"><img src="docs/readme/apps/terminal.png" alt="The Terminal app in Mobius"></picture><br><b>Terminal</b> · Run commands in a folder of your workspace.<br><sub>For the jobs that need a command line. Mobius always asks before running one.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/terminal-dark.png"><img src="docs/readme/apps/terminal.png" alt="The Terminal in Mobius"></picture><br><b>Terminal</b> · Code's Terminal panel, or opened alone from Ctrl+K: run commands in a folder of your workspace.<br><sub>For the jobs that need a command line. Mobius always asks before running one.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/canvas-dark.png"><img src="docs/readme/apps/canvas.png" alt="The Canvas app in Mobius"></picture><br><b>Canvas</b> · A whiteboard of stickies, shapes, arrows and pen lines.<br><sub>Think out loud on a board. Send a sticky to Mobius to turn it into a plan.</sub></td>
 </tr>
 </table>
@@ -170,7 +170,7 @@ Agents and Activity (Ctrl+K, "Changes" or "Review").
 
 <table>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/views-dark.png"><img src="docs/readme/apps/views.png" alt="The Views app in Mobius"></picture><br><b>Views</b> · Dashboards of live tiles from your other apps.<br><sub>Tasks due, today's events, unread mail, recent notes and what Mobius is doing, at a glance. Ask Mobius to make one.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/views-dark.png"><img src="docs/readme/apps/views.png" alt="The Views app in Mobius"></picture><br><b>Views</b> · Database's dashboards of live tiles from your other apps; pin one to Home.<br><sub>Tasks due, today's events, unread mail, recent notes and what Mobius is doing, at a glance. Ask Mobius to make one.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/activity-dark.png"><img src="docs/readme/apps/activity.png" alt="The Activity app in Mobius"></picture><br><b>Activity</b> · What Mobius did across your apps, a day at a time, and what needs you.<br><sub>Filter by who did it, by app, or to what can't be undone. Rewind a conversation from here.</sub></td>
 </tr>
 </table>

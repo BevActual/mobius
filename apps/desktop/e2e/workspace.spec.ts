@@ -263,7 +263,7 @@ test('every app and Mobius page is found in All apps by its name and opens with 
     await shell().keyboard.press('Enter');
     await expect(hub).toBeHidden();
   };
-  for (const [name, id] of [['Projects', 'projects'], ['Browser', 'browser'], ['Views', 'views'], ['Mail', 'mail']] as const) {
+  for (const [name, id] of [['Projects', 'projects'], ['Browser', 'browser'], ['Database', 'database'], ['Mail', 'mail']] as const) {
     await byKeys(name);
     await expect(shell().locator('.app'), `${name} opens`).toHaveAttribute('data-app', id);
   }
@@ -284,6 +284,9 @@ test('every app and Mobius page is found in All apps by its name and opens with 
   await openAllApps(shell());
   await hub.getByRole('searchbox', { name: 'Find apps' }).fill('Reader');
   await expect(hub.getByRole('button', { name: /^Reader/ })).toHaveCount(0);
+  // Views are Database's pages now: not an app of their own either.
+  await hub.getByRole('searchbox', { name: 'Find apps' }).fill('Views');
+  await expect(hub.getByRole('button', { name: /^Views/ })).toHaveCount(0);
   // A search field's first Escape only clears it; with it empty, Escape closes All apps.
   await hub.getByRole('searchbox', { name: 'Find apps' }).fill('');
   await shell().keyboard.press('Escape');

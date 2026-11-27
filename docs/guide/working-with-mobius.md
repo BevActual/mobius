@@ -170,6 +170,14 @@ in the page, and your password manager can fill it. Mobius never sees the passwo
 Text that comes from web pages, email and other outside sources is treated as untrusted data, never as instructions to
 Mobius. A page cannot tell Mobius to do something on your behalf.
 
+## Morning brief
+
+Each morning, the first time Mobius is open from 5 o'clock (from the day after you first start it), it writes a brief of the day into your **Inbox** in Home:
+tasks due today or overdue, today's events and mail waiting for you, a few short lines. It only reads to write it, so it
+changes nothing. **Play** reads it aloud with the voice chosen in Settings › Models › Speaking (nothing is read until you
+press it), **Open** shows it as a chat you can carry on, and **Done** clears it. Turn it off, or have one written now, in
+**Settings › Schedules › Check-ins**.
+
 ## Schedules
 
 **Settings › Schedules** asks Mobius something at a time of day, on the days you choose (a morning brief, say). Each
