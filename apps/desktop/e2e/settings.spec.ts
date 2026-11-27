@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { choose, interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
+import { choose, goTo, interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -549,9 +549,8 @@ test('the morning brief: Write one now asks in Ask mode, and it lands in the Inb
   expect(apps.some((t) => /add|delete|send|draft|move/.test(t))).toBe(false);
 
   await shell().keyboard.press('Escape');
-  await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
-  await shell().keyboard.press('Enter');
+  await expect(page()).toHaveCount(0);
+  await goTo(shell(), 'Agent');
   const desk = shell().getByRole('region', { name: 'Desk' });
   await expect(desk).toBeVisible();
   // It is listed once its chat is no longer working and what it wrote is read back (each a read of the core, which
