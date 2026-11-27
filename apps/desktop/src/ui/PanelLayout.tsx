@@ -91,6 +91,8 @@ export interface SavedLayout {
   dock?: Record<string, PanelDock>;
   /** Panels the person popped out to float over the page, by id: where and how big, in pixels from the page's corner. */
   float?: Record<string, FloatRect>;
+  /** Panels folded to their header in a side dock, by id: the others in the dock have their room. */
+  fold?: Record<string, true>;
 }
 
 export interface FloatRect { x: number; y: number; width: number; height: number }
@@ -117,7 +119,8 @@ export function parseLayout(text: string | null): SavedLayout {
     for (const [id, r] of Object.entries(v.float ?? {})) {
       if (r && [r.x, r.y, r.width, r.height].every((n) => typeof n === 'number' && Number.isFinite(n))) float[id] = { x: Math.max(0, r.x), y: Math.max(0, r.y), width: Math.max(FLOAT_MIN.width, r.width), height: Math.max(FLOAT_MIN.height, r.height) };
     }
-    return { shown, size, ...(Object.keys(front).length > 0 ? { front } : {}), ...(Object.keys(dock).length > 0 ? { dock } : {}), ...(Object.keys(float).length > 0 ? { float } : {}) };
+    const fold = Object.fromEntries(Object.entries(v.fold ?? {}).filter(([, on]) => on === true)) as Record<string, true>;
+    return { shown, size, ...(Object.keys(front).length > 0 ? { front } : {}), ...(Object.keys(dock).length > 0 ? { dock } : {}), ...(Object.keys(float).length > 0 ? { float } : {}), ...(Object.keys(fold).length > 0 ? { fold } : {}) };
   } catch {
     return EMPTY;
   }
@@ -128,7 +131,7 @@ function readLayout(app: string): SavedLayout {
 }
 function writeLayout(app: string, layout: SavedLayout) {
   try {
-    if (DOCKS.every((d) => layout.size[d] === undefined) && Object.keys(layout.shown).length === 0 && Object.keys(layout.front ?? {}).length === 0 && Object.keys(layout.dock ?? {}).length === 0 && Object.keys(layout.float ?? {}).length === 0) window.localStorage.removeItem(storeKey(app));
+    if (DOCKS.every((d) => layout.size[d] === undefined) && Object.keys(layout.shown).length === 0 && Object.keys(layout.front ?? {}).length === 0 && Object.keys(layout.dock ?? {}).length === 0 && Object.keys(layout.float ?? {}).length === 0 && Object.keys(layout.fold ?? {}).length === 0) window.localStorage.removeItem(storeKey(app));
     else window.localStorage.setItem(storeKey(app), JSON.stringify(layout));
   } catch { /* Kept only until Mobius closes. */ }
 }
@@ -336,10 +339,19 @@ export function PanelLayout({ app, panels: own, away = false, children }: { app:
     if (rest.length > 0) update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(rest.map((p) => [p.id, false])) } }));
   };
   const choose = (p: PanelSpec) => update((was) => withFront(was, [p]));
+  /** Folds a panel to its header in its dock, or opens it again. */
+  const fold = (id: string) => update((was) => {
+    const next = { ...was.fold };
+    if (next[id]) delete next[id]; else next[id] = true;
+    const rest = { ...was };
+    delete rest.fold;
+    return Object.keys(next).length > 0 ? { ...rest, fold: next } : rest;
+  });
   // Moving a panel: its header dragged over a dock's edge of the page (or its menu's Move to).
   const [moving, setMoving] = useState<{ id: string; from: PanelDock | null; over: PanelDock | null } | null>(null);
-  const draw = (shown: PanelSpec[]) => dockPlaces(shown, saved.front).map((place) => (
-    <Panel key={place.key} place={place} onHide={() => hide(place)} onChoose={choose} onMove={(p, dock) => move(p.id, dock)} onFloat={(p, r) => floatPanel(p.id, r)} onDrag={setMoving} />
+  const draw = (shown: PanelSpec[]) => dockPlaces(shown, saved.front).map((place, _i, places) => (
+    <Panel key={place.key} place={place} onHide={() => hide(place)} onChoose={choose} onMove={(p, dock) => move(p.id, dock)} onFloat={(p, r) => floatPanel(p.id, r)} onDrag={setMoving}
+      {...(place.front.dock !== 'bottom' && places.length > 1 ? { folded: saved.fold?.[place.front.id] === true, onFold: () => fold(place.front.id) } : {})} />
   ));
 
   // Each dock slides out of its edge as it opens and back as it closes (dockIn, dockOut); switching app, or going to
@@ -493,8 +505,11 @@ function withFront(was: SavedLayout, shown: readonly PanelSpec[]): SavedLayout {
 }
 
 /** Every panel has the same header: its name (or, for a tab group, its tabs), then close. Nothing else lives there. */
-function Panel({ place, floating, onHide, onChoose, onMove, onFloat, onDrag }: {
+function Panel({ place, floating, folded = false, onFold, onHide, onChoose, onMove, onFloat, onDrag }: {
   place: DockPlace;
+  /** Folded to its header (a side dock with others in it); `onFold` folds or opens it. */
+  folded?: boolean;
+  onFold?: () => void;
   /** Where it floats, when popped out. */
   floating?: FloatRect;
   onHide: () => void;
@@ -598,7 +613,7 @@ function Panel({ place, floating, onHide, onChoose, onMove, onFloat, onDrag }: {
   };
   const hideLabel = tabbed ? `Hide ${place.panels.map((p) => p.name).join(', ')}` : spec.hideLabel ?? `Hide ${spec.name}`;
   return (
-    <section ref={section} className="ui-panel" data-shape={shape} {...(floating ? { 'data-floating': true } : {})} aria-label={spec.label ?? spec.name} data-panel={spec.id} {...(spec.mobius ? { 'data-mobius': true } : {})} {...(tabbed ? { 'data-tabbed': true } : {})} {...(held ? { 'data-held': true } : {})}>
+    <section ref={section} className="ui-panel" data-shape={shape} {...(floating ? { 'data-floating': true } : {})} aria-label={spec.label ?? spec.name} data-panel={spec.id} {...(spec.mobius ? { 'data-mobius': true } : {})} {...(tabbed ? { 'data-tabbed': true } : {})} {...(held ? { 'data-held': true } : {})} {...(folded ? { 'data-folded': true } : {})}>
       <header
         className="ui-panel-head"
         {...(movable ? { 'data-movable': true } : {})}
@@ -607,6 +622,7 @@ function Panel({ place, floating, onHide, onChoose, onMove, onFloat, onDrag }: {
         onPointerUp={() => drop(true)}
         onPointerCancel={() => drop(false)}
         onLostPointerCapture={() => drop(false)}
+        onDoubleClick={(e) => { if (onFold && !(e.target as Element).closest('button, input, [role="tab"]')) onFold(); }}
         onContextMenu={(e) => {
           if (!movable) return;
           e.preventDefault();
@@ -639,6 +655,11 @@ function Panel({ place, floating, onHide, onChoose, onMove, onFloat, onDrag }: {
           <h2 className="ui-panel-name">{spec.name}</h2>
         )}
         {!tabbed && spec.actions && <div className="ui-panel-actions" onPointerDown={(e) => e.stopPropagation()}>{spec.actions}</div>}
+        {onFold && (
+          <button type="button" className="ui-panel-fold" aria-expanded={!folded} aria-label={`${folded ? 'Open' : 'Fold'} ${tabbed ? place.panels.map((p) => p.name).join(', ') : spec.name}`} title={folded ? 'Open' : 'Fold to its header'} onClick={onFold}>
+            <svg viewBox="0 0 12 12" aria-hidden="true"><path d={folded ? 'M4.5 3l3 3-3 3' : 'M3 4.5l3 3 3-3'} /></svg>
+          </button>
+        )}
         {!place.panels.every((p) => p.fixed) && (
           <button type="button" className="ui-panel-close" aria-label={hideLabel} title={hideLabel} onClick={onHide}>
             <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" /></svg>
@@ -650,11 +671,11 @@ function Panel({ place, floating, onHide, onChoose, onMove, onFloat, onDrag }: {
           x={menu.x}
           y={menu.y}
           label={`${spec.name} panel`}
-          entries={[...moveEntries, { label: hideLabel, run: onHide, separated: true }]}
+          entries={[...moveEntries, ...(onFold ? [{ label: folded ? 'Open' : 'Fold to its header', run: onFold, separated: true }] : []), { label: hideLabel, run: onHide, separated: !onFold }]}
           onClose={() => setMenu(null)}
         />
       )}
-      <div className="ui-panel-body" id={`panel-body-${spec.id}`} {...(tabbed ? { role: 'tabpanel', 'aria-labelledby': `panel-tab-${spec.id}` } : {})}><ShapeContext.Provider value={shape}>{spec.render()}</ShapeContext.Provider></div>
+      <div className="ui-panel-body" hidden={folded} id={`panel-body-${spec.id}`} {...(tabbed ? { role: 'tabpanel', 'aria-labelledby': `panel-tab-${spec.id}` } : {})}><ShapeContext.Provider value={shape}>{spec.render()}</ShapeContext.Provider></div>
     </section>
   );
 }

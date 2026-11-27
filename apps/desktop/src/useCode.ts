@@ -45,6 +45,8 @@ export function useCode(active = true) {
   const [open, setOpen] = useState<CodeFile | null>(null);
   const [draft, setDraft] = useState('');
   const [message, setMessage] = useState('');
+  /** The open file changed on disk while something was typed here: theirs, or mine over it, is the person's choice. */
+  const [clash, setClash] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [tests, setTests] = useState<CodeTests>(NO_TESTS);
   const [git, setGit] = useState<CodeGit>({ repo: false });
@@ -149,6 +151,19 @@ export function useCode(active = true) {
       if (!now.project || (change.project && change.project !== now.project)) return;
       void loadTree(now.project);
       if (now.open && (change.path === null || change.path === now.open.path)) {
+        if (change.by === 'another app' && now.open.text !== null) {
+          // Seen on disk (another editor, git, a script; or this app's own save coming back): read it to tell which.
+          const { project, open } = { project: now.project, open: now.open };
+          void api.read(project, open.path).then((got) => {
+            const cur = live.current;
+            if (isNotesFailure(got) || cur.project !== project || cur.open?.path !== open.path || cur.open.text === null) return;
+            // The same words: only its time moves on, so a later save is not taken for a clash.
+            if (got.text === cur.open.text) { if (got.modified !== cur.open.modified) setOpen({ ...cur.open, modified: got.modified }); return; }
+            if (cur.draft === cur.open.text) void openFile(open.path, project);
+            else { setClash(open.path); setMessage('Another app changed this file on disk while you were typing.'); }
+          });
+          return;
+        }
         // Someone else changed the open file. If nothing is typed here, show theirs; if something is, the save says so.
         if (now.open.text === null || now.draft === now.open.text) void openFile(now.open.path, now.project);
       }
@@ -171,13 +186,36 @@ export function useCode(active = true) {
     const draft = text ?? now.draft;
     const done = await api.save(now.project, now.open.path, draft, now.open.modified);
     if (isNotesFailure(done)) {
-      setMessage(done.conflict ? 'This file changed since you opened it. Copy what you typed, then open it again.' : done.message);
+      if (done.conflict) setClash(now.open.path);
+      setMessage(done.conflict ? 'This file changed on disk since you opened it.' : done.message);
       return false;
     }
     setOpen({ ...now.open, text: draft, modified: done.modified });
     setMessage('');
+    setClash(null);
     return true;
   }, [api]);
+
+  /** The clash answered: theirs (what is on disk, letting go of what was typed), or mine (written over theirs). */
+  const settleClash = useCallback(async (keep: 'theirs' | 'mine') => {
+    const now = live.current;
+    if (!api || !now.project || !now.open || now.open.text === null) return false;
+    if (keep === 'theirs') {
+      setDraft(now.open.text);
+      setClash(null);
+      setMessage('');
+      return openFile(now.open.path, now.project);
+    }
+    const disk = await api.read(now.project, now.open.path);
+    if (isNotesFailure(disk)) { setMessage(disk.message); return false; }
+    const draft = live.current.draft;
+    const done = await api.save(now.project, now.open.path, draft, disk.modified);
+    if (isNotesFailure(done)) { setMessage(done.message); return false; }
+    setOpen({ ...now.open, text: draft, modified: done.modified });
+    setClash(null);
+    setMessage('');
+    return true;
+  }, [api, openFile]);
 
   /** Writes the text as the file, as when one change of the agent's is put back. */
   const write = useCallback(async (text: string) => {
@@ -335,7 +373,7 @@ export function useCode(active = true) {
   const toggle = useCallback((folder: string) => setExpanded((was) => { const next = new Set(was); if (next.has(folder)) next.delete(folder); else next.add(folder); return next; }), []);
 
   return {
-    available: api !== undefined, projects, project, recent, entries, open, draft, setDraft, dirty, tabs, closeTab, unsaved, message, setMessage, expanded, toggle, tests,
+    available: api !== undefined, projects, project, recent, entries, open, draft, setDraft, dirty, tabs, closeTab, unsaved, message, setMessage, clash: open && clash === open.path ? clash : null, settleClash, expanded, toggle, tests,
     git, commit, push, consoleRuns, runCommand, processes, startProcess, stopProcess, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
   };
 }

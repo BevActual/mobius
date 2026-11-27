@@ -18,6 +18,7 @@ pub mod wiki;
 pub mod projects;
 pub mod code_preview;
 pub mod code_tests;
+pub mod code_watch;
 pub mod code_git;
 pub mod code_processes;
 pub mod code_lsp;
