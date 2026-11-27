@@ -35,6 +35,9 @@ strip = true
 
 # Sound is made in real time even in a dev build: the engine and its FFT are built optimised there too, or a reverb
 # alone takes a quarter of a core.
+# SQLite (the search index) unoptimised takes about ten times as long to build an index.
+[profile.dev.package.libsqlite3-sys]
+opt-level = 3
 [profile.dev.package.mobius-audio]
 opt-level = 3
 [profile.dev.package.realfft]

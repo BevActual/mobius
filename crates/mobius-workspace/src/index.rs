@@ -8,6 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
 
 use rusqlite::{Connection, params};
@@ -35,6 +36,10 @@ const MAX_FILES: usize = 20_000;
 const PASSAGE_CHARS: usize = 700;
 const MAX_TEXT: usize = 400;
 const MOST: usize = 20;
+
+/// One refresh at a time: a search that comes while the index is being built at start waits for it, rather than
+/// finding the file locked.
+static REFRESHING: Mutex<()> = Mutex::new(());
 
 pub struct Index {
     root: PathBuf,
@@ -165,6 +170,7 @@ impl Index {
     /// Brings the index up to date with the files: reads again those that changed and drops those that are gone.
     /// Answers how many files were read again.
     pub fn refresh(&self) -> Res<usize> {
+        let _one = REFRESHING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut db = self.open()?;
         let disk = self.on_disk();
         let known: BTreeMap<String, (i64, i64)> = {
@@ -174,22 +180,32 @@ impl Index {
         };
         let tx = db.transaction().map_err(|e| e.to_string())?;
         let mut read = 0;
-        for path in known.keys().filter(|p| !disk.contains_key(*p)) {
-            tx.execute("DELETE FROM passages WHERE path = ?1", params![path]).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM files WHERE path = ?1", params![path]).map_err(|e| e.to_string())?;
-        }
-        for (path, (modified, size, app)) in &disk {
-            if known.get(path) == Some(&(*modified, *size)) {
-                continue;
+        {
+            // Each statement is made once for the whole refresh: a first build reads thousands of files.
+            let e = |e: rusqlite::Error| e.to_string();
+            let mut drop_passages = tx.prepare_cached("DELETE FROM passages WHERE path = ?1").map_err(e)?;
+            let mut drop_file = tx.prepare_cached("DELETE FROM files WHERE path = ?1").map_err(e)?;
+            let mut add_passage = tx.prepare_cached("INSERT INTO passages (path, app, line, title, body) VALUES (?1, ?2, ?3, ?4, ?5)").map_err(e)?;
+            let mut add_file = tx.prepare_cached("INSERT OR REPLACE INTO files (path, modified, size, title) VALUES (?1, ?2, ?3, ?4)").map_err(e)?;
+            for path in known.keys().filter(|p| !disk.contains_key(*p)) {
+                drop_passages.execute(params![path]).map_err(e)?;
+                drop_file.execute(params![path]).map_err(e)?;
             }
-            tx.execute("DELETE FROM passages WHERE path = ?1", params![path]).map_err(|e| e.to_string())?;
-            let text = fs::read_to_string(self.root.join(path)).unwrap_or_default();
-            let title = title_of(Path::new(path), &text);
-            for (line, body) in passages(&text) {
-                tx.execute("INSERT INTO passages (path, app, line, title, body) VALUES (?1, ?2, ?3, ?4, ?5)", params![path, app, line as i64, title, body]).map_err(|e| e.to_string())?;
+            for (path, (modified, size, app)) in &disk {
+                if known.get(path) == Some(&(*modified, *size)) {
+                    continue;
+                }
+                if known.contains_key(path) {
+                    drop_passages.execute(params![path]).map_err(e)?;
+                }
+                let text = fs::read_to_string(self.root.join(path)).unwrap_or_default();
+                let title = title_of(Path::new(path), &text);
+                for (line, body) in passages(&text) {
+                    add_passage.execute(params![path, app, line as i64, title, body]).map_err(e)?;
+                }
+                add_file.execute(params![path, modified, size, title]).map_err(e)?;
+                read += 1;
             }
-            tx.execute("INSERT OR REPLACE INTO files (path, modified, size, title) VALUES (?1, ?2, ?3, ?4)", params![path, modified, size, title]).map_err(|e| e.to_string())?;
-            read += 1;
         }
         tx.commit().map_err(|e| e.to_string())?;
         Ok(read)
@@ -350,6 +366,24 @@ mod tests {
         write(&index.root.clone(), "tasks/Errands.md", "# Errands\n\n- [ ] Planning the move\n");
         assert_eq!(index.search("plan", 8, &[], None).unwrap()["results"][0]["source"], "Tasks · Errands");
         assert!(index.search("\"*", 8, &[], None).is_err());
+    }
+
+    /// Building the index for a big workspace: about 3,000 pages and 30 MB. Run by hand with --ignored to time it.
+    #[test]
+    #[ignore = "timing, run by hand"]
+    fn a_big_workspace_is_indexed_in_good_time() {
+        let (_dir, index) = index();
+        let root = index.root.clone();
+        let para = "The harbour plan moves the ferry stop to the north quay before the summer, and the cafe stays. ".repeat(10);
+        for i in 0..3000 {
+            write(&root, &format!("notes/Book{}/Page{i}.md", i % 30), &format!("# Page {i}\n\n{}\n", format!("{para}\n\n").repeat(10)));
+        }
+        let at = std::time::Instant::now();
+        assert_eq!(index.refresh().unwrap(), 3000);
+        let built = at.elapsed();
+        let at = std::time::Instant::now();
+        index.search("harbour ferry", 8, &[], None).unwrap();
+        eprintln!("built in {built:?}, a search after in {:?}", at.elapsed());
     }
 
     #[test]
