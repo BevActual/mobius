@@ -11,11 +11,20 @@
 //! ```
 //!
 //! `MOBIUS_SORT_EVAL_MODELS=haiku,opus` compares other models (the first is the one tried as the quick model).
+//!
+//! Local models (docs/design/model-tuning.md): each `llama-server` started by hand on this computer, scored on its own
+//! with the same prompt and rules, so a standard quant can be set against Unsloth's at the same size:
+//!
+//! ```text
+//! MOBIUS_SORT_EVAL_LOCAL="q4km=http://127.0.0.1:8081/v1,ud-q4=http://127.0.0.1:8082/v1" \
+//!   cargo test -p mobius-host --test mail_sort_eval live_local_models -- --ignored --nocapture
+//! ```
 
 use std::path::PathBuf;
 use std::time::Duration;
 
 use mobius_agent::message::Message;
+use mobius_agent::openai::OpenAiProvider;
 use mobius_agent::provider::{ChatRequest, NO_REASONING, OutputFormat, Provider};
 use mobius_agent::schema::check_answer;
 use mobius_claude::provider::ClaudeCodeProvider;
@@ -155,7 +164,7 @@ fn message(k: usize, (from, subject, text, list, _, _): &Sample) -> store::Messa
     }
 }
 
-fn sort_one(p: &ClaudeCodeProvider, model: &str, m: &store::Message) -> Answer {
+fn sort_one<P: Provider + Sync>(p: &P, model: &str, m: &store::Message) -> Answer {
     let (name, schema) = sort_format();
     let request = ChatRequest {
         model: model.into(),
@@ -178,7 +187,7 @@ fn sort_one(p: &ClaudeCodeProvider, model: &str, m: &store::Message) -> Answer {
     Err(why)
 }
 
-fn sort_all(p: &ClaudeCodeProvider, model: &str, messages: &[store::Message]) -> Vec<Answer> {
+fn sort_all<P: Provider + Sync>(p: &P, model: &str, messages: &[store::Message]) -> Vec<Answer> {
     let mut answers: Vec<Option<Answer>> = (0..messages.len()).map(|_| None).collect();
     std::thread::scope(|s| {
         for (chunk, slots) in messages.chunks(10).zip(answers.chunks_mut(10)) {
@@ -299,4 +308,37 @@ fn live_quick_model_against_chat_model() {
     };
     eprintln!("verdict: {verdict}");
     assert!(q_failed < n && c_failed < n, "a model answered nothing: is the Claude subscription signed in?");
+}
+
+/// The local models named in `MOBIUS_SORT_EVAL_LOCAL` (`name=http://127.0.0.1:port/v1`, comma separated), each scored
+/// alone. Only this computer's own servers: no key is sent, and nothing leaves the machine.
+#[test]
+#[ignore = "needs llama-server running local models"]
+fn live_local_models() {
+    let list = std::env::var("MOBIUS_SORT_EVAL_LOCAL").expect("MOBIUS_SORT_EVAL_LOCAL=name=http://127.0.0.1:port/v1,...");
+    let messages: Vec<store::Message> = SAMPLES.iter().enumerate().map(|(k, s)| message(k, s)).collect();
+    let n = SAMPLES.len();
+    for entry in list.split(',').map(str::trim).filter(|e| !e.is_empty()) {
+        let (name, url) = entry.split_once('=').expect("name=url");
+        assert!(url.starts_with("http://127.0.0.1") || url.starts_with("http://localhost"), "{name}: only this computer's own servers");
+        let p = OpenAiProvider::new(url, None).unwrap();
+        let started = std::time::Instant::now();
+        let answers = sort_all(&p, "local", &messages);
+        let seconds = started.elapsed().as_secs_f32();
+        let mut scores: [Score; 2] = Default::default();
+        let mut wrong = Vec::new();
+        for (k, sample) in SAMPLES.iter().enumerate() {
+            let got = scores[usize::from(k >= FRESH_FROM)].add(&messages[k], &answers[k], sample);
+            if !got.starts_with(sample.4) || got.contains('x') {
+                wrong.push(format!("{} (want {}, got {got})", sample.1, sample.4));
+            }
+        }
+        let right = scores[0].right + scores[1].right;
+        let asks = scores[0].asks_right + scores[1].asks_right;
+        let failed = scores[0].failed + scores[1].failed;
+        eprintln!("{name}: group right {right}/{n} (seen {}/{FRESH_FROM}, fresh {}/{}), asks right {asks}/{n}, no answer {failed}, {seconds:.0} s", scores[0].right, scores[1].right, n - FRESH_FROM);
+        for w in &wrong {
+            eprintln!("  {name} wrong: {w}");
+        }
+    }
 }
