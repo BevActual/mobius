@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkInAsk, checkInDue, checkInTitle, isCheckInApp } from './checkins';
+import { checkInAsk, checkInDue, checkInLines, checkInTitle, isCheckInApp } from './checkins';
 
 describe('check-ins when an app is opened', () => {
   const now = new Date(2026, 10, 27, 9, 0);
@@ -17,5 +17,10 @@ describe('check-ins when an app is opened', () => {
     const ask = checkInAsk('tasks');
     expect(ask.split('\n')[0]).toBe('Suggestions for Tasks');
     expect(ask).toContain('do not change anything');
+  });
+
+  it('shows at most three suggestions in the Inbox row, without headings', () => {
+    expect(checkInLines('- Reply to Ana\n- File the invoice\n- Unsubscribe from Deals\n- Archive old threads')).toEqual(['Reply to Ana', 'File the invoice', 'Unsubscribe from Deals']);
+    expect(checkInLines('## Inbox\nReply to **Ana**\n**Later:**\nFile the invoice\nWaiting:\n1. Chase Ben')).toEqual(['Reply to Ana', 'File the invoice', 'Chase Ben']);
   });
 });

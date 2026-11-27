@@ -10,6 +10,7 @@ import { APP_ICONS } from './Rail';
 import { useFollowUps, waitingOn } from './mail-follow-ups';
 import { doneText, type BackgroundDone } from './background';
 import { BRIEF_TITLE, briefLines } from './brief';
+import { checkInLines } from './checkins';
 import { useSpeech } from './useSpeech';
 import { OPEN_SPEAKING_SETTINGS } from './ui/Listen';
 import { LATER, laterUntil, sortInbox, trimKept, type InboxItem, type InboxKept } from './inbox';
@@ -286,7 +287,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                 {run.kind === 'brief' && <BriefPlay id={`brief:${run.conversation}`} text={run.text} />}
                 <button type="button" className="desk-act" aria-label={`Done with ${run.ask}`} title="Clear it from the Inbox" onClick={() => finishRun(run, false)}>Done</button>
                 <ul className="desk-brief-text" aria-label={`${run.ask}, as written`}>
-                  {briefLines(run.text).map((line, i) => <li key={i}>{line}</li>)}
+                  {(run.kind === 'check-in' ? checkInLines(run.text) : briefLines(run.text)).map((line, i) => <li key={i}>{line}</li>)}
                 </ul>
               </li>
             ) : (

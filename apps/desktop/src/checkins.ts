@@ -44,6 +44,22 @@ export function checkInDue(app: CheckInApp, now: Date, days: Partial<Record<Chec
 /** The Inbox row's and its chat's name. */
 export const checkInTitle = (app: CheckInApp) => `Suggestions for ${CHECK_IN_APPS[app]}`;
 
+/** At most this many suggestions show in the Inbox row; the rest are in its chat. */
+export const CHECK_IN_LINES = 3;
+
+/**
+ * The suggestions for the Inbox row, whatever shape the answer took: headings (`## Inbox`, a line that is all bold, or
+ * one ending in a colon) are left out, Markdown marks taken off, and no more than three lines kept.
+ */
+export function checkInLines(markdown: string, max = CHECK_IN_LINES): string[] {
+  return markdown.split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !/^#+\s/.test(l) && !/^(\*\*|__)[^*_]+(\*\*|__):?$/.test(l) && !/:$/.test(l))
+    .map((l) => l.replace(/^([-*+]|\d+[.)])\s*/, '').replace(/[*_`]/g, '').trim())
+    .filter(Boolean)
+    .slice(0, max);
+}
+
 /** What Mobius is asked, in the person's voice; the first line names its chat. */
 export function checkInAsk(app: CheckInApp): string {
   const name = CHECK_IN_APPS[app];
