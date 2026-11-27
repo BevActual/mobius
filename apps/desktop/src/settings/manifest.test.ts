@@ -3,7 +3,7 @@ import { SETTINGS, findSection, searchSettings, settingPath } from './manifest';
 
 describe('the settings map', () => {
   it('has the sections in a fixed order, each with at least one subpage', () => {
-    expect(SETTINGS.map((s) => s.id)).toEqual(['connections', 'providers', 'general', 'appearance', 'notifications', 'keyboard', 'sessions', 'schedules', 'model', 'voice', 'usage', 'safety', 'memory', 'privacy', 'browser', 'mail', 'calendar', 'contacts', 'messages', 'extensions', 'advanced', 'about']);
+    expect(SETTINGS.map((s) => s.id)).toEqual(['connections', 'providers', 'general', 'appearance', 'notifications', 'keyboard', 'sessions', 'schedules', 'model', 'usage', 'safety', 'memory', 'privacy', 'browser', 'mail', 'calendar', 'contacts', 'messages', 'extensions', 'advanced', 'about']);
     // Under headings, as in System Settings.
     expect([...new Set(SETTINGS.map((s) => s.group))]).toEqual(['Connections', 'Mobius', 'Models', 'Safety', 'Apps', 'System']);
     for (const section of SETTINGS) {
@@ -56,8 +56,11 @@ describe('searching settings', () => {
     expect(top('compact')).toMatchObject({ section: 'appearance', row: 'density' });
     expect(top('hide tool steps')).toMatchObject({ section: 'appearance', row: 'tool-steps' });
     expect(top('reopen last conversation')).toMatchObject({ section: 'general', row: 'resume-last' });
-    expect(top('whisper')).toMatchObject({ section: 'voice' });
-    expect(top('kokoro')).toMatchObject({ section: 'voice', subpage: 'speaking' });
+    // Voice is folded into Models: Listening and Speaking are its pages, beside Capabilities.
+    expect(top('whisper')).toMatchObject({ section: 'model', subpage: 'listening' });
+    expect(top('kokoro')).toMatchObject({ section: 'model', subpage: 'speaking' });
+    expect(top('read aloud')).toMatchObject({ section: 'model' });
+    expect(findSection('model')?.subpages.map((p) => p.label)).toEqual(['Capabilities', 'Listening', 'Speaking', 'This computer']);
     expect(top('elevenlabs')).toBeDefined();
     // Gateways is still found by its old name.
     expect(searchSettings('providers').some((h) => h.section === 'providers')).toBe(true);

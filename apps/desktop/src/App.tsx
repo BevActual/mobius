@@ -106,7 +106,7 @@ import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
 import { pressIs } from './ui/PanelLayout';
 import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
 import { alertDue, alertSaid } from './calendar-alerts';
-import { UndoToast, AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
+import { OPEN_SPEAKING_SETTINGS, UndoToast, AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { SERVICE_NAMES, catchUpAsk, channelLabel, chatItem, isSpaceAccount } from './messages-view';
@@ -1463,6 +1463,12 @@ export function App() {
   };
   const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety' | 'mail' | 'calendar' | 'messages' | 'browser') => { setSettingsSection(section); setSettingsOpen(true); };
+  // An app's Listen button, when speaking isn't set up: Settings, Models, at Speaking.
+  useEffect(() => {
+    const open = () => { setSettingsSection('voice'); setSettingsOpen(true); };
+    window.addEventListener(OPEN_SPEAKING_SETTINGS, open);
+    return () => window.removeEventListener(OPEN_SPEAKING_SETTINGS, open);
+  }, [setSettingsOpen]);
   const menuContext: MenuContext = {
     app,
     place: settingsOpen,
@@ -2267,7 +2273,7 @@ export function App() {
             <div className="settings-frame">
             <PanelLayout app="settings" panels={settingsPanels}>
             <SettingsPage
-              {...(settingsSection === 'layout' ? { initial: 'appearance' as const, initialSubpage: 'layout' } : settingsSection === 'profiles' ? { initial: 'advanced' as const, initialSubpage: 'profiles' } : settingsSection ? { initial: settingsSection } : {})}
+              {...(settingsSection === 'layout' ? { initial: 'appearance' as const, initialSubpage: 'layout' } : settingsSection === 'voice' ? { initial: 'model' as const, initialSubpage: 'speaking' } : settingsSection === 'profiles' ? { initial: 'advanced' as const, initialSubpage: 'profiles' } : settingsSection ? { initial: settingsSection } : {})}
               onClose={() => { setSettingsSection(undefined); closeSettings(); }}
               onOpenApp={(id) => { setSettingsSection(undefined); closeSettings(); openApp(id); }}
               sidebar={settingsSlot}

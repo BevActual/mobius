@@ -68,7 +68,7 @@ pub const CATALOG: &[Provider] = &[
     local("ollama", "Ollama", "http://127.0.0.1:11434/v1", "Models you run with Ollama on this computer. No key needed."),
     local("lmstudio", "LM Studio", "http://127.0.0.1:1234/v1", "The local server in LM Studio on this computer. No key needed."),
     local("llamacpp", "llama.cpp", "http://127.0.0.1:8080/v1", "A llama-server you started on this computer. No key needed."),
-    Provider { id: "elevenlabs", name: "ElevenLabs", base_url: "https://api.elevenlabs.io/v1", note: "Voice only: listening and speaking, in Settings, Voice.", key_url: Some("https://elevenlabs.io/app/settings/api-keys"), needs_key: true, voice_only: true, place: None },
+    Provider { id: "elevenlabs", name: "ElevenLabs", base_url: "https://api.elevenlabs.io/v1", note: "Voice only: listening and speaking, in Settings, Models.", key_url: Some("https://elevenlabs.io/app/settings/api-keys"), needs_key: true, voice_only: true, place: None },
 ];
 
 /// Plans you sign in to instead of pasting a key. Each runs through the service's own app on this computer.

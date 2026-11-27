@@ -1,4 +1,4 @@
-export type SectionId = 'connections' | 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'contacts' | 'messages' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
+export type SectionId = 'connections' | 'general' | 'appearance' | 'model' | 'providers' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'contacts' | 'messages' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -73,16 +73,36 @@ const SECTIONS: readonly SettingsSection[] = [
   {
     id: 'model',
     label: 'Models',
-    description: 'Which model does what. The services they come from are in Gateways.',
+    description: 'What Mobius can do with a model, and where each runs: on this computer, a server you run, or a service. The services are in Gateways.',
+    keywords: ['capabilities', 'voice', 'defaults', 'models by task'],
     subpages: [
-      { id: 'main', label: 'Defaults', rows: [
+      { id: 'main', label: 'Capabilities', rows: [
         row('second-model', 'Second model', 'Asked when the first is busy, down or cannot be reached.', 'fallback', 'backup', 'failover', 'second model', 'outage', 'rate limit'),
         row('chat-model', 'Chat model', 'The model Mobius talks to, from the services connected in Gateways.', 'model', 'chat model', 'default model', 'which model', 'switch model', 'gpt', 'claude', 'qwen', 'llama'),
         row('quick-model', 'Quick model', 'For quick jobs, like checking a step in Auto before it runs.', 'quick', 'fast model', 'small model', 'reviewer', 'smart approval', 'models by task', 'task model', 'cheap model'),
         row('images', 'Images', 'Makes pictures for Photo, Design and Slides when you ask.', 'image generation', 'pictures', 'dall-e', 'gpt image', 'flux', 'generate image', 'art', 'models by task', 'image model'),
-        row('listen', 'Listen', 'Turns your speech into text when you dictate.', 'speech to text', 'stt', 'dictation', 'transcribe', 'models by task', 'voice model'),
-        row('speak', 'Speak', 'Reads replies aloud.', 'text to speech', 'tts', 'read aloud', 'models by task', 'voice model'),
+        row('listen', 'Listen', 'Turns your speech into text when you dictate and in meetings.', 'speech to text', 'stt', 'dictation', 'transcribe', 'models by task', 'voice model'),
+        row('speak', 'Speak', 'Reads replies and pages aloud when you press Listen.', 'text to speech', 'tts', 'read aloud', 'models by task', 'voice model'),
         row('effort', 'Effort', 'How hard the model is asked to think. Also in the message box. Only models that can reason use it.', 'reasoning', 'thinking', 'low', 'medium', 'high', 'effort'),
+      ] },
+      { id: 'listening', label: 'Listening', rows: [
+        row('listen-with', 'Listen with', 'Speech to text: Whisper on this computer for free, the chat model\'s server, a speech server you run, or ElevenLabs.', 'dictation', 'dictate', 'speech to text', 'stt', 'whisper', 'faster-whisper', 'transcribe', 'microphone', 'mic', 'elevenlabs', 'local'),
+        row('listen-device', 'Whisper on this computer', 'Free and private: a one-time download, then nothing you say leaves this computer.', 'whisper', 'on device', 'offline', 'free', 'private', 'download', 'sherpa-onnx', 'local', 'remove'),
+        row('listen-accuracy', 'Accuracy', 'Quick suits dictation. More accurate is slower and a larger download, and suits meetings.', 'whisper', 'base', 'small', 'model', 'meetings', 'quality'),
+        row('listen-model', 'Speech model', 'The model asked for when you dictate.', 'whisper', 'whisper-1', 'model', 'dictation model'),
+        row('listen-url', 'Speech server on this computer', 'Its address, in OpenAI\'s audio format, as faster-whisper serves it.', 'url', 'address', 'faster-whisper', 'speech server'),
+        row('listen-fallback', 'If that cannot listen', 'What to try next.', 'fallback', 'backup', 'second'),
+        row('listen-test', 'Try listening', 'Ask the chosen server whether it answers.', 'test', 'check', 'try'),
+      ] },
+      { id: 'speaking', label: 'Speaking', rows: [
+        row('speak-with', 'Speak with', 'Text to speech: Kokoro on this computer for free, a speech server you run, ElevenLabs, or off.', 'text to speech', 'tts', 'kokoro', 'read aloud', 'voice', 'speak', 'elevenlabs', 'local', 'listen'),
+        row('speak-device', 'Kokoro on this computer', 'Free and private: a one-time download, then nothing read aloud leaves this computer.', 'kokoro', 'on device', 'offline', 'free', 'private', 'download', 'sherpa-onnx', 'local', 'remove', 'read aloud'),
+        row('speak-model', 'Voice model', 'The model asked for when speaking.', 'kokoro', 'model', 'tts model'),
+        row('speak-voice', 'Voice', 'The voice to speak with: one of Kokoro\'s on this computer, or a name the server knows.', 'voice', 'speaker', 'narrator', 'british', 'american', 'accent'),
+        row('speak-url', 'Speech server on this computer', 'Its address, in OpenAI\'s audio format, as Kokoro serves it.', 'url', 'address', 'kokoro', 'speech server'),
+        row('speak-fallback', 'If that cannot speak', 'What to try next.', 'fallback', 'backup', 'second'),
+        row('read-aloud', 'Read replies aloud', 'Each new reply is read as it arrives; Esc or a new message stops it.', 'read aloud', 'speak replies', 'tts', 'voice', 'listen to replies'),
+        row('speak-test', 'Try speaking', 'Ask the chosen server whether it answers.', 'test', 'check', 'try'),
       ] },
       { id: 'local', label: 'This computer', rows: [
         row('quick-setup', 'Set up a local model', 'Install the engine, pick a model that fits, download it and start it, in one step.', 'quick', 'setup', 'easy', 'automatic', 'guided', 'wizard', 'local', 'offline', 'private'),
@@ -275,31 +295,7 @@ const SECTIONS: readonly SettingsSection[] = [
       row('usage-clear', 'Clear usage', 'Forget every count kept so far.', 'reset', 'delete', 'forget'),
     ] }],
   },
-  {
-    id: 'voice',
-    label: 'Voice',
-    description: 'Who listens when you dictate, and who speaks answers aloud. Each has its own service and a fallback.',
-    subpages: [
-      { id: 'listening', label: 'Listening', rows: [
-        row('listen-with', 'Listen with', 'Speech to text: Whisper on this computer for free, the chat model\'s server, a speech server you run, or ElevenLabs.', 'dictation', 'dictate', 'speech to text', 'stt', 'whisper', 'faster-whisper', 'transcribe', 'microphone', 'mic', 'elevenlabs', 'local'),
-        row('listen-device', 'Whisper on this computer', 'Free and private: a one-time download, then nothing you say leaves this computer.', 'whisper', 'on device', 'offline', 'free', 'private', 'download', 'sherpa-onnx', 'local', 'remove'),
-        row('listen-accuracy', 'Accuracy', 'Quick suits dictation. More accurate is slower and a larger download, and suits meetings.', 'whisper', 'base', 'small', 'model', 'meetings', 'quality'),
-        row('listen-model', 'Speech model', 'The model asked for when you dictate.', 'whisper', 'whisper-1', 'model', 'dictation model'),
-        row('listen-url', 'Speech server on this computer', 'Its address, in OpenAI\'s audio format, as faster-whisper serves it.', 'url', 'address', 'faster-whisper', 'speech server'),
-        row('listen-fallback', 'If that cannot listen', 'What to try next.', 'fallback', 'backup', 'second'),
-        row('listen-test', 'Try listening', 'Ask the chosen server whether it answers.', 'test', 'check', 'try'),
-      ] },
-      { id: 'speaking', label: 'Speaking', rows: [
-        row('speak-with', 'Speak with', 'Text to speech: a speech server on this computer, ElevenLabs, or off.', 'text to speech', 'tts', 'kokoro', 'read aloud', 'voice', 'speak', 'elevenlabs', 'local'),
-        row('speak-model', 'Voice model', 'The model asked for when speaking.', 'kokoro', 'model', 'tts model'),
-        row('speak-voice', 'Voice', 'The voice to speak with. Empty uses the server\'s own.', 'voice', 'speaker', 'narrator'),
-        row('speak-url', 'Speech server on this computer', 'Its address, in OpenAI\'s audio format, as Kokoro serves it.', 'url', 'address', 'kokoro', 'speech server'),
-        row('speak-fallback', 'If that cannot speak', 'What to try next.', 'fallback', 'backup', 'second'),
-        row('read-aloud', 'Read replies aloud', 'Each new reply is read as it arrives; Esc or a new message stops it.', 'read aloud', 'speak replies', 'tts', 'voice', 'listen to replies'),
-        row('speak-test', 'Try speaking', 'Ask the chosen server whether it answers.', 'test', 'check', 'try'),
-      ] },
-    ],
-  },
+
   {
     id: 'memory',
     label: 'Memory',
@@ -339,7 +335,7 @@ const SECTIONS: readonly SettingsSection[] = [
 const ORDER: ReadonlyArray<[SectionId, string]> = [
   ['connections', 'Connections'], ['providers', 'Connections'],
   ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'], ['sessions', 'Mobius'], ['schedules', 'Mobius'],
-  ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
+  ['model', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
   ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['contacts', 'Apps'], ['messages', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],

@@ -830,7 +830,7 @@ export interface MobiusBridge {
     restart(): Promise<{ ok: false; error: string } | null>;
     onChange(listener: (info: UpdateInfo) => void): () => void;
   };
-  /** Settings, Voice: try the server chosen for listening or speaking. */
+  /** Settings, Models: try the server chosen for listening or speaking. */
   voice?: {
     test(job: 'listen' | 'speak'): Promise<{ ok: true; message: string } | { ok: false; error: string }>;
     /** Whether a speech server answers at the address saved for this computer. Nothing is installed or started. */
@@ -838,11 +838,11 @@ export interface MobiusBridge {
     /** Words read aloud with the service chosen for speaking, as a data: URL of the sound. `setup` when nothing is chosen. */
     speak?(text: string): Promise<{ ok: true; audio: string } | { ok: false; error: string; setup?: boolean }>;
     /** Listening on this computer, for free: whether the program and a Whisper model (the chosen one when none is named) are here. */
-    deviceStatus?(model?: ListenModel): Promise<DeviceVoiceStatus | { ok: false; error: string }>;
+    deviceStatus?(model?: DeviceModel): Promise<DeviceVoiceStatus | { ok: false; error: string }>;
     /** Downloads the program and the model, checked against their pinned SHA-256s; progress comes through `onDevice`. */
-    deviceSetup?(model?: ListenModel): Promise<DeviceVoiceStatus | { ok: false; error: string }>;
-    /** Takes the program and every model off this computer. */
-    deviceRemove?(): Promise<{ ok: true } | { ok: false; error: string }>;
+    deviceSetup?(model?: DeviceModel): Promise<DeviceVoiceStatus | { ok: false; error: string }>;
+    /** Takes a model off this computer (listening's, the chosen one when none is named, or Kokoro), and the program once none is left. */
+    deviceRemove?(model?: DeviceModel): Promise<{ ok: true } | { ok: false; error: string }>;
     onDevice?(listener: (status: DeviceVoiceStatus) => void): () => void;
   };
   /**
@@ -1991,9 +1991,17 @@ export type MeetingEvent =
 export const LISTEN_MODELS = ['base.en', 'small.en'] as const;
 export type ListenModel = (typeof LISTEN_MODELS)[number];
 /** Listening on this computer: not set up, downloading, ready, or failed (`offline` when GitHub couldn't be reached). */
+/** A model Mobius runs in its own voice program: a Whisper model to listen with, or Kokoro to speak with. */
+export type DeviceModel = ListenModel | 'kokoro';
+/** Kokoro's English voices on this computer: its own names, American (a…) and British (b…). */
+export const KOKORO_VOICES = [
+  { id: 'af_heart', label: 'Heart (American)' }, { id: 'af_bella', label: 'Bella (American)' }, { id: 'af_nicole', label: 'Nicole (American)' },
+  { id: 'am_michael', label: 'Michael (American)' }, { id: 'am_fenrir', label: 'Fenrir (American)' },
+  { id: 'bf_emma', label: 'Emma (British)' }, { id: 'bf_isabella', label: 'Isabella (British)' }, { id: 'bm_george', label: 'George (British)' }, { id: 'bm_fable', label: 'Fable (British)' },
+] as const;
 export interface DeviceVoiceStatus {
   state: 'absent' | 'downloading' | 'ready' | 'failed';
-  model: ListenModel;
+  model: DeviceModel;
   /** Whether there is a build of the program for this computer at all. */
   available: boolean;
   /** What the model takes on disk. */
@@ -2003,7 +2011,7 @@ export interface DeviceVoiceStatus {
   message?: string;
   offline?: boolean;
 }
-export const SPEAK_WITH = ['local', 'elevenlabs', 'off'] as const;
+export const SPEAK_WITH = ['device', 'local', 'elevenlabs', 'off'] as const;
 export type SpeakWith = (typeof SPEAK_WITH)[number];
 /** A speech server's address: http or https, one line, no spaces, up to 300 characters. */
 export const isVoiceUrl = (v: unknown): v is string => typeof v === 'string' && /^https?:\/\/\S+$/.test(v) && v.length > 8 && v.length <= 300 && !/[\u0000-\u001f\u007f]/.test(v);

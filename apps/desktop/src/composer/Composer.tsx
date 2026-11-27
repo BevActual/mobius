@@ -47,7 +47,7 @@ export interface ComposerProps {
   startersAs?: 'chips' | 'rows';
   /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
   onQueue?: (text: string, context: ContextItem[], options?: SendOptions) => void;
-  /** Settings, Voice, for when nothing is set up to listen. */
+  /** Settings, Models, for when nothing is set up to listen. */
   onOpenVoice?: () => void;
   /** Suggestions are for starting: once the conversation has begun there are none. */
   started?: boolean;

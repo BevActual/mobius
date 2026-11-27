@@ -54,7 +54,7 @@ fn is_voice_name(v: &Value) -> bool {
 pub const LISTEN_WITH: [&str; 5] = ["device", "chat", "local", "elevenlabs", "off"];
 /// The Whisper models for listening on this computer: quick, or more accurate for meetings.
 pub const LISTEN_MODELS: [&str; 2] = ["base.en", "small.en"];
-pub const SPEAK_WITH: [&str; 3] = ["local", "elevenlabs", "off"];
+pub const SPEAK_WITH: [&str; 4] = ["device", "local", "elevenlabs", "off"];
 
 /// The apps a new install starts with; the rest are added from Abilities.
 pub const DEFAULT_APPS: [&str; 6] = ["notes", "tasks", "calendar", "mail", "docs", "browser"];

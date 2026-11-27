@@ -140,7 +140,7 @@ impl Listener {
             self.whisper = None;
             for path in [&files.encoder, &files.decoder, &files.tokens] {
                 if !std::path::Path::new(path).is_file() {
-                    return Err("A file of the speech model is missing. Set up listening on this computer again in Settings, Voice.".to_owned());
+                    return Err("A file of the speech model is missing. Set up listening on this computer again in Settings, Models.".to_owned());
                 }
             }
             let mut config = OfflineRecognizerConfig::default();
@@ -150,7 +150,7 @@ impl Listener {
             config.model_config.whisper.task = Some("transcribe".to_owned());
             config.model_config.tokens = Some(files.tokens.clone());
             config.model_config.num_threads = threads(self.cores);
-            let recognizer = OfflineRecognizer::create(&config).ok_or("The speech model could not be loaded. Set up listening on this computer again in Settings, Voice.")?;
+            let recognizer = OfflineRecognizer::create(&config).ok_or("The speech model could not be loaded. Set up listening on this computer again in Settings, Models.")?;
             self.whisper = Some((files.clone(), language.to_owned(), recognizer));
         }
         self.whisper.as_ref().map(|(_, _, r)| r).ok_or_else(|| "The speech model could not be loaded.".to_owned())
@@ -163,7 +163,7 @@ impl Listener {
             }
         }
         if !std::path::Path::new(model).is_file() {
-            return Err("A file of the speech model is missing. Set up listening on this computer again in Settings, Voice.".to_owned());
+            return Err("A file of the speech model is missing. Set up listening on this computer again in Settings, Models.".to_owned());
         }
         let mut config = VadModelConfig::default();
         config.silero_vad.model = Some(model.to_owned());
@@ -222,7 +222,7 @@ impl Listener {
             self.kokoro = None;
             for path in [&files.model, &files.voices, &files.tokens, &files.lexicon] {
                 if !std::path::Path::new(path).is_file() {
-                    return Err("A file of the voice is missing. Set up speaking on this computer again in Settings, Capabilities.".to_owned());
+                    return Err("A file of the voice is missing. Set up speaking on this computer again in Settings, Models.".to_owned());
                 }
             }
             let words = std::fs::read_to_string(&files.lexicon).map_err(|_| "The voice's word list could not be read.".to_owned())?;
@@ -230,7 +230,7 @@ impl Listener {
             config.model.kokoro = OfflineTtsKokoroModelConfig { model: Some(files.model.clone()), voices: Some(files.voices.clone()), tokens: Some(files.tokens.clone()), ..OfflineTtsKokoroModelConfig::default() };
             config.model.num_threads = threads(self.cores);
             config.max_num_sentences = 1;
-            let tts = OfflineTts::create(&config).ok_or("The voice could not be loaded. Set up speaking on this computer again in Settings, Capabilities.")?;
+            let tts = OfflineTts::create(&config).ok_or("The voice could not be loaded. Set up speaking on this computer again in Settings, Models.")?;
             self.kokoro = Some((files.clone(), g2p::Lexicon::parse(&words), tts));
         }
         self.kokoro.as_ref().ok_or_else(|| "The voice could not be loaded.".to_owned())

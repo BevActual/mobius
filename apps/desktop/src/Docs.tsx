@@ -36,7 +36,7 @@ import { DocFind, findKeyOf } from './DocFind';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { AppMenu, Button, Dialog, Menu, PanelTab, Segmented, ToolbarControls, ToolbarItem, UndoToast, useInspector, type MenuEntry } from './ui';
+import { AppMenu, Button, Dialog, ListenButton, Menu, PanelTab, Segmented, ToolbarControls, ToolbarItem, UndoToast, useInspector, type MenuEntry } from './ui';
 import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
@@ -337,6 +337,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
                 trigger={<button type="button" className="doc-bar-style doc-bar-mode" data-mode={now.id} aria-label={`Document mode: ${now.label}`} title="Editing, Suggesting or Viewing"><span>{now.label}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
             );
           })()}
+          <ListenButton id="docs" text={() => editor.getText({ blockSeparator: '\n\n' })} className="strip-btn doc-bar-btn" />
           {extras.onShare && (() => {
             const share = extras.onShare;
             return (
@@ -427,6 +428,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
       )}
       {extras.onHistory && !inFrame && <button type="button" className="doc-tool" aria-label="History" title="Earlier versions of this document" onClick={extras.onHistory}><Icon d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5M10 6.5V10l2.5 1.5" /></button>}
       {trailing}
+      <ListenButton id="docs" text={() => editor.getText({ blockSeparator: '\n\n' })} />
       {extras.onShare && (() => {
         const share = extras.onShare;
         return (

@@ -1474,7 +1474,7 @@ fn listening_on_this_computer_before_it_is_set_up_points_to_settings_and_says_wh
     assert_eq!(heard["ok"], false, "{heard}");
     let error = heard["error"].as_str().unwrap();
     if status["available"] == true {
-        assert!(error.contains("Settings, Voice") && heard["setup"] == true, "{heard}");
+        assert!(error.contains("Settings, Models") && heard["setup"] == true, "{heard}");
     } else {
         assert!(error.contains("isn't available on this computer"), "{heard}");
     }

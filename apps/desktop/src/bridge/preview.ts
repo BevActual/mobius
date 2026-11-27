@@ -243,7 +243,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'providers.list': () => [
     { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', note: 'GPT models.', keyUrl: 'https://platform.openai.com/api-keys', needsKey: true, voiceOnly: false, hasKey: true, active: false, storage: 'keychain' },
     { id: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1', note: 'Claude models.', keyUrl: 'https://console.anthropic.com/settings/keys', needsKey: true, voiceOnly: false, hasKey: false, active: false, storage: 'none' },
-    { id: 'elevenlabs', name: 'ElevenLabs', baseUrl: 'https://api.elevenlabs.io/v1', note: 'Voice only: listening and speaking, in Settings, Voice.', keyUrl: 'https://elevenlabs.io/app/settings/api-keys', needsKey: true, voiceOnly: true, hasKey: false, active: false, storage: 'none' },
+    { id: 'elevenlabs', name: 'ElevenLabs', baseUrl: 'https://api.elevenlabs.io/v1', note: 'Voice only: listening and speaking, in Settings, Models.', keyUrl: 'https://elevenlabs.io/app/settings/api-keys', needsKey: true, voiceOnly: true, hasKey: false, active: false, storage: 'none' },
     { id: 'ollama', name: 'Ollama', baseUrl: 'http://127.0.0.1:11434/v1', note: 'Models you run with Ollama on this computer. No key needed.', keyUrl: null, needsKey: false, voiceOnly: false, hasKey: false, active: false, storage: 'none' },
   ],
   'providers.accounts': () => [{ id: 'claude', name: 'Claude Code', note: 'Your Claude plan, through Claude Code on this computer.', active: true, kind: 'cli', models: [{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' }] }],

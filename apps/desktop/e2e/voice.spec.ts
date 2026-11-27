@@ -59,7 +59,7 @@ test.afterEach(async () => {
 const shell = () => mobius!.shell;
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
 
-/** Mobius with a speech server on this computer chosen for listening and speaking, in Settings, Voice. */
+/** Mobius with a speech server on this computer chosen for listening and speaking, in Settings, Models. */
 async function start(prefs: Record<string, unknown>): Promise<void> {
   speech = await startSpeechServer('book the terrace for Friday');
   model = await startModel([says(['The terrace is booked for Friday.'])]);
@@ -120,7 +120,8 @@ test('with nothing chosen to speak, Speak says so and offers Voice settings', as
   await log.getByRole('button', { name: 'Read aloud' }).click();
   await expect(log.getByRole('alert')).toContainText('Speaking is off');
   await log.getByRole('button', { name: 'Voice settings' }).click();
-  await expect(shell().locator('.toolbar-sub')).toHaveText('Voice');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Models');
+  await expect(shell().locator('.settings-group[aria-label="Speaking"]')).toBeInViewport();
   // Only Voice's own check of the server on this computer; nothing was read aloud.
   expect(speech!.heard.filter((h) => !h.path.endsWith('/models'))).toHaveLength(0);
 });
@@ -128,14 +129,14 @@ test('with nothing chosen to speak, Speak says so and offers Voice settings', as
 test('Voice, This computer says whether a speech server answers at the saved address', async () => {
   await start({});
   await openSettings(shell());
-  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Voice', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   const status = shell().getByTestId('voice-local-listen');
   await expect(status).toHaveText(`Ready: the speech server at ${speech!.url} answers.`);
   // Once it stops, coming back says so, and how to start one. Nothing is installed.
   await speech!.close();
   speech = undefined;
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'General', exact: true }).click();
-  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Voice', exact: true }).click();
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   await expect(status).toContainText('Not running at');
   await expect(status).toContainText('faster-whisper');
 });
@@ -211,4 +212,34 @@ test('a meeting starting on the calendar is offered for recording, and Record op
   const note = shell().getByRole('textbox', { name: 'Note text' });
   await expect(note.locator('h1')).toHaveText(`${iso} Standup`);
   await expect(shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: /^End meeting/ })).toBeVisible();
+});
+
+test('Listen in Notes reads the open page aloud with whoever speaks, in parts, and with nothing set up says how to set it up', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Home'), { recursive: true });
+  const long = Array.from({ length: 14 }, (_, i) => `Sentence ${i + 1} is about the garden and the tulips by the wall.`).join(' ');
+  fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Home', 'Garden.md'), `# Garden\n\nPlant the **tulips** before the frost.\n\n${long}\n`);
+  await start({});
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('frost');
+  await shell().getByRole('option', { name: /^Garden/ }).click();
+  await expect(shell().getByRole('textbox', { name: 'Note text' })).toContainText('tulips before the frost');
+  // Nothing is read until Listen is pressed.
+  expect(speech!.heard.filter((h) => h.path === '/v1/audio/speech')).toHaveLength(0);
+  await shell().getByRole('button', { name: 'Listen', exact: true }).click();
+  // The page as words, without its Markdown, in parts of at most 500 characters: the first is asked for alone.
+  await expect.poll(() => speech!.heard.filter((h) => h.path === '/v1/audio/speech').length).toBeGreaterThanOrEqual(2);
+  const said = speech!.heard.filter((h) => h.path === '/v1/audio/speech').map((h) => JSON.parse(h.text).input as string);
+  expect(said[0]).toContain('Garden. Plant the tulips before the frost.');
+  expect(said.join(' ')).not.toContain('**');
+  expect(said.every((s) => s.length <= 500)).toBe(true);
+
+  // With speaking off, Listen says so and opens Settings, Models at Speaking.
+  await shell().evaluate(() => window.mobius.preferences.set({ speakWith: 'off' }));
+  const listen = shell().locator('[data-listen]');
+  if ((await listen.getAttribute('aria-label')) !== 'Listen') await listen.click();
+  await expect(listen).toHaveAttribute('aria-label', 'Listen');
+  await listen.click();
+  await expect(shell().locator('.listen-problem')).toContainText('Speaking is off');
+  await shell().getByRole('button', { name: 'Set up speaking' }).click();
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Models');
 });

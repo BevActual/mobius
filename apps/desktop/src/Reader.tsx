@@ -8,7 +8,7 @@ import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { EmptyState } from './EmptyState';
 import { SideNew, newKeys } from './SideNew';
-import { AppSidebar, KeyCaps, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { AppSidebar, KeyCaps, ListenButton, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import './reader.css';
 
 /** The toolbar's grey line for the open article: the site it came from, which opens the original in the Browser. */
@@ -287,6 +287,7 @@ export function ReaderPage({ reading, review, tab, onAsk }: { reading: NotesStat
     <section className="reader-page" aria-label="Reader" data-theme={look.theme}>
       <ToolbarControls label="Reader">
         <button type="button" className="strip-btn" aria-label="Save a link" title={`Save a link (${newKeys()})`} onClick={startAdding}><LinkGlyph /></button>
+        <ListenButton id={`reader:${page.path}`} className="strip-btn" text={() => `${article.title || page.title}.\n\n${article.body}`} />
         <LookPanel look={look} onChange={setLook} />
         {!inArchive && <button type="button" className="strip-btn" aria-label="Done reading" title="Done reading (E)" aria-keyshortcuts="E" onClick={() => void archive()}><ArchiveGlyph /></button>}
       </ToolbarControls>

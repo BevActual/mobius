@@ -90,7 +90,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.locator('.side-title')).toHaveText(['Connections', 'Mobius', 'Models', 'Safety', 'Apps', 'System']);
-  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Conversations', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Contacts', 'Messages', 'Store', 'Advanced', 'About']);
+  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Conversations', 'Schedules', 'Models', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Contacts', 'Messages', 'Store', 'Advanced', 'About']);
   await expect(shell().getByRole('complementary', { name: 'Sections' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
@@ -99,7 +99,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   await go('Memory');
   await expect(page().getByRole('heading', { name: 'What Mobius remembers' })).toBeVisible();
   await go('Models');
-  await expect.poll(() => page().locator('.settings-group').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).toEqual(['Defaults', 'This computer']);
+  await expect.poll(() => page().locator('.settings-group').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).toEqual(['Capabilities', 'Listening', 'Speaking', 'This computer']);
   // The chat model is a pop-up of what the gateways offer; the server's address is in Gateways, Custom server.
   await expect(page().getByRole('combobox', { name: 'Chat model' })).toBeVisible();
   await go('Gateways');
@@ -390,10 +390,10 @@ test('the approvals page lists everything that is asked about every time, includ
   await expect(row).toContainText('clicking or typing on a web page');
 });
 
-test('Voice: who listens and who speaks are saved, checked, and still there after a restart', async () => {
+test('Models, Listening and Speaking (Voice folded in): who listens and who speaks are saved, checked, and still there after a restart', async () => {
   await start([]);
   await openSettings();
-  await go('Voice', 'Listening');
+  await go('Models', 'Listening');
   // The chat model's server in these tests is a plain OpenAI-format one, so listening through it is offered.
   await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveText('Chat server');
   // Whisper on this computer: the one-time download and the accuracy, and no speech model to name.
@@ -410,7 +410,7 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   // Not running: the test says so, with the address.
   await page().getByRole('button', { name: 'Try listening' }).click();
   await expect(page().locator('.settings-group[aria-label="Listening"]').getByRole('alert')).toContainText('127.0.0.1:9');
-  await go('Voice', 'Speaking');
+  await go('Models', 'Speaking');
   await choose(page(), 'Speak with', 'ElevenLabs');
   await expect(page().getByText('ElevenLabs needs its key, added in Gateways.')).toBeVisible();
   await page().getByRole('button', { name: 'Try speaking' }).click();
@@ -425,10 +425,10 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   mobius = await launch(fixture.origin + '/', { env: { MOBIUS_AGENT_URL: model!.url, MOBIUS_AGENT_MODEL: 'fake-model' }, userData });
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openSettings();
-  await go('Voice', 'Listening');
+  await go('Models', 'Listening');
   await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveText('Speech server on this computer');
   await expect(page().getByRole('textbox', { name: 'Listening server address' })).toHaveValue('http://127.0.0.1:9/v1');
-  await go('Voice', 'Speaking');
+  await go('Models', 'Speaking');
   await expect(page().getByRole('combobox', { name: 'Speak with' })).toHaveText('ElevenLabs');
   await expect(page().getByRole('textbox', { name: 'Voice', exact: true })).toHaveValue('Rachel');
 });

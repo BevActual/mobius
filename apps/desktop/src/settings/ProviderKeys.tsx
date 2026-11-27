@@ -60,7 +60,7 @@ function ProviderList({ open = false }: { /** Start with every gateway listed (f
   const list = Array.isArray(providers) ? providers : [];
   // First run keeps each row where it is as it connects, so the model choice that opens after a key is saved stays open.
   const connected = open ? [] : list.filter((p) => p.hasKey || p.active);
-  // First run is for a model to talk to: a voice-only service (ElevenLabs) waits in Settings › Voice.
+  // First run is for a model to talk to: a voice-only service (ElevenLabs) waits in Settings › Models.
   const hosted = list.filter((p) => p.needsKey && !connected.includes(p) && !(open && p.voiceOnly));
   const local = list.filter((p) => !p.needsKey && !connected.includes(p));
   return (
