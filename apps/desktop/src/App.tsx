@@ -1398,7 +1398,7 @@ export function App() {
   };
   const pieceBody = (p: OpenPiece): ReactNode => (p.kind === 'tasks.list' ? <TasksListPiece tasks={tasks} list={p.item} />
     : p.kind === 'calendar.day' ? <CalendarDayPiece calendar={calendar} day={p.item} onDay={(day) => showPiece('calendar.day', day, p.by)} onOpen={(date, event) => openCalendarAt(date, event)} />
-    : p.kind === 'mail.thread' ? <MailThreadPiece mail={mail} id={p.item} /> : null);
+    : p.kind === 'mail.thread' ? <MailThreadPiece mail={mail} id={p.item} onGone={() => putAway(p.kind, p.item)} /> : null);
   const pieceBodyRef = useRef(pieceBody);
   pieceBodyRef.current = pieceBody;
   const openPieceInApp = (p: OpenPiece) => {
@@ -1425,7 +1425,7 @@ export function App() {
       actions: <button type="button" title={`Open ${name} in ${from}`} onClick={() => openPieceRef.current(p)}>Open in {from}</button>,
       // Using a piece Mobius brought makes it the person's: it stays when Mobius's work is done.
       render: () => (
-        <div className="piece-body" onPointerDownCapture={() => { if (p.by === 'mobius') showPiece(p.kind, p.item, 'you', p.title); }}>
+        <div className="piece-body" onPointerDownCapture={(e) => { if (p.by === 'mobius' && !(e.target instanceof Element && e.target.closest('.review-btn'))) showPiece(p.kind, p.item, 'you', p.title); }}>
           {pieceBodyRef.current(p)}
         </div>
       ),
@@ -1477,6 +1477,14 @@ export function App() {
     }, 800);
     return () => clearTimeout(t);
   }, [turnBusy, mobiusWork]);
+  // A piece whose thing is gone (a list deleted, a message removed) puts itself away rather than say so.
+  useEffect(() => {
+    // Not while a turn runs, nor for a list Mobius is making: the lists catch up a moment later.
+    if (!tasks.available || !tasks.loaded || turnBusy) return;
+    for (const p of openPieces) {
+      if (p.kind === 'tasks.list' && !liveMarks.lists.has(p.item) && !tasks.lists.some((l) => l.name === p.item)) putAway(p.kind, p.item);
+    }
+  }, [openPieces, tasks.available, tasks.loaded, tasks.lists, turnBusy, liveMarks.lists]);
   const openPiecesRef = useRef(openPieces);
   openPiecesRef.current = openPieces;
   useEffect(() => {

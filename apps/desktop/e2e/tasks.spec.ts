@@ -447,6 +447,42 @@ test('Mobius brings up the list it works in beside another app, and puts it away
   expect(await shell().evaluate(() => localStorage.getItem('mobius.pieces'))).toBe('[]');
 });
 
+test('a piece Mobius brought goes when its change is discarded', async () => {
+  fs.mkdirSync(path.dirname(file('Errands')), { recursive: true });
+  fs.writeFileSync(file('Errands'), '# Errands\n\n- [ ] Post the parcel\n');
+  // The answer comes slowly, so the piece comes while the turn still runs.
+  await start([callsTool('tasks-add', { list: 'Errands', text: 'Buy stamps' }), says(['Added ', 'it to Errands.'], 3000)]);
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByRole('complementary', { name: 'Notebooks' })).toBeVisible();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Remind me to buy stamps');
+  await composer.press('Enter');
+  await shell().getByRole('button', { name: 'Allow once' }).click();
+  const piece = shell().locator('section[data-panel="piece:tasks.list:Errands"]');
+  await expect(piece.getByRole('checkbox', { name: 'Buy stamps' })).toBeVisible();
+  await expect(piece).toHaveAttribute('data-mobius', /.*/);
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added it to Errands.', { timeout: 15_000 });
+  // Discard in Tasks takes it away too, and puts the list back.
+  await expect(piece).toBeVisible();
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Tasks');
+  await shell().keyboard.press('Enter');
+  await lists().getByRole('button', { name: /^Errands/ }).click();
+  await page().getByRole('button', { name: 'Discard', exact: true }).click();
+  await expect(piece).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Errands'), 'utf8')).toBe('# Errands\n\n- [ ] Post the parcel\n');
+  // A piece whose list is gone puts itself away.
+  await lists().getByRole('button', { name: /^Errands/ }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Show beside' }).click();
+  await expect(piece).toBeVisible();
+  await lists().getByRole('button', { name: 'More for Errands' }).click({ force: true });
+  await shell().getByRole('menuitem', { name: 'Delete list…' }).click();
+  await shell().getByRole('alertdialog', { name: 'Delete Errands?' }).getByRole('button', { name: 'Delete' }).click();
+  await expect(piece).toHaveCount(0);
+});
+
 test('a piece Mobius brought stays once the person uses it, and Esc puts away only Mobius\'s', async () => {
   fs.mkdirSync(path.dirname(file('Errands')), { recursive: true });
   fs.writeFileSync(file('Errands'), '# Errands\n\n- [ ] Post the parcel\n');
