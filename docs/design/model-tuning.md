@@ -120,12 +120,30 @@ Unsloth is two things: a way to train models cheaply, and a publisher of compres
   - Is that gap big enough that an adapter is worth building?
 - **About an hour on the PC.** It reads only the 54 sample emails in the test, never Andrew's mail.
 
+## First experiment: results (27 November 2026, Andrew's PC)
+
+All three models are Apache-2.0, not gated, and had their SHA-256 checked. The mail-sort test now has 76 samples:
+64 it was written against, plus 12 fresh ones. Each model ran alone in `llama-server` (`--jinja -c 8192`, all layers
+on the RTX 4080).
+
+| Model file | Size | Group right | Asks right | Time | Graphics memory |
+|---|---|---|---|---|---|
+| Qwen3.5-4B Q4_K_M (standard) | 2.74 GB | 64/76 (fresh 11/12) | 71/76 | 16 s | 3.4 GB |
+| Qwen3.5-4B UD-Q4_K_XL (Unsloth) | 2.91 GB | 64/76 (fresh 9/12) | 70/76 | 16 s | 3.5 GB |
+| Qwen3-14B UD-Q4_K_XL (Unsloth) | 9.16 GB | 66/76 (fresh 11/12) | 65/76 | 25 s | 9.6 GB |
+
+- **Unsloth's file did no better here.** It tied overall and was worse on the fresh samples. Preferring their files
+  in the picker can wait for a case where they help.
+- **A small local model sorts about 84% right.** Its mistakes follow one pattern: mail that belongs in "later"
+  (a trip confirmation, a reminder, a roadmap note) goes to "reply". That is a consistent misreading of Mobius's own
+  groups, which is exactly what an adapter trained on Mobius's rules should fix.
+- **The 14B model gained two groups but lost six on "asks me", and was slower.** Size alone doesn't fix it.
+
 ## Decisions for Andrew
 
 1. **Run the first experiment on your PC?** A real-model run, which the project otherwise avoids while building.
    It is local only and costs nothing. Recommended: yes.
-2. **Prefer Unsloth Dynamic files in the local model picker?** When a model has one, Mobius shows it first, with the
-   model's own licence. Recommended: yes, once the experiment shows no loss.
+2. **Prefer Unsloth Dynamic files in the local model picker?** The experiment showed no gain at 4B, so not for now.
 3. **Heretic and weight editing stay out.** Recommended: agree.
 4. **Adapters and steering:** decided after the experiment. Training needs Python and Unsloth installed on your PC,
    which would be its own yes.
