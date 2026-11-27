@@ -687,6 +687,11 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
               </span>
             ))}
           </div>
+          {sticky.length > 0 && (
+            <div className="ed-gutter-sticky" aria-hidden="true">
+              {sticky.map((l, k) => <span key={l} className="ed-n" style={{ top: k * LINE }}>{l + 1}</span>)}
+            </div>
+          )}
         </div>
         <div className="ed-scroll" ref={scroller} onScroll={(e) => { const t = e.currentTarget; setView((v) => ({ ...v, top: t.scrollTop, left: t.scrollLeft })); }}>
           {sticky.length > 0 && (
