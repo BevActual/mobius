@@ -751,6 +751,44 @@ test('a Run button beside each test runs just that test with the person\'s comma
   expect(JSON.parse(fs.readFileSync(path.join(userData, 'code-tests.json'), 'utf8'))).toEqual({ 'offsite-planner': 'node ..\\tests\\run.js' });
 });
 
+test('a file another app changes on disk shows in Code: read again when nothing is typed, and said when something is', async () => {
+  await start();
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await expect(editor).toHaveValue(BUDGET);
+  // Saved here first: its own save coming back is not taken for another app's.
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('// mine\n');
+  await shell().keyboard.press('Control+s');
+  await expect.poll(budget).toBe(`${BUDGET}// mine\n`);
+  await shell().waitForTimeout(800);
+  await expect(shell().getByText(/Another app changed this file/)).toHaveCount(0);
+  // Another editor writes it, with nothing typed here: the new words show.
+  fs.writeFileSync(path.join(project, 'src', 'budget.js'), `${BUDGET}// theirs\n`);
+  await expect(editor).toHaveValue(`${BUDGET}// theirs\n`, { timeout: 10_000 });
+  // Typing here, then another change on disk: what was typed stays, and Code says so.
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('// typing\n');
+  fs.writeFileSync(path.join(project, 'src', 'budget.js'), `${BUDGET}// theirs again\n`);
+  const clash = shell().getByRole('alert').filter({ hasText: 'Another app changed this file on disk while you were typing.' });
+  await expect(clash).toBeVisible({ timeout: 10_000 });
+  await expect(editor).toHaveValue(`${BUDGET}// theirs\n// typing\n`);
+  // Keep mine writes what was typed over theirs.
+  await clash.getByRole('button', { name: 'Keep mine' }).click();
+  await expect.poll(budget).toBe(`${BUDGET}// theirs\n// typing\n`);
+  await expect(clash).toHaveCount(0);
+  // Another clash; Use theirs shows the file as it is on disk.
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('// more\n');
+  fs.writeFileSync(path.join(project, 'src', 'budget.js'), `${BUDGET}// final\n`);
+  await expect(clash).toBeVisible({ timeout: 10_000 });
+  await clash.getByRole('button', { name: 'Use theirs' }).click();
+  await expect(editor).toHaveValue(`${BUDGET}// final\n`);
+  await expect(clash).toHaveCount(0);
+});
+
 test('Mobius fixes a problem from its hover or Ctrl+., and reviews what changed since the last commit', async () => {
   const bin = path.join(project, 'node_modules', '.bin');
   fs.mkdirSync(bin, { recursive: true });
