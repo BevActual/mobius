@@ -110,7 +110,7 @@ new mechanism. It is a panel the shell owns, in the same system as every other p
 | Show and hide (Panels menu, View menu, keys, Hide) | Yes | Yes |
 | Resize, by dragging the dock's edge (double-click resets, arrow keys by 16px) | Yes, per dock, remembered per app | Yes |
 | Move to another dock | **No** in 0.1.26. Round 0 adds it (#972) | No |
-| Pop out into its own window | **No** | Yes |
+| Pop out into its own window | **No** in 0.1.26. Round 0 floats it over the page (#972); a separate window comes later | Yes |
 | Tabs when two panels share a dock | Yes (`PanelTabs`) | No |
 
 guide.md's Panels section says panels can be moved and popped out. That is the design, not what is built, and the
@@ -121,8 +121,10 @@ So pieces start with **round 0: panels that do what the guide says.** Every pane
 pieces included:
 - **Move:** drag a panel by its header to another dock, with the target dock outlined as you drag. A panel's menu
   also has **Move to left, right or bottom**.
-- **Pop out:** **Pop out** puts a panel in a window of its own, as the Mobius panel already does. Closing that window
-  puts it back.
+- **Pop out:** **Pop out** floats a panel over the page, in the same window, so it keeps everything it was showing.
+  It is moved by its header, sized from its corner, and docked again from its menu or by dragging it to a dock. A
+  separate window of its own (as Little Mobius is) needs the app's state shared across windows, so it comes after the
+  pieces.
 - **Resize** stays as it is, with a visible grip on hover.
 - **Remembered** per app, where each panel is, with Reset layout to undo.
 - **Panels adapt to where they are** (Andrew, 27 November: "how panels change when resized, popped out, moved

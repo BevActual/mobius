@@ -240,3 +240,13 @@
 .ui-panel[data-shape="strip"] .side :is(nav, section, ul, ol) { display: block; overflow: visible; min-height: auto; }
 .ui-panel[data-shape="strip"] .side :is(nav, section) + :is(nav, section), .ui-panel[data-shape="strip"] .side nav > * + * { margin-top: var(--sp-3); }
 .ui-panel[data-shape="strip"] .side :is(li, .side-head) { break-inside: avoid; }
+/* A popped-out panel floats over the page: moved by its header, sized from its corner, docked again from its menu or
+   by dragging it to a dock. */
+.ui-float { position: absolute; z-index: 30; display: flex; min-width: 220px; min-height: 160px; border-radius: var(--radius-panel); background: var(--bg); box-shadow: 0 0 0 var(--hairline-w) var(--line), 0 12px 32px color-mix(in srgb, var(--ink) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ink) 8%, transparent); overflow: hidden; animation: ui-float-in var(--dur-med, 180ms) var(--ease); }
+.ui-float > .ui-panel { flex: 1; min-width: 0; min-height: 0; }
+.ui-float .ui-panel-head[data-movable] { cursor: grab; }
+.ui-float-size { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; touch-action: none; }
+.ui-float-size::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-right: 1.5px solid var(--line-strong); border-bottom: 1.5px solid var(--line-strong); border-bottom-right-radius: 2px; }
+.ui-float-size:hover::after { border-color: var(--muted); }
+@keyframes ui-float-in { from { opacity: 0; transform: scale(0.97) translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ui-float { animation: none; } }

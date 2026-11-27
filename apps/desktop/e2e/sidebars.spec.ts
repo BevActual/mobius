@@ -231,3 +231,45 @@ test('a panel moves to another dock from its header\'s menu or by dragging its h
   expect(inbox.x).toBeGreaterThan(today.x + today.width / 2);
   expect(today.width).toBeLessThan(400);
 });
+
+test('a panel pops out to float over the page, moves and sizes there, and docks again', async () => {
+  await goTo(shell(), 'Tasks');
+  const docked = shell().locator('.ui-dock[data-dock="left"] section[aria-label="Lists"]');
+  const floating = shell().locator('.ui-float section[aria-label="Lists"]');
+  await expect(docked).toBeVisible();
+  await docked.locator('.ui-panel-head').click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Pop out' }).click();
+  await expect(floating).toBeVisible();
+  await expect(docked).toHaveCount(0);
+  // Its header moves it, its corner sizes it, and both are kept.
+  const card = shell().locator('.ui-float');
+  const before = (await card.boundingBox())!;
+  const head = (await floating.locator('.ui-panel-head').boundingBox())!;
+  await shell().mouse.move(head.x + 30, head.y + head.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(head.x + 330, head.y + head.height / 2 + 60, { steps: 6 });
+  await shell().mouse.up();
+  await expect.poll(async () => Math.round((await card.boundingBox())!.x - before.x)).toBe(300);
+  const moved = (await card.boundingBox())!;
+  await shell().mouse.move(moved.x + moved.width - 4, moved.y + moved.height - 4);
+  await shell().mouse.down();
+  await shell().mouse.move(moved.x + moved.width + 76, moved.y + moved.height + 36, { steps: 6 });
+  await shell().mouse.up();
+  await expect.poll(async () => Math.round((await card.boundingBox())!.width - moved.width)).toBe(80);
+  const kept = await shell().evaluate(() => JSON.parse(localStorage.getItem('mobius.layout.tasks') ?? '{}').float?.list);
+  expect(kept).toMatchObject({ width: Math.round(moved.width + 80) });
+  // Docked again from its menu.
+  await floating.locator('.ui-panel-head').click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Dock on the left' }).click();
+  await expect(docked).toBeVisible();
+  await expect(card).toHaveCount(0);
+  // Dragged from its dock and let go over the middle of the page, it floats there (once the dock has slid in).
+  await expect(shell().locator('.ui-dock[data-dock="left"]')).not.toHaveAttribute('data-moving');
+  const again = (await docked.locator('.ui-panel-head').boundingBox())!;
+  const page = (await shell().locator('.ui-panels').boundingBox())!;
+  await shell().mouse.move(again.x + 30, again.y + again.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(page.x + page.width / 2, page.y + page.height / 3, { steps: 6 });
+  await shell().mouse.up();
+  await expect(floating).toBeVisible();
+});
