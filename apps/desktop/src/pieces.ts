@@ -8,19 +8,32 @@
  */
 import { useSyncExternalStore } from 'react';
 
-export type PieceKind = 'tasks.list';
+export type PieceKind = 'tasks.list' | 'calendar.day' | 'mail.thread';
 
 /** The apps the pieces come from, for "Open in …". */
-export const PIECE_APP: Record<PieceKind, { app: 'tasks'; name: string }> = {
+export const PIECE_APP: Record<PieceKind, { app: 'tasks' | 'calendar' | 'mail'; name: string }> = {
   'tasks.list': { app: 'tasks', name: 'Tasks' },
+  'calendar.day': { app: 'calendar', name: 'Calendar' },
+  'mail.thread': { app: 'mail', name: 'Mail' },
 };
+
+/** The piece's name in its header: the list's name; "Today", or the day. */
+export function pieceName(p: { kind: PieceKind; item: string; title?: string | undefined }): string {
+  if (p.title) return p.title;
+  if (p.kind !== 'calendar.day') return p.item;
+  if (p.item === 'today') return 'Today';
+  const d = new Date(`${p.item}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? p.item : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
 
 export interface OpenPiece {
   kind: PieceKind;
-  /** The thing it shows: a list's name. */
+  /** The thing it shows: a list's name; "today" or a day as YYYY-MM-DD. */
   item: string;
   /** Mobius's until the person uses it; Mobius's carry the dashed edge and go when its work is kept or discarded. */
   by: 'mobius' | 'you';
+  /** Its name, when the item is an id (a message's subject). */
+  title?: string;
 }
 
 export const pieceKey = (p: { kind: PieceKind; item: string }): string => `${p.kind}:${p.item}`;
@@ -39,9 +52,9 @@ export function parsePieces(raw: string | null): OpenPiece[] {
     const out: OpenPiece[] = [];
     for (const p of v) {
       if (!p || typeof p !== 'object') continue;
-      const { kind, item, by } = p as Record<string, unknown>;
+      const { kind, item, by, title } = p as Record<string, unknown>;
       if (typeof kind !== 'string' || !KINDS.has(kind) || typeof item !== 'string' || !item || item.length > 500) continue;
-      const piece: OpenPiece = { kind: kind as PieceKind, item, by: by === 'mobius' ? 'mobius' : 'you' };
+      const piece: OpenPiece = { kind: kind as PieceKind, item, by: by === 'mobius' ? 'mobius' : 'you', ...(typeof title === 'string' && title ? { title: title.slice(0, 200) } : {}) };
       if (!out.some((o) => pieceKey(o) === pieceKey(piece))) out.push(piece);
     }
     return out.slice(-MAX_PIECES);
@@ -67,8 +80,8 @@ function set(next: OpenPiece[]): void {
 const subscribe = (l: () => void) => { listeners.add(l); return () => listeners.delete(l); };
 export const usePieces = (): readonly OpenPiece[] => useSyncExternalStore(subscribe, () => pieces, () => pieces);
 
-export function showPiece(kind: PieceKind, item: string, by: OpenPiece['by'] = 'you'): void {
-  set(withPiece(pieces, { kind, item, by }));
+export function showPiece(kind: PieceKind, item: string, by: OpenPiece['by'] = 'you', title?: string): void {
+  set(withPiece(pieces, { kind, item, by, ...(title ? { title } : {}) }));
 }
 export function putAway(kind: PieceKind, item: string): void {
   set(pieces.filter((o) => pieceKey(o) !== pieceKey({ kind, item })));

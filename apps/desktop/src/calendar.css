@@ -361,3 +361,19 @@ form.cal-editor textarea { field-sizing: content; resize: none; min-height: calc
 .calendar-row-item { position: relative; }
 .calendar-row-item .cal-row-more { position: absolute; top: 50%; right: var(--sp-1); transform: translateY(-50%); opacity: 0; }
 .calendar-row-item:hover .cal-row-more, .calendar-row-item .cal-row-more:focus-visible, .calendar-row-item .cal-row-more[aria-expanded="true"] { opacity: 1; }
+
+/* ── The Calendar day piece: one day as a list, beside any app ───────────────────────────────────────────────────────── */
+.cal-piece { display: flex; flex-direction: column; gap: var(--sp-2); height: 100%; box-sizing: border-box; padding: var(--sp-2) var(--sp-2) var(--sp-4); overflow: auto; }
+.cal-piece-bar { display: flex; align-items: center; gap: var(--sp-1); padding-left: var(--sp-1); }
+.cal-piece-day { flex: 1; min-width: 0; margin: 0; display: flex; align-items: baseline; gap: var(--sp-2); font-size: var(--fs-md); font-weight: var(--fw-semibold); white-space: nowrap; overflow: hidden; }
+.cal-piece-day span { color: var(--muted); font-weight: var(--fw-regular); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; }
+.cal-piece-today { width: auto; padding: 0 var(--sp-2); font-size: var(--fs-sm); }
+.cal-piece-list { display: grid; gap: var(--sp-1); margin: 0; padding: 0; list-style: none; }
+.cal-piece-event { display: grid; gap: var(--sp-1); padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-3); border-radius: var(--radius-control); background: color-mix(in srgb, var(--event) 12%, transparent); box-shadow: inset 3px 0 0 var(--event); }
+.cal-piece-event[data-proposed] { background: none; box-shadow: none; outline: 1.5px dashed var(--mobius); outline-offset: -1.5px; }
+.cal-piece-open { display: grid; gap: 2px; min-width: 0; padding: var(--sp-1) 0; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; }
+.cal-piece-open:disabled { cursor: default; opacity: 1; }
+.cal-piece-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); font-weight: var(--fw-medium); }
+.cal-piece-when { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.cal-piece-answer { display: flex; gap: var(--sp-2); padding-bottom: var(--sp-1); }
+.cal-piece-empty { margin: var(--sp-6) 0 0; color: var(--muted); text-align: center; font-size: var(--fs-md); }

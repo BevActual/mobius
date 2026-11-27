@@ -316,3 +316,28 @@ test('an agent that looks out for mail from someone starts on its own when it co
   await expect(inbox.getByRole('button', { name: /^Open Invoice 42/ })).toBeVisible({ timeout: 15_000 });
   expect(model!.requests.length).toBe(6);
 });
+
+test('a conversation shown beside stays as a piece in other apps, and a reply is written and sent there', async () => {
+  await start();
+  const list = page().getByRole('listbox', { name: 'Messages' });
+  await expect(list.getByRole('option').first()).toContainText('Terrace + lunch for the 13th');
+  await list.getByRole('option').first().click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Show beside' }).click();
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  const piece = shell().getByRole('region', { name: 'Terrace + lunch for the 13th, from Mail' });
+  await expect(piece).toContainText('hold the terrace for eight');
+  await piece.getByRole('button', { name: /^Reply to/ }).click();
+  const compose = piece.getByRole('form', { name: 'Reply' });
+  await expect(compose.getByRole('combobox', { name: 'To' })).toHaveValue('rui@example.com');
+  await compose.getByRole('textbox', { name: 'Message' }).fill('Hi Rui, eight of us. Thanks!');
+  await compose.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(compose).toHaveCount(0);
+  await expect.poll(() => servers.sent.length, { timeout: 15_000 }).toBe(1);
+  expect(servers.sent[0]).toContain('In-Reply-To: <t1@example.com>');
+  expect(servers.sent[0]).toContain('Hi Rui, eight of us. Thanks!');
+  // Open in Mail opens the conversation there.
+  await piece.getByRole('button', { name: 'Open in Mail' }).click();
+  await expect(page().getByRole('article', { name: 'Terrace + lunch for the 13th' })).toContainText('hold the terrace for eight');
+});

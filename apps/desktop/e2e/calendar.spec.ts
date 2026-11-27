@@ -544,3 +544,33 @@ test('a calendar of one’s own is renamed in place from its menu, and deleted w
   await expect(side().getByRole('button', { name: 'Office', exact: true })).toBeVisible();
   await expect.poll(() => fs.existsSync(file('Office')) && fs.readFileSync(file('Office'), 'utf8').includes('SUMMARY:Budget review')).toBe(true);
 });
+
+test('today beside the work is a piece in other apps: its events, the next day, and an event opened in Calendar', async () => {
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T110000\r\nDTEND:${ics(today())}T120000\r\nSUMMARY:Budget review\r\nLOCATION:Room 4\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start();
+  // Window › Today beside the work; then another app.
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Window', exact: true }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Today beside the work' }).click();
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  const piece = shell().getByRole('region', { name: 'Today, from Calendar' });
+  const budget = piece.getByRole('button', { name: /^Budget review/ });
+  await expect(budget).toContainText('Room 4');
+  await expect(budget).toContainText(new RegExp(at('11:00')));
+  // The next day has nothing; Today comes back to it.
+  await piece.getByRole('button', { name: 'Day after' }).click();
+  await expect(piece.getByText('Nothing planned.')).toBeVisible();
+  await piece.getByRole('button', { name: 'Today', exact: true }).click();
+  await expect(budget).toBeVisible();
+  // A row opens the event in Calendar.
+  await budget.click();
+  await expect(page()).toBeVisible();
+  await expect(shell().getByRole('dialog', { name: 'Edit event' }).getByRole('textbox', { name: 'Title' })).toHaveValue('Budget review');
+  await shell().keyboard.press('Escape');
+  // The menu item puts it away again.
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Window', exact: true }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Today beside the work' }).click();
+  await expect(piece).toHaveCount(0);
+});
