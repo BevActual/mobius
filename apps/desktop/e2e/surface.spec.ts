@@ -362,6 +362,9 @@ test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a ca
   // Inside one line: one line, without the answer's heading or a second full stop.
   await expect(note).toContainText('The ferry leaves Athens at dawn.');
   await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), 'utf8')).toContain('The ferry leaves Athens at dawn.');
+  // Asked in the note's own chat: the panel beside it has the questions.
+  await shell().keyboard.press('Control+Shift+M');
+  await expect(log().locator('.msg.user').first()).toContainText('Where is this?');
 });
 
 test('chats live on items: each note keeps its own chat, the list away from them is the general one', async () => {

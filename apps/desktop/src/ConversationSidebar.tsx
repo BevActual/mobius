@@ -7,6 +7,7 @@ import { characterState, EMPTY_DRAFT, type AgentView } from './AgentPage';
 import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
 import { chatsByDay, DAY_HEADINGS_FROM } from './chat-days';
+import { itemOfChat, readItemChats } from './itemChats';
 import { activityBoard } from './activity-board';
 import { KEPT_EVENT, keepTurn, keptTurns, movesIn, turnId } from './ReviewStrip';
 import { ReviewActions } from './ReviewBar';
@@ -74,6 +75,7 @@ function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived,
         <span className="clist-sub">
           {conversation.activity !== 'idle' && <span className="badge" data-tone={ACTIVITY_TONE[conversation.activity]}>{ACTIVITY_TEXT[conversation.activity]}</span>}
           {relativeTime(conversation.updated_ms, Date.now())}
+          {itemOfChat(readItemChats(), conversation.id) && <span className="clist-about"> · {itemOfChat(readItemChats(), conversation.id)}</span>}
         </span>
       </button>
       {onArchive && (

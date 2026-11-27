@@ -52,6 +52,13 @@ export function chatForPlace(chats: ItemChats, here: { key: string; label: strin
   return { id, chats: { ...chats, general: id } };
 }
 
+/** The item's own chat, made (and remembered) if it has none: for asking about it from elsewhere (the Ask card). */
+export function itemChatFor(here: { key: string; label: string }): string {
+  const next = chatForPlace(readItemChats(), here, { id: '', empty: false }, () => conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()));
+  writeItemChats(next.chats);
+  return next.id;
+}
+
 /**
  * Follows the person from item to item: opening a note shows its chat, leaving it for a place with no item shows the
  * general chat. Never while Mobius is working in the open chat (it may be opening things itself) or while what it
