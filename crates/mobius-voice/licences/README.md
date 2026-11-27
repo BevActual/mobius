@@ -14,3 +14,13 @@ prerelease, and `scripts/check-licences.mjs` checks that each one is here.
 - `LICENSE-misaki.txt`: misaki's English word lists (`lexicon-us-en.txt`, `lexicon-gb-en.txt`) by hexgrad, Apache-2.0,
   from https://github.com/hexgrad/misaki, in the same archive (read 2026-11-26). Kitten TTS is not shipped: its
   phonemes need espeak-ng (GPL-3.0).
+- `LICENSE-parakeet.txt`: Parakeet TDT 0.6B v3 by NVIDIA, CC-BY-4.0, from https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3,
+  as sherpa-onnx exports it int8 in `sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8` (the model card in that archive says
+  cc-by-4.0, read 2026-11-27). The licence text is SPDX's copy of the legal code; the credit Parakeet asks for is at its
+  top and in Settings, Models.
+- `LICENSE-pyannote.txt`: pyannote segmentation-3.0 (CNRS), MIT, from https://huggingface.co/pyannote/segmentation-3.0,
+  as sherpa-onnx republishes it in `sherpa-onnx-pyannote-segmentation-3-0` (the LICENSE in that archive, read
+  2026-11-27). It tells the voices in a meeting apart.
+- `LICENSE-3d-speaker.txt`: 3D-Speaker's CAM++ English voice print model (`3dspeaker_speech_campplus_sv_en_voxceleb_16k`),
+  Apache-2.0, from https://github.com/modelscope/3D-Speaker (its LICENSE, read 2026-11-27), as sherpa-onnx republishes
+  it in its speaker-recongition-models release.

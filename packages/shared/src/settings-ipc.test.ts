@@ -209,6 +209,7 @@ describe('voice choices', () => {
   it('accept the providers each job has, and real speech server addresses', () => {
     expect(parsePreferencesPatch({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' })).toEqual({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' });
     expect(parsePreferencesPatch({ listenWith: 'device', listenModel: 'small.en' })).toEqual({ listenWith: 'device', listenModel: 'small.en' });
+    expect(parsePreferencesPatch({ listenModel: 'parakeet-v3' })).toEqual({ listenModel: 'parakeet-v3' });
     for (const bad of [{ listenModel: 'large' }, { speakWith: 'chat' }, { listenWith: 'whisper' }, { listenUrl: 'ftp://x' }, { speakUrl: 'http://a b' }, { speakVoice: 'x'.repeat(101) }]) expect(parsePreferencesPatch(bad), JSON.stringify(bad)).toBeNull();
   });
 });

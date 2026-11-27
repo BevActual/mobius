@@ -52,8 +52,8 @@ fn is_voice_name(v: &Value) -> bool {
 /// (`device`, downloaded when set up), the chat model's server, a speech server on this computer (OpenAI's audio
 /// format, as faster-whisper and Kokoro speak it), or ElevenLabs.
 pub const LISTEN_WITH: [&str; 5] = ["device", "chat", "local", "elevenlabs", "off"];
-/// The Whisper models for listening on this computer: quick, or more accurate for meetings.
-pub const LISTEN_MODELS: [&str; 2] = ["base.en", "small.en"];
+/// The models for listening on this computer: Whisper quick, Whisper more accurate, or Parakeet v3, the most accurate.
+pub const LISTEN_MODELS: [&str; 3] = ["base.en", "small.en", "parakeet-v3"];
 pub const SPEAK_WITH: [&str; 4] = ["device", "local", "elevenlabs", "off"];
 
 /// The apps a new install starts with; the rest are added from Abilities.

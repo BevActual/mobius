@@ -400,6 +400,11 @@ test('Models, Listening and Speaking (Voice folded in): who listens and who spea
   await choose(page(), 'Listen with', 'This computer (free)');
   await expect(page().getByTestId('voice-device')).toBeVisible();
   await expect(page().getByRole('combobox', { name: 'Accuracy' })).toHaveText('Quick');
+  // Parakeet, the most accurate, credits NVIDIA; who spoke in meetings is its own small download.
+  await choose(page(), 'Accuracy', 'Most accurate (Parakeet)');
+  await expect(page().getByText('Parakeet TDT 0.6B v3 by NVIDIA', { exact: false })).toBeVisible();
+  await expect(page().getByTestId('voice-device-speakers')).toBeVisible();
+  await choose(page(), 'Accuracy', 'Quick');
   await expect(page().getByRole('textbox', { name: 'Speech model' })).toHaveCount(0);
   await choose(page(), 'Listen with', 'Speech server on this computer');
   const address = page().getByRole('textbox', { name: 'Listening server address' });

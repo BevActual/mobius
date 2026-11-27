@@ -941,7 +941,7 @@ impl Bridge {
             ("meeting", "stop") => Ok(self.meetings.stop()),
             ("meeting", "cancel") => Ok(self.meetings.cancel()),
             ("meeting", "transcribe") => Ok(match self.meetings.take(arg(0).as_u64().unwrap_or(u64::MAX)) {
-                Ok((wav, start, seconds)) => crate::meeting::in_meeting(self.listen(&wav, "audio/wav"), start, seconds),
+                Ok((wav, start, seconds)) => crate::meeting::in_meeting(self.listen(&wav, "audio/wav", Some(&self.meetings.number().to_string())), start, seconds),
                 Err(error) => json!({ "ok": false, "error": error }),
             }),
             // Read words aloud with the service chosen for speaking: the window gets the sound, never a key.
@@ -2820,7 +2820,8 @@ impl Bridge {
     /// Settings > Providers. A key goes in and is never given back; it is only ever sent to its provider's address.
     /// Turn a recording into words with the service chosen for listening, then its fallback. Nothing chosen says so,
     /// with `setup` so the window can point to Settings, Models.
-    fn listen(&self, bytes: &[u8], mime: &str) -> Value {
+    /// A meeting's part names its meeting, so listening on this computer can say who spoke.
+    fn listen(&self, bytes: &[u8], mime: &str, meeting: Option<&str>) -> Value {
         let prefs = lock(&self.preferences).get();
         let s = |k: &str| prefs[k].as_str().unwrap_or("").to_owned();
         let (first, fallback, url, model) = (s("listenWith"), s("listenFallback"), s("listenUrl"), s("dictationModel"));
@@ -2832,7 +2833,7 @@ impl Bridge {
                 "chat" => self.agent.transcribe(bytes, mime, &model),
                 // The window sends a 16 kHz WAV when this is the choice; anything else comes back with `wav` so it
                 // converts the recording and asks again.
-                "device" => self.device_voice.transcribe(bytes, &self.listen_model(None)),
+                "device" => self.device_voice.transcribe(bytes, &self.listen_model(None), meeting),
                 "local" => crate::voice::transcribe_local(&url, &model, bytes, mime),
                 "elevenlabs" => match (self.providers.key("elevenlabs"), self.providers.address("elevenlabs")) {
                     (Some(key), Some(base)) => crate::voice::transcribe_elevenlabs(&base, &key, &model, bytes, mime),
@@ -4943,7 +4944,7 @@ impl Bridge {
                 None => failed("That model cannot be used."),
             },
             "transcribe" => match agent::parse_recording(arg(0), arg(1)) {
-                Some((bytes, mime)) => self.listen(&bytes, mime),
+                Some((bytes, mime)) => self.listen(&bytes, mime, None),
                 None => failed("That recording cannot be used."),
             },
             "cancel" => {
