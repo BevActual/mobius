@@ -1,4 +1,4 @@
-import { assignToMobius, mailAssignment } from './assign';
+import { assignEntries, mailAssignment } from './assign';
 import { openWebLink } from './web-link';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -445,7 +445,7 @@ function MessageTools({ mail, content, onLater }: { mail: MailState; content: Ma
           { label: 'Mark as Unread', icon: <Glyph name="unread" />, keys: 'U', run: () => { void mail.flag(content.id, 'seen', false); mail.setOpen(null); } },
           ...moveItems(mail, content.id, content.category, () => void mail.read(content.id)),
           // Shell: Assign to Mobius (assign.ts).
-          ...(row?.box !== 'sent' ? [{ label: 'Assign to Mobius', separated: true, run: () => assignToMobius(mailAssignment(content), () => rowFor(content.id)) }] : []),
+          ...(row?.box !== 'sent' ? assignEntries(() => mailAssignment(content), () => rowFor(content.id)) : []),
         ]} />
       </ToolGroup>
     </div>
@@ -678,7 +678,7 @@ function rowItems(mail: MailState, m: MailMessage, onLater: (id: string) => void
     ...(m.box === 'inbox' && !m.archived ? [(m.laterMs ?? 0) > Date.now() ? { label: 'Back to Inbox Now', run: () => void mail.later(m.id, null) } : { label: 'Later…', keys: 'H', run: () => onLater(m.id) }] : []),
     ...(m.box === 'inbox' ? moveItems(mail, m.id, m.category, reopen) : []),
     // Shell: Assign to Mobius (assign.ts) prepares what it needs in the background, sending nothing.
-    ...(m.box === 'inbox' ? [{ label: 'Assign to Mobius', separated: true, run: () => assignToMobius(mailAssignment(m), () => rowFor(m.id)) }] : []),
+    ...(m.box === 'inbox' ? assignEntries(() => mailAssignment(m), () => rowFor(m.id)) : []),
   ];
 }
 

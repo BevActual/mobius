@@ -94,7 +94,7 @@ import { Desk } from './Desk';
 import { useBackgroundRuns } from './background';
 import { BRIEF_TITLE, BRIEF_TOOLS, useMorningBrief } from './brief';
 import { checkInTitle, useCheckIns } from './checkins';
-import { ASSIGN_EVENT, type Assignment } from './assign';
+import { ASSIGN_EVENT, setAssignAgents, type Assignment } from './assign';
 import { AskHere, inlineAnswer, pickedNow, plainAnswer, type Picked } from './AskHere';
 import { hereOf } from './surface';
 import { itemChatFor, useItemChats } from './itemChats';
@@ -1430,16 +1430,24 @@ export function App() {
   const assignNow = useRef<(a: Assignment) => void>(() => undefined);
   assignNow.current = (a: Assignment) => {
     // Assigned again while Mobius is still on it: said, not started twice (two runs, two Inbox rows).
+    const who = a.bot?.name ?? 'Mobius';
     const already = handoffs.runs.find((r) => r.ask === a.title && conversation.list.some((c) => c.id === r.conversation && (c.activity === 'working' || c.activity === 'needs_you')));
-    if (already) { setToast(`Mobius is already working on ${a.title}${/[.!?…]$/.test(a.title) ? '' : '.'}`); return; }
-    void conversation.assign(a.ask, a.context ?? [], a.app).then((result) => {
-      if ('error' in result) { setToast(`Mobius could not take it: ${result.error}`); return; }
+    if (already) {
+      const on = botOfConversation(already.conversation, botIds);
+      const busy = on === MAIN_BOT_ID ? 'Mobius' : (bots.bots.find((b) => b.id === on)?.name ?? 'An agent');
+      setToast(`${busy} is already working on ${a.title}${/[.!?…]$/.test(a.title) ? '' : '.'}`);
+      return;
+    }
+    void conversation.assign(a.ask, a.context ?? [], a.app, a.bot ? { bot: a.bot.id } : {}).then((result) => {
+      if ('error' in result) { setToast(`${who} could not take it: ${result.error}`); return; }
       handoffs.start(result.id, a.title);
-      setToast('Assigned to Mobius. It will be in your Inbox when done.');
+      setToast(`Assigned to ${who}. It will be in your Inbox when done.`);
     });
   };
   // An agent that started on its own (mail came from someone it looks out for): its run lands in the Inbox like any
   // other handed off.
+  // Item menus offer the person's own agents beside Mobius (assign.ts).
+  useEffect(() => setAssignAgents(bots.bots), [bots.bots]);
   useEffect(() => window.mobius.bots.onStarted?.((run) => handoffs.start(run.conversation, run.title)) ?? (() => undefined), [handoffs.start]);
   // The morning brief: once each morning, asked in its own chat in Ask mode, so it only reads; it lands in the Inbox.
   useMorningBrief(preferences.value.morningBrief, preferences.loaded, async (text) => {
