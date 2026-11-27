@@ -59,8 +59,12 @@ export function spokenText(markdown: string): string {
     .replace(/[ \t]+/g, ' ')
     .replace(/^ +| +$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
+    // "Dr. Chen" is read "Doctor Chen", without the stop of a sentence's end.
+    .replace(/\b(Dr|Mr|Mrs|Ms|Prof|St|Mt|Jr|vs)\.(?=\s)/g, (_, t: string) => TITLES[t]!)
     .trim();
 }
+
+const TITLES: Record<string, string> = { Dr: 'Doctor', Mr: 'Mister', Mrs: 'Missus', Ms: 'Miz', Prof: 'Professor', St: 'Saint', Mt: 'Mount', Jr: 'Junior', vs: 'versus' };
 
 /**
  * A long text in parts to read one after another, so the first is heard soon: whole paragraphs, or sentences of a long

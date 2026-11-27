@@ -76,3 +76,9 @@ describe('the first part', () => {
     expect(speechParts(text, 40, 15)).toEqual(['One two three.', 'Four five six. Seven eight nine.', 'Ten eleven twelve.']);
   });
 });
+
+describe('titles read aloud', () => {
+  it('are said in full', () => {
+    expect(spokenText("Dr. Chen's ferries and Mr. Box.")).toBe("Doctor Chen's ferries and Mister Box.");
+  });
+});
