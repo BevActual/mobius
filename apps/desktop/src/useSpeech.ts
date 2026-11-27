@@ -14,8 +14,16 @@ export function soundUrl(audio: string): string {
 /** Every reader that is open: starting one stops the others, so only one thing is read aloud at a time. */
 const readers = new Set<() => void>();
 
+/** The Listen buttons' readers among them: what is read from a page, not Mobius's replies. */
+const pageReaders = new Set<() => void>();
+
+/** Stops a page being read aloud: the window calls it when you go to another app or tab. */
+export function stopReading(): void {
+  for (const stop of pageReaders) stop();
+}
+
 /** Read a reply or a page aloud with the service chosen for speaking. Esc stops it; so does starting another. */
-export function useSpeech() {
+export function useSpeech(of: 'page' | 'chat' = 'chat') {
   const [speech, setSpeech] = useState<Speech>(SPEECH_IDLE);
   const audio = useRef<HTMLAudioElement | null>(null);
   const current = useRef<Speech>(SPEECH_IDLE);
@@ -34,8 +42,8 @@ export function useSpeech() {
   }, [apply]);
 
   /**
-   * Reads `text` (Markdown is read as its words) in parts, one after another: the first part is asked for alone, so it
-   * is heard soon, and each next one is asked for while the one before plays.
+   * Reads `text` (Markdown is read as its words) in parts, one after another: the first part is short, so it is heard
+   * soon, and the next ones are made while the ones before play.
    */
   const speak = useCallback(async (id: string, text: string) => {
     for (const other of readers) if (other !== stop) other();
@@ -43,17 +51,25 @@ export function useSpeech() {
     const mine = run.current;
     apply({ kind: 'start', id });
     const api = window.mobius.voice?.speak;
-    const parts = speechParts(spokenText(text), 500, 160);
+    const parts = speechParts(spokenText(text), 500, 100);
     const fail = (error: string, setup = false) => { if (run.current === mine) apply({ kind: 'failed', id, error, setup }); };
     if (!api) return fail('Speaking is not available here.');
     if (!parts.length) return fail('There is nothing to read.');
-    const ask = (i: number) => api(parts[i]!).catch(() => null);
-    let coming = ask(0);
+    // Two parts are asked for ahead of the one playing, each once the one before it is made, so the voice keeps
+    // working while you listen and the next part is ready before this one ends.
+    const asked: Promise<Awaited<ReturnType<typeof api>> | null>[] = [];
+    const ask = (i: number): void => {
+      if (i >= parts.length || asked[i]) return;
+      const before = i > 0 ? asked[i - 1]! : Promise.resolve(null);
+      asked[i] = before.then(() => (run.current === mine ? api(parts[i]!) : null)).catch(() => null);
+    };
+    ask(0);
     for (let i = 0; i < parts.length; i++) {
-      const result = await coming;
+      ask(i + 1);
+      ask(i + 2);
+      const result = await asked[i]!;
       if (run.current !== mine) return;
       if (!result || !result.ok) return fail(result && !result.ok ? result.error : 'Speaking is not available here.', Boolean(result && !result.ok && result.setup));
-      if (i + 1 < parts.length) coming = ask(i + 1);
       // The window's content rules let sound play from blob: but not data: addresses, so the sound is handed over as one.
       const url = soundUrl(result.audio);
       const player = new Audio(url);
@@ -78,9 +94,10 @@ export function useSpeech() {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && current.current.state !== 'idle' && current.current.state !== 'failed') stop(); };
     window.addEventListener('keydown', onKey);
     readers.add(stop);
+    if (of === 'page') pageReaders.add(stop);
     // Leaving the page (or the app) stops its reading too: nothing is left playing that its button and Esc can't reach.
-    return () => { window.removeEventListener('keydown', onKey); readers.delete(stop); run.current += 1; audio.current?.pause(); audio.current = null; };
-  }, [stop]);
+    return () => { window.removeEventListener('keydown', onKey); readers.delete(stop); pageReaders.delete(stop); run.current += 1; audio.current?.pause(); audio.current = null; };
+  }, [stop, of]);
 
   return { speech, speak, stop, dismiss: () => apply({ kind: 'stop' }) };
 }

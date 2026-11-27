@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useSpeech } from '../useSpeech';
 
 /** Asks the shell to open Settings at speaking (App listens for it): a Listen button sits in apps that can't reach it. */
@@ -9,10 +10,15 @@ export const OPEN_SPEAKING_SETTINGS = 'mobius:open-speaking-settings';
  * it says so beside the button, with the way to set it up.
  */
 export function ListenButton({ id, text, className = 'doc-tool' }: { id: string; text: () => string; /** The look of the toolbar it sits in: `ui-icon-button` draws its icon in a span, as IconButton does. */ className?: string }) {
-  const { speech, speak, stop, dismiss } = useSpeech();
+  const { speech, speak, stop, dismiss } = useSpeech('page');
   const mine = speech.state !== 'idle' && speech.id === id;
   const loading = mine && speech.state === 'loading';
   const speaking = mine && (speech.state === 'speaking' || loading);
+  // Another page opened in the same place (the next note, another article) stops what the last one was reading.
+  const shown = useRef(id);
+  useEffect(() => {
+    if (shown.current !== id) { shown.current = id; stop(); }
+  }, [id, stop]);
   const label = loading ? 'Getting the voice…' : speaking ? 'Stop listening' : 'Listen';
   const icon = (
     <svg viewBox="0 0 20 20" aria-hidden="true">

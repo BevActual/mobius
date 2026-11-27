@@ -106,6 +106,7 @@ import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
 import { pressIs } from './ui/PanelLayout';
 import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
 import { alertDue, alertSaid } from './calendar-alerts';
+import { stopReading } from './useSpeech';
 import { OPEN_SPEAKING_SETTINGS, UndoToast, AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
@@ -1469,6 +1470,8 @@ export function App() {
     window.addEventListener(OPEN_SPEAKING_SETTINGS, open);
     return () => window.removeEventListener(OPEN_SPEAKING_SETTINGS, open);
   }, [setSettingsOpen]);
+  // Going to another app, tab or Settings stops a page being read aloud (Mobius's replies read on).
+  useEffect(() => { stopReading(); }, [app, active?.id, settingsOpen]);
   const menuContext: MenuContext = {
     app,
     place: settingsOpen,
