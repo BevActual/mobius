@@ -1,6 +1,6 @@
 //! Recording a meeting in Mobius itself rather than in the window (docs/reference/voice-plan.md, section 2): the
-//! microphone is heard here, cut into 16 kHz parts of two minutes, and each part is handed to the window as it is
-//! finished. The window asks for each to be written down, in order, with whoever is chosen for listening. A part's
+//! microphone is heard here, cut into 16 kHz parts of about two minutes (each cut in a pause), and each part is
+//! handed to the window as it is finished. The window asks for each to be written down, in order, with whoever is chosen for listening. A part's
 //! file is deleted as soon as it has been read, and every part left is deleted when the meeting is cancelled or a new
 //! one starts: as before, only the words are kept.
 //!
@@ -201,7 +201,8 @@ mod tests {
         assert_eq!(seen.last().unwrap()["kind"], "ended");
         let (wav, start, seconds) = meetings.take(0).unwrap();
         assert!(crate::voice_local::is_listening_wav(&wav));
-        assert_eq!((start, seconds), (0.0, 1.0));
+        // A one-second part, cut in the quietest moment of its second half (the test sound rises and falls).
+        assert!(start == 0.0 && (0.5..=1.0).contains(&seconds), "{start} {seconds}");
         assert!(meetings.take(0).is_err(), "read once");
         assert!(!dir.path().join("part-0.wav").exists());
     }
