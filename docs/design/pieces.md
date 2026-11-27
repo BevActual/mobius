@@ -209,6 +209,9 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
   in its actions (Shift+Enter), which brings it beside the open app without leaving it. Calendar's event and empty-day
   menus have **Show day beside**, next to the Tasks list menu's and Mail's Show beside.
 
+- **Fold to its header:** a piece, or any panel beside others in a side dock, folds to its header (the chevron, a
+  double click on the header, or its menu), so the ones beside it have the room. Kept per app with its layout.
+
 Not yet: a `show` tool for Mobius to bring a piece without changing anything, a piece remembered by project.
 
 ## First rounds

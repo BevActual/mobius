@@ -519,3 +519,28 @@ test('a piece Mobius brought stays once the person uses it, and Esc puts away on
   await expect(piece).toBeVisible();
   await expect(piece).not.toHaveAttribute('data-mobius', /.*/);
 });
+
+test('a piece folds to its header, so the others beside it have the room, and opens again', async () => {
+  fs.mkdirSync(path.dirname(file('Errands')), { recursive: true });
+  fs.writeFileSync(file('Errands'), '# Errands\n\n- [ ] Post the parcel\n');
+  fs.writeFileSync(file('Home'), '# Home\n\n- [ ] Fix the gate\n');
+  await start();
+  for (const list of ['Errands', 'Home']) {
+    await lists().getByRole('button', { name: new RegExp(`^${list}`) }).click({ button: 'right' });
+    await shell().getByRole('menuitem', { name: 'Show beside' }).click();
+  }
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  const errands = shell().locator('section[data-panel="piece:tasks.list:Errands"]');
+  const home = shell().locator('section[data-panel="piece:tasks.list:Home"]');
+  await expect(errands.getByRole('checkbox', { name: 'Post the parcel' })).toBeVisible();
+  const before = (await home.boundingBox())!.height;
+  await errands.getByRole('button', { name: 'Fold Errands' }).click();
+  await expect(errands.getByRole('checkbox', { name: 'Post the parcel' })).toBeHidden();
+  await expect.poll(async () => (await home.boundingBox())!.height).toBeGreaterThan(before + 50);
+  await expect(errands.getByRole('button', { name: 'Open Errands' })).toHaveAttribute('aria-expanded', 'false');
+  // A double click on its header opens it again.
+  await errands.locator('.ui-panel-head').dblclick({ position: { x: 40, y: 10 } });
+  await expect(errands.getByRole('checkbox', { name: 'Post the parcel' })).toBeVisible();
+});
