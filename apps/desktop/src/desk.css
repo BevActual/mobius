@@ -38,7 +38,7 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .desk-act:hover:not(:disabled) { background: var(--line-soft, var(--soft)); }
 .desk-act[data-primary] { color: var(--on-accent); background: var(--accent); box-shadow: none; }
 .desk-act[data-primary]:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); }
-/* An app Mobius changed carries the dashed indigo edge until you look, as Mail marks a suggestion. */
+/* An app Mobius changed carries the dashed Mobius edge until you look, as Mail marks a suggestion. */
 .desk-row[data-changed] { outline: 1px dashed var(--mobius); outline-offset: -3px; border-radius: var(--row-radius, 6px); }
 .desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--mobius); }
 /* The Agent app's message box: one hairline, as the Mobius panel's composer, not a double outline. */

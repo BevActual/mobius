@@ -350,7 +350,7 @@ function Instruments() {
           <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
           <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
         </div></div>
-      <div className="sheet-col sheet-wide"><span className="sheet-note">Mobius proposed "warmer": the settings it moved (on knobs, cells and graphs) read in indigo and dashed until kept; Discard glides them back</span>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">Mobius proposed "warmer": the settings it moved (on knobs, cells and graphs) read in Mobius's colour and dashed until kept; Discard glides them back</span>
         <WarmerDemo /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
         <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>

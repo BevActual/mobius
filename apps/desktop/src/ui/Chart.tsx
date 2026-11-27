@@ -9,7 +9,7 @@ import type { ContentColor } from './Bits';
  *
  * Series take the person's content colour (`color`), drawn at its chart step (`--chart-*`), or else the next one in
  * the checked order. Colour follows the series, never its place, so filtering one out does not repaint the rest.
- * `proposed` gives the dashed indigo edge of something Mobius made that waits for Keep.
+ * `proposed` gives the dashed Mobius edge of something Mobius made that waits for Keep.
  */
 
 export interface ChartSeries {

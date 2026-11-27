@@ -38,7 +38,7 @@ Editing, ink otherwise), each mode with one line saying what it does.
 - **Editing** is as before.
 - **Suggesting:** what the person types is kept as a suggestion: added words in ink, underlined, on a faint fill;
   removed words stay in the page, struck through in grey. Deleting one's own suggested words takes them out for good.
-  It is the person's own suggestion, so it is never indigo or dashed; those stay Mobius's.
+  It is the person's own suggestion, so it is never dashed; those stay Mobius's.
 - **Accept or reject** one suggestion from the page's right-click menu (Accept the addition, Reject the removal), or
   all of them from the Docs menu (Accept all suggestions, with the count, and Reject all suggestions), in one step to
   undo.
@@ -46,7 +46,7 @@ Editing, ink otherwise), each mode with one line saying what it does.
   `{++added++}` and `{--removed--}`, so the document stays plain Markdown that other tools and Mobius read as it is.
 - **Viewing:** the page reads only, and the writing tools leave the tool row and its ⋯; Share stays.
 - **Later:** a deletion across paragraphs kept as a suggestion (it is made as it is for now); Accept and Reject on
-  hover; Mobius's suggestions in Suggesting mode, with the same marks and its dashed indigo edge; the selection bar's
+  hover; Mobius's suggestions in Suggesting mode, with the same marks and its dashed Mobius edge; the selection bar's
   Comment while Viewing.
 
 ## Page setup

@@ -60,7 +60,7 @@ same window, with "Notes" as a token at the start of the box, so Backspace widen
   Sources card under the answer lists those notes as real rows: the Notes glyph, the title, and the notebook in grey,
   numbered to match.
 - **Opening a source** opens the note scrolled to the passage, which takes a soft `--sel` tint that fades after a
-  moment. It is not indigo and not dashed, because Mobius only read it and changed nothing.
+  moment. It is not dashed, because Mobius only read it and changed nothing.
 - **In the Notebooks panel** a cited note shows no mark. A dot still means only that Mobius changed something.
 
 ## Sorting

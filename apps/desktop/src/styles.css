@@ -162,7 +162,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .greeting { margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-semibold); color: var(--ink); letter-spacing: -0.01em; }
 .greeting-note { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); }
 .msg { font-size: calc(13px * var(--chat-scale, 1)); max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
-.msg.user { align-self: flex-end; max-width: 88%; padding: 7px 12px; border-radius: 18px 18px 6px 18px; background: var(--mobius); color: var(--on-mobius); }
+.msg.user { align-self: flex-end; max-width: 88%; padding: 7px 12px; border-radius: 18px 18px 6px 18px; background: var(--sel); color: var(--ink); }
 .msg.assistant { align-self: stretch; padding: 2px 4px; }
 .msg.assistant[data-streaming="true"]:not(:empty)::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: var(--muted); vertical-align: middle; animation: pulse var(--dur-loop) var(--ease) infinite; }
 .msg.error { align-self: stretch; padding: 8px 12px; border-radius: var(--radius-group); background: color-mix(in srgb, #d93025 12%, var(--bg)); color: #b3261e; font-size: var(--fs-md); }
@@ -183,13 +183,15 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .work-now-more { padding-left: calc(var(--sp-2) + 2ch); font-style: normal; }
 @media (prefers-reduced-motion: reduce) { .msg.assistant[data-streaming="true"]::after { animation: none; } }
 
-/* The Mobius mark. Turning, the three bands of the trefoil brighten one after the other, as the band travels round. */
+/* The Mobius mark: ink at rest, like any glyph. While Mobius works (and wherever a mark is `turning`) it goes round the
+   colours: each band a third of the way round from the last and all three moving together, so the colour travels the
+   loop. Its own smooth trip, as it is small; the rest of the page follows the stepped one on :root (tokens.css). */
 .mobius-mark { flex: none; display: block; color: var(--mobius); }
-.mobius-mark[data-turning] .mark-band { animation: mark-travel var(--dur-loop) var(--ease) infinite; }
-.mobius-mark[data-turning] .mark-band[data-band="2"] { animation-delay: var(--dur-slow); }
-.mobius-mark[data-turning] .mark-band[data-band="3"] { animation-delay: var(--dur-slow); }
-@keyframes mark-travel { 0%, 100% { opacity: .45; } 33% { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .mobius-mark[data-turning] .mark-band { animation: none; } }
+:root[data-mobius-working] .mobius-mark, .mobius-mark[data-turning] { animation: mobius-hue var(--dur-hue-mark) linear infinite; }
+:is(:root[data-mobius-working] .mobius-mark, .mobius-mark[data-turning]) .mark-band { fill: oklch(var(--mobius-l) calc(var(--mobius-c) + 0.03) var(--mobius-hue)); transition: fill var(--dur-med) var(--ease); }
+:is(:root[data-mobius-working] .mobius-mark, .mobius-mark[data-turning]) .mark-band[data-band="2"] { fill: oklch(var(--mobius-l) calc(var(--mobius-c) + 0.03) calc(var(--mobius-hue) + 120deg)); }
+:is(:root[data-mobius-working] .mobius-mark, .mobius-mark[data-turning]) .mark-band[data-band="3"] { fill: oklch(var(--mobius-l) calc(var(--mobius-c) + 0.03) calc(var(--mobius-hue) + 240deg)); }
+@media (prefers-reduced-motion: reduce) { :is(:root[data-mobius-working] .mobius-mark, .mobius-mark[data-turning]) { animation: none; } }
 .empty-mark { color: var(--mobius); margin: 0 auto 12px; }
 .chat-brand { display: inline-flex; align-items: center; gap: 8px; color: var(--mobius); }
 .chat-brand .chat-title { color: var(--ink); }
@@ -759,12 +761,12 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 
 /* ───────────────────────── Mobius 2 shell ─────────────────────────
    macOS 27 era: the sidebar runs edge to edge and full height, one toolbar spans the work area, the work area is flush
-   with both, controls are capsules, and indigo is the one accent. Glass stays on the top layer only (hub, launcher,
+   with both, controls are capsules, and Mobius's colour is the one accent. Glass stays on the top layer only (hub, launcher,
    menus), so the window reads the same on every platform and with Reduce Transparency. */
 .app { background: var(--bg); --context: var(--toolbar-h); font-size: var(--fs-md); }
 
 /* Sidebar */
-/* Mobius's own apps: the same tiles, in Mobius's indigo. */
+/* Mobius's own apps: the same tiles, in Mobius's colour. */
 
 .tab, .tab-main, .note-row, .list-row, .clist-item, .clist-main { border-radius: var(--radius-control); }
 .tab[aria-current="page"], .note-row[aria-current="page"], .list-row[aria-current="page"] { background: color-mix(in srgb, var(--ink) 8%, transparent); }
@@ -909,7 +911,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .msg.assistant li[data-task="done"] { color: var(--muted); }
 .msg.assistant strong { font-weight: var(--fw-semibold); }
 /* Links in what you read (replies, notes, docs, reports): ink with a quiet underline that turns ink on hover. Not blue,
-   and not indigo, which is kept for what Mobius touched. */
+   and not Mobius's colour, which is kept for what Mobius touched. */
 :is(.msg.assistant, .note-page, .research-text) a:not(.cite) { color: var(--ink); text-decoration-line: underline; text-decoration-thickness: 1px; text-decoration-color: var(--line-strong); text-underline-offset: 2px; cursor: pointer; }
 :is(.msg.assistant, .note-page, .research-text) a:not(.cite):hover { text-decoration-color: var(--ink); }
 .msg.assistant :not(pre) > code { padding: 1px 5px; border-radius: 5px; background: var(--field); font-family: var(--font-mono); font-size: 0.92em; }
@@ -946,7 +948,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .review-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 .review-btn { flex: none; white-space: nowrap; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .review-btn:hover, .review-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-/* Keep is ink, like every primary button: indigo marks what Mobius did, not what you do (the panel look). */
+/* Keep is ink, like every primary button: Mobius's colour marks what Mobius did, not what you do (the panel look). */
 .review-btn[data-kind="keep"] { background: var(--ink); color: var(--on-ink); }
 .review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
 /* A proposal: dashed until you keep or discard it. */
@@ -984,11 +986,11 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 /* Search filters: the chosen one carries the accent, like every other current place. */
 /* A page or list the agent changed in its last turn. */
 .changed-mark { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--mobius); }
-/* What Mobius made or changed, in a sidebar list: dashed indigo until it is kept. */
+/* What Mobius made or changed, in a sidebar list: dashed Mobius until it is kept. */
 .note-row[data-proposed], .list-row[data-proposed], .task[data-proposed], .code-file[data-proposed] { outline: 1px dashed var(--mobius); outline-offset: -1px; }
 /* Why this: what was asked, under a proposal's summary. */
 .review-why { display: block; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
-/* New, as the first row of an app's list, and under it Mobius's starts: dashed indigo, as Mobius's things are. */
+/* New, as the first row of an app's list, and under it Mobius's starts: dashed Mobius, as Mobius's things are. */
 .side-new { margin: 0 0 4px; }
 .side-starts { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 var(--sp-2) 4px 32px; }
 .side-start { height: 22px; padding: 0 8px; border: 1px dashed color-mix(in srgb, var(--mobius) 55%, var(--line)); border-radius: var(--radius-pill); font-size: var(--fs-xs); color: var(--mobius); background: transparent; }
@@ -1277,7 +1279,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .doc-page h3 { font-family: var(--font, system-ui), sans-serif; font-size: 17px; margin: 1.2em 0 0.3em; }
 .doc-page p { margin: 0 0 0.8em; }
 .doc-page blockquote { margin: 0 0 0.8em; padding-left: 14px; border-left: 3px solid var(--line-strong); color: var(--muted); }
-.doc-page a { color: var(--accent); }
+.doc-page a { color: var(--link); }
 .doc-page code { font-family: var(--font-mono); font-size: 0.9em; padding: 1px 4px; border-radius: 4px; background: var(--soft); }
 .doc-page pre { padding: 12px 14px; border-radius: 8px; background: var(--soft); overflow: auto; }
 .doc-page pre code { padding: 0; background: none; }
@@ -1900,7 +1902,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .starters { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--sp-2); margin-top: var(--sp-4); }
 .starter { height: var(--control-h); padding: 0 var(--sp-3); border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
 .starter:hover { background: var(--soft); }
-.starter:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 0; }
+.starter:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
 
 /* Menus mark the current choice with a check, as macOS menus do. */
 .popmenu-item.popmenu-checkable { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 6px; }
@@ -1946,7 +1948,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 
 /* A row's own menu (right-click): out of the way, for what is easy to regret. */
 
-/* Selection is a soft fill, never a dashed edge; what Mobius changed and is waiting has a small indigo dot. */
+/* Selection is a soft fill, never a dashed edge; what Mobius changed and is waiting has a small Mobius's colour dot. */
 .ui-dock[data-dock="left"] .side :is(.note-row, .list-row, .clist-item, .files-row)[data-proposed] { outline: none; }
 .ui-dock[data-dock="left"] .side :is(.note-row, .list-row)[data-proposed]::after { content: ""; flex: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--mobius); align-self: center; }
 .ui-dock[data-dock="left"] .side :is(.note-row, .list-row, .files-row, .clist-item)[aria-current="page"] { background: var(--side-select); }
@@ -1962,7 +1964,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* Tag rows: the label's own colour, with a grey #; the accent is only for selection. */
 
 /* Comments: a speech-bubble button with the count of open threads, a dashed ring in comment mode, pins shaped as
-   speech bubbles (indigo open or sent, yellow a note, grey with a check resolved), and a small card beside each. */
+   speech bubbles (Mobius's colour open or sent, yellow a note, grey with a check resolved), and a small card beside each. */
 .comment-toggle { position: relative; }
 .comment-toggle[aria-pressed="true"] { background: var(--side-select); color: var(--accent); }
 .comment-badge { position: absolute; top: 0; right: -2px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; background: var(--accent); color: #fff; font-size: var(--fs-floor); font-weight: 600; line-height: 15px; text-align: center; font-variant-numeric: tabular-nums; }
@@ -2008,7 +2010,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .composer-tools .popmenu { position: static; }
 .composer-tools .popmenu-list { left: 0; right: 0; min-width: 0; max-width: none; }
 
-/* The Mobius head: the indigo trefoil, Mobius and where; in the sidebar "In Notes" opens the app switcher. */
+/* The Mobius head: the Mobius-coloured trefoil, Mobius and where; in the sidebar "In Notes" opens the app switcher. */
 .chat-mark { flex: none; color: var(--mobius); }
 .chat-place { display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-sm); color: var(--muted); cursor: pointer; text-align: left; }
 .chat-place:hover { color: var(--ink); }
@@ -2071,7 +2073,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .settings-tab[aria-selected="true"] { background: var(--raised); font-weight: 500; box-shadow: 0 0 0 0.5px var(--hairline); }
 /* A pop-up (a choice of several), as in macOS Settings. */
 .popup { height: 26px; min-width: 150px; padding: 0 26px 0 10px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-md); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06); }
-.popup:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.popup:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 /* Gateways: an empty state, and red text for what is easy to regret. */
 .gateways-empty { padding: 6px 0 4px; }
 .gateways-empty-title { margin: 0; font-size: var(--fs-md); font-weight: 500; }
@@ -2236,7 +2238,7 @@ input.side-search.side-search {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238e8e93' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.75'/%3E%3Cpath d='m10.5 10.5 3.25 3.25'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: 9px 50%; background-size: 13px 13px;
 }
-/* The clear ×, drawn in muted ink (the browser's own takes the accent, and indigo is only for Mobius); ink on hover. */
+/* The clear ×, drawn in muted ink (the browser's own takes the accent, and Mobius's colour is only for Mobius); ink on hover. */
 .side-search::-webkit-search-cancel-button {
   -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-right: -4px; cursor: pointer; background: var(--muted);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='m4.5 4.5 7 7M11.5 4.5l-7 7'/%3E%3C/svg%3E") center / 14px 14px no-repeat;
@@ -2294,7 +2296,7 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 :is(.btn, .tool-btn):hover:not(:disabled) { background: var(--sel); }
 .btn.primary, .btn.mobius { box-shadow: none; }
 .dock.right:not([data-floating]) .chat .composer { border-radius: var(--radius-panel); margin: 0 var(--sp-3) var(--sp-3); background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
-/* The Mobius button is the one place indigo belongs in the toolbar: a pale indigo fill when its panel is open. */
+/* The Mobius button is the one place Mobius's colour belongs in the toolbar: a pale Mobius-coloured fill when its panel is open. */
 .context-strip .strip-mobius[aria-pressed="true"], .context-strip .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 14%, transparent); color: var(--mobius); }
 
 /* Timeless toolbar: the title and its grey line on one row; the app's icons bare, groups parted by a hairline, not
@@ -2399,8 +2401,8 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .from-mobius-filter .from-mobius-mark { flex: none; display: inline-grid; place-items: center; color: var(--mobius); }
 .ui-dock[data-dock="left"] .from-mobius { border-top: 0; padding-top: 0; }
 
-/* One Mobius change block in every app (frame review): the dashed indigo edge Docs draws round a change, on the page's
-   own paper, with no tint and no dot; who changed it in small indigo words, then Discard, Try another and Keep. */
+/* One Mobius change block in every app (frame review): the dashed Mobius edge Docs draws round a change, on the page's
+   own paper, with no tint and no dot; who changed it in small Mobius's colour words, then Discard, Try another and Keep. */
 :is(.note-review, .files-review, .studio-review, .skill-review, .design-review, .photo-review) { background: var(--paper); border: 1px dashed var(--mobius); border-radius: 6px; outline: 0; box-shadow: none; }
 :is(.note-review, .files-review, .studio-review, .skill-review, .design-review, .photo-review) .review-dot { display: none; }
 .note-review .note-review-text, .skill-review-head > span:nth-child(2), :is(.files-review, .studio-review, .design-review, .photo-review) > span:not(.review-problem) { font-size: var(--fs-xs); color: var(--mobius); }
@@ -2488,7 +2490,7 @@ body { font-variant-numeric: tabular-nums; }
 .popmenu-keys { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
 .composer-tools > .popmenu:first-child { flex: none; }
 
-/* Selected text uses the theme's selection grey: indigo is for Mobius alone. */
+/* Selected text uses the theme's selection grey: Mobius's colour is for Mobius alone. */
 ::selection { background: var(--sel); color: inherit; }
 .composer-tools .pill.pill-model { min-width: 28px; }
 .composer-tools { gap: 2px; }
@@ -2793,13 +2795,13 @@ body { font-variant-numeric: tabular-nums; }
 .context-strip[data-titled] > .ui-toolbar-slot:has(.photo-tabs, .sheet-tools, .design-tools) { grid-column: 1 / 3; justify-content: flex-start; }
 /* Notes and Docs (marked, panel look): their tool rows are centred on the window like Calendar's. */
 
-/* The Mobius button, in every look: an indigo trefoil, the one indigo in the bars. At rest it has no tint, so open and
+/* The Mobius button, in every look: a Mobius-coloured trefoil, the one Mobius's colour in the bars. At rest it has no tint, so open and
    closed read apart; hover gives a light tint (8%), and only while the panel is open is it pressed, with a 20% tint and
-   an indigo edge. */
+   a Mobius-coloured edge. */
 .strip-mobius, .context-strip .strip-mobius { background: transparent; box-shadow: none; color: var(--mobius); }
 .strip-mobius:hover, .context-strip .strip-mobius:hover { background: color-mix(in srgb, var(--mobius) 8%, transparent); color: var(--mobius); }
 .context-strip .strip-mobius[aria-pressed="true"], .context-strip .strip-mobius[aria-pressed="true"]:hover,
-.title-row .strip-mobius[aria-pressed="true"], .title-row .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 20%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 35%, transparent); color: var(--mobius); }
+.title-row .strip-mobius[aria-pressed="true"], .title-row .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 12%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 28%, transparent); color: var(--mobius); }
 
 /* ---- The Mobius panel in the panel look (design/reviews/panel-look/mobius-panel.md) ---------------------------------- */
 /* The header is the panel's: the chat's name in ink, 13px semibold. */
@@ -2857,7 +2859,7 @@ button.waiting-row:focus-visible { outline: var(--focus-w) solid var(--ink); out
 .running-job[data-needs-you] .running-job-state { color: var(--mobius); }
 @media (prefers-reduced-motion: reduce) { .running-job-mark { animation: none; } }
 
-/* Ask from anywhere: a card by what is chosen in an app, its edge dashed indigo as Mobius's work is. */
+/* Ask from anywhere: a card by what is chosen in an app, its edge dashed Mobius as Mobius's work is. */
 .ask-here { position: fixed; z-index: 40; width: 380px; max-width: calc(100vw - 16px); max-height: 60vh; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: var(--radius-panel); border: 1px dashed var(--mobius); background: var(--raised); color: var(--ink); box-shadow: var(--shadow-2); font-size: var(--fs-sm); animation: app-in var(--dur-med) var(--ease); }
 .ask-here-head { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); }
 .ask-here-picked { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }

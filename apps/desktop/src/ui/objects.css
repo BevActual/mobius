@@ -257,7 +257,7 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-time-menu { padding: var(--sp-1); background: var(--raised); }
 .ui-time-list { max-height: var(--time-list-h); overflow-y: auto; min-width: calc(var(--card-w) / 2); }
 .ui-time-option { height: var(--button-h); font-variant-numeric: tabular-nums; }
-/* The row under the pointer or the keyboard gets the grey hover fill (indigo is Mobius's alone); the chosen time has
+/* The row under the pointer or the keyboard gets the grey hover fill (Mobius's colour is Mobius's alone); the chosen time has
    the check, as in a choice menu. */
 .ui-time-option { gap: var(--sp-2); }
 .ui-time-option[aria-selected="true"] .ui-menu-label { font-weight: var(--fw-medium); }

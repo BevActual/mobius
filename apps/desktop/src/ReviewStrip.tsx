@@ -376,7 +376,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown, on
 }
 
 /**
- * One thing waiting for you in the resting panel's card: its app's icon in a dashed indigo square (Mobius made it), its
+ * One thing waiting for you in the resting panel's card: its app's icon in a dashed Mobius square (Mobius made it), its
  * name, one grey line of state, and Open, which goes to it in its app.
  */
 export function WaitingRow({ icon, name, state, title, onOpen }: { icon: ReactNode; name: string; state: string; title?: string | undefined; onOpen?: (() => void) | undefined }) {

@@ -205,8 +205,8 @@
 .ui-steps[data-fill] .ui-steps-row { grid-template-columns: var(--step-name-w) repeat(var(--steps), minmax(var(--step-size), var(--step-max))); }
 .ui-steps[data-fill] .ui-step { width: 100%; height: var(--step-fill-h); }
 
-/* A value Mobius set that nobody has kept yet (Knob, ParamCell, Slider `proposed`): the Mobius mark, a dashed indigo
-   edge, with the value in indigo. The knob's arc itself turns indigo and dashed. Keep or Discard clears it. */
+/* A value Mobius set that nobody has kept yet (Knob, ParamCell, Slider `proposed`): the Mobius mark, a dashed Mobius
+   edge, with the value in Mobius's colour. The knob's arc itself turns Mobius's colour and dashed. Keep or Discard clears it. */
 .ui-knob[data-proposed] .ui-knob-fill { stroke: var(--mobius); stroke-dasharray: 2.4 1.6; stroke-linecap: butt; }
 .ui-knob[data-proposed] .ui-knob-tick { stroke: var(--mobius); }
 :is(.ui-knob, .ui-param, .ui-slider)[data-proposed] :is(.ui-knob-value, .ui-param-value, .ui-slider-value) { color: var(--mobius); }
@@ -214,8 +214,8 @@
   outline: calc(var(--hairline-w) * 1.5) dashed var(--mobius); outline-offset: var(--sp-1); border-radius: var(--radius-control);
 }
 
-/* Graphs (EnvelopeGraph, FilterGraph, EqGraph `proposed`): the settings Mobius moved read in indigo, their handles
-   wear a dashed indigo ring, and the shape is drawn in dashed indigo until it is kept. */
+/* Graphs (EnvelopeGraph, FilterGraph, EqGraph `proposed`): the settings Mobius moved read in Mobius's colour, their handles
+   wear a dashed Mobius ring, and the shape is drawn in dashed Mobius until it is kept. */
 .ui-graph[data-proposed] .ui-graph-line:not([data-ghost]) { stroke: var(--mobius); stroke-dasharray: 5 3; }
 .ui-graph[data-proposed] .ui-graph-area { fill: color-mix(in srgb, var(--mobius) 10%, transparent); }
 .ui-graph-handle[data-proposed] { box-shadow: none; outline: calc(var(--hairline-w) * 2) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -2); }
