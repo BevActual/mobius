@@ -278,6 +278,38 @@ test('a task can go to one of the person\'s own agents by name, which works on i
   await expect(composer()).toHaveAttribute('placeholder', 'Message Handy');
 });
 
+test('a job that took several steps offers Save as Ability in the Inbox, which writes one from its steps to Keep', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Fix the tap\n');
+  const skill = '---\nname: find-a-tradesperson\ndescription: When something at home needs fixing\n---\n\n1. Read the task.\n2. Look for local tradespeople.\n3. Say who to call.\n';
+  await start([
+    callsTool('tasks-list'), callsTool('notes-search', { query: 'plumber' }), callsTool('files-list', { path: 'notes' }), says(['Call the plumber on Friday.']),
+    callsTool('skills-list'), callsTool('files-write', { path: 'skills/find-a-tradesperson/SKILL.md', content: skill }), says(['Saved it as find-a-tradesperson.']),
+  ]);
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'propose' }));
+  await openApp('Tasks');
+  await shell().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Home/ }).click();
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Fix the tap', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await inbox.getByRole('button', { name: 'Save Fix the tap as an Ability' }).click({ timeout: 15_000 });
+  await expect(shell().locator('.toast')).toHaveText('Mobius is writing it as an Ability. It will be in your Inbox to keep.');
+  // It is asked from the job's own steps, with only the Abilities' and files' tools, and not to do the job again.
+  await expect.poll(() => model!.requests.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(5);
+  const asked = JSON.stringify(model!.requests[4]!);
+  expect(asked).toContain('Save \\"Fix the tap\\" as an Ability');
+  expect(asked).toContain('notes.search (query: plumber)');
+  expect(asked).toContain('Do not do the job again');
+  expect(asked).not.toContain('"tasks-add"');
+  // The new Ability waits in the Inbox to keep; the job's own row no longer offers it.
+  await expect(inbox.getByRole('button', { name: 'Open Ability from Fix the tap: Finished in the background · 1 change to keep' })).toBeVisible({ timeout: 15_000 });
+  await expect(inbox.getByRole('button', { name: 'Save Fix the tap as an Ability' })).toHaveCount(0);
+  await expect(inbox.getByRole('button', { name: /^Save Ability from/ })).toHaveCount(0);
+  await inbox.getByRole('button', { name: 'Keep all of Ability from Fix the tap' }).click();
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'skills', 'find-a-tradesperson', 'SKILL.md'), 'utf8')).toBe(skill);
+});
+
 test('Assign to Mobius on a note, from its row in Notebooks, asks about that note and lands in the Inbox', async () => {
   fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Work'), { recursive: true });
   fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Offsite.md'), '# Offsite\n\n- Find a venue\n');

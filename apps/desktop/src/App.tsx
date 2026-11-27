@@ -95,6 +95,7 @@ import { useBackgroundRuns } from './background';
 import { BRIEF_TITLE, BRIEF_TOOLS, useMorningBrief } from './brief';
 import { checkInTitle, useCheckIns } from './checkins';
 import { ASSIGN_EVENT, setAssignAgents, type Assignment } from './assign';
+import { ABILITY_ITEM, abilityAsk, jobSteps } from './ability-offer';
 import { AskHere, inlineAnswer, pickedNow, plainAnswer, type Picked } from './AskHere';
 import { hereOf } from './surface';
 import { itemChatFor, useItemChats } from './itemChats';
@@ -2139,6 +2140,15 @@ export function App() {
                   by: (run) => { const on = botOfConversation(run.conversation, botIds); return on === MAIN_BOT_ID ? undefined : bots.bots.find((b) => b.id === on)?.name; },
                   onOpen: (run) => { handoffs.drop(run.conversation); conversation.select(run.conversation); openRight(); setFocusToken((n) => n + 1); },
                   onKeep: handoffs.keep,
+                  // Save as Ability: Mobius writes it from the job's own steps, in a chat of its own; the new Ability
+                  // lands in the Inbox to Keep, like any change.
+                  onSaveAbility: (run) => void (async () => {
+                    const job = jobSteps(await window.mobius.agent.history(run.conversation).catch(() => []));
+                    const result = await conversation.assign(abilityAsk(run.ask, job), [], 'skills', { tools: ['skills', 'files'] });
+                    if ('error' in result) { setToast(`Mobius could not save it: ${result.error}`); return; }
+                    handoffs.start(result.id, `Ability from ${run.ask}`, undefined, undefined, `${ABILITY_ITEM}${run.conversation}`);
+                    setToast('Mobius is writing it as an Ability. It will be in your Inbox to keep.');
+                  })(),
                   onDone: (run) => handoffs.drop(run.conversation),
                 }}
                 // First run: once a model answers, mail and calendar are what make its answers about the person's own day.

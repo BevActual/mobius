@@ -155,6 +155,9 @@ checkpoints live in their own store and never touch a folder's own git history.
   named after the item; one you stopped, or one that went wrong, says so there rather than that it finished.
   The same menu lists your own agents too (**Assign to Invoices**, say, up to four of them): the item goes to that agent
   instead, which works on it with its own instructions and model, and its result lands in the Inbox the same way.
+- **Save as Ability.** When something handed off took several steps, its Inbox row offers **Save as Ability**. Mobius
+  writes how it was done as a new Ability (a `SKILL.md` in the Store), general enough to use again, without doing the
+  job twice. The new Ability waits in the Inbox for **Keep all**; after that it is in the Store and the `/` menu.
 - **Take over** (beside Stop). While a task is running you can take control: Mobius pauses at the next safe step and the
   apps are yours. Then **Hand back**, optionally telling it what you changed or what to do next ("I booked it myself;
   just send the summary"), or **Stop**. Starting to type in the app Mobius is working in (the note it is writing, say)
