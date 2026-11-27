@@ -1582,6 +1582,17 @@ impl Bridge {
                 }
                 Value::Null
             }
+            // Another screen for the page (Code's Preview): { width?, colorScheme?: "light" | "dark" }; {} or null gives
+            // the page back its own.
+            "emulate" => {
+                if let Some(t) = tab() {
+                    let o = arg(1);
+                    let width = o.get("width").and_then(Value::as_u64).and_then(|w| u32::try_from(w).ok());
+                    let scheme = o.get("colorScheme").and_then(Value::as_str).and_then(mobius_browser::tabs::Scheme::parse);
+                    b.emulate(t, mobius_browser::tabs::Emulation { width, scheme });
+                }
+                Value::Null
+            }
             "mute" => {
                 if let (Some(t), Some(muted)) = (tab(), arg(1).as_bool()) {
                     b.mute(t, muted);
