@@ -1232,6 +1232,9 @@ export interface MobiusBridge {
     save(project: string, path: string, text: string, base: number | null): Promise<{ project: string; path: string; modified: number } | NotesFailure>;
     createFile(project: string, path: string): Promise<{ project: string; path: string; modified: number } | NotesFailure>;
     removeFile(project: string, path: string): Promise<{ project: string; path: string } | NotesFailure>;
+    /** The project's folder served on this computer only, for its preview in the Browser beside Code. */
+    preview?(project: string): Promise<{ url: string } | NotesFailure>;
+    stopPreview?(project: string): Promise<{ ok: true } | NotesFailure>;
     testCommand(project: string): Promise<{ command: string | null; suggested: string | null } | NotesFailure>;
     setTestCommand(project: string, command: string): Promise<{ ok: true } | NotesFailure>;
     runTests(project: string): Promise<CodeTestRun | NotesFailure>;

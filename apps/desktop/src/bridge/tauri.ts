@@ -496,6 +496,8 @@ export function createTauriBridge(): MobiusBridge {
       save: (project, path, text, base) => call('code', 'save', [project, path, text, base], () => ({ ok: false as const, message: 'Code is not available.' })),
       createFile: (project, path) => call('code', 'createFile', [project, path], () => ({ ok: false as const, message: 'Code is not available.' })),
       removeFile: (project, path) => call('code', 'removeFile', [project, path], () => ({ ok: false as const, message: 'Code is not available.' })),
+      preview: (project) => call('code', 'preview', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
+      stopPreview: (project) => call('code', 'stopPreview', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
       testCommand: (project) => call('code', 'testCommand', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
       setTestCommand: (project, command) => call('code', 'setTestCommand', [project, command], () => ({ ok: false as const, message: 'Code is not available.' })),
       runTests: (project) => call('code', 'runTests', [project], () => ({ ok: false as const, message: 'Code is not available.' })),

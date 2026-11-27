@@ -327,3 +327,40 @@ test('the editor has many cursors, moves lines, places the cursor with the point
   expect(Date.now() - started).toBeLessThan(3_000);
   await expect(shell().getByText('Ln 20001, Col 5')).toBeVisible();
 });
+
+const servePreview = async (): Promise<string> => {
+  fs.writeFileSync(path.join(project, 'index.html'), '<title>Offsite</title><h1>Offsite planner</h1>');
+  await start();
+  return shell().evaluate(async () => {
+    const got = await window.mobius.code!.preview!('offsite-planner');
+    if (!('url' in got)) throw new Error(got.message);
+    return got.url;
+  });
+};
+const openBeside = (url: string) => shell().evaluate((u) => window.dispatchEvent(new CustomEvent('mobius:open-beside', { detail: { app: 'browser', url: u } })), url);
+
+test('a project\'s page is served on this computer only, and the Browser opens beside Code', async () => {
+  const url = await servePreview();
+  expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+  // The served page is the project's own file; nothing outside the folder, and no other name for this computer.
+  expect(await (await fetch(url)).text()).toContain('Offsite planner');
+  expect((await fetch(`${url}%2e%2e/code-tests.json`)).status).toBe(404);
+  // Code asks the shell for the Browser beside it: Code stays where it is, the Browser takes the other pane.
+  await openBeside(url);
+  await expect(shell().getByRole('region', { name: 'Left pane: Code' })).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'Right pane: Browser' })).toBeVisible();
+  // Asked again, nothing moves.
+  await openBeside(url);
+  await expect(shell().getByRole('region', { name: 'Left pane: Code' })).toBeVisible();
+  await shell().evaluate(() => window.mobius.code!.stopPreview!('offsite-planner'));
+  await expect.poll(() => fetch(url).then(() => 'up', () => 'down')).toBe('down');
+});
+
+test('the preview page opens as a tab in the Browser beside Code, once', { tag: '@shell', annotation: { type: 'needs the shell', description: 'the browser\'s pages are the shell\'s' } }, async () => {
+  const url = await servePreview();
+  await openBeside(url);
+  const right = shell().getByRole('region', { name: 'Right pane: Browser' });
+  await expect(right.locator('.tab-title')).toHaveText(['Offsite']);
+  await openBeside(url);
+  await expect(right.locator('.tab-title')).toHaveText(['Offsite']);
+});
