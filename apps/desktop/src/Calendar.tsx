@@ -1,3 +1,4 @@
+import { showPiece } from './pieces';
 import { DAY_ALERTS, TIMED_ALERTS, alertLabel } from './calendar-alerts';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -1335,6 +1336,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
         { action: 'open', label: movable(calendar, event) ? 'Open' : 'Show details', keys: 'Enter', run: () => open(event, rectOf(keyOf(event))) },
         { action: 'duplicate', keys: 'Ctrl+D', run: () => void duplicate(event) },
         ...(onMeeting ? [{ label: 'Record meeting', run: () => onMeeting(event) }] : []),
+        { label: 'Show day beside', run: () => showPiece('calendar.day', event.start.slice(0, 10) === isoDay(new Date()) ? 'today' : event.start.slice(0, 10)) },
         ...(movable(calendar, event) && !event.repeats
           ? writable.filter((c) => c !== event.calendar).map((c, i) => ({ action: 'move' as const, label: `Move to ${c}`, separated: i === 0, run: () => void moveTo(event, c) }))
           : []),
@@ -1350,6 +1352,8 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
         ? { label: `New event on ${dayName}`, run: () => setEditing({ start: `${isoDay(day)}T09:00`, allDay: false, at: rect }) }
         : { label: `New event at ${clock(atMinutes(day, minutes))}`, run: () => setEditing({ start: atMinutes(day, minutes), end: atMinutes(day, minutes + 60), allDay: false, at: rect }) },
       { label: 'New all-day event', run: () => setEditing({ start: isoDay(day), allDay: true, at: rect }) },
+      // The day as a piece, beside whatever app is open next.
+      { label: 'Show day beside', separated: true, run: () => showPiece('calendar.day', sameDay(day, new Date()) ? 'today' : isoDay(day)) },
     ];
     setMenu({ x, y, label: dayName, items });
   };

@@ -40,7 +40,7 @@ import { saveAll, saveTyped } from './saveBeforeQuit';
 import { NotesSidebar } from './NotesSidebar';
 import { TasksGlance, TasksListPiece, TasksPage, TasksSidebar } from './Tasks';
 import { CalendarDayPiece } from './Calendar';
-import { PIECE_APP, pieceKey, pieceName, piecePanelId, putAway, putAwayMobius, showPiece, usePieces, workOpenIn, workToShow, type MobiusWork, type OpenPiece } from './pieces';
+import { PIECE_APP, pieceKey, showTarget, pieceName, piecePanelId, putAway, putAwayMobius, showPiece, usePieces, workOpenIn, workToShow, type MobiusWork, type OpenPiece } from './pieces';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
 import { setLanguage } from './i18n';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
@@ -1891,6 +1891,8 @@ export function App() {
   launcherCommands.push({ id: 'all-apps', label: 'All apps', detail: 'Every app, with what is happening in it', run: openHub });
   launcherCommands.push({ id: 'open-activity', label: 'Activity', detail: 'What Mobius did, and what needs you', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } });
   // Apps lead: Mail, Calendar, Tasks, Notes, Docs and Files take part in the launcher (app-launcher.ts).
+  /** Ctrl+K's Show here, for what has a piece. */
+  const withShow = (target: HubTarget, title?: string) => { const show = showTarget(target, title); return show ? { show } : {}; };
   useDailyLauncherSources({
     openTarget: (target, label) => { opener.current = null; closeSettings(); openTarget(target, label); },
     composeTo: (email) => { opener.current = null; closeSettings(); openApp('mail'); mail.compose(); mail.setEditing((e) => (e ? { ...e, to: email } : e)); },
@@ -1928,7 +1930,7 @@ export function App() {
   };
   const launch = {
     // Everything found in your apps: what Mobius already holds, then what each app's own source finds.
-    find: (query: string) => findInSources(query, launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? (r.target.app === 'calendar' ? 'calendar' : 'agent'), label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))),
+    find: (query: string) => findInSources(query, launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? (r.target.app === 'calendar' ? 'calendar' : 'agent'), label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); }, ...withShow(r.target, r.title) }))),
     commands: allCommands,
     openApp: (id: AppId) => {
       opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions');

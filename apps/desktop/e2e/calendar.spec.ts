@@ -577,3 +577,14 @@ test('today beside the work is a piece in other apps: its events, the next day, 
   await shell().getByRole('menuitemcheckbox', { name: 'Today beside the work' }).click();
   await expect(piece).toHaveCount(0);
 });
+
+test('an event\'s menu shows its day beside the work', async () => {
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T110000\r\nDTEND:${ics(today())}T120000\r\nSUMMARY:Budget review\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start();
+  await page().getByRole('button', { name: /^Budget review/ }).first().click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Budget review' }).getByRole('menuitem', { name: 'Show day beside' }).click();
+  const piece = shell().locator('section[data-panel="piece:calendar.day"]');
+  await expect(piece).toHaveAttribute('aria-label', 'Today, from Calendar');
+  await expect(piece.getByRole('button', { name: /^Budget review/ })).toBeVisible();
+});
