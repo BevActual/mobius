@@ -57,7 +57,9 @@ jobs:
           curl -sSfL -o silero_vad.onnx "$MODELS/silero_vad.onnx"
           tar xjf whisper.tar.bz2
           mv silero_vad.onnx sherpa-onnx-whisper-tiny.en/
-          curl -sSfL "$KOKORO" | tar xjf - --wildcards "*/model.int8.onnx" "*/voices.bin" "*/tokens.txt" "*/lexicon-us-en.txt"
+          # Named in full: macOS's tar has no --wildcards.
+          k=kokoro-int8-multi-lang-v1_0
+          curl -sSfL "$KOKORO" | tar xjf - "$k/model.int8.onnx" "$k/voices.bin" "$k/tokens.txt" "$k/lexicon-us-en.txt"
       - name: Test, writing down a recording and reading a sentence aloud
         env:
           MOBIUS_VOICE_MODELS: ${{ runner.temp }}/models/sherpa-onnx-whisper-tiny.en
@@ -159,7 +161,8 @@ jobs:
             for f in sherpa-onnx-whisper-$m/*; do mv "$f" "whisper-$(basename "$f")"; done
             rmdir "sherpa-onnx-whisper-$m"
           done
-          curl -sSfL "$KOKORO" | tar xjf - --wildcards "*/model.int8.onnx" "*/voices.bin" "*/tokens.txt" "*/lexicon-us-en.txt" "*/lexicon-gb-en.txt"
+          k=kokoro-int8-multi-lang-v1_0
+          curl -sSfL "$KOKORO" | tar xjf - "$k/model.int8.onnx" "$k/voices.bin" "$k/tokens.txt" "$k/lexicon-us-en.txt" "$k/lexicon-gb-en.txt"
           for f in kokoro-int8-multi-lang-v1_0/*; do mv "$f" "kokoro-$(basename "$f")"; done
           rmdir kokoro-int8-multi-lang-v1_0
           ls -la
