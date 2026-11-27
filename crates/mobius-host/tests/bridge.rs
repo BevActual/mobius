@@ -1443,12 +1443,21 @@ fn code_projects_run_only_the_test_command_the_person_chose() {
     assert_eq!(run["passed"], true);
     assert!(events.lock().unwrap().iter().any(|(name, _)| name == "mobius:code-tests"));
     // A Run button in the margin adds to the person's command; the command kept stays theirs.
-    let more = if cfg!(windows) { " src\\budget.ts" } else { " src/budget.ts" };
-    assert_eq!(call(&b, "code", "runTests", json!(["planner", more]))["passed"], true);
+    assert_eq!(call(&b, "code", "runTests", json!(["planner", " src/budget.ts"]))["passed"], true);
     let last = events.lock().unwrap().iter().rev().find(|(name, _)| name == "mobius:code-tests").map(|(_, v)| v.clone()).unwrap();
     assert_eq!(last["command"], check);
-    assert_eq!(last["ran"], format!("{check}{more}"));
-    assert_eq!(call(&b, "code", "runTests", json!(["planner", " a\nrm -rf x"]))["ok"], false);
+    assert_eq!(last["ran"], format!("{check} \"src/budget.ts\""));
+    // What it adds is only arguments: anything the shell would read as another command is refused, and runs nothing.
+    let marker = _d.path().join("ran-anyway");
+    for bad in [format!(" & echo x > {}", marker.display()), format!(" ; touch {}", marker.display()), format!(" | tee {}", marker.display()), " a\nb".to_owned()] {
+        let refused = call(&b, "code", "runTests", json!(["planner", bad]));
+        assert_eq!(refused["ok"], false, "{bad}");
+        assert!(refused["message"].as_str().unwrap().contains("cannot be run on its own"), "{refused}");
+    }
+    assert!(!marker.exists());
+    // A command with a Windows path keeps its backslashes.
+    assert_eq!(call(&b, "code", "setTestCommand", json!(["planner", "node ..\\..\\x.js"]))["ok"], true);
+    assert_eq!(call(&b, "code", "testCommand", json!(["planner"]))["command"], "node ..\\..\\x.js");
 }
 
 #[cfg(unix)]

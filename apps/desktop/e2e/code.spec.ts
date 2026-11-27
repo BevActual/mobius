@@ -731,16 +731,22 @@ test('a Run button beside each test runs just that test with the person\'s comma
   await code.getByRole('button', { name: 'Run “adds”', exact: true }).click();
   await expect(tests().getByRole('status')).toContainText('Passed');
   await expect(tests().getByLabel('Test output')).toContainText('ran tests/sum.test.js -t adds');
-  await expect(tests().locator('.code-tests-command')).toHaveText('npm test -- "tests/sum.test.js" -t "adds"');
+  await expect(tests().locator('.code-tests-command')).toHaveText('npm test "--" "tests/sum.test.js" "-t" "adds"');
   expect(fs.readFileSync(path.join(project, 'tests', 'sum.test.js'), 'utf8')).toContain('// more');
   await expect(code.getByRole('button', { name: 'Passed. Run “adds” again' })).toBeVisible();
 
   await code.getByRole('button', { name: 'Run “fails”', exact: true }).click();
   await expect(tests().getByRole('status')).toContainText('Failed');
-  await expect(code.getByRole('button', { name: 'Failed. Run “fails” again' })).toBeVisible();
+  // Why it failed shows beside the test too: the run's last line here, as the script prints no ✕.
+  await expect(code.getByRole('button', { name: 'Failed: ran tests/sum.test.js -t fails. Run “fails” again' })).toBeVisible();
   await expect(code.getByRole('button', { name: 'Passed. Run “adds” again' })).toBeVisible();
-  // The command kept is still the person's own.
+  // The command kept is still the person's own, backslashes and all.
   expect(JSON.parse(fs.readFileSync(path.join(userData, 'code-tests.json'), 'utf8'))).toEqual({ 'offsite-planner': 'npm test' });
+  await tests().getByRole('button', { name: 'Change' }).click();
+  await tests().getByRole('textbox', { name: 'Test command' }).fill('node ..\\tests\\run.js');
+  await tests().getByRole('button', { name: 'Save' }).click();
+  await expect(tests().locator('.code-tests-command')).toHaveText('node ..\\tests\\run.js');
+  expect(JSON.parse(fs.readFileSync(path.join(userData, 'code-tests.json'), 'utf8'))).toEqual({ 'offsite-planner': 'node ..\\tests\\run.js' });
 });
 
 test('Mobius fixes a problem from its hover or Ctrl+., and reviews what changed since the last commit', async () => {

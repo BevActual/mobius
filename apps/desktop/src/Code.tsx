@@ -587,7 +587,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
       label: (m: TestMark) => {
         if (!code.tests.command) return `Run ${what(m)} (choose a test command first)`;
         const r = code.tests.results.get(testKey(path, m));
-        return r === 'running' ? `Running ${what(m)}…` : r === 'passed' ? `Passed. Run ${what(m)} again` : r === 'failed' ? `Failed. Run ${what(m)} again` : `Run ${what(m)}`;
+        return r === 'running' ? `Running ${what(m)}…` : r === 'passed' ? `Passed. Run ${what(m)} again` : r === 'failed' ? `Failed${code.tests.notes.get(testKey(path, m)) ? `: ${code.tests.notes.get(testKey(path, m))}` : ''}. Run ${what(m)} again` : `Run ${what(m)}`;
       },
       run: (m: TestMark) => void (async () => {
         setShowTests((n) => n + 1);

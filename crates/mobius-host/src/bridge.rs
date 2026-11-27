@@ -3761,10 +3761,7 @@ impl Bridge {
                 let mut ran = command.clone();
                 // A Run button in the editor's margin narrows the person's command to one test with what it adds.
                 if let Some(extra) = text(1).filter(|e| !e.trim().is_empty()) {
-                    if extra.len() > 500 || extra.contains(['\n', '\r', '\0']) {
-                        return Err("that test cannot be run on its own".to_owned());
-                    }
-                    ran.push_str(extra);
+                    ran.push_str(&crate::code_tests::narrowing(extra)?);
                 }
                 let result = crate::code_tests::run(&dir, &ran, crate::code_tests::TIMEOUT);
                 (self.emit)("mobius:code-tests", json!({ "project": p, "running": false, "result": result, "command": command, "ran": ran, "by": "person" }));

@@ -85,6 +85,55 @@ impl TestCommands {
     }
 }
 
+/// What a Run button in Code's margin adds to the person's test command (a file, `-t`, a test's name), made safe to
+/// hand to the shell: split into arguments (double quotes group words), each one only letters, digits and
+/// `_ . : / - = , # ' ^` (a `$` only at its end, as in go's `-run "^Name$"`), and each written back in double quotes.
+/// Anything else (`&`, `|`, `;`, `<`, `>`, `%`, `!`, backticks, `$x`, a backslash) is refused: neither sh nor cmd can
+/// then read the addition as more than arguments.
+pub fn narrowing(extra: &str) -> Result<String, String> {
+    const REFUSED: &str = "That test cannot be run on its own: its name or path has characters the shell would read as commands.";
+    if extra.len() > 500 {
+        return Err(REFUSED.into());
+    }
+    let mut args: Vec<String> = vec![];
+    let mut cur = String::new();
+    let (mut quoted, mut started) = (false, false);
+    for c in extra.chars() {
+        match c {
+            '"' => {
+                quoted = !quoted;
+                started = true;
+            }
+            ' ' if !quoted => {
+                if started {
+                    args.push(std::mem::take(&mut cur));
+                    started = false;
+                }
+            }
+            _ => {
+                cur.push(c);
+                started = true;
+            }
+        }
+    }
+    if quoted {
+        return Err(REFUSED.into());
+    }
+    if started {
+        args.push(cur);
+    }
+    let plain = |c: char| c.is_ascii_alphanumeric() || " _.:/-=,#'^".contains(c);
+    let mut out = String::new();
+    for a in &args {
+        let body = a.strip_suffix('$').unwrap_or(a);
+        if a.is_empty() || !body.chars().all(plain) {
+            return Err(REFUSED.into());
+        }
+        out.push_str(&format!(" \"{a}\""));
+    }
+    Ok(out)
+}
+
 /// A command line run by the system's shell in `dir`, with its output piped and no window.
 pub fn shell_command(dir: &Path, command: &str) -> Command {
     let mut cmd = if cfg!(windows) {
@@ -208,6 +257,16 @@ pub fn tool_text(project: &str, result: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_run_buttons_addition_is_only_arguments() {
+        assert_eq!(narrowing(r#" -- "tests/sum.test.js" -t "adds two""#).unwrap(), r#" "--" "tests/sum.test.js" "-t" "adds two""#);
+        assert_eq!(narrowing(r#" -run "^TestA$""#).unwrap(), r#" "-run" "^TestA$""#);
+        assert_eq!(narrowing(" adds").unwrap(), r#" "adds""#);
+        for bad in [" & calc", " | x", "; rm -rf x", r#"" & echo "x"#, " $HOME", " `id`", " %PATH%", " !x!", " a>b", r#" "open"#, r" a\b", " a\nb", " (x)"] {
+            assert!(narrowing(bad).is_err(), "{bad}");
+        }
+    }
 
     #[test]
     fn commands_are_kept_outside_the_workspace_and_run_in_the_project() {

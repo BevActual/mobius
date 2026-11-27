@@ -54,6 +54,9 @@ describe('testArgs', () => {
   });
   it('gives null for a runner it does not know', () => {
     expect(testArgs('make check', 'src/a.test.ts', one, 'ts')).toBeNull();
+    expect(testArgs('echo vitest', 'src/a.test.ts', one, 'ts')).toBeNull();
+    expect(testArgs('echo cargo test', 'src/lib.rs', { line: 0, name: 'adds', group: false }, 'rust')).toBeNull();
+    expect(testArgs('pnpm exec vitest run', 'src/a.test.ts', one, 'ts')).toBe(' "src/a.test.ts" -t "adds two .and more."');
     expect(testArgs('python -m unittest', 'tests/test_a.py', { line: 0, name: 'test_a', group: false }, 'py')).toBeNull();
   });
 });

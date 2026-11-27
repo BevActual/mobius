@@ -69,16 +69,16 @@ export function testArgs(command: string, path: string, mark: TestMark, lang: La
   const c = command.trim();
   const file = SAFE_PATH.test(path) ? ` "${path}"` : '';
   if (lang === 'ts') {
-    const direct = /\b(vitest|jest)\b/.test(c);
+    const direct = /^((npx|bunx)\s+|(pnpm|yarn)\s+(exec\s+)?)?(vitest|jest)\b/.test(c);
     const npm = /^(npm|pnpm|yarn|bun)(\s+run)?\s+test\b/.test(c);
     if (!direct && !npm) return null;
     const pass = /^npm\b/.test(c) && !direct && !/\s--(\s|$)/.test(c) ? ' --' : '';
     const name = plain(mark.name);
     return `${pass}${file}${name ? ` -t "${name}"` : ''}`;
   }
-  if (lang === 'rust') return /\bcargo\s+(test|nextest)\b/.test(c) && /^\w+$/.test(mark.name) ? ` ${mark.name}` : null;
-  if (lang === 'py') return /\bpytest\b/.test(c) && /^\w+$/.test(mark.name) ? `${file} -k "${mark.name}"` : null;
-  if (lang === 'go') return /\bgo\s+test\b/.test(c) && /^\w+$/.test(mark.name) ? ` -run "^${mark.name}$"` : null;
+  if (lang === 'rust') return /^cargo\s+(test|nextest)\b/.test(c) && /^\w+$/.test(mark.name) ? ` ${mark.name}` : null;
+  if (lang === 'py') return /^((python3?|py)\s+-m\s+|(uv|poetry|pipenv)\s+run\s+)?pytest\b/.test(c) && /^\w+$/.test(mark.name) ? `${file} -k "${mark.name}"` : null;
+  if (lang === 'go') return /^go\s+test\b/.test(c) && /^\w+$/.test(mark.name) ? ` -run "^${mark.name}$"` : null;
   return null;
 }
 
