@@ -129,3 +129,28 @@ test('Mobius adding tiles shows them dashed, to keep or discard', async () => {
   await expect.poll(() => saved().tiles.map((t) => t.id)).toEqual(['t1', 't2']);
   await expect(tile(/^Calendar/)).toBeHidden();
 });
+
+test('views are listed in Database, and one pinned to Home shows its live tiles there until unpinned', async () => {
+  await start();
+  // Views is a page of Database now: its views are listed under the databases, beside them.
+  const side = shell().getByRole('complementary', { name: 'Tables' });
+  await expect(side.getByRole('list', { name: 'Views' }).getByRole('button', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
+  await shell().getByRole('toolbar', { name: 'View' }).getByRole('button', { name: 'Pin to Home' }).click();
+  await expect(shell().getByRole('toolbar', { name: 'View' }).getByRole('button', { name: 'Pinned to Home' })).toHaveAttribute('aria-pressed', 'true');
+
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Home');
+  await shell().keyboard.press('Enter');
+  const pinned = shell().getByRole('group', { name: 'Pinned view: Today' });
+  await expect(pinned.getByRole('listitem', { name: /^Tasks · Anytime: 2 to do$/ })).toBeVisible();
+  await expect(pinned).toContainText('Buy tulip bulbs');
+  // Its title opens the view.
+  await pinned.getByRole('button', { name: 'Today', exact: true }).click();
+  await expect(tile(/^Tasks · Anytime: 2 to do$/)).toBeVisible();
+
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Home');
+  await shell().keyboard.press('Enter');
+  await shell().getByRole('group', { name: 'Pinned view: Today' }).getByRole('button', { name: 'Unpin from Home' }).click();
+  await expect(shell().getByRole('group', { name: 'Pinned view: Today' })).toHaveCount(0);
+});

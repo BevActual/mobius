@@ -17,6 +17,7 @@ import { afterPaint } from './ui/frame';
 const IMPORT_CSV = 'mobius-database-import-csv';
 
 const DbIcon = () => <svg viewBox="0 0 20 20" aria-hidden="true"><ellipse cx="10" cy="5.5" rx="6" ry="2.5" /><path d="M4 5.5v9c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-9M4 10c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5" /></svg>;
+const ViewIcon = () => <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1" /><rect x="11" y="3.5" width="5.5" height="5.5" rx="1" /><rect x="3.5" y="11" width="13" height="5.5" rx="1" /></svg>;
 const TableIcon = () => <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="11" rx="2" /><path d="M3.5 8.5h13M8.5 8.5v7" /></svg>;
 const MoreIcon = () => <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>;
 
@@ -43,7 +44,11 @@ type Menu = { x: number; y: number; db: string; table?: string };
 type Asking = { db: string; table?: string };
 
 /** The databases, the open one's tables, and making or importing one. */
-export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin: ReactNode; changed?: ReadonlySet<string> }) {
+/** Views (folded into Database): dashboards of live tiles, listed under the databases. */
+export interface SidebarViews { pages: readonly { path: string; title: string }[]; current: string | null; changed?: ReadonlySet<string>; onOpen: (path: string, title: string) => void; onNew: () => void }
+
+export function DatabaseSidebar({ db, pin, changed, views, onDatabase }: { db: DatabasesState; pin: ReactNode; changed?: ReadonlySet<string>; views?: SidebarViews; /** A database or table chosen here, while a view is open: back to the tables. */ onDatabase?: () => void }) {
+  const choose = (name: string, table?: string) => { onDatabase?.(); return db.choose(name, table); };
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -74,13 +79,13 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
   };
   const items = (m: Menu): ContextMenuItem[] => m.table
     ? [
-        { action: 'open', label: 'Open', keys: 'Enter', run: () => void db.choose(m.db, m.table) },
+        { action: 'open', label: 'Open', keys: 'Enter', run: () => void choose(m.db, m.table) },
         { action: 'copy', label: 'Copy as CSV', run: () => void copyTable(m.db, m.table!) },
         { action: 'rename', label: 'Rename…', keys: 'F2', run: () => setRenaming({ db: m.db, table: m.table }) },
         { action: 'delete', label: 'Delete table…', keys: 'Delete', danger: true, separated: true, run: () => setDeleting({ db: m.db, table: m.table }) },
       ]
     : [
-        { label: 'Import a CSV file…', run: () => { if (db.open !== m.db) void db.choose(m.db).then(() => file.current?.click()); else file.current?.click(); } },
+        { label: 'Import a CSV file…', run: () => { if (db.open !== m.db) void choose(m.db).then(() => file.current?.click()); else file.current?.click(); } },
         { label: 'Delete database…', keys: 'Delete', danger: true, separated: true, run: () => setDeleting({ db: m.db }) },
       ];
   const openMenu = (e: React.MouseEvent, at: Omit<Menu, 'x' | 'y'>, fromButton = false) => {
@@ -143,7 +148,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
           <li key={d.name} className="db-item">
             <div className="db-line">
               <button type="button" className="note-row db-row" aria-current={db.open === d.name && !db.table ? 'page' : undefined} data-open={db.open === d.name || undefined} data-changed={changed?.has(d.name) || undefined}
-                onClick={() => void db.choose(d.name)} onContextMenu={(e) => openMenu(e, { db: d.name })} onKeyDown={(e) => menuKey(e, { db: d.name })}>
+                onClick={() => void choose(d.name)} onContextMenu={(e) => openMenu(e, { db: d.name })} onKeyDown={(e) => menuKey(e, { db: d.name })}>
                 <DbIcon />
                 <span className="db-name">{d.name}</span>
               </button>
@@ -166,7 +171,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
                     ) : (
                       <div className="db-line">
                         <button type="button" className="db-table" aria-current={db.table === t.name ? 'page' : undefined} title={t.columns.map((c) => `${c.name} ${c.type}`.trim()).join(', ')}
-                          onClick={() => void db.choose(d.name, t.name)} onContextMenu={(e) => openMenu(e, { db: d.name, table: t.name })} onKeyDown={(e) => menuKey(e, { db: d.name, table: t.name })}>
+                          onClick={() => void choose(d.name, t.name)} onContextMenu={(e) => openMenu(e, { db: d.name, table: t.name })} onKeyDown={(e) => menuKey(e, { db: d.name, table: t.name })}>
                           <TableIcon />
                           <span className="db-name">{t.name}</span><span className="db-count">{t.rows < 0 ? '' : t.rows.toLocaleString()}</span>
                         </button>
@@ -184,8 +189,31 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
           </li>
         ))}
       </ul>
+      {views && (
+        <>
+          <div className="side-head">
+            <span className="side-title">Views</span>
+            <span className="side-actions">
+              <button type="button" className="strip-btn" aria-label="New view" title="New view: a dashboard of live tiles" onClick={views.onNew}>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
+              </button>
+            </span>
+          </div>
+          <ul className="db-list" aria-label="Views">
+            {views.pages.length === 0 && <li className="db-none">No views yet</li>}
+            {views.pages.filter((v) => hit(v.title)).map((v) => (
+              <li key={v.path} className="db-item">
+                <button type="button" className="note-row db-row" aria-current={views.current === v.path ? 'page' : undefined} data-changed={views.changed?.has(v.path) || undefined} onClick={() => views.onOpen(v.path, v.title)}>
+                  <ViewIcon />
+                  <span className="db-name">{v.title || 'Untitled'}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.table ?? menu.db} items={items(menu)} onClose={() => setMenu(null)} />, document.body)}
-      <FromMobius items={db.list.filter((d) => changed?.has(d.name)).map((d) => ({ key: d.name, name: d.name, current: db.open === d.name, onOpen: () => void db.choose(d.name) }))} />
+      <FromMobius items={db.list.filter((d) => changed?.has(d.name)).map((d) => ({ key: d.name, name: d.name, current: db.open === d.name, onOpen: () => void choose(d.name) }))} />
     </aside>
   );
 }

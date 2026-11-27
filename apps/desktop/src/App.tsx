@@ -54,7 +54,8 @@ import { useCode } from './useCode';
 import { CodeEditor, CodeGlance, CodeSidebar } from './Code';
 import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
-import { ViewPage, ViewsSidebar, newView } from './Views';
+import { PinnedView, ViewPage, newView, usePinnedView } from './Views';
+import type { TileTarget } from './views-data';
 import { ResearchPage, ResearchSidebar } from './Research';
 import { researchSteps } from './research-format';
 import { ReaderPage, readerSub, saveToReader } from './Reader';
@@ -293,7 +294,7 @@ export function App() {
   const slides = useNotes('slides', used('slides'));
   const designs = useNotes('designs', used('design'));
   const boards = useNotes('boards', used('canvas'));
-  const views = useNotes('views', used('views'));
+  const views = useNotes('views', used('views') || used('database')); // Database's sidebar lists them too.
   const research = useNotes('research', used('research'));
   const reading = useNotes('reading', used('reader') || used('browser')); // The Browser's Read later lists it too.
   // Changes are named by the pages' titles as they are now, not the file names they were made with.
@@ -306,7 +307,7 @@ export function App() {
   const wikiIncoming = useWikiIncoming();
   const projects = useProjects();
   const [wikiPlace, setWikiPlace] = useState<WikiPlace>({ kind: 'mine' });
-  const databases = useDatabases(used('database'));
+  const databases = useDatabases(used('database') || used('views'));
   const terminal = useTerminal();
   const review = useReview(conversation.list, conversation.state.busy);
   const files = useFiles(conversation.state.conversation, conversation.state.busy);
@@ -1296,7 +1297,10 @@ export function App() {
         case 'terminal':
           return <TerminalSidebar term={terminal} pin={null} />
         case 'database':
-          return <DatabaseSidebar db={databases} pin={null} changed={liveMarks.databases} />
+        case 'views':
+          // Views are Database's pages (fold-in): dashboards listed under the databases.
+          return <DatabaseSidebar db={databases} pin={null} changed={liveMarks.databases} onDatabase={inViews ? () => openApp('database') : undefined}
+            views={{ pages: views.notebooks.flatMap((nb) => nb.pages), current: inViews ? (views.page?.path ?? null) : null, changed: viewMarks, onOpen: (path, title) => { openApp('views'); void views.open(path, title); }, onNew: () => { openApp('views'); newView(views); } }} />
         case 'projects':
           return <ProjectsSidebar projects={projects} pin={null} conversations={conversation.list} />
         case 'wiki':
@@ -1306,8 +1310,6 @@ export function App() {
           return browserSidebar;
         case 'research':
           return <ResearchSidebar research={research} pin={null} changed={liveMarks.research} starts={startsFor('research')} onStart={startWithMobius} />
-        case 'views':
-          return <ViewsSidebar views={views} pin={null} changed={viewMarks} starts={startsFor('views')} onStart={startWithMobius} />
         case 'canvas':
           return <CanvasSidebar boards={boards} pin={null} changed={liveMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
         case 'code':
@@ -1493,6 +1495,15 @@ export function App() {
     window.addEventListener(OPEN_SPEAKING_SETTINGS, open);
     return () => window.removeEventListener(OPEN_SPEAKING_SETTINGS, open);
   }, [setSettingsOpen]);
+  // Views (Database's dashboards): what their tiles read, and where a tile leads. Home shows the pinned one.
+  const homeView = usePinnedView();
+  const viewApps = { tasks: tasks.all, events: calendar.events, calendars: calendar.calendars, mail: { messages: mail.messages, unread: mail.counts.all, accounts: mail.accounts.length }, notes: notes.notebooks, conversations: conversation.list };
+  const openViewTarget = (t: TileTarget) => {
+    if (t.kind === 'app') openApp(t.app);
+    else if (t.kind === 'note') openTarget({ app: 'notes', path: t.path, title: t.title });
+    else if (t.kind === 'conversation') openTarget({ app: 'agent', conversation: t.id });
+    else openSettingsAt('schedules');
+  };
   // A terminal block, beside the message box for a question about it.
   const askAboutTerminal = (title: string, text: string) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item: { kind: 'file', title, source: `terminal/${terminal.cwd || '~'}`, text } }); };
   // Going to another app, tab or Settings stops a page being read aloud (Mobius's replies read on).
@@ -2010,14 +2021,9 @@ export function App() {
         return (
           <ViewPage
             views={views}
-            apps={{ tasks: tasks.all, events: calendar.events, calendars: calendar.calendars, mail: { messages: mail.messages, unread: mail.counts.all, accounts: mail.accounts.length }, notes: notes.notebooks, conversations: conversation.list }}
+            apps={viewApps}
             review={views.page && viewMarks.has(views.page.path) ? { conversation: conversation.state.conversation } : null}
-            onOpen={(t) => {
-              if (t.kind === 'app') openApp(t.app);
-              else if (t.kind === 'note') openTarget({ app: 'notes', path: t.path, title: t.title });
-              else if (t.kind === 'conversation') openTarget({ app: 'agent', conversation: t.id });
-              else openSettingsAt('schedules');
-            }}
+            onOpen={openViewTarget}
           />
         );
       case 'canvas':
@@ -2073,6 +2079,7 @@ export function App() {
                 opened={recentItems(12)}
                 onOpenRecent={launch.openRecent}
                 suggested={{ count: mail.counts.suggested, onOpen: () => { openApp('mail'); mail.setView({ kind: 'drafts', only: 'mobius' }); } }}
+                pinned={homeView && <PinnedView path={homeView} apps={viewApps} onOpen={openViewTarget} onOpenView={(path, title) => { openApp('views'); void views.open(path, title); }} />}
                 inbox={{
                   items: inboxItems({ dueToday: smartView('today', tasks.all, new Date()), projects: projects.list, suggested: wikiIncoming.waiting, mail: mail.messages, events: ahead.filter((e) => !calendar.hidden.has(e.calendar)), me: myAddresses }, new Date()),
                   onOpen: (item) => {

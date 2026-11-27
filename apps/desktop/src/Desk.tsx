@@ -44,6 +44,8 @@ interface Props {
   onOpenRecent?: (item: RecentItem) => void;
   /** Replies Mobius drafted in Mail that wait for the person, and where they are looked at. */
   suggested?: { count: number; onOpen: () => void };
+  /** A view pinned to Home (from Database's Views): its tiles, above the Inbox. */
+  pinned?: ReactNode;
   /**
    * The rest of the Inbox: tasks due, invitations, mail to answer, project updates due and suggested Knowledge changes.
    * `onOpen` goes to an item; `onDone` does what Done means for it (a task is ticked off) and says whether it worked.
@@ -140,7 +142,7 @@ const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="
  * place; then what is open in your apps (an app Mobius changed carries its
  * dashed edge until you look); then the last things opened, to continue; then what is scheduled next.
  */
-export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, opened = [], onOpenRecent, suggested, inbox, background, now = new Date() }: Props) {
+export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, opened = [], onOpenRecent, suggested, inbox, background, pinned, now = new Date() }: Props) {
   const waiting = conversations.filter((c) => c.waiting > 0);
   const working = conversations.filter((c) => c.activity === 'working' && c.waiting === 0);
   const approvals = useFirstApprovals(waiting);
@@ -256,6 +258,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
           </ul>
         </div>
       )}
+      {pinned}
       {(inboxCount > 0 || setAside.length > 0) && (
         <div className="desk-group" role="group" aria-label="Inbox">
           <h3 className="desk-head">Inbox {inboxCount > 0 && <span className="desk-count">{inboxCount}</span>}</h3>
