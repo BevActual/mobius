@@ -170,7 +170,7 @@ Agents and Activity (Ctrl+K, "Changes" or "Review").
 
 <table>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/views-dark.png"><img src="docs/readme/apps/views.png" alt="The Views app in Mobius"></picture><br><b>Views</b> · Dashboards of live tiles from your other apps.<br><sub>Tasks due, today's events, unread mail, recent notes and what Mobius is doing, at a glance. Ask Mobius to make one.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/views-dark.png"><img src="docs/readme/apps/views.png" alt="The Views app in Mobius"></picture><br><b>Views</b> · Database's dashboards of live tiles from your other apps; pin one to Home.<br><sub>Tasks due, today's events, unread mail, recent notes and what Mobius is doing, at a glance. Ask Mobius to make one.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/activity-dark.png"><img src="docs/readme/apps/activity.png" alt="The Activity app in Mobius"></picture><br><b>Activity</b> · What Mobius did across your apps, a day at a time, and what needs you.<br><sub>Filter by who did it, by app, or to what can't be undone. Rewind a conversation from here.</sub></td>
 </tr>
 </table>

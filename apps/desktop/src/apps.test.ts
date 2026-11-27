@@ -62,4 +62,15 @@ describe('recent items', () => {
     expect(isAvailable('reader')).toBe(false);
     setInstalledApps(null);
   });
+
+  it('Views are Database’s: not listed on its own, and Views added before the fold brings Database with it', () => {
+    expect(isListed(APPS.find((a) => a.id === 'views')!)).toBe(false);
+    setInstalledApps(['database']);
+    expect(isAvailable('views')).toBe(true);
+    setInstalledApps(['views']);
+    expect(isAvailable('database')).toBe(true);
+    setInstalledApps(['notes']);
+    expect(isAvailable('views')).toBe(false);
+    setInstalledApps(null);
+  });
 });

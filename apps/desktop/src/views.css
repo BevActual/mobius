@@ -60,3 +60,12 @@
 .view-bar { display: block; height: 10px; border-radius: var(--radius-small); background: var(--sel); }
 .view-bar[data-tall] { height: 24px; }
 .view-bar[data-w="20"] { width: 20%; } .view-bar[data-w="40"] { width: 40%; } .view-bar[data-w="70"] { width: 70%; } .view-bar[data-w="90"] { width: 90%; }
+
+/* A view pinned to Home: its title (opens it) and Unpin above its tiles, in the desk's section style. */
+.home-view-head { display: flex; align-items: baseline; gap: var(--sp-2); }
+.home-view-title { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.home-view-title:hover { color: var(--ink); }
+.home-view-unpin { margin-left: auto; padding: 0; border: 0; background: none; color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-regular, 400); cursor: pointer; }
+.home-view-unpin:hover { color: var(--ink); }
+.home-view .views-grid { margin-top: var(--sp-2); padding: 0; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.home-view .view-tile { min-height: 0; }
