@@ -76,6 +76,10 @@ pub struct SpeakerFiles {
 
 /// How alike two voice prints must be (cosine) to be taken for the same person.
 pub const SAME_VOICE: f32 = 0.5;
+/// How far apart (cosine distance) the moments of one recording must sound before they are taken for two people.
+/// Looser than `SAME_VOICE`, because those moments are a few seconds each and their prints vary more than a whole
+/// speaker's: at 0.5 one person was now and then heard as a third, while real voices stay apart well past 0.7.
+const APART: f32 = 0.7;
 /// The most of one speaker's voice used for their print, in seconds: enough to tell them apart, quick to compute.
 const PRINT_SECONDS: usize = 20;
 
@@ -360,7 +364,7 @@ impl Listener {
             let mut config = OfflineSpeakerDiarizationConfig { embedding: embedding.clone(), ..OfflineSpeakerDiarizationConfig::default() };
             config.segmentation.pyannote.model = Some(files.segmentation.clone());
             config.segmentation.num_threads = threads(self.cores);
-            config.clustering.threshold = SAME_VOICE;
+            config.clustering.threshold = APART;
             let diarizer = OfflineSpeakerDiarization::create(&config).ok_or("Telling speakers apart could not be loaded. Set it up again in Settings, Models.")?;
             if diarizer.sample_rate() != SAMPLE_RATE {
                 return Err("The speaker model takes another kind of recording.".to_owned());
@@ -655,6 +659,82 @@ mod tests {
         // Four people in all; told apart well, the second part names at least one voice from the first.
         assert!(second.iter().any(|n| first.contains(n)), "{first:?} then {second:?}");
         assert!(names(&heard.concat()).len() <= 6, "{heard:?}");
+    }
+
+    /// A two-person meeting read aloud by two Kokoro voices taking turns, written down in two parts: each person keeps
+    /// one name through both parts and nobody else is heard. Needs MOBIUS_VOICE_MODELS, MOBIUS_KOKORO and
+    /// MOBIUS_SPEAKERS (as above). The build workflow runs it.
+    #[test]
+    #[ignore = "needs the voice, speaker and speech models on disk"]
+    fn two_people_taking_turns_keep_one_name_each() {
+        let dir = std::env::var("MOBIUS_VOICE_MODELS").unwrap_or_default();
+        let kokoro = std::env::var("MOBIUS_KOKORO").unwrap_or_default();
+        let spk = std::env::var("MOBIUS_SPEAKERS").unwrap_or_default();
+        let at = |f: &str| format!("{dir}/{f}");
+        let k = |f: &str| format!("{kokoro}/{f}");
+        let s = |f: &str| format!("{spk}/{f}");
+        let voice = KokoroFiles { model: k("model.int8.onnx"), voices: k("voices.bin"), tokens: k("tokens.txt"), lexicon: k("lexicon-us-en.txt") };
+        let ear = Ear::Whisper(WhisperFiles { encoder: at("tiny.en-encoder.int8.onnx"), decoder: at("tiny.en-decoder.int8.onnx"), tokens: at("tiny.en-tokens.txt") });
+        let files = SpeakerFiles { segmentation: s("pyannote-segmentation.int8.onnx"), embedding: s("campplus-en.onnx"), meeting: "two".into() };
+        let lines = [
+            "Thanks for joining. Shall we start with the garden plan?",
+            "Yes. I walked the beds this morning and the soil is still wet.",
+            "Then we wait a week before planting the tulips.",
+            "Agreed. What about the new fence along the north side?",
+            "The quote came in at about four hundred dollars.",
+            "That is more than we hoped. Can we do half this year?",
+            "We could. The posts are the expensive part.",
+            "Okay, let us split it over two seasons then.",
+            "Sure. I will call them back tomorrow.",
+            "Next, the watering. The timer stopped working again.",
+            "I saw that. It needs new batteries, nothing more.",
+            "Good. And the compost bin is nearly full.",
+            "I will turn it on Saturday and start the second one.",
+            "Great. Did the seed order arrive?",
+            "It did, except the beans, which are on back order.",
+            "Fine, beans can go in late anyway.",
+            "Right. Anything else for today?",
+            "Only the shed roof. It leaked in the last storm.",
+            "I can patch it this weekend if it stays dry.",
+            "Perfect. Let us meet again next Thursday.",
+            "Sounds good. Thanks, talk soon.",
+            "Bye for now.",
+        ];
+        let mut listener = Listener::new(4);
+        let gap = vec![0.0_f32; 8000];
+        let (mut samples, mut truth) = (Vec::new(), Vec::new());
+        for (n, line) in lines.iter().enumerate() {
+            let out = std::env::temp_dir().join(format!("mobius-voice-two-{n}.wav"));
+            let said = listener.speak(line, &voice, if n % 2 == 0 { 3 } else { 14 }, None, &out.to_string_lossy());
+            assert!(said.is_ok(), "{said:?}");
+            let wave = Wave::read(&out.to_string_lossy());
+            let line16 = wave.and_then(|w| sherpa_onnx::LinearResampler::create(w.sample_rate(), SAMPLE_RATE).map(|r| r.resample(w.samples(), true))).unwrap_or_default();
+            #[allow(clippy::cast_precision_loss)]
+            let start = samples.len() as f32 / 16_000.0;
+            samples.extend_from_slice(&line16);
+            #[allow(clippy::cast_precision_loss)]
+            truth.push((start, samples.len() as f32 / 16_000.0, n % 2));
+            samples.extend_from_slice(&gap);
+        }
+        let half = samples.len() / 2;
+        let mut heard = Vec::new();
+        for (n, part) in [&samples[..half], &samples[half..]].into_iter().enumerate() {
+            let path = std::env::temp_dir().join(format!("mobius-voice-two-part-{n}.wav"));
+            assert!(sherpa_onnx::write(&path.to_string_lossy(), part, SAMPLE_RATE));
+            let (_, segments) = listener.transcribe(&path.to_string_lossy(), &ear, &at("silero_vad.onnx"), None, Some(&files)).unwrap_or_default();
+            #[allow(clippy::cast_precision_loss)]
+            let offset = if n == 0 { 0.0 } else { half as f32 / 16_000.0 };
+            heard.extend(segments.into_iter().filter(|s| !s.text.trim().is_empty()).map(|mut s| { s.start += offset; s.end += offset; s }));
+        }
+        // Each piece is matched with the line it overlaps most; every person's pieces carry one name, and the two differ.
+        let mut names: [Vec<String>; 2] = [Vec::new(), Vec::new()];
+        for piece in &heard {
+            let who = truth.iter().max_by(|a, b| (piece.end.min(a.1) - piece.start.max(a.0)).total_cmp(&(piece.end.min(b.1) - piece.start.max(b.0)))).map_or(0, |t| t.2);
+            names[who].push(piece.speaker.clone().unwrap_or_default());
+        }
+        let label = |v: &Vec<String>| { let mut u = v.clone(); u.sort(); u.dedup(); u };
+        let (a, b) = (label(&names[0]), label(&names[1]));
+        assert!(a.len() == 1 && b.len() == 1 && a != b, "first voice {:?}, second voice {:?}", names[0], names[1]);
     }
 
     /// Writes down sherpa-onnx's English test recording with Parakeet v3. Needs MOBIUS_PARAKEET, a folder with
