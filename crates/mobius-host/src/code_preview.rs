@@ -234,9 +234,11 @@ fn answer(mut stream: TcpStream, server: &Server) {
     }
     if path == EVENTS_PATH && !head_only {
         let start = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n\r\n: ready\n\n";
+        // Listed in the same hold as the opening is written, so a page that has heard ": ready" hears what is said
+        // next, and nothing said is written before the opening.
+        let mut pages = lock(&server.listeners);
         if stream.write_all(start.as_bytes()).is_ok() {
             let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
-            let mut pages = lock(&server.listeners);
             if pages.len() >= MAX_LISTENERS {
                 pages.remove(0);
             }
