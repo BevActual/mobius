@@ -355,3 +355,26 @@ test('a conversation shown beside stays as a piece in other apps, and a reply is
   await shell().keyboard.press('Enter');
   await expect(piece).toBeVisible();
 });
+
+test('Ctrl+K › Show here brings a conversation beside the open app without leaving it', async () => {
+  await start();
+  await expect(page().getByRole('listbox', { name: 'Messages' }).getByRole('option').first()).toContainText('Terrace + lunch for the 13th');
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByRole('complementary', { name: 'Notebooks' })).toBeVisible();
+  await shell().keyboard.press('Control+k');
+  const field = shell().getByRole('combobox', { name: 'Find apps, pages and commands' });
+  await field.fill('terrace');
+  const launcher = shell().getByRole('dialog', { name: 'Launcher' });
+  const hit = launcher.getByRole('option', { name: /^Terrace \+ lunch for the 13th/ }).first();
+  await expect(hit).toBeVisible({ timeout: 10_000 });
+  // The row chosen, its actions (Shift+Enter) have Show here.
+  for (let i = 0; i < 12 && (await hit.getAttribute('aria-selected')) !== 'true'; i++) await field.press('ArrowDown');
+  await expect(hit).toHaveAttribute('aria-selected', 'true');
+  await field.press('Shift+Enter');
+  await launcher.getByRole('option', { name: /^Show here/ }).click();
+  const piece = shell().getByRole('region', { name: 'Terrace + lunch for the 13th, from Mail' });
+  await expect(piece).toContainText('hold the terrace for eight');
+  await expect(shell().getByRole('complementary', { name: 'Notebooks' })).toBeVisible();
+});

@@ -132,3 +132,16 @@ export function putAwayMobius(only?: (p: OpenPiece) => boolean): void {
   const next = pieces.filter((o) => o.by !== 'mobius' || (only !== undefined && !only(o)));
   if (next.length !== pieces.length) set(next);
 }
+
+/** The piece a found thing shows as (Ctrl+K's Show here): a task list, a day, a mail conversation; none for the rest. */
+export function pieceOfTarget(target: { app: string; list?: string; id?: string; date?: string }, title?: string): { kind: PieceKind; item: string; title?: string } | null {
+  if (target.app === 'tasks' && target.list) return { kind: 'tasks.list', item: target.list };
+  if (target.app === 'mail' && target.id) return { kind: 'mail.thread', item: target.id, ...(title ? { title } : {}) };
+  if (target.app === 'calendar') return { kind: 'calendar.day', item: target.date && /^\d{4}-\d{2}-\d{2}$/.test(target.date) ? target.date : 'today' };
+  return null;
+}
+/** Show here, for a found thing that has a piece. */
+export function showTarget(target: { app: string; list?: string; id?: string; date?: string }, title?: string): (() => void) | undefined {
+  const p = pieceOfTarget(target, title);
+  return p ? () => showPiece(p.kind, p.item, 'you', p.title) : undefined;
+}

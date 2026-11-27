@@ -50,10 +50,12 @@ export interface LauncherItem {
   /** An agent's row: drawn as its dot character, in the state it is in. */
   character?: { name: string; state: CharacterState };
   run: () => void;
+  /** Show it here, beside the open app, as a piece (a list, a day, a conversation), instead of opening its app. */
+  show?: () => void;
 }
 
 /** Something found in an app as the person types: a note, a thread, an event, a file. */
-export interface FoundItem { id: string; app: AppId; label: string; detail?: string; run: () => void; fields?: readonly LauncherField[]; preview?: LauncherPreview }
+export interface FoundItem { id: string; app: AppId; label: string; detail?: string; run: () => void; fields?: readonly LauncherField[]; preview?: LauncherPreview; /** Shows it beside the open app as a piece (the row's Show here). */ show?: () => void }
 
 /** What a command read from the rest of the line ("lunch with Sam fri 1pm"): each part, named, shown under the field. */
 export interface LauncherField { label: string; value: string }
@@ -464,6 +466,7 @@ export function Launcher({
     if (mine) return [act('open', 'Run', () => { setActionsFor(null); item.run(); }, '↵'), act('forget', 'Remove this command', () => { keepSaved(withoutSaved(savedRef.current, mine)); setActionsFor(null); setStatus(`${item.label} removed`); })];
     return [
       act('open', item.kind === 'command' ? 'Run' : 'Open', item.run, '↵'),
+      ...(item.show ? [act('show', 'Show here', item.show)] : []),
       ...(onAskAbout ? [act('ask', 'Ask Mobius about this', () => onAskAbout({ app: item.app, label: item.label, detail: item.detail }), 'Alt+↵')] : []),
       ...(item.app && onPinned && (item.kind === 'pinned' || item.kind === 'app' || item.kind === 'grid')
         ? [act('pin', pinned ? 'Unpin' : 'Pin', () => pinRef.current(item.app!, !pinned))] : []),
@@ -527,7 +530,7 @@ export function Launcher({
     // Narrowed to one app: its items, then its commands; with nothing typed, the app itself first.
     if (scope) {
       const name = appName(scope);
-      const asItem = (item: FoundItem): LauncherItem => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail, fields: item.fields, preview: item.preview, run: item.run });
+      const asItem = (item: FoundItem): LauncherItem => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail, fields: item.fields, preview: item.preview, run: item.run, ...(item.show ? { show: item.show } : {}) });
       const recentHere = !q ? (recentIn?.(scope) ?? []).slice(0, 20) : [];
       const foundHere = q ? findNow(typed).filter((item) => item.app === scope).slice(0, 20) : [];
       // Nothing found for the words: making one with them comes first (Notes: New note “…”).
@@ -652,7 +655,7 @@ export function Launcher({
         ...findSystemCommands(system.commands, typed).map<LauncherItem>((c) => ({ id: `sys-cmd-${c.id}`, kind: 'system', label: c.name, detail: 'Command', run: () => system.run(c.id) })),
       ] : []),
       ...(system && disk && disk.text === typed ? disk.files.slice(0, 8).map<LauncherItem>((f) => ({ id: `disk-${f.path}`, kind: 'disk', label: f.name, detail: folderOf(f.path), run: () => system.openFile?.(f.path) })) : []),
-      ...findNow(typed).slice(0, 8).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail ?? appName(item.app), fields: item.fields, preview: item.preview, run: item.run })),
+      ...findNow(typed).slice(0, 8).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail ?? appName(item.app), fields: item.fields, preview: item.preview, run: item.run, ...(item.show ? { show: item.show } : {}) })),
       ...tabs.filter((tab) => has(`${tab.title} ${tab.url}`)).map<LauncherItem>((tab) => ({
         id: `tab-${tab.id}`,
         kind: 'tab',

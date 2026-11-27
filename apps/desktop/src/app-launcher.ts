@@ -1,3 +1,4 @@
+import { showPiece } from './pieces';
 import { isNotesFailure, type CalendarEvent, type ChatChannel, type Contact, type MailMessage, type NoteHit, type Notebook } from '@mobius/shared';
 import type { FoundItem, LauncherPreview } from './Launcher';
 import { useLauncherSource } from './launcher-sources';
@@ -185,7 +186,7 @@ export function useDailyLauncherSources(d: Daily): void {
       ]);
       const found: FoundItem[] = [];
       if (!isNotesFailure(people)) for (const p of peopleRows(people)) found.push({ id: `person:${p.id}`, app: 'mail', label: p.label, detail: p.detail, run: () => d.composeTo(p.email) });
-      if (!isNotesFailure(letters)) for (const m of mailRows(letters)) found.push({ id: m.id, app: 'mail', label: m.label, detail: m.detail, preview: m.preview, run: () => d.openTarget({ app: 'mail', id: m.id }, m.label) });
+      if (!isNotesFailure(letters)) for (const m of mailRows(letters)) found.push({ id: m.id, app: 'mail', label: m.label, detail: m.detail, preview: m.preview, run: () => d.openTarget({ app: 'mail', id: m.id }, m.label), show: () => showPiece('mail.thread', m.id, 'you', m.label) });
       return found;
     },
     commands: () => [{ id: 'inbox', label: 'Inbox', detail: 'Mail', run: () => d.openTarget({ app: 'open', id: 'mail' }) }],
@@ -211,7 +212,7 @@ export function useDailyLauncherSources(d: Daily): void {
       if (!(await after(signal, 120))) return [];
       const events = await api.events(isoDay(new Date(now.getTime() - 60 * DAY)), isoDay(new Date(now.getTime() + 180 * DAY))).catch(() => []);
       if (!Array.isArray(events)) return [];
-      return eventsMatching(events, query, now).map((e) => ({ id: e.id, app: 'calendar' as const, label: e.title || '(no title)', detail: eventDetail(e), preview: eventPreview(e), run: () => d.openTarget({ app: 'calendar', date: e.start.slice(0, 10) }, e.title) }));
+      return eventsMatching(events, query, now).map((e) => ({ id: e.id, app: 'calendar' as const, label: e.title || '(no title)', detail: eventDetail(e), preview: eventPreview(e), run: () => d.openTarget({ app: 'calendar', date: e.start.slice(0, 10) }, e.title), show: () => showPiece('calendar.day', e.start.slice(0, 10)) }));
     },
     commands: () => [{ id: 'today', label: 'Today in Calendar', detail: 'Calendar', run: d.calendarToday }],
   });
