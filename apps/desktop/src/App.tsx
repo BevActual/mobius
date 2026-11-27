@@ -2095,7 +2095,7 @@ export function App() {
       case 'canvas':
         return <CanvasBoard boards={boards} review={boards.page && liveMarks.boards.has(boards.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'code':
-        return <CodeEditor code={code} listPanels={listFor('code')} terminal={<TerminalPanel term={terminal} onAsk={askAboutTerminal} />} review={code.open && code.project && liveMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
+        return <CodeEditor code={code} onAsk={(prompt) => { if (!shows('agent')) setChatOpen(true); void conversation.send(prompt, surface.code ? [sheetItem(surface.code)] : []); }} onDraft={startWithMobius} listPanels={listFor('code')} terminal={<TerminalPanel term={terminal} onAsk={askAboutTerminal} />} review={code.open && code.project && liveMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'messages':

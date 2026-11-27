@@ -619,3 +619,40 @@ test('lines changed since the last commit are marked in the gutter, and one chan
   await expect(editor).toHaveValue(BUDGET);
   await expect(shell().locator('.ed-change')).toHaveCount(0);
 });
+
+test('Preview shows the page beside Code, saving reloads it, its error goes to its line, and Pick goes to an element\'s code', async () => {
+  fs.writeFileSync(path.join(project, 'app.js'), 'document.title = "Ready";\nmissingThing();\n');
+  fs.writeFileSync(path.join(project, 'index.html'), '<title>Offsite</title>\n<main>\n  <h1 class="hero">Offsite planner</h1>\n</main>\n<script src="app.js"></script>\n');
+  await start();
+  const code = shell().getByRole('region', { name: 'Code' });
+  await code.getByRole('button', { name: 'Preview' }).click();
+  await expect(shell().getByRole('region', { name: 'Right pane: Browser' })).toBeVisible();
+  await expect(code.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-pressed', 'true');
+  const url = await shell().evaluate(async () => { const got = await window.mobius.code!.preview!('offsite-planner'); return 'url' in got ? got.url : ''; });
+  // The page, as any browser shows it: its error comes to Code, and Go to it opens the line.
+  const page = await shell().context().newPage();
+  await page.goto(url);
+  const note = code.getByRole('alert').filter({ hasText: 'The page has an error' });
+  await expect(note).toContainText('missingThing');
+  await expect(note).toContainText('app.js:2');
+  await note.getByRole('button', { name: 'Go to it' }).click();
+  await expect(shell().getByRole('textbox', { name: 'Contents of app.js' })).toBeVisible();
+  await expect(code.locator('footer.code-status')).toContainText('Ln 2, Col 1');
+  // Saving reloads the page.
+  let loads = 0;
+  page.on('load', () => { loads += 1; });
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('// later');
+  await shell().keyboard.press('Control+s');
+  await expect.poll(() => loads).toBeGreaterThan(0);
+  // Pick: the person clicks the heading on the page, and Go to code opens it where it is written.
+  await code.getByRole('button', { name: 'Pick' }).click();
+  await expect(code.getByRole('button', { name: 'Pick' })).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('h1').click();
+  const picked = code.getByRole('status').filter({ hasText: 'Picked' });
+  await expect(picked).toContainText('<h1> “Offsite planner” on index.html');
+  await picked.getByRole('button', { name: 'Go to code' }).click();
+  await expect(shell().getByRole('textbox', { name: 'Contents of index.html' })).toBeVisible();
+  await expect(code.locator('footer.code-status')).toContainText('Ln 3, Col 3');
+  await page.close();
+});
