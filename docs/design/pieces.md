@@ -109,7 +109,7 @@ new mechanism. It is a panel the shell owns, in the same system as every other p
 |---|---|---|
 | Show and hide (Panels menu, View menu, keys, Hide) | Yes | Yes |
 | Resize, by dragging the dock's edge (double-click resets, arrow keys by 16px) | Yes, per dock, remembered per app | Yes |
-| Move to another dock | **No.** Each panel's dock is fixed by its app | No |
+| Move to another dock | **No** in 0.1.26. Round 0 adds it (#972) | No |
 | Pop out into its own window | **No** | Yes |
 | Tabs when two panels share a dock | Yes (`PanelTabs`) | No |
 
