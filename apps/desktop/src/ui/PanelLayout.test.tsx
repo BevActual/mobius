@@ -103,6 +103,7 @@ describe('panels', () => {
     expect(parseLayout('{"shown":{},"size":{"left":300}}')).toEqual({ shown: {}, size: { left: 300 } });
     expect(parseLayout('{"shown":{},"size":{},"front":{"run":"tests","bad":3}}')).toEqual({ shown: {}, size: {}, front: { run: 'tests' } });
     expect(parseLayout('{"shown":{},"size":{},"dock":{"outline":"left","x":"top"}}')).toEqual({ shown: {}, size: {}, dock: { outline: 'left' } });
+    expect(parseLayout('{"shown":{},"size":{},"fold":{"outline":true,"x":1}}')).toEqual({ shown: {}, size: {}, fold: { outline: true } });
     expect(parseLayout('not json')).toEqual({ shown: {}, size: {} });
     expect(parseLayout(null)).toEqual({ shown: {}, size: {} });
   });
