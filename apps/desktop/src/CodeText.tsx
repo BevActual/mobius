@@ -1,8 +1,8 @@
 import { type MutableRefObject, type MouseEvent as ReactMouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { IS_MAC, findAll, indentLines, langName, newLine, toggleComment, typePair } from './code-edit';
+import { IS_MAC, findAll, findPattern, indentLines, langName, newLine, replacement, toggleComment, typePair, type FindOptions } from './code-edit';
 import { colourLines, type Lang } from './code-view';
 import {
-  History, addCursorV, addNextMatch, colAt, copyLines, cursor, deleteBy, deleteLines, docOf, editEach, end, home, insertText, lineEnd, lineOf, lineStarts,
+  History, addCursorV, addNextMatch, matchBracket, replaceSpans, colAt, copyLines, cursor, deleteBy, deleteLines, docOf, editEach, end, home, insertText, lineEnd, lineOf, lineStarts,
   moveH, moveLines, moveV, normalize, selFrom, selTo, selectAll, selectLine, single, visualCol, wordAt, type DocState, type Step,
 } from './code-doc';
 import type { CodeState } from './useCode';
@@ -15,37 +15,81 @@ const PAD_BOTTOM = 40;
 const OVERSCAN = 30;
 const TAB = 2;
 
-/** Find in the file (Ctrl+F) or go to a line (Ctrl+G), in a bar above the text. */
-export function EditorBar({ mode, text, onClose, onFind, onLine }: { mode: 'find' | 'line'; text: string; onClose: () => void; onFind: (query: string, matchCase: boolean, at: number) => void; onLine: (line: number) => void }) {
+export type BarMode = 'find' | 'replace' | 'line';
+
+interface FindProps {
+  mode: BarMode;
+  text: string;
+  onClose: () => void;
+  onFind: (query: string, opts: FindOptions, at: number) => void;
+  onLine: (line: number) => void;
+  onReplace: (query: string, opts: FindOptions, withText: string, at: number) => void;
+  onReplaceAll: (query: string, opts: FindOptions, withText: string) => void;
+  onSelectAll: (query: string, opts: FindOptions) => void;
+}
+
+const Glyph = ({ d }: { d: string }) => <svg viewBox="0 0 20 20" aria-hidden="true"><path d={d} /></svg>;
+
+/**
+ * Find (Ctrl+F), find and replace (Ctrl+H) or go to a line (Ctrl+G), in a bar above the text, as VS Code's: match
+ * case, whole word and regular expression toggles; Enter steps through the matches, Alt+Enter selects them all as
+ * cursors; Replace changes the current match and steps on, Replace all changes them all as one undo step.
+ */
+export function EditorBar({ mode, text, onClose, onFind, onLine, onReplace, onReplaceAll, onSelectAll }: FindProps) {
   const [query, setQuery] = useState('');
-  const [matchCase, setMatchCase] = useState(false);
+  const [withText, setWithText] = useState('');
+  const [replacing, setReplacing] = useState(mode === 'replace');
+  const [opts, setOpts] = useState<FindOptions>({ matchCase: false, word: false, regex: false });
   const [at, setAt] = useState(0);
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => { field.current?.focus(); field.current?.select(); }, [mode]);
-  const count = mode === 'find' ? findAll(text, query, matchCase).length : 0;
-  useEffect(() => { if (mode === 'find') onFind(query, matchCase, count === 0 ? 0 : Math.min(at, count - 1)); }, [query, matchCase, at, count, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const finding = mode !== 'line';
+  const count = useMemo(() => (finding ? findAll(text, query, opts).length : 0), [finding, text, query, opts]);
+  const bad = finding && opts.regex && query !== '' && findPattern(query, opts) === null;
+  useEffect(() => { if (finding) onFind(query, opts, count === 0 ? 0 : Math.min(at, count - 1)); }, [query, opts, at, count, finding]); // eslint-disable-line react-hooks/exhaustive-deps
   const lines = useMemo(() => lineStarts(text).length, [text]);
   if (mode === 'line') {
     return (
       <form className="code-bar" role="search" aria-label="Go to line" onSubmit={(e) => { e.preventDefault(); const n = Number.parseInt(query, 10); if (n > 0) onLine(Math.min(n, lines)); }}>
         <input ref={field} aria-label="Line number" inputMode="numeric" placeholder={`Line, 1 to ${lines}`} value={query} onChange={(e) => setQuery(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }} />
         <button type="submit" className="btn" title="Go (Enter)">Go</button>
-        <button type="button" className="strip-btn" aria-label="Close" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+        <button type="button" className="strip-btn" aria-label="Close" title="Close (Esc)" onClick={onClose}><Glyph d="m6 6 8 8M14 6l-8 8" /></button>
       </form>
     );
   }
   const step = (by: number) => { if (count > 0) setAt((i) => (i + by + count) % count); };
+  const toggle = (key: keyof FindOptions) => { setOpts((o) => ({ ...o, [key]: !o[key] })); setAt(0); };
+  const current = count === 0 ? 0 : Math.min(at, count - 1);
+  const keys = (e: React.KeyboardEvent<HTMLInputElement>, replace: boolean) => {
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); return; }
+    if (e.key === 'Enter' && e.altKey && !replace) { e.preventDefault(); if (count > 0) onSelectAll(query, opts); return; }
+    if (e.key === 'Enter' && replace && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (count > 0) onReplaceAll(query, opts, withText); return; }
+    if (e.key === 'Enter' && replace) { e.preventDefault(); if (count > 0) onReplace(query, opts, withText, current); return; }
+    if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
+  };
   return (
-    <div className="code-bar" role="search" aria-label="Find in file">
-      <input ref={field} aria-label="Find in file" placeholder="Find in file" value={query} spellCheck={false} onChange={(e) => { setQuery(e.target.value); setAt(0); }} onKeyDown={(e) => {
-        if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
-        else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-      }} />
-      <span className="code-bar-count" aria-live="polite">{query ? (count === 0 ? 'No matches' : `${Math.min(at, count - 1) + 1} of ${count}`) : ''}</span>
-      <button type="button" className="code-bar-case" aria-pressed={matchCase} title="Match case" onClick={() => setMatchCase((m) => !m)}>Aa</button>
-      <button type="button" className="strip-btn" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={count === 0} onClick={() => step(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5" /></svg></button>
-      <button type="button" className="strip-btn" aria-label="Next match" title="Next match (Enter)" disabled={count === 0} onClick={() => step(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg></button>
-      <button type="button" className="strip-btn" aria-label="Close find" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+    <div className="code-bar code-find" role="search" aria-label="Find in file" data-replacing={replacing || undefined}>
+      <button type="button" className="strip-btn code-find-more" aria-expanded={replacing} aria-label={replacing ? 'Hide replace' : 'Show replace'} title={replacing ? 'Hide replace' : 'Replace (Ctrl+H)'} onClick={() => setReplacing((r) => !r)}><Glyph d={replacing ? 'm6 8 4 4 4-4' : 'm8 6 4 4-4 4'} /></button>
+      <div className="code-find-rows">
+        <div className="code-find-row">
+          <input ref={field} aria-label="Find in file" aria-invalid={bad || undefined} placeholder="Find" value={query} spellCheck={false} onChange={(e) => { setQuery(e.target.value); setAt(0); }} onKeyDown={(e) => keys(e, false)} />
+          <button type="button" className="code-bar-case" aria-pressed={!!opts.matchCase} aria-label="Match case" title="Match case" onClick={() => toggle('matchCase')}>Aa</button>
+          <button type="button" className="code-bar-case" aria-pressed={!!opts.word} aria-label="Whole word" title="Whole word" onClick={() => toggle('word')}><u>ab</u></button>
+          <button type="button" className="code-bar-case" aria-pressed={!!opts.regex} aria-label="Regular expression" title="Regular expression" onClick={() => toggle('regex')}>.*</button>
+          <span className="code-bar-count" aria-live="polite">{bad ? 'Not a pattern' : query ? (count === 0 ? 'No matches' : `${current + 1} of ${count}`) : ''}</span>
+          <button type="button" className="strip-btn" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={count === 0} onClick={() => step(-1)}><Glyph d="m5 12 5-5 5 5" /></button>
+          <button type="button" className="strip-btn" aria-label="Next match" title="Next match (Enter)" disabled={count === 0} onClick={() => step(1)}><Glyph d="m5 8 5 5 5-5" /></button>
+          <button type="button" className="strip-btn" aria-label="Select all matches" title="Select all matches (Alt+Enter)" disabled={count === 0} onClick={() => onSelectAll(query, opts)}><Glyph d="M4 6h12M4 10h12M4 14h12" /></button>
+          <button type="button" className="strip-btn" aria-label="Close find" title="Close (Esc)" onClick={onClose}><Glyph d="m6 6 8 8M14 6l-8 8" /></button>
+        </div>
+        {replacing && (
+          <div className="code-find-row">
+            <input aria-label="Replace with" placeholder="Replace" value={withText} spellCheck={false} onChange={(e) => setWithText(e.target.value)} onKeyDown={(e) => keys(e, true)} autoFocus={mode === 'replace' && query !== ''} />
+            <button type="button" className="btn" title="Replace (Enter)" disabled={count === 0} onClick={() => onReplace(query, opts, withText, current)}>Replace</button>
+            <button type="button" className="btn" title={`Replace all (${IS_MAC ? '⌘⏎' : 'Ctrl+Enter'})`} disabled={count === 0} onClick={() => onReplaceAll(query, opts, withText)}>Replace all</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -68,7 +112,7 @@ function diffSpan(before: string, after: string): { from: number; to: number; in
  * and Ctrl+Alt+Up or Down add cursors, Alt+Up or Down move lines, Shift+Alt+Up or Down copy them, Ctrl+Shift+K
  * deletes them, Ctrl+L selects a line, Esc goes back to one cursor.
  */
-export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; lang: Lang; bar: 'find' | 'line' | null; setBar: (bar: 'find' | 'line' | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null> }) {
+export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; lang: Lang; bar: BarMode | null; setBar: (bar: BarMode | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null> }) {
   const path = code.open?.path ?? '';
   const doc = useRef<DocState>(docOf(code.draft));
   const history = useRef(new History());
@@ -203,6 +247,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     if (mod && !e.altKey && lower === 's') { handled(); void code.save(); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'f') { handled(); setBar('find'); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'g') { handled(); setBar('line'); return; }
+    if (mod && !e.altKey && !e.shiftKey && lower === 'h') { handled(); setBar('replace'); return; }
     if (mod && !e.altKey && ((lower === 'z' && e.shiftKey) || (lower === 'y' && !IS_MAC))) { handled(); putBack(history.current.redo(s)); return; }
     if (mod && !e.altKey && lower === 'z') { handled(); putBack(history.current.undo(s)); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'a') { handled(); place(selectAll(s)); return; }
@@ -357,11 +402,40 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
   };
 
   // —— Find and Go to line ——
-  const onFind = (query: string, matchCase: boolean, at: number) => {
-    const marks = findAll(doc.current.text, query, matchCase);
+  const onFind = (query: string, opts: FindOptions, at: number) => {
+    const marks = findAll(doc.current.text, query, opts);
     setFound({ marks, at });
     const hit = marks[at];
     if (hit) { doc.current = { ...doc.current, sels: [{ anchor: hit[0], head: hit[1] }], primary: 0 }; redraw(); requestAnimationFrame(() => reveal(true)); }
+  };
+  const onReplace = (query: string, opts: FindOptions, withText: string, at: number) => {
+    const s = doc.current;
+    const marks = findAll(s.text, query, opts);
+    const hit = marks[at];
+    if (!hit) return;
+    apply(replaceSpans(s, [hit], [replacement(s.text, hit, query, withText, opts)]), 'replace');
+    // The match after it is next: its place shifted by what was put in.
+    const next = findAll(doc.current.text, query, opts);
+    const from = hit[0] + replacement(s.text, hit, query, withText, opts).length;
+    const i = Math.max(0, next.findIndex(([a]) => a >= from));
+    setFound({ marks: next, at: i });
+    const n = next[i];
+    if (n) { doc.current = { ...doc.current, sels: [{ anchor: n[0], head: n[1] }], primary: 0 }; redraw(); requestAnimationFrame(() => reveal(true)); }
+  };
+  const onReplaceAll = (query: string, opts: FindOptions, withText: string) => {
+    const s = doc.current;
+    const marks = findAll(s.text, query, opts, 100_000);
+    if (marks.length === 0) return;
+    apply(replaceSpans(s, marks, marks.map((m) => replacement(s.text, m, query, withText, opts))), 'replace');
+    setFound({ marks: [], at: 0 });
+  };
+  const onSelectAll = (query: string, opts: FindOptions) => {
+    const marks = findAll(doc.current.text, query, opts);
+    if (marks.length === 0) return;
+    setBar(null);
+    setFound({ marks: [], at: 0 });
+    place({ ...doc.current, sels: marks.map(([a, b]) => ({ anchor: a, head: b })), primary: marks.length - 1 });
+    input.current?.focus({ preventScroll: true });
   };
   const closeBar = () => {
     setBar(null);
@@ -417,6 +491,47 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     const x1 = xOf(l, a - starts[l]!);
     return <span key={a} className="code-found" data-current={i === found.at || undefined} style={{ top: PAD_TOP + l * LINE, left: x1, width: Math.max(cw / 2, xOf(l, Math.min(b, lineEnd(text, starts, l)) - starts[l]!) - x1) }} />;
   });
+  // The bracket at the cursor and its partner, boxed; and, with nothing selected, the other uses of the word under the cursor.
+  const boxes: React.ReactNode[] = [];
+  if (primary.anchor === primary.head && !multi) {
+    const pair = matchBracket(text, primary.head);
+    for (const p of pair ?? []) {
+      const l = lineOf(starts, p);
+      if (l >= first && l <= last) boxes.push(<span key={`b${p}`} className="ed-bracket" style={{ top: PAD_TOP + l * LINE, left: xOf(l, p - starts[l]!), width: cw }} />);
+    }
+    const [wa, wb] = wordAt(text, primary.head);
+    const word = text.slice(wa, wb);
+    if (word.length > 1 && !/^\d/.test(word)) {
+      const from = starts[first]!;
+      const to = lineEnd(text, starts, last);
+      for (const [a, b] of findAll(text.slice(from, to), word, { matchCase: true, word: true }, 400)) {
+        const l = lineOf(starts, from + a);
+        boxes.push(<span key={`w${from + a}`} className="ed-same-word" data-here={from + a === wa || undefined} style={{ top: PAD_TOP + l * LINE, left: xOf(l, from + a - starts[l]!), width: (b - a) * cw }} />);
+      }
+    }
+  }
+  // Indent guides: a faint line at each indent stop of the lines in view (blank lines take the indent around them).
+  const guides: React.ReactNode[] = [];
+  {
+    const depth = (l: number): number => {
+      const t = lines[l] ?? '';
+      if (t.trim() === '') return -1;
+      return Math.floor(visualCol(t, /^[ \t]*/.exec(t)![0].length, TAB) / TAB);
+    };
+    const depths: number[] = [];
+    for (let l = first; l <= last; l += 1) depths.push(depth(l));
+    for (let k = 0; k < depths.length; k += 1) {
+      if (depths[k] !== -1) continue;
+      let up = k - 1;
+      while (up >= 0 && depths[up] === -1) up -= 1;
+      let down = k + 1;
+      while (down < depths.length && depths[down] === -1) down += 1;
+      depths[k] = Math.min(up >= 0 ? depths[up]! : 0, down < depths.length ? depths[down]! : 0);
+    }
+    depths.forEach((d, k) => {
+      for (let g = 1; g < d; g += 1) guides.push(<span key={`g${first + k}-${g}`} className="ed-guide" style={{ top: PAD_TOP + (first + k) * LINE, left: PAD_LEFT + g * TAB * cw }} />);
+    });
+  }
   const gutterWidth = `${String(lines.length).length + 3}ch`;
   const height = PAD_TOP + lines.length * LINE + PAD_BOTTOM;
   const width = PAD_LEFT + widest * cw + 6 * cw;
@@ -424,7 +539,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
 
   return (
     <div className="code-editor">
-      {bar && <EditorBar key={bar} mode={bar} text={text} onClose={closeBar} onFind={onFind} onLine={goLine} />}
+      {bar && <EditorBar key={bar} mode={bar} text={text} onClose={closeBar} onFind={onFind} onLine={goLine} onReplace={onReplace} onReplaceAll={onReplaceAll} onSelectAll={onSelectAll} />}
       <div className="ed" data-focused={focused || undefined}>
         <div className="ed-gutter" aria-hidden="true" style={{ width: gutterWidth }}>
           <div style={{ height, transform: `translateY(${-view.top}px)` }}>
@@ -436,8 +551,10 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
         <div className="ed-scroll" ref={scroller} onScroll={(e) => { const t = e.currentTarget; setView((v) => ({ ...v, top: t.scrollTop, left: t.scrollLeft })); }}>
           <div className="ed-content" ref={content} style={{ height, width }} onMouseDown={onMouseDown}>
             <span className="ed-measure" ref={measure} aria-hidden="true">{'M'.repeat(20)}</span>
+            {guides}
             {marks}
             {selRects}
+            {boxes}
             {visible}
             {focused && cursors}
             <textarea
