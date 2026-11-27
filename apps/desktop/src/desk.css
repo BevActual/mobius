@@ -92,3 +92,9 @@ li.desk-row:has(.desk-open:hover) { background: var(--line-soft, var(--soft)); }
 .desk-text[data-late] { color: var(--danger); }
 .desk-later-toggle { margin: var(--sp-1) 0 0 var(--sp-2); font-size: var(--fs-sm); }
 .desk-row[data-later] .desk-name { color: var(--muted); }
+
+/* The morning brief: its row, then what it wrote, as a few plain lines under it. */
+.desk-row.desk-brief { flex-wrap: wrap; padding-bottom: 6px; }
+.desk-brief-text { flex-basis: 100%; margin: 0; padding: 0 8px 0 34px; list-style: none; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.desk-brief-text li { margin: 0; }
+.desk-brief-problem { flex-basis: 100%; padding-left: 34px; }

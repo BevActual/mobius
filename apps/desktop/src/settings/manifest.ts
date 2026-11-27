@@ -205,6 +205,9 @@ const SECTIONS: readonly SettingsSection[] = [
       { id: 'scheduled', label: 'Scheduled', rows: [
         row('schedules', 'Scheduled requests', 'Ask Mobius something at a time of day, on the days you choose. Each run is a new conversation, and it asks before acting as usual.', 'schedule', 'cron', 'every day', 'weekdays', 'morning brief', 'daily', 'recurring', 'automation', 'timer'),
       ] },
+      { id: 'check-ins', label: 'Check-ins', rows: [
+        row('morning-brief', 'Morning brief', 'Each morning, Mobius writes what the day holds in your Inbox in Home: tasks due, events and mail waiting. It only reads to do it. Play reads it aloud.', 'brief', 'daily', 'digest', 'summary', 'today', 'inbox', 'check in', 'morning'),
+      ] },
     ],
   },
   {

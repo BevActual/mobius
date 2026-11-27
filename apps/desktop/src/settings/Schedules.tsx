@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import type { ScheduleDraft, ScheduleInfo } from '@mobius/shared';
 import { Row } from './primitives';
 import { settingPath } from './manifest';
-import type { SectionProps } from './sections';
+import { Toggle, type SectionProps } from './sections';
+import { BRIEF_NOW_EVENT } from '../brief';
 import { timeLabel } from '../dates';
 
 const DAYS = [
@@ -50,7 +51,25 @@ function Editor({ start, onSave, onCancel }: { start: ScheduleDraft; onSave: (dr
  * Settings › Schedules: things to ask Mobius at a time of day, on chosen days. Each run is a new conversation in the
  * Agent app, so what it did can be read and its changes reviewed.
  */
-export function SchedulesSection({ subpage, highlight, onOpenConversation }: SectionProps) {
+export function SchedulesSection(props: SectionProps) {
+  if (props.subpage === 'check-ins') return <CheckIns {...props} />;
+  return <Scheduled {...props} />;
+}
+
+/** Mobius's own check-ins: the morning brief, written into Home's Inbox. */
+function CheckIns({ subpage, highlight, preferences, onPreferences }: SectionProps) {
+  const description = 'Each morning, Mobius writes what the day holds in your Inbox in Home: tasks due, events and mail waiting. It only reads to do it. Play reads it aloud.';
+  const [asked, setAsked] = useState(false);
+  return (
+    <Row path={settingPath('schedules', subpage, 'morning-brief')} title="Morning brief" description={description} highlight={highlight === 'morning-brief'}>
+      <Toggle label="Morning brief" checked={preferences.morningBrief} onChange={(morningBrief) => void onPreferences({ morningBrief })} />
+      <button type="button" className="btn" onClick={() => { window.dispatchEvent(new Event(BRIEF_NOW_EVENT)); setAsked(true); }}>Write one now</button>
+      {asked && <p className="srow-text" role="status">Asked. It will be in your Inbox in Home when it is written.</p>}
+    </Row>
+  );
+}
+
+function Scheduled({ subpage, highlight, onOpenConversation }: SectionProps) {
   const api = window.mobius.schedules;
   const [list, setList] = useState<ScheduleInfo[] | null>(null);
   const [editing, setEditing] = useState<string | 'new' | null>(null);

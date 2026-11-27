@@ -91,6 +91,7 @@ import { changeTarget, toolTarget } from './actions';
 import { eventsOn, isoDay, rangeLabel as calendarRange } from './calendar-view';
 import { Desk } from './Desk';
 import { useBackgroundRuns } from './background';
+import { BRIEF_TITLE, BRIEF_TOOLS, useMorningBrief } from './brief';
 import { ASSIGN_EVENT, type Assignment } from './assign';
 import { AskHere, inlineAnswer, pickedNow, plainAnswer, type Picked } from './AskHere';
 import { hereOf } from './surface';
@@ -1416,6 +1417,13 @@ export function App() {
       setToast('Assigned to Mobius. It will be in your Inbox when done.');
     });
   };
+  // The morning brief: once each morning, asked in its own chat in Ask mode, so it only reads; it lands in the Inbox.
+  useMorningBrief(preferences.value.morningBrief, preferences.loaded, async (text) => {
+    const result = await conversation.assign(text, [], 'home', { ask: true, tools: BRIEF_TOOLS });
+    if ('error' in result) return false;
+    handoffs.start(result.id, BRIEF_TITLE, 'brief');
+    return true;
+  });
   useEffect(() => {
     const onAssign = (event: Event) => { const a = (event as CustomEvent<Assignment>).detail; if (a && typeof a.ask === 'string' && a.ask.trim()) assignNow.current(a); };
     window.addEventListener(ASSIGN_EVENT, onAssign);

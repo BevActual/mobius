@@ -526,3 +526,38 @@ test('Accounts lists one row per account, opens its own page, and Add Account of
   await add.getByRole('button', { name: 'CardDAV contacts' }).click();
   await expect(shell().locator('.toolbar-sub')).toHaveText('Contacts');
 });
+
+test('the morning brief: Write one now asks in Ask mode, and it lands in the Inbox written, with Play and Done', async () => {
+  await start([says(['## Today\n\n- Two tasks due, one overdue\n- Dentist at 15:00'])]);
+  await openSettings();
+  await go('Schedules', 'Check-ins');
+  const brief = page().getByRole('switch', { name: 'Morning brief' });
+  // The tests start with it off, so nothing is asked on its own.
+  await expect(brief).not.toBeChecked();
+  await page().getByRole('button', { name: 'Write one now' }).click();
+  await expect(page().getByRole('status').filter({ hasText: 'It will be in your Inbox' })).toBeVisible();
+  // It only reads, and only in the apps it looks at.
+  await expect.poll(() => model!.requests.length).toBe(1);
+  const request = model!.requests[0]!;
+  expect(JSON.stringify(request.messages)).toContain('Give me my morning brief for');
+  const tools = ((request.tools ?? []) as Array<{ function?: { name?: string }; name?: string }>).map((t) => t.function?.name ?? t.name ?? '');
+  expect(tools.length).toBeGreaterThan(0);
+  // Beside Mobius's own (its to-do list, asking you), only those apps' tools, and none that change them.
+  const apps = tools.filter((t) => !['todo-write', 'ask-person'].includes(t));
+  expect(apps.length).toBeGreaterThan(0);
+  expect(apps.every((t) => /^(tasks|calendar|mail)-/.test(t))).toBe(true);
+  expect(apps.some((t) => /add|delete|send|draft|move/.test(t))).toBe(false);
+
+  await shell().keyboard.press('Escape');
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
+  await shell().keyboard.press('Enter');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: 'Open Morning brief' })).toBeVisible();
+  await expect(inbox.getByRole('list', { name: 'Morning brief, as written' }).getByRole('listitem')).toHaveText(['Today', 'Two tasks due, one overdue', 'Dentist at 15:00']);
+  // Nothing speaks until Play; with no voice chosen, it says so and how to set one up.
+  await inbox.getByRole('button', { name: 'Play Morning brief' }).click();
+  await expect(inbox.getByRole('alert')).toBeVisible();
+  await inbox.getByRole('button', { name: 'Done with Morning brief' }).click();
+  await expect(inbox.getByRole('button', { name: 'Open Morning brief' })).toHaveCount(0);
+});

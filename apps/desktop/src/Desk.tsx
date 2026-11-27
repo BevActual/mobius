@@ -9,6 +9,9 @@ import { agoLabel, deskGreeting, deskQuiet, deskTitle, upcoming, whenLabel } fro
 import { APP_ICONS } from './Rail';
 import { useFollowUps, waitingOn } from './mail-follow-ups';
 import { doneText, type BackgroundDone } from './background';
+import { BRIEF_TITLE, briefLines } from './brief';
+import { useSpeech } from './useSpeech';
+import { OPEN_SPEAKING_SETTINGS } from './ui/Listen';
 import { LATER, laterUntil, sortInbox, trimKept, type InboxItem, type InboxKept } from './inbox';
 import { Menu } from './ui';
 import { foldAway, unfold } from './app-motion';
@@ -272,7 +275,20 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                 </li>
               );
             })}
-            {handedOff.map((run) => (
+            {handedOff.map((run) => run.kind === 'brief' && run.text && !run.stopped && !run.failed ? (
+              <li key={`background:${run.conversation}:${run.at}`} data-key={`background:${run.conversation}`} className="desk-row desk-brief" data-background>
+                <button type="button" className="desk-open" aria-label={`Open ${BRIEF_TITLE}`} onClick={() => background?.onOpen(run)}>
+                  <Icon app="agent" />
+                  <span className="desk-name">{BRIEF_TITLE}</span>
+                  {go('Open')}
+                </button>
+                <BriefPlay id={`brief:${run.conversation}`} text={run.text} />
+                <button type="button" className="desk-act" aria-label={`Done with ${BRIEF_TITLE}`} title="Clear it from the Inbox" onClick={() => finishRun(run, false)}>Done</button>
+                <ul className="desk-brief-text" aria-label={`${BRIEF_TITLE}, as written`}>
+                  {briefLines(run.text).map((line, i) => <li key={i}>{line}</li>)}
+                </ul>
+              </li>
+            ) : (
               <li key={`background:${run.conversation}:${run.at}`} data-key={`background:${run.conversation}`} className="desk-row" data-changed={run.files.length > 0 || undefined} data-background>
                 <button type="button" className="desk-open" aria-label={`Open ${run.ask}: ${doneText(run.files, run)}`} onClick={() => background?.onOpen(run)}>
                   <Icon app="agent" />
@@ -431,5 +447,27 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
       {/* With nothing at all to show (no chats, nothing connected), only the greeting, the suggestions and Get started. */}
       {inboxCount === 0 && working.length === 0 && (apps.length > 0 || resume.length > 0 || next.length > 0) && <p className="desk-end">That's everything for today.</p>}
     </section>
+  );
+}
+
+/** Play on the morning brief: it reads it aloud with whoever is chosen to speak; pressed again, or Esc, it stops. */
+function BriefPlay({ id, text }: { id: string; text: string }) {
+  const { speech, speak, stop, dismiss } = useSpeech('page');
+  const mine = speech.state !== 'idle' && speech.id === id;
+  const loading = mine && speech.state === 'loading';
+  const playing = mine && (speech.state === 'speaking' || loading);
+  return (
+    <>
+      <button type="button" className="desk-act" data-primary aria-label={playing ? `Stop reading ${BRIEF_TITLE}` : `Play ${BRIEF_TITLE}`} aria-pressed={playing} aria-busy={loading || undefined} title={playing ? 'Stop (Esc)' : 'Read it aloud'} onClick={() => (playing ? stop() : void speak(id, text))}>
+        {loading ? 'Getting the voice…' : playing ? 'Stop' : 'Play'}
+      </button>
+      {mine && speech.state === 'failed' && (
+        <span className="listen-problem desk-brief-problem" role="alert">
+          {speech.error}
+          {speech.setup && <> <button type="button" className="link-btn" onClick={() => { dismiss(); window.dispatchEvent(new CustomEvent(OPEN_SPEAKING_SETTINGS)); }}>Set up speaking</button></>}
+          <button type="button" className="link-btn" aria-label="Dismiss" onClick={dismiss}>×</button>
+        </span>
+      )}
+    </>
   );
 }

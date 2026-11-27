@@ -6,9 +6,9 @@ import { KEPT_EVENT, fileKept, keepTurn, keptTurns, reviewable, turnId } from '.
  * Work handed to Mobius "in the background" (docs/design/mobius-agent.md): the panel steps aside while it runs, and
  * what it did lands as one row in Home's Inbox, with Keep all and Open, rather than the person watching it work.
  */
-export interface BackgroundRun { conversation: string; ask: string; at: number; /** Stopped before it finished. */ stopped?: boolean }
+export interface BackgroundRun { conversation: string; ask: string; at: number; /** Stopped before it finished. */ stopped?: boolean; /** The morning brief (brief.ts): its row shows what it wrote, with Play. */ kind?: 'brief' }
 /** A run that has finished: what it changed and still waits for Keep (none for an answer that changed nothing). */
-export interface BackgroundDone extends BackgroundRun { files: string[]; turn: string | null; /** Its last turn failed. */ failed?: boolean }
+export interface BackgroundDone extends BackgroundRun { files: string[]; turn: string | null; /** Its last turn failed. */ failed?: boolean; /** A brief's answer, as written. */ text?: string }
 
 const KEY = 'mobius.background';
 const MAX = 20;
@@ -16,7 +16,7 @@ const MAX = 20;
 export function readRuns(): BackgroundRun[] {
   try {
     const v: unknown = JSON.parse(window.localStorage.getItem(KEY) ?? '[]');
-    return Array.isArray(v) ? v.filter((r): r is BackgroundRun => typeof r === 'object' && r !== null && typeof r.conversation === 'string' && typeof r.ask === 'string' && typeof r.at === 'number').map((r) => (r.stopped === true ? r : { conversation: r.conversation, ask: r.ask, at: r.at })) : [];
+    return Array.isArray(v) ? v.filter((r): r is BackgroundRun => typeof r === 'object' && r !== null && typeof r.conversation === 'string' && typeof r.ask === 'string' && typeof r.at === 'number').map((r) => ({ conversation: r.conversation, ask: r.ask, at: r.at, ...(r.stopped === true ? { stopped: true } : {}), ...(r.kind === 'brief' ? { kind: 'brief' as const } : {}) })) : [];
   } catch { return []; }
 }
 function writeRuns(runs: readonly BackgroundRun[]): void {
@@ -37,12 +37,22 @@ export function doneText(files: readonly string[], end: { stopped?: boolean; fai
   return n === 0 ? how : `${how} · ${n === 1 ? '1 change' : `${n} changes`} to keep`;
 }
 
+/** A chat's last answer, as written. */
+async function answerOf(conversation: string): Promise<string | undefined> {
+  const history = await window.mobius.agent.history(conversation).catch(() => []);
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i]!;
+    if (m.role === 'assistant' && m.text.trim()) return m.text.trim();
+  }
+  return undefined;
+}
+
 /** The runs handed off, and those finished with what each changed. */
 export function useBackgroundRuns(conversations: readonly ConversationInfo[]) {
   const [runs, setRuns] = useState<BackgroundRun[]>(readRuns);
   const [done, setDone] = useState<BackgroundDone[]>([]);
   const put = useCallback((next: BackgroundRun[]) => { writeRuns(next); setRuns(next); }, []);
-  const start = useCallback((conversation: string, ask: string) => put(addRun(readRuns(), { conversation, ask, at: Date.now() })), [put]);
+  const start = useCallback((conversation: string, ask: string, kind?: 'brief') => put(addRun(readRuns(), { conversation, ask, at: Date.now(), ...(kind ? { kind } : {}) })), [put]);
   const drop = useCallback((conversation: string) => put(dropRun(readRuns(), conversation)), [put]);
   // A run stopped before it finished, from wherever Stop was pressed.
   useEffect(() => window.mobius.agent.onNotification((n) => {
@@ -66,7 +76,8 @@ export function useBackgroundRuns(conversations: readonly ConversationInfo[]) {
       const turn = turnId(r.conversation, changes?.checkpoint ?? null);
       const files = changes && !(turn && keptTurns().includes(turn)) ? changes.files.filter((f) => reviewable(f) && !(turn && fileKept(turn, f))) : [];
       const failed = conversations.find((x) => x.id === r.conversation)?.activity === 'failed';
-      return { ...r, files, turn, ...(failed ? { failed } : {}) };
+      const text = r.kind === 'brief' ? await answerOf(r.conversation) : undefined;
+      return { ...r, files, turn, ...(failed ? { failed } : {}), ...(text ? { text } : {}) };
     }));
     if (n === reads.current) setDone(out);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` names the finished runs.
