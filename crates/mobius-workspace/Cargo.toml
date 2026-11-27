@@ -10,6 +10,7 @@ description = "Work on real local folders: checkpoints the agent's changes can b
 
 [dependencies]
 serde_json.workspace = true
+rusqlite.workspace = true
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [dev-dependencies]

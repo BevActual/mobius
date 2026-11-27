@@ -23,7 +23,7 @@ const MAX_LINE_CHARS: usize = 240;
 pub(super) const MOST: usize = 20;
 
 /// The words a query looks for: lower case, without punctuation or common words (unless that leaves none).
-pub(super) fn words_of(query: &str) -> Vec<String> {
+pub(crate) fn words_of(query: &str) -> Vec<String> {
     let all: Vec<String> = query
         .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '\'')
         .map(|w| w.trim_matches(|c| c == '-' || c == '\'').to_lowercase())

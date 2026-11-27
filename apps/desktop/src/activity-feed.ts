@@ -111,6 +111,7 @@ const DID: Record<string, (on: string) => string> = {
   'files.read_all': () => 'Read your files',
   'files.list': () => 'Looked through your files',
   'files.search': () => 'Searched your files',
+  'search.everything': () => 'Searched everything you wrote',
   'files.write': (on) => `Changed ${on || 'a file'}`,
   'files.edit': (on) => `Changed ${on || 'a file'}`,
   'files.move': (on) => `Moved files in ${on || 'your workspace'}`,

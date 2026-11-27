@@ -5,7 +5,7 @@ import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menus
 import { sendCommand } from './commands';
 import { MAIN_BOT_ID, parseLaunchChoice, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, settleBindings, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type CalendarEvent } from '@mobius/shared';
 import { MEETINGS_NOTEBOOK, meetingNote } from './note-insert';
-import { citeWhenOpen, noteForSource } from './note-sources';
+import { citeWhenOpen, listForSource, noteForSource, pageForSource } from './note-sources';
 import { ClaimSources } from './RichText';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
@@ -2255,11 +2255,20 @@ export function App() {
     ? () => { if (!shows('agent')) setChatOpen(true); void conversation.send(TRY_ANOTHER_ASK, []); }
     : null;
 
-  // A fact Mobius took from a note ("Notes · <title>") opens that note from its card.
-  // Its lines are tinted for a moment when the page shows.
+  // A fact Mobius took from something the person wrote ("Notes · <title>", "Docs · <title>", "Knowledge · <title>",
+  // "Slides · <title>", "Tasks · <list>") opens it from its card. A note's lines are tinted for a moment when it shows.
   const claimSource = (source: string, words: string) => {
-    const found = noteForSource(source, notes.notebooks);
-    return found ? { label: 'Open note', open: () => { citeWhenOpen(found.page.path, words); openTarget({ app: 'notes', path: found.page.path, title: found.page.title }); } } : null;
+    const note = noteForSource(source, notes.notebooks);
+    if (note) return { label: 'Open note', open: () => { citeWhenOpen(note.page.path, words); openTarget({ app: 'notes', path: note.page.path, title: note.page.title }); } };
+    const doc = pageForSource(source, 'Docs', docs.notebooks);
+    if (doc) return { label: 'Open document', open: () => openTarget({ app: 'docs', path: doc.page.path, title: doc.page.title }) };
+    const deck = pageForSource(source, 'Slides', slides.notebooks);
+    if (deck) return { label: 'Open deck', open: () => openTarget({ app: 'slides', path: deck.page.path, title: deck.page.title }) };
+    const page = pageForSource(source, 'Knowledge', wiki.notebooks);
+    if (page) return { label: 'Open page', open: () => { closeSettings(); setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(page.page.path, page.page.title); } };
+    const list = listForSource(source, tasks.lists.map((l) => l.name));
+    if (list) return { label: 'Open list', open: () => openTarget({ app: 'tasks', list }) };
+    return null;
   };
 
   return (

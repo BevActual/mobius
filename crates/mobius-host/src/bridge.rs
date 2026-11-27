@@ -2425,6 +2425,12 @@ impl Bridge {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
+        // The search over everything the person wrote is built now, in the background, so the first question does not
+        // wait for it (a search that comes meanwhile waits for this one instead of reading every file again).
+        let index = self.workspace.index();
+        let _ = std::thread::Builder::new().name("mobius-index".into()).spawn(move || {
+            if let Err(e) = index.refresh() { eprintln!("[mobius] the search index could not be built: {e}"); }
+        });
     }
 
     /// Point a provider at a local fake server. Does nothing unless the test hooks are on.

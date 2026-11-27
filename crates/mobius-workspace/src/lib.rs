@@ -11,6 +11,7 @@ pub mod design;
 pub mod code;
 pub mod files;
 pub mod formula;
+pub mod index;
 pub mod notes;
 pub mod photos;
 pub mod sheets;

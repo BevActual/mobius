@@ -3911,6 +3911,7 @@ name = "mobius-workspace"
 version = "0.0.0"
 dependencies = [
  "chrono",
+ "rusqlite",
  "serde_json",
  "tempfile",
 ]
