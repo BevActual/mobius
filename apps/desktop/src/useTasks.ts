@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNotesFailure, type NotesFailure, type TaskAt, type TaskChange, type TaskItem, type TaskList, type TaskListInfo, type TaskRepeat } from '@mobius/shared';
 import { SMART_VIEWS, type SmartView } from './tasks-view';
 
+import { renamePieceItem } from './pieces';
 export type TasksView = { kind: 'list'; name: string } | { kind: 'smart'; id: SmartView };
 const FRESH_MS = 4000;
 const UNDO_MS = 8000;
@@ -224,6 +225,7 @@ export function useTasks() {
     const done = await api?.renameList?.(list, to);
     if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return null; }
     setMessage('');
+    renamePieceItem('tasks.list', list, done.name);
     await refresh();
     setViewState((v) => (v.kind === 'list' && v.name === list ? { kind: 'list', name: done.name } : v));
     return done.name;

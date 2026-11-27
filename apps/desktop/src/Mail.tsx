@@ -1,4 +1,5 @@
 import { assignEntries, mailAssignment } from './assign';
+import { showPiece, usePieces } from './pieces';
 import { openWebLink } from './web-link';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -284,11 +285,17 @@ function DraftEditor({ mail, draft, inline = false }: { mail: MailState; draft: 
   const body = useRef<HTMLTextAreaElement>(null);
   const toPeople = useAddressSuggestions(d.to);
   const ccPeople = useAddressSuggestions(d.cc);
+  // Ready to type as it opens, a new reply or a draft opened again with Edit: at the top of the message, or at To.
   useEffect(() => {
-    if (draft.id) return;
     if (draft.to) { body.current?.focus({ preventScroll: true }); body.current?.setSelectionRange(0, 0); } else to.current?.focus({ preventScroll: true });
-  }, [draft]);
-  const keep = async (next: MailDraft) => { const saved = await mail.saveDraft({ ...next, by: 'you' }); if (saved) setD((cur) => ({ ...cur, id: saved.id, account: saved.account })); };
+  }, [draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The id the draft was saved under, at once: Close right after a field lets go saves over it, not beside it.
+  const savedAs = useRef<{ id: string; account: string } | null>(null);
+  const keep = async (next: MailDraft) => {
+    const known = !next.id && savedAs.current ? { ...next, ...savedAs.current } : next;
+    const saved = await mail.saveDraft({ ...known, by: 'you' });
+    if (saved) { savedAs.current = { id: saved.id, account: saved.account }; setD((cur) => ({ ...cur, id: saved.id, account: saved.account })); }
+  };
   const send = async () => {
     setSending(true);
     setProblem(await mail.send({ ...d, by: 'you' }));
@@ -442,6 +449,7 @@ function MessageTools({ mail, content, onLater }: { mail: MailState; content: Ma
         )}
         {/* The rest, used less often, go at the top of the toolbar's one ⋯ (the shell's), which opens on them. */}
         <AppMenu label="Message" entries={[
+          { label: 'Show beside', run: () => showPiece('mail.thread', content.id, 'you', content.subject || '(no subject)') },
           { label: 'Mark as Unread', icon: <Glyph name="unread" />, keys: 'U', run: () => { void mail.flag(content.id, 'seen', false); mail.setOpen(null); } },
           ...moveItems(mail, content.id, content.category, () => void mail.read(content.id)),
           // Shell: Assign to Mobius (assign.ts).
@@ -672,6 +680,8 @@ function rowItems(mail: MailState, m: MailMessage, onLater: (id: string) => void
   const reopen = () => { if (mail.open?.id === m.id) void mail.read(m.id); };
   return [
     { label: 'Open', run: () => void mail.read(m.id) },
+    // Pieces (docs/design/pieces.md): the conversation beside whatever app is open.
+    { label: 'Show beside', run: () => showPiece('mail.thread', m.id, 'you', m.subject || '(no subject)') },
     { label: m.seen ? 'Mark as Unread' : 'Mark as Read', keys: 'U', separated: true, run: () => void mail.flag(m.id, 'seen', !m.seen) },
     { label: m.flagged ? 'Unflag' : 'Flag', run: () => void mail.flag(m.id, 'flagged', !m.flagged) },
     m.archived ? { label: 'Move to Inbox', run: () => void mail.archive(m.id, false) } : { label: 'Done', keys: 'E', run: () => void outOfList(m.id, () => mail.archive(m.id)) },
@@ -787,6 +797,9 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
   const drafts = v.kind === 'drafts' && v.only ? mail.drafts.filter((d) => d.by === v.only) : mail.drafts;
   // A reply to the open message is written in its box under it; any other draft takes the pane.
   const replying = mail.editing && mail.open && mail.editing.replyTo === mail.open.id ? mail.editing : null;
+  // A reply being written in its conversation's piece beside the work is written there only, not here as well.
+  const pieces = usePieces();
+  const inPiece = !replying && !!mail.editing?.replyTo && pieces.some((p) => p.kind === 'mail.thread' && p.item === mail.editing!.replyTo);
   // J and K (or the arrows) move through the list. E is Done, R replies (Shift+R to all), F forwards, U marks unread, H
   // asks when to bring the open message back. Tab and Shift+Tab move between Important, Waiting and Other. Not while
   // typing, and not with Ctrl or Alt.
@@ -880,9 +893,9 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
       </div>
       <div className="mail-reading-pane">
         {/* Too narrow for the list and a readable message side by side: the message takes the list's place, with Back. */}
-        {(mail.open || mail.editing) && <button type="button" className="btn mail-back" onClick={() => { if (mail.editing) mail.setEditing(null); else mail.setOpen(null); }}>‹ Back to {mailPlace(v)}</button>}
+        {(mail.open || (mail.editing && !inPiece)) && <button type="button" className="btn mail-back" onClick={() => { if (mail.editing) mail.setEditing(null); else mail.setOpen(null); }}>‹ Back to {mailPlace(v)}</button>}
         {mail.message && <p className="tasks-message" role="alert">{mail.message}</p>}
-        {mail.editing && !replying ? <DraftEditor key={mail.editing.id || 'new'} mail={mail} draft={mail.editing} />
+        {mail.editing && !replying && !inPiece ? <DraftEditor key={mail.editing.id || 'new'} mail={mail} draft={mail.editing} />
           : mail.open ? <Reader mail={mail} content={mail.open} replying={replying} {...(onDraftReply ? { onDraftReply } : {})} />
             : mail.accounts.length === 0
               ? <EmptyState kind="mail" action={<Button kind="primary" onClick={() => setAdding(true)}>Add a mail account…</Button>}>Drafts are kept here on this computer. Add an account to send them.</EmptyState>
@@ -907,5 +920,39 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
       {mail.undo && (mail.undo.until ? <SendCountdown key={mail.undo.until} text={mail.undo.text} until={mail.undo.until} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} /> : <UndoToast text={mail.undo.text} onUndo={() => undoing(mail.undo?.run, true, true)} onDismiss={mail.clearUndo} />)}
       <MailToolbar mail={mail} onLater={setLaterFor} />
     </section>
+  );
+}
+
+/**
+ * The Mail thread piece (docs/design/pieces.md): one conversation beside any app, its earlier messages folded above
+ * the latest, with Reply in place, drawn from the same parts as Mail's reader. The shell draws its header (the
+ * subject, Open in Mail, Put away).
+ */
+export function MailThreadPiece({ mail, id }: { mail: MailState; id: string }) {
+  const [content, setContent] = useState<MailContent | null | 'gone'>(null);
+  useEffect(() => {
+    let live = true;
+    void window.mobius.mail?.read(id).then((got) => { if (live) setContent(!got || isNotesFailure(got) ? 'gone' : got); });
+    return () => { live = false; };
+  }, [id]);
+  if (content === null) return <div className="mail-piece"><ListLoading /></div>;
+  if (content === 'gone') return <p className="mail-piece-gone">This message is no longer here.</p>;
+  const replying = mail.editing && mail.editing.replyTo === content.id ? mail.editing : null;
+  const kept = mail.drafts.filter((d) => d.by === 'you' && d.replyTo === content.id);
+  return (
+    <article className="mail-piece mail-reader" aria-label={content.subject || 'Message'}>
+      <Earlier content={content} />
+      <header className="mail-reader-head">
+        <span className="mail-avatar" aria-hidden="true">{initials(content.from.name, content.from.email)}</span>
+        <div className="mail-reader-who">
+          <div><b title={content.from.email}>{shownName(content.from)}</b></div>
+          <div className="mail-when">{content.dateMs ? sendTime(content.dateMs) : ''}</div>
+        </div>
+      </header>
+      <pre className="mail-text">{content.text}</pre>
+      {!replying && kept.map((d) => <KeptReply key={d.id} mail={mail} draft={d} />)}
+      {replying ? <DraftEditor key={replying.id || 'reply'} mail={mail} draft={replying} inline />
+        : kept.length === 0 && <ReplyBox mail={mail} content={content} onDraftReply={undefined} />}
+    </article>
   );
 }

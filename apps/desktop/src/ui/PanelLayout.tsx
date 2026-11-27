@@ -45,7 +45,18 @@ export interface PanelSpec {
   min?: { width?: number; height?: number };
   /** The panel's body. Its own controls go here, never in the header. Lay it out by `usePanelShape()`, not by its dock. */
   render: () => ReactNode;
+  /** The shell's panels only (pieces): buttons in the header before Hide, such as Open in Tasks. */
+  actions?: ReactNode;
+  /** What Hide is called, when it does more than hide (a piece is put away). */
+  hideLabel?: string;
+  /** Mobius brought it and it is not the person's yet: the dashed indigo edge. */
+  mobius?: boolean;
 }
+
+/** The shell's own panels (pieces), in every app's layout beside the app's own. A layout inside another gets none. */
+const ShellPanels = createContext<readonly PanelSpec[]>([]);
+export const ShellPanelsContext = ShellPanels;
+const NO_SHELL_PANELS: readonly PanelSpec[] = [];
 
 /**
  * The shape of the room a panel has, wherever it is: `narrow` (a thin column), `strip` (short and wide, as the bottom
@@ -188,7 +199,9 @@ const mac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.plat
  * `away` is true while the app is put aside for another place (Settings over it): its docks then go and come back with
  * that place, without sliding.
  */
-export function PanelLayout({ app, panels: declared, away = false, children }: { app: string; panels: readonly PanelSpec[]; away?: boolean; children: ReactNode }) {
+export function PanelLayout({ app, panels: own, away = false, children }: { app: string; panels: readonly PanelSpec[]; away?: boolean; children: ReactNode }) {
+  const shellPanels = useContext(ShellPanels);
+  const declared = useMemo(() => (shellPanels.length > 0 ? [...own, ...shellPanels.filter((p) => !own.some((o) => o.id === p.id))] : own), [own, shellPanels]);
   const [saved, setSaved] = useState<SavedLayout>(() => readLayout(app));
   // Each panel where it is now: in the dock the person moved it to, or its own.
   const panels = useMemo(() => placedPanels(declared, saved.dock), [declared, saved.dock]);
@@ -348,7 +361,7 @@ export function PanelLayout({ app, panels: declared, away = false, children }: {
         </div>
       )}
       <div ref={main} className="ui-panels-main">
-        <div className="ui-panels-content">{children}</div>
+        <div className="ui-panels-content"><ShellPanels.Provider value={NO_SHELL_PANELS}>{children}</ShellPanels.Provider></div>
         {b.panels.length > 0 && (
           <div ref={bottomDock} className="ui-dock" data-dock="bottom" style={{ height: b.size }} {...leaving(b)}>
             <DockEdge dock="bottom" size={b.size} onSize={(n) => resize('bottom', n)} />
@@ -583,9 +596,9 @@ function Panel({ place, floating, onHide, onChoose, onMove, onFloat, onDrag }: {
     onChoose(next);
     afterPaint(() => list.current?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(next.id)}"]`)?.focus());
   };
-  const hideLabel = tabbed ? `Hide ${place.panels.map((p) => p.name).join(', ')}` : `Hide ${spec.name}`;
+  const hideLabel = tabbed ? `Hide ${place.panels.map((p) => p.name).join(', ')}` : spec.hideLabel ?? `Hide ${spec.name}`;
   return (
-    <section ref={section} className="ui-panel" data-shape={shape} {...(floating ? { 'data-floating': true } : {})} aria-label={spec.label ?? spec.name} data-panel={spec.id} {...(tabbed ? { 'data-tabbed': true } : {})} {...(held ? { 'data-held': true } : {})}>
+    <section ref={section} className="ui-panel" data-shape={shape} {...(floating ? { 'data-floating': true } : {})} aria-label={spec.label ?? spec.name} data-panel={spec.id} {...(spec.mobius ? { 'data-mobius': true } : {})} {...(tabbed ? { 'data-tabbed': true } : {})} {...(held ? { 'data-held': true } : {})}>
       <header
         className="ui-panel-head"
         {...(movable ? { 'data-movable': true } : {})}
@@ -625,6 +638,7 @@ function Panel({ place, floating, onHide, onChoose, onMove, onFloat, onDrag }: {
         ) : (
           <h2 className="ui-panel-name">{spec.name}</h2>
         )}
+        {!tabbed && spec.actions && <div className="ui-panel-actions" onPointerDown={(e) => e.stopPropagation()}>{spec.actions}</div>}
         {!place.panels.every((p) => p.fixed) && (
           <button type="button" className="ui-panel-close" aria-label={hideLabel} title={hideLabel} onClick={onHide}>
             <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" /></svg>

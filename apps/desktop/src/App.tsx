@@ -38,13 +38,15 @@ import { useCoreStatus } from './useCoreStatus';
 import { useNotes } from './useNotes';
 import { saveAll, saveTyped } from './saveBeforeQuit';
 import { NotesSidebar } from './NotesSidebar';
-import { TasksGlance, TasksPage, TasksSidebar } from './Tasks';
+import { TasksGlance, TasksListPiece, TasksPage, TasksSidebar } from './Tasks';
+import { CalendarDayPiece } from './Calendar';
+import { PIECE_APP, pieceName, piecePanelId, putAway, showPiece, usePieces, type OpenPiece } from './pieces';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
 import { setLanguage } from './i18n';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { fillTemplate, isTemplate, TEMPLATES_FOLDER, templateName, templatesIn } from './docs-view';
 import { SheetGrid, SheetsGlance, SheetsSidebar } from './Sheets';
-import { MailPage, MailSidebar, mailPlace } from './Mail';
+import { MailPage, MailSidebar, MailThreadPiece, mailPlace } from './Mail';
 import { MessagesPage, MessagesSidebar, useRailChoice } from './Messages';
 import { useMessages } from './useMessages';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
@@ -109,7 +111,7 @@ import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
 import { BESIDE_EVENT, besideUrlOk, type Beside } from './beside';
-import { PanelsListed, pressIs } from './ui/PanelLayout';
+import { PanelsListed, ShellPanelsContext, pressIs } from './ui/PanelLayout';
 import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
 import { alertDue, alertSaid } from './calendar-alerts';
 import { stopReading } from './useSpeech';
@@ -1383,6 +1385,55 @@ export function App() {
     );
   };
   ownListRef.current = ownListBody;
+  // Pieces (docs/design/pieces.md): the shell's panels, in every app's right dock until put away. Each body is drawn
+  // from the latest render through the ref, as the lists are.
+  const openPieces = usePieces();
+  /** Calendar at a day, with an event open (as the Inbox's Answer does). */
+  const openCalendarAt = (date: string, event?: string) => {
+    openApp('calendar');
+    const day = new Date(`${date}T12:00:00`);
+    if (Number.isNaN(day.getTime())) return;
+    calendar.showDay(day);
+    if (event) setShowEvent((was) => ({ id: event, date, n: (was?.n ?? 0) + 1 }));
+  };
+  const pieceBody = (p: OpenPiece): ReactNode => (p.kind === 'tasks.list' ? <TasksListPiece tasks={tasks} list={p.item} />
+    : p.kind === 'calendar.day' ? <CalendarDayPiece calendar={calendar} day={p.item} onDay={(day) => showPiece('calendar.day', day, p.by)} onOpen={(date, event) => openCalendarAt(date, event)} />
+    : p.kind === 'mail.thread' ? <MailThreadPiece mail={mail} id={p.item} /> : null);
+  const pieceBodyRef = useRef(pieceBody);
+  pieceBodyRef.current = pieceBody;
+  const openPieceInApp = (p: OpenPiece) => {
+    openApp(PIECE_APP[p.kind].app);
+    if (p.kind === 'tasks.list') tasks.setView({ kind: 'list', name: p.item });
+    if (p.kind === 'mail.thread') void mail.read(p.item);
+    if (p.kind === 'calendar.day') calendar.showDay(p.item === 'today' ? new Date() : new Date(`${p.item}T12:00:00`));
+  };
+  const openPieceRef = useRef(openPieceInApp);
+  openPieceRef.current = openPieceInApp;
+  const piecePanels = useMemo<readonly PanelSpec[]>(() => openPieces.map((p) => {
+    const from = PIECE_APP[p.kind].name;
+    const name = pieceName(p);
+    return {
+      id: piecePanelId(p),
+      name,
+      label: `${name}, from ${from}`,
+      dock: 'right',
+      shown: true,
+      min: { width: 260 },
+      mobius: p.by === 'mobius',
+      hideLabel: `Put away ${name}`,
+      onHide: () => putAway(p.kind, p.item),
+      actions: <button type="button" title={`Open ${name} in ${from}`} onClick={() => openPieceRef.current(p)}>Open in {from}</button>,
+      // Using a piece Mobius brought makes it the person's: it stays when Mobius's work is done.
+      render: () => (
+        <div className="piece-body" onPointerDownCapture={() => { if (p.by === 'mobius') showPiece(p.kind, p.item, 'you', p.title); }}>
+          {pieceBodyRef.current(p)}
+        </div>
+      ),
+    } satisfies PanelSpec;
+  }), [openPieces]);
+  // A conversation open in Mail on screen is not shown again in its piece beside it.
+  const mailOnScreen = app === 'mail' || (split && panes.includes('mail'));
+  const shownPieces = useMemo(() => (mailOnScreen && mail.open ? piecePanels.filter((p) => p.id !== piecePanelId({ kind: 'mail.thread', item: mail.open!.id })) : piecePanels), [piecePanels, mailOnScreen, mail.open]);
   const settingsPanels = useMemo<readonly PanelSpec[]>(() => [
     // Settings' Sections panel: always there, as in System Settings. Hidden, it left only the page that was open and no
     // way to another.
@@ -1578,7 +1629,7 @@ export function App() {
     apps: APPS.filter((a) => isListed(a) && isAvailable(a.id)),
     keys: bindings,
     state: {
-      commenting, split, canSplit: !narrow, miniOpen,
+      commenting, split, canSplit: !narrow, miniOpen, todayBeside: openPieces.some((p) => p.kind === 'calendar.day'),
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn, sort: notesSort, isTemplate: isTemplate(notes.page?.path), templates: noteTemplates(notes.notebooks) },
@@ -1600,6 +1651,7 @@ export function App() {
       toggleComments: () => setCommenting((on) => !on),
       toggleSplit,
       toggleMini,
+      toggleTodayBeside: () => { if (openPieces.some((p) => p.kind === 'calendar.day')) putAway('calendar.day', 'today'); else showPiece('calendar.day', 'today'); },
       zoom: (zoom) => void appearance.set({ zoom }),
       open: (id) => { closeSettings(); openApp(id); },
       allApps: openHub,
@@ -2438,7 +2490,12 @@ export function App() {
                 onFocus={() => { if (split && focused !== index) setFocused(index); }}
                 onChoose={(next) => choosePane(index, next)} onSwap={swapPanes} onClose={() => closePane(index)}>
                 {/* The apps show the current conversation's changes as they land; their Keep waits for its turn to end. */}
-                <PanelsListed on={!split || focused === index}><TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider></PanelsListed>
+                <PanelsListed on={!split || focused === index}>
+                  {/* Pieces sit at the window's right: in split view, in the right pane only, so each shows once. */}
+                  <ShellPanelsContext.Provider value={!split || index === 1 ? shownPieces : NO_PANELS}>
+                    <TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider>
+                  </ShellPanelsContext.Provider>
+                </PanelsListed>
               </Pane>
             );
             return at === 1

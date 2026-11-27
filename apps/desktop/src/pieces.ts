@@ -1,0 +1,100 @@
+/**
+ * Pieces (docs/design/pieces.md): a small, live view of one thing from an app (a task list, a day, a mail thread) that
+ * sits beside whatever app is open. A piece is a panel the shell owns: it is in every app's right dock until it is put
+ * away, listed in the Panels menu, and moved, floated and resized like any panel.
+ *
+ * This file keeps which pieces are open, on this device. What each piece draws is the shell's (App.tsx), from the apps'
+ * own components.
+ */
+import { useSyncExternalStore } from 'react';
+
+export type PieceKind = 'tasks.list' | 'calendar.day' | 'mail.thread';
+
+/** The apps the pieces come from, for "Open in …". */
+export const PIECE_APP: Record<PieceKind, { app: 'tasks' | 'calendar' | 'mail'; name: string }> = {
+  'tasks.list': { app: 'tasks', name: 'Tasks' },
+  'calendar.day': { app: 'calendar', name: 'Calendar' },
+  'mail.thread': { app: 'mail', name: 'Mail' },
+};
+
+/** The piece's name in its header: the list's name; "Today", or the day. */
+export function pieceName(p: { kind: PieceKind; item: string; title?: string | undefined }): string {
+  if (p.title) return p.title;
+  if (p.kind !== 'calendar.day') return p.item;
+  if (p.item === 'today') return 'Today';
+  const d = new Date(`${p.item}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? p.item : d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+export interface OpenPiece {
+  kind: PieceKind;
+  /** The thing it shows: a list's name; "today" or a day as YYYY-MM-DD. */
+  item: string;
+  /** Mobius's until the person uses it; Mobius's carry the dashed edge and go when its work is kept or discarded. */
+  by: 'mobius' | 'you';
+  /** Its name, when the item is an id (a message's subject). */
+  title?: string;
+}
+
+/** One Calendar day at a time: stepping to another day keeps the same piece (and where it was moved to). */
+export const pieceKey = (p: { kind: PieceKind; item: string }): string => (p.kind === 'calendar.day' ? p.kind : `${p.kind}:${p.item}`);
+/** Its panel's id in the layouts. */
+export const piecePanelId = (p: { kind: PieceKind; item: string }): string => `piece:${pieceKey(p)}`;
+
+const KEY = 'mobius.pieces';
+/** At most this many at once: more would leave the page no room. The oldest goes first. */
+export const MAX_PIECES = 3;
+const KINDS = new Set<string>(Object.keys(PIECE_APP));
+
+export function parsePieces(raw: string | null): OpenPiece[] {
+  try {
+    const v: unknown = JSON.parse(raw ?? '[]');
+    if (!Array.isArray(v)) return [];
+    const out: OpenPiece[] = [];
+    for (const p of v) {
+      if (!p || typeof p !== 'object') continue;
+      const { kind, item, by, title } = p as Record<string, unknown>;
+      if (typeof kind !== 'string' || !KINDS.has(kind) || typeof item !== 'string' || !item || item.length > 500) continue;
+      const piece: OpenPiece = { kind: kind as PieceKind, item, by: by === 'mobius' ? 'mobius' : 'you', ...(typeof title === 'string' && title ? { title: title.slice(0, 200) } : {}) };
+      if (!out.some((o) => pieceKey(o) === pieceKey(piece))) out.push(piece);
+    }
+    return out.slice(-MAX_PIECES);
+  } catch {
+    return [];
+  }
+}
+
+/** Opens a piece (or keeps the one open, made the person's when they asked for it); the oldest goes past the limit. */
+export function withPiece(open: readonly OpenPiece[], piece: OpenPiece): OpenPiece[] {
+  const at = open.findIndex((o) => pieceKey(o) === pieceKey(piece));
+  if (at >= 0) {
+    const was = open[at]!;
+    const title = piece.title ?? (piece.item === was.item ? was.title : undefined);
+    // Mobius bringing it again does not take it back from the person.
+    const now: OpenPiece = { kind: was.kind, item: piece.item, by: piece.by === 'you' || was.by === 'you' ? 'you' : 'mobius', ...(title ? { title } : {}) };
+    return open.map((o, i) => (i === at ? now : o));
+  }
+  return [...open, piece].slice(-MAX_PIECES);
+}
+
+let pieces: OpenPiece[] = parsePieces((() => { try { return localStorage.getItem(KEY); } catch { return null; } })());
+const listeners = new Set<() => void>();
+function set(next: OpenPiece[]): void {
+  pieces = next;
+  try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* Not kept. */ }
+  listeners.forEach((l) => l());
+}
+const subscribe = (l: () => void) => { listeners.add(l); return () => listeners.delete(l); };
+export const usePieces = (): readonly OpenPiece[] => useSyncExternalStore(subscribe, () => pieces, () => pieces);
+
+export function showPiece(kind: PieceKind, item: string, by: OpenPiece['by'] = 'you', title?: string): void {
+  set(withPiece(pieces, { kind, item, by, ...(title ? { title } : {}) }));
+}
+export function putAway(kind: PieceKind, item: string): void {
+  set(pieces.filter((o) => pieceKey(o) !== pieceKey({ kind, item })));
+}
+/** The thing it shows was renamed (a list): the piece follows it. */
+export function renamePieceItem(kind: PieceKind, from: string, to: string): void {
+  if (!pieces.some((o) => o.kind === kind && o.item === from)) return;
+  set(pieces.map((o) => (o.kind === kind && o.item === from ? { ...o, item: to } : o)));
+}

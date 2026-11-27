@@ -292,3 +292,8 @@ button.mail-fact:hover { background: var(--soft); color: var(--ink); }
 .mail-later-words .mail-when { min-height: 1.2em; }
 /* Mail's panel names in ink, as the panel look's headers ("Mailboxes"). */
 .ui-panels:has(.mail-page) .ui-panel-name { font-size: var(--fs-md); color: var(--ink); }
+
+/* ── The Mail thread piece: one conversation beside any app ───────────────────────────────────────────────────────────── */
+.mail-reader.mail-piece { height: 100%; box-sizing: border-box; max-width: none; margin: 0; padding: var(--sp-3) var(--sp-3) var(--sp-6); overflow: auto; }
+.mail-piece .mail-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mail-piece-gone { margin: var(--sp-6) var(--sp-3) 0; color: var(--muted); text-align: center; }

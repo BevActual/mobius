@@ -1458,3 +1458,53 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
     </section>
   );
 }
+
+/**
+ * The Calendar day piece (docs/design/pieces.md): one day's events beside any app, as a list a narrow panel can hold,
+ * with Mobius's suggestions dashed where they would go and answered in place. ‹ and › step the day; a row opens the
+ * event in Calendar. The shell draws its header (the day, Open in Calendar, Put away).
+ */
+export function CalendarDayPiece({ calendar, day: item, onDay, onOpen }: { calendar: CalendarState; /** "today", or a day as YYYY-MM-DD. */ day: string; /** Steps the piece to another day (its header names it). */ onDay: (day: string) => void; onOpen: (date: string, id?: string) => void }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(t); }, []);
+  const day = item === 'today' ? now : localDate(item);
+  const stepTo = (by: number) => { const next = addDays(day, by); onDay(sameDay(next, now) ? 'today' : isoDay(next)); };
+  const iso = isoDay(day);
+  const [events, setEvents] = useState<CalendarEvent[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void window.mobius.calendar?.events(iso, iso).then((got) => { if (live) setEvents(isNotesFailure(got) ? [] : got); });
+    return () => { live = false; };
+  }, [iso, calendar.events]);
+  const shown: Shown[] = eventsOn([...(events ?? []).filter((e) => !calendar.hidden.has(e.calendar)), ...calendar.suggestions.map(asShown)], day);
+  const when = (e: Shown) => (e.allDay ? 'All day' : `${clock(e.start)} – ${clock(e.end)}`);
+  return (
+    <div className="cal-piece">
+      <div className="cal-piece-bar">
+        <h3 className="cal-piece-day" aria-live="polite">{formatWith(day, { weekday: 'long' })}<span>{formatWith(day, { day: 'numeric', month: 'long' })}</span></h3>
+        <button type="button" className="strip-btn" aria-label="Day before" title="Day before" onClick={() => stepTo(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
+        {!sameDay(day, now) && <button type="button" className="strip-btn cal-piece-today" onClick={() => onDay('today')}>Today</button>}
+        <button type="button" className="strip-btn" aria-label="Day after" title="Day after" onClick={() => stepTo(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
+      </div>
+      {events === null ? <div className="cal-loading" aria-hidden="true">{[0, 1, 2].map((i) => <span key={i} className="cal-loading-bar" />)}</div>
+        : shown.length === 0 ? <p className="cal-piece-empty">Nothing planned.</p> : (
+          <ul className="cal-piece-list" aria-label={`Events on ${formatWith(day, { weekday: 'long', day: 'numeric', month: 'long' })}`}>
+            {shown.map((e) => (
+              <li key={keyOf(e)} className="cal-piece-event" data-proposed={e.suggestion ? true : undefined} style={{ ['--event' as string]: calendarColor(calendar.calendars, e.calendar) }}>
+                <button type="button" className="cal-piece-open" disabled={!!e.suggestion} title={e.suggestion ? e.suggestion.why : `Open “${e.title}” in Calendar`} onClick={() => onOpen(iso, e.id)}>
+                  <span className="cal-piece-title">{e.title || 'New event'}</span>
+                  <span className="cal-piece-when">{when(e)}{e.location ? ` · ${e.location}` : ''}</span>
+                </button>
+                {e.suggestion && (
+                  <span className="cal-piece-answer">
+                    <button type="button" className="btn" onClick={() => void calendar.accept(e.suggestion!.id)}>Add</button>
+                    <button type="button" className="btn btn-quiet" onClick={() => void calendar.decline(e.suggestion!.id)}>No thanks</button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+    </div>
+  );
+}

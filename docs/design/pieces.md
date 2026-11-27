@@ -185,6 +185,22 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
    none, `--dur-fast`).
 7. **Reduce Motion:** slides become a short fade.
 
+## Built so far (27 November 2026)
+
+- **Pieces as shell panels** (`pieces.ts`, `ShellPanelsContext` in `ui/PanelLayout.tsx`): open pieces are kept on this
+  device (at most three, the oldest goes first) and added to every app's layout in the right dock, so they move,
+  float, resize and show in the View menu like any panel. In split view they sit in the right pane. The header has
+  **Open in …** and **Put away** (the panel's ×). A piece Mobius brings carries the dashed indigo edge until the
+  person clicks into it.
+- **Tasks list:** a list's menu › Show beside. Adding and ticking work there; a renamed list keeps its piece.
+- **Calendar day:** Window › Today beside the work. The day's events as a list, ‹ › and Today to step, Mobius's
+  suggestions dashed with Add and No thanks; a row opens the event in Calendar.
+- **Mail thread:** Show beside on a message (its row's menu, or the open message's ⋯). The conversation with Reply in
+  place; Send works there as in Mail.
+
+Not yet: Mobius bringing pieces up as it works (round 3), Ctrl+K › Show here (round 4), a piece remembered by
+project.
+
 ## First rounds
 
 0. **Panels, done properly** (above), in this order: visible resize grips; moving between docks; panels that adapt

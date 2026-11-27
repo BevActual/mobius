@@ -244,6 +244,15 @@ test('a panel pops out to float over the page, moves and sizes there, and docks 
   await shell().getByRole('menuitem', { name: 'Pop out' }).click();
   await expect(floating).toBeVisible();
   await expect(docked).toHaveCount(0);
+  // The window's menus open over it, never under it.
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
+  const menu = shell().getByRole('menu', { name: 'View' });
+  const box = (await menu.boundingBox())!;
+  const over = (await shell().locator('.ui-float').boundingBox())!;
+  const x = Math.max(box.x, over.x) + 4, y = Math.max(box.y, over.y) + 4;
+  expect(x < box.x + box.width && y < box.y + box.height && x < over.x + over.width && y < over.y + over.height).toBe(true);
+  expect(await shell().evaluate(([px, py]) => Boolean(document.elementFromPoint(px!, py!)?.closest('[role="menu"]')), [x, y])).toBe(true);
+  await shell().keyboard.press('Escape');
   // Its header moves it, its corner sizes it, and both are kept.
   const card = shell().locator('.ui-float');
   const before = (await card.boundingBox())!;

@@ -26,6 +26,8 @@ export interface MenuContext {
     split: boolean;
     canSplit: boolean;
     miniOpen: boolean;
+    /** Today's piece is beside the work (docs/design/pieces.md). */
+    todayBeside: boolean;
     zoom: number;
     browser: { hasPage: boolean; canBack: boolean; canForward: boolean; bookmarked: boolean; pinned: boolean };
     notes: { hasPage: boolean; pinned: boolean; changed: boolean; checkedLast: boolean; sort: NoteSort; isTemplate: boolean; templates: readonly { name: string }[] };
@@ -47,6 +49,7 @@ export interface MenuContext {
     toggleComments: () => void;
     toggleSplit: () => void;
     toggleMini: () => void;
+    toggleTodayBeside: () => void;
     zoom: (zoom: number) => void;
     open: (app: AppId) => void;
     allApps: () => void;
@@ -130,6 +133,7 @@ export function buildMenus(c: MenuContext): Menu[] {
   const window: Menu = { id: 'window', label: 'Window', items: [
     item('split', 'Split view', d.toggleSplit, { keys: keys.splitView, checked: s.split, disabled: !s.canSplit && !s.split }),
     item('mini', 'Little Mobius', d.toggleMini, { keys: keys.littleMobius, checked: s.miniOpen }),
+    item('today-beside', 'Today beside the work', d.toggleTodayBeside, { checked: s.todayBeside }),
   ] };
   const help: Menu = { id: 'help', label: 'Help', items: [
     item('learn', 'Learn Mobius', d.learn),

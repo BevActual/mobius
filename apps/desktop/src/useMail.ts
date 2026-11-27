@@ -168,12 +168,29 @@ export function useMail() {
   }, [api, refresh]);
 
   /** Saves a draft (the person's), returning it as kept. */
+  // A draft not saved yet can be saved twice at once (its field loses focus as Close is pressed, or a reply is open
+  // both in Mail and in its piece beside): the second waits for the first and saves over the draft it made, so one
+  // Close never leaves two drafts.
+  const firstSaves = useRef(new Map<string, Promise<MailDraft | null>>());
   const saveDraft = useCallback(async (draft: Partial<MailDraft>) => {
-    const got = await api?.saveDraft(draft);
-    if (!got) return null;
-    if (isNotesFailure(got)) { setMessage(got.message); return null; }
-    setDrafts((cur) => [got, ...cur.filter((d) => d.id !== got.id)]);
-    return got;
+    const fresh = draft.id ? null : `new:${draft.replyTo ?? ''}`;
+    const first = fresh ? firstSaves.current.get(fresh) : undefined;
+    if (first) {
+      const made = await first;
+      if (made) draft = { ...draft, id: made.id, account: draft.account || made.account };
+    }
+    const run = (async () => {
+      const got = await api?.saveDraft(draft);
+      if (!got) return null;
+      if (isNotesFailure(got)) { setMessage(got.message); return null; }
+      setDrafts((cur) => [got, ...cur.filter((d) => d.id !== got.id)]);
+      return got;
+    })();
+    if (fresh && !draft.id) {
+      firstSaves.current.set(fresh, run);
+      void run.finally(() => window.setTimeout(() => { if (firstSaves.current.get(fresh) === run) firstSaves.current.delete(fresh); }, 1000));
+    }
+    return run;
   }, [api]);
 
   const deleteDraft = useCallback(async (id: string) => {
