@@ -268,6 +268,10 @@ fn below_thousand(n: u64) -> String {
 /// Punctuation Kokoro knows (its tokens.txt), which shapes the pauses and the tune.
 const MARKS: &[char] = &[';', ':', ',', '.', '!', '?', '—', '…', '"', '(', ')', '“', '”'];
 
+/// Short words with a full stop that are read in full, and don't end a sentence.
+const TITLES: [(&str, &str); 9] =
+    [("dr", "doctor"), ("mr", "mister"), ("mrs", "missus"), ("ms", "miz"), ("prof", "professor"), ("st", "saint"), ("mt", "mount"), ("jr", "junior"), ("vs", "versus")];
+
 /// A text as sentences of phonemes, each at most `max_chars` long, for one generation at a time.
 #[must_use]
 pub fn sentences(lexicon: &Lexicon, text: &str) -> Vec<String> {
@@ -295,6 +299,14 @@ pub fn sentences(lexicon: &Lexicon, text: &str) -> Vec<String> {
                 i += 1;
             }
             let word: String = chars[start..i].iter().collect();
+            // "Dr. Chen" is read "Doctor Chen", without the stop of a sentence's end.
+            if chars.get(i) == Some(&'.') {
+                if let Some((_, full)) = TITLES.iter().find(|(short, _)| short.eq_ignore_ascii_case(&word)) {
+                    i += 1;
+                    say_words(&mut now, full);
+                    continue;
+                }
+            }
             push_word(&mut now, &lexicon.word(&word));
             continue;
         }
@@ -424,6 +436,15 @@ mod tests {
     fn a_decimal_is_read_digit_by_digit_after_point() {
         let got = sentences(&list(), "5.5");
         assert_eq!(got, vec!["fˈIv pˈYnt fˈIv".to_owned()]);
+    }
+
+    #[test]
+    fn a_title_is_read_in_full_and_does_not_end_the_sentence() {
+        let l = list();
+        let got = sentences(&l, "Dr. Box and the box.");
+        assert_eq!(got.len(), 1, "{got:?}");
+        assert_eq!(got[0].matches('.').count(), 1, "{}", got[0]);
+        assert!(got[0].starts_with(&sound_out("doctor")) || got[0].starts_with(&l.word("doctor")), "{}", got[0]);
     }
 
     #[test]

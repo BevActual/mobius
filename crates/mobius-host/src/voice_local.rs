@@ -104,6 +104,9 @@ fn files(model: &str) -> Vec<&'static File> {
     whisper(model).map_or_else(Vec::new, |(_, e, d, t)| vec![&VAD, e, d, t])
 }
 
+/// About what the packed program takes to download (it is counted before its size is known).
+const PROGRAM_BYTES: u64 = 15 * 1024 * 1024;
+
 /// What a model takes on disk, with the speech detector; the program comes on top.
 #[must_use]
 pub fn model_bytes(model: &str) -> u64 {
@@ -196,7 +199,12 @@ impl DeviceVoice {
     pub fn status(&self, model: &str) -> Value {
         let (busy_model, state) = lock(&self.state).clone();
         let state = if busy_model == model && !matches!(state, State::Absent) && !(matches!(state, State::Ready) && !self.ready(model)) { state } else if self.ready(model) { State::Ready } else { State::Absent };
-        state.to_json(model)
+        let mut v = state.to_json(model);
+        // The size offered to set it up is what will be downloaded: the program too, when it isn't here yet.
+        if !self.program_path().is_file() {
+            v["bytes"] = json!(model_bytes(model) + PROGRAM_BYTES);
+        }
+        v
     }
 
     fn set(&self, model: &str, state: State) {
@@ -245,7 +253,7 @@ impl DeviceVoice {
         }
         let files: Vec<&File> = needed.into_iter().filter(|f| !std::fs::metadata(self.file_path(f)).is_ok_and(|m| m.len() == f.size)).collect();
         let program_here = self.program_path().is_file();
-        let total: u64 = files.iter().map(|f| f.size).sum::<u64>() + if program_here { 0 } else { 15 * 1024 * 1024 };
+        let total: u64 = files.iter().map(|f| f.size).sum::<u64>() + if program_here { 0 } else { PROGRAM_BYTES };
         let mut done = 0u64;
         std::fs::create_dir_all(self.dir.join("models")).map_err(|e| Failure(format!("Mobius could not make its folder for listening: {e}"), false))?;
         self.set(model, State::Downloading { done, total });

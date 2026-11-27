@@ -63,3 +63,16 @@ describe('speechParts', () => {
     expect(speechParts(' \n\n ... ')).toEqual([]);
   });
 });
+
+describe('a title with a full stop', () => {
+  it('does not end the part', () => {
+    expect(speechParts('Dr. Chen came.\n\nThen Mr. Box.', 16)).toEqual(['Dr. Chen came.', 'Then Mr. Box.']);
+  });
+});
+
+describe('the first part', () => {
+  it('can be shorter than the rest', () => {
+    const text = 'One two three. Four five six. Seven eight nine. Ten eleven twelve.';
+    expect(speechParts(text, 40, 15)).toEqual(['One two three.', 'Four five six. Seven eight nine.', 'Ten eleven twelve.']);
+  });
+});

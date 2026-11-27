@@ -64,14 +64,16 @@ export function spokenText(markdown: string): string {
 
 /**
  * A long text in parts to read one after another, so the first is heard soon: whole paragraphs, or sentences of a long
- * one, each at most `max` characters (a sentence longer than that is cut at a space).
+ * one, each at most `most` characters, the first at most `first` (a sentence longer than that is cut at a space).
  */
-export function speechParts(text: string, max = 500): string[] {
+export function speechParts(text: string, most = 500, first = most): string[] {
   const parts: string[] = [];
   let now = '';
   const add = (piece: string) => {
     const p = piece.trim();
     if (!p) return;
+    // The first part can be shorter, so the first sound is heard sooner.
+    const max = parts.length ? most : first;
     if (now && now.length + 1 + p.length > max) { parts.push(now); now = ''; }
     if (p.length <= max) { now = now ? `${now} ${p}` : p; return; }
     let rest = p;
@@ -84,7 +86,7 @@ export function speechParts(text: string, max = 500): string[] {
     now = rest;
   };
   for (const paragraph of text.split(/\n\s*\n/)) {
-    for (const sentence of paragraph.replace(/\s*\n\s*/g, ' ').split(/(?<=[.!?…])\s+/)) add(sentence);
+    for (const sentence of paragraph.replace(/\s*\n\s*/g, ' ').split(/(?<!\b(?:Dr|Mr|Mrs|Ms|Prof|St|Mt|Jr|vs)\.)(?<=[.!?…])\s+/)) add(sentence);
     // A paragraph (a list item, a heading) ends with a pause even when it has no full stop.
     if (now && !/[.!?…:;]$/.test(now)) now += '.';
   }

@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SPEECH_IDLE, speechNext, speechParts, spokenText, type Speech, type SpeechEvent } from './speech';
 
+/** A blob: address for a `data:` sound (other addresses are kept as they are). */
+export function soundUrl(audio: string): string {
+  const m = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(audio);
+  if (!m || typeof URL.createObjectURL !== 'function') return audio;
+  const body = m[2] ? atob(m[3]!) : decodeURIComponent(m[3]!);
+  const bytes = new Uint8Array(body.length);
+  for (let i = 0; i < body.length; i++) bytes[i] = body.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: m[1] || 'audio/wav' }));
+}
+
 /** Every reader that is open: starting one stops the others, so only one thing is read aloud at a time. */
 const readers = new Set<() => void>();
 
@@ -33,7 +43,7 @@ export function useSpeech() {
     const mine = run.current;
     apply({ kind: 'start', id });
     const api = window.mobius.voice?.speak;
-    const parts = speechParts(spokenText(text));
+    const parts = speechParts(spokenText(text), 500, 160);
     const fail = (error: string, setup = false) => { if (run.current === mine) apply({ kind: 'failed', id, error, setup }); };
     if (!api) return fail('Speaking is not available here.');
     if (!parts.length) return fail('There is nothing to read.');
@@ -44,7 +54,9 @@ export function useSpeech() {
       if (run.current !== mine) return;
       if (!result || !result.ok) return fail(result && !result.ok ? result.error : 'Speaking is not available here.', Boolean(result && !result.ok && result.setup));
       if (i + 1 < parts.length) coming = ask(i + 1);
-      const player = new Audio(result.audio);
+      // The window's content rules let sound play from blob: but not data: addresses, so the sound is handed over as one.
+      const url = soundUrl(result.audio);
+      const player = new Audio(url);
       audio.current = player;
       if (i === 0) apply({ kind: 'ready', id });
       const played = await new Promise<boolean>((resolve) => {
@@ -53,6 +65,7 @@ export function useSpeech() {
         player.onerror = () => resolve(false);
         player.play().catch(() => resolve(false));
       });
+      if (url.startsWith('blob:')) URL.revokeObjectURL(url);
       if (run.current !== mine) return;
       if (!played) return fail('The sound could not be played.');
     }
