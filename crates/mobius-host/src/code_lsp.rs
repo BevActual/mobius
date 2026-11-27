@@ -157,7 +157,9 @@ impl Server {
         // Its error output is read so it never fills up and stops the server; the last of it says why one would not start.
         let said: Arc<Mutex<String>> = Arc::default();
         let kept = Arc::clone(&said);
+        let (said_all, heard_all) = mpsc::channel::<()>();
         std::thread::spawn(move || {
+            let _done = said_all;
             let mut buf = [0u8; 4096];
             while let Ok(n) = errors.read(&mut buf) {
                 if n == 0 {
@@ -207,6 +209,8 @@ impl Server {
         });
         server.ask_for("initialize", init, START_TIMEOUT).map_err(|message| {
             server.stop();
+            // A server that ended has said all it will once its error output closes; waited for a moment, not longer.
+            let _ = heard_all.recv_timeout(Duration::from_millis(500));
             let stderr = said.lock().map(|s| s.trim().lines().rev().take(6).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n")).unwrap_or_default();
             StartError::Failed(program, if stderr.is_empty() || message.contains("TypeScript") { message } else { format!("{message}: {stderr}") })
         })?;

@@ -398,7 +398,8 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, b
     const s = doc.current;
     setHover(null);
     if (smart && ch.length === 1) {
-      if (ch === '.') laterComplete('.');
+      // A dot starts a new list: the one for the word before it goes at once, so it never shows for a moment.
+      if (ch === '.') { completeAsk.current += 1; setComplete(null); laterComplete('.'); }
       else if (/[\p{L}_$]/u.test(ch) && !complete) laterComplete();
       else if (!/[\p{L}\p{N}_$]/u.test(ch)) { completeAsk.current += 1; setComplete(null); }
     }
