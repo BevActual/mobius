@@ -47,6 +47,7 @@ const LABELS: Record<string, string> = {
   'files.list': 'Looking through files',
   'files.read': 'Reading a file',
   'files.search': 'Searching files',
+  'search.everything': 'Searching everything you wrote',
   'files.write': 'Writing a file',
   'files.edit': 'Changing a file',
   'files.move': 'Moving files',

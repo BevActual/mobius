@@ -44,3 +44,15 @@ project's threads waits dashed in the project until you keep it.
 
 Mobius can search your past conversations when it needs something you said before. It only matches words that you or
 Mobius wrote, not tool output or attachments.
+
+## Searching everything you wrote
+
+When a question could be answered from more than one app, Mobius searches all of these at once: your notes,
+documents, Knowledge pages, decks, task lists, Abilities and project files. The search uses an index kept on this
+computer, in your Mobius data folder next to the checkpoints. It matches words, not meaning, so it needs no model and
+nothing is downloaded. Before each search, the index reads again any file that changed and drops any file that is
+gone. Hidden folders, such as a page's kept versions, are left out.
+
+A fact Mobius took from what you wrote is underlined, and it names where it came from, such as "Docs · Launch plan".
+Press the fact, then press Open, to go to that note, document, deck, Knowledge page or task list. Mail, events and
+contacts are searched with their own tools.

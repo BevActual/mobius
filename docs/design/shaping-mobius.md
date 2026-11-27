@@ -203,6 +203,16 @@ One branch, one PR, each piece usable on its own:
    - passages used in a reply show as chips that open the item at the passage;
    - Project Sources as the first scope on the index.
 
+Built in the first round (`crates/mobius-workspace/src/index.rs`):
+
+- An FTS5 index over notes, docs, Knowledge, slides, tasks, Abilities and project files, kept beside the checkpoints.
+  It is brought up to date at each search by checking each file's time and size.
+- The `search.everything` tool, which can be narrowed to some apps or to one folder (`within`, so Project Sources is
+  `projects/<name>`). Each hit gives a `source` that the reply's fact cites.
+- A cited fact from Docs, Slides, Knowledge or Tasks now opens its item, as one from Notes already did.
+- Still to do from this round: the shared manifest of kinds for chips, item chats and Assign, and Ctrl+K reading the
+  same index.
+
 The round after is the agent factory: "Starts when" with events, "Can use" and "Sources" on each agent, with its runs
 in the Inbox. Embeddings come after that, as an opt-in capability.
 

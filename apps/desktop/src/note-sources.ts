@@ -6,12 +6,13 @@ export interface NoteSource { notebook: string; page: NotePage }
 const same = (a: string, b: string) => a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase();
 
 /**
- * The note a claim's source names, found among the notebooks by title (the notebook too, when it is named). When two
- * notes share the title, the one changed last: it is the one the search put first. Null for any other source.
+ * The page a claim's source names, found among an app's notebooks by title (the notebook too, when it is named):
+ * `Notes · <title>`, `Docs · <folder> · <title>`. When two pages share the title, the one changed last: it is the one
+ * a search put first. Null for a source naming another app.
  */
-export function noteForSource(source: string, notebooks: readonly Notebook[]): NoteSource | null {
+export function pageForSource(source: string, app: string, notebooks: readonly Notebook[]): NoteSource | null {
   const parts = source.split('·').map((p) => p.trim());
-  if (parts.length < 2 || !same(parts[0] ?? '', 'Notes')) return null;
+  if (parts.length < 2 || !same(parts[0] ?? '', app)) return null;
   const title = parts.at(-1) ?? '';
   const inNotebook = parts.length > 2 ? parts.slice(1, -1).join(' · ') : null;
   if (!title) return null;
@@ -23,6 +24,16 @@ export function noteForSource(source: string, notebooks: readonly Notebook[]): N
     }
   }
   return best;
+}
+
+/** The note a claim's source names (`Notes · <title>` or `Notes · <notebook> · <title>`). */
+export const noteForSource = (source: string, notebooks: readonly Notebook[]): NoteSource | null => pageForSource(source, 'Notes', notebooks);
+
+/** The task list a claim's source names: `Tasks · <list>`. */
+export function listForSource(source: string, lists: readonly string[]): string | null {
+  const parts = source.split('·').map((p) => p.trim());
+  if (parts.length !== 2 || !same(parts[0] ?? '', 'Tasks')) return null;
+  return lists.find((l) => same(l, parts[1] ?? '')) ?? null;
 }
 
 /** Words too common to tell lines apart (as notes.search leaves out). */

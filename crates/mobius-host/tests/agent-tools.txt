@@ -9,6 +9,7 @@ files.list
 files.read
 files.search
 notes.search
+search.everything
 files.write
 files.edit
 files.move

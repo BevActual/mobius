@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Notebook } from '@mobius/shared';
-import { citeWhenOpen, citedLines, noteForSource, takeCite } from './note-sources';
+import { citeWhenOpen, citedLines, listForSource, noteForSource, pageForSource, takeCite } from './note-sources';
 
 const page = (path: string, title: string, modified: number) => ({ path, title, modified });
 const notebooks: Notebook[] = [
@@ -20,6 +20,19 @@ describe('the note a fact came from', () => {
   });
   it('is none for another app, a note that is gone, or a bare source', () => {
     for (const source of ['Calendar · Offsite', 'Notes · Budget', 'Notes', 'Notes · ', '']) expect(noteForSource(source, notebooks)).toBeNull();
+  });
+});
+
+describe('what else a fact came from', () => {
+  it('is a page of the app the source names, by title and folder', () => {
+    expect(pageForSource('Docs · Offsite', 'Docs', notebooks)?.page.path).toBe('Home/Offsite.md');
+    expect(pageForSource('Knowledge · Work · Offsite', 'Knowledge', notebooks)?.page.path).toBe('Work/Offsite.md');
+    expect(pageForSource('Notes · Offsite', 'Docs', notebooks)).toBeNull();
+  });
+  it('is a task list named after Tasks', () => {
+    expect(listForSource('Tasks · errands', ['Inbox', 'Errands'])).toBe('Errands');
+    expect(listForSource('Tasks · Errands · Milk', ['Errands'])).toBeNull();
+    expect(listForSource('Docs · Errands', ['Errands'])).toBeNull();
   });
 });
 

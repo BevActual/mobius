@@ -76,6 +76,7 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'files.read': return `read ${place(s('path'))}`;
     case 'files.list': return 'see which notes and files there are';
     case 'files.search': return s('query') ? `search your notes and files for ${quote(s('query'), 40)}` : 'search your notes and files';
+    case 'search.everything': return s('query') ? `search everything you wrote for ${quote(s('query'), 40)}` : 'search everything you wrote';
     case 'files.write': return `write ${place(s('path'))}`;
     case 'files.edit': return `change ${place(s('path'))}`;
     // No count: the title can be drawn while the moves still stream in, and a moved folder carries files of its own.

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
-import { says, startModel, type ModelFixture } from './model-fixture';
+import { callsTool, says, startModel, type ModelFixture } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -43,4 +43,36 @@ test('each fact says where it came from, and a reply with an unsure fact is not 
   await reply.getByRole('note').getByRole('button', { name: 'I checked this' }).click();
   await expect(reply.getByRole('button', { name: 'around 12:30 — Checked by you: Two people have not shared flights' })).toBeVisible();
   await expect(shell.getByRole('button', { name: 'Copy reply' })).toBeVisible();
+});
+
+test('Mobius searches everything the person wrote in one go, and a fact from a document opens that document', async () => {
+  const docs = path.join(userData, 'workspace', 'docs', 'Documents');
+  fs.mkdirSync(docs, { recursive: true });
+  fs.writeFileSync(path.join(docs, 'Plan.md'), '# Launch plan\n\nPricing goes on the site in March.\n');
+  const notes = path.join(userData, 'workspace', 'notes', 'Work');
+  fs.mkdirSync(notes, { recursive: true });
+  fs.writeFileSync(path.join(notes, 'Call.md'), '# Pricing call\n\nThe annual plan stays at 90 euros.\n');
+  model = await startModel([
+    callsTool('search-everything', { query: 'when does pricing go on the site' }),
+    says(['Pricing goes on the site [in March](trust:yours "Docs · Launch plan").']),
+  ]);
+  mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  const shell = mobius.shell;
+  const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
+  await expect(composer).toBeEnabled({ timeout: 15_000 });
+  await composer.fill('When does pricing go on the site?');
+  await composer.press('Enter');
+  // Reading asks in Ask each time, as the tests start in.
+  await shell.getByRole('group', { name: 'Approval needed: search.everything' }).getByRole('button', { name: 'Allow once' }).click();
+  const reply = shell.getByRole('log', { name: 'Conversation' }).locator('.msg.assistant').last();
+  await expect(reply).toHaveText('Pricing goes on the site in March.', { timeout: 15_000 });
+  // The tool's answer came from the index: both apps, each named as a source can name it.
+  const result = JSON.stringify(model.requests[1]);
+  expect(result).toContain('Docs · Launch plan');
+  expect(result).toContain('Notes · Pricing call');
+  expect(result).toContain('docs/Documents/Plan.md');
+
+  await reply.getByRole('button', { name: 'in March — From your stuff: Docs · Launch plan' }).click();
+  await reply.getByRole('note').getByRole('button', { name: 'Open document' }).click();
+  await expect(shell.getByRole('textbox', { name: 'Document text' })).toContainText('Pricing goes on the site in March.', { timeout: 15_000 });
 });
