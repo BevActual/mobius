@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { AppSidebar, SidebarSearch } from './ui/AppSidebar';
 import { cellName, changedCells, chartData, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, filterChoices, findCells, formatted, hiddenRows, nextShownRow, replaceIn, grouped, groupsThousands, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
 import { readBefore } from './readBefore';
 import './sheets.css';
@@ -67,13 +68,8 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
   const q = query.trim().toLowerCase();
   const shownBooks = q ? sheets.workbooks.filter((w) => w.name.toLowerCase().includes(q) || w.sheets.some((s) => s.toLowerCase().includes(q))) : sheets.workbooks;
   return (
-    <aside className="side sheets-side" aria-label="Sheets">
-      <div className="side-head">
-        <span className="side-title">Workbooks</span>
-        <span className="side-actions">
-          {pin}
-        </span>
-      </div>
+    // The shared sidebar's spacing and search, as every other app's list; the panel's own header names it Workbooks.
+    <AppSidebar label="Sheets" className="sheets-side">
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
           <input autoFocus onFocus={(e) => e.currentTarget.select()} aria-label="Workbook name" placeholder="Workbook name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
@@ -81,11 +77,11 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
         </form>
       )}
       <SideNew item="workbook" onNew={startNaming} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
-      <input className="side-search" type="search" aria-label="Search sheets" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
-      <nav className="task-lists" aria-label="Workbooks">
-        {sheets.workbooks.length === 0 && !naming && <p className="side-empty">No workbooks yet.</p>}
+      <SidebarSearch label="Search sheets" value={query} onChange={setQuery} />
+      <nav aria-label="Workbooks">
         {query.trim() && shownBooks.length === 0 && <p className="side-empty">No workbooks match.</p>}
-        <ul role="list">
+        {/* No "Workbooks" heading under a panel already called Workbooks; an empty list says nothing, the page does. */}
+        {shownBooks.length > 0 && <ul role="list" className="ui-side-list">
           {shownBooks.map((w) => (
             <li key={w.name}>
               <button type="button" className="list-row" data-proposed={changed?.has(w.name) || undefined} aria-current={here?.workbook === w.name ? 'page' : undefined} onClick={() => void sheets.open(w.name, here?.workbook === w.name ? here.sheet : w.sheets[0] ?? 'Sheet 1')}>
@@ -95,10 +91,10 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
               </button>
             </li>
           ))}
-        </ul>
+        </ul>}
         <FromMobius items={sheets.workbooks.filter((w) => changed?.has(w.name)).map((w) => ({ key: w.name, name: w.name, current: here?.workbook === w.name, onOpen: () => void sheets.open(w.name, w.sheets[0] ?? 'Sheet 1') }))} />
       </nav>
-    </aside>
+    </AppSidebar>
   );
 }
 

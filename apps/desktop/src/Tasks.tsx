@@ -66,10 +66,11 @@ function stepAway(from: HTMLElement | null, saved: () => Promise<unknown>) {
   }));
 }
 
-/** The smart lists' marks: a white glyph on a coloured circle, as in Apple's Reminders. */
+/** The smart lists' marks, one line glyph each. Today is a star, as in Things, so it never reads as a second
+ * calendar beside Upcoming's. */
 function SmartIcon({ id }: { id: SmartView }) {
   const glyph: Record<SmartView, ReactNode> = {
-    today: <><rect x="5" y="6" width="10" height="9" rx="1.5" /><path d="M5 9h10M8 4.5v3M12 4.5v3" /></>,
+    today: <path d="m10 4.2 1.75 3.6 3.95.55-2.87 2.77.7 3.93L10 13.2l-3.53 1.85.7-3.93L4.3 8.35l3.95-.55z" />,
     scheduled: <><rect x="5" y="6" width="10" height="9" rx="1.5" /><path d="M5 9h10M8 11.5h1M11 11.5h1M8 13.5h1" /></>,
     all: <><path d="M5.5 6.5h9M5.5 10h9M5.5 13.5h9" /></>,
     someday: <><rect x="4.5" y="5" width="11" height="3" rx="1" /><path d="M5.5 8v6.5h9V8M8.5 11h3" /></>,
