@@ -106,8 +106,9 @@ Folding for width never changes the saved layout.
 ## Panels
 
 A panel is a named, self-contained piece of an app: a list of places, an outline, an inspector, a timeline. Each can
-be shown or hidden (View menu, its key, or Hide in its header), resized (drag its edge; double-click for the default
-size), moved to another dock, tabbed with others in a dock, and popped out into its own window.
+be shown or hidden (View menu, its key, or Hide in its header), resized (drag its dock's edge; double-click for the
+default size), and tabbed with others in a dock. Moving a panel to another dock and popping it out into its own window
+are planned ([pieces.md](pieces.md), round 0). Today only the Mobius panel pops out.
 
 - **The header** is 40px (34px compact) with no line under it: the panel's name (or its tabs) on the left, its few
   tools and Hide on the right. A panel's own controls go in its body, not the header.

@@ -97,17 +97,37 @@ new mechanism. It is a panel the shell owns, in the same system as every other p
 
 - **The Panels menu lists open pieces** under their own heading ("Pieces"), beside the app's panels and Mobius. Each
   can be shown or hidden there, and Reset layout puts them back.
-- **They sit in the docks that already exist.**
-  - A piece opens in the right dock, tabbed or stacked with the app's own right panels.
-  - Like any panel, it can be moved to the left or bottom dock, resized, or popped out into its own window.
-  - The Mobius panel stays as it is.
+- **They sit in the docks that already exist.** A piece opens in the right dock beside the app's own right panels.
+  The Mobius panel stays as it is.
 - **They are the shell's, like Mobius, so they stay as you switch apps.** A piece you brought up for a thread is still
   there when you go to Calendar. Where you last moved it is remembered.
 - **Narrow windows:** docks already give way before the app does (`fitDocks`), and pieces follow that.
 
-This fits how the Panels button works today. It already lists the shell's panels (`ShellPanel`, used for Mobius)
-beside the app's (`PanelsOfApp`), so pieces join the shell's list. What is new is that the shell's panels can sit in
-an app's docks, which today only Mobius does in the right dock.
+**What panels can do today** (checked in the code, `ui/PanelLayout.tsx`, 27 November; all of it was in 0.1.26):
+
+| | App panels | Mobius panel |
+|---|---|---|
+| Show and hide (Panels menu, View menu, keys, Hide) | Yes | Yes |
+| Resize, by dragging the dock's edge (double-click resets, arrow keys by 16px) | Yes, per dock, remembered per app | Yes |
+| Move to another dock | **No.** Each panel's dock is fixed by its app | No |
+| Pop out into its own window | **No** | Yes |
+| Tabs when two panels share a dock | Yes (`PanelTabs`) | No |
+
+guide.md's Panels section says panels can be moved and popped out. That is the design, not what is built, and the
+guide is corrected in this change. The dock edge is easy to miss: it is a thin line with no handle, which is probably
+why resizing felt missing.
+
+So pieces start with **round 0: panels that do what the guide says.** Every pane follows the same rules, Mobius and
+pieces included:
+- **Move:** drag a panel by its header to another dock, with the target dock outlined as you drag. A panel's menu
+  also has **Move to left, right or bottom**.
+- **Pop out:** **Pop out** puts a panel in a window of its own, as the Mobius panel already does. Closing that window
+  puts it back.
+- **Resize** stays as it is, with a visible grip on hover.
+- **Remembered** per app, where each panel is, with Reset layout to undo.
+
+The shell's panels (Mobius, then pieces) already sit in the same menu as the app's (`ShellPanel` beside
+`PanelsOfApp`), so pieces join that list once round 0 is done.
 
 ### How Mobius uses pieces
 
@@ -148,8 +168,9 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
    none, `--dur-fast`).
 7. **Reduce Motion:** slides become a short fade.
 
-## First round
+## First rounds
 
+0. **Panels that move and pop out** (above), for every app's panels.
 1. **Pieces as shell panels:** listed in the Panels menu, placed in the right dock, movable and remembered, with
    the dock motion.
 2. **Three pieces:**
