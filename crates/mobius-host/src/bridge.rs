@@ -376,6 +376,8 @@ pub struct Bridge {
     code: mobius_workspace::code::Code,
     /// Commands left running in Code projects.
     processes: crate::code_processes::Processes,
+    /// Language servers on this computer, one per Code project and language.
+    languages: crate::code_lsp::Languages,
     /// The test command of each Code project, which only the person sets.
     code_tests: crate::code_tests::TestCommands,
     tasks: mobius_workspace::tasks::Tasks,
@@ -604,6 +606,7 @@ impl Bridge {
             sheets: mobius_workspace::sheets::Sheets::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
             processes: crate::code_processes::Processes::default(),
+            languages: crate::code_lsp::Languages::new(Arc::clone(&emit)),
             code_tests: crate::code_tests::TestCommands::new(data_dir.join("code-tests.json")),
             tasks: {
                 // A CalDAV account's task lists show in Tasks beside the person's own.
@@ -3739,6 +3742,37 @@ impl Bridge {
                 (self.emit)("mobius:code-tests", json!({ "project": p, "running": false, "result": result, "command": command, "by": "person" }));
                 Ok(result)
             }),
+            // Language smarts: what a file holds now, and questions about a place in it (see code_lsp.rs).
+            "lspSync" => match (text(0), text(1), text(2)) {
+                (Some(p), Some(f), Some(t)) => code.project_dir(p).map(|dir| self.languages.sync(&dir, p, f, t)),
+                _ => Err(need()),
+            },
+            "lspClose" => match (text(0), text(1)) {
+                (Some(p), Some(f)) => code.project_dir(p).map(|dir| self.languages.close(&dir, p, f)),
+                _ => Err(need()),
+            },
+            "lspProblems" => text(0).ok_or_else(need).map(|p| self.languages.problems(p)),
+            "lspAsk" => match (text(0), text(1), text(2), args.get(3).and_then(Value::as_u64), args.get(4).and_then(Value::as_u64)) {
+                (Some(p), Some(f), Some(kind), Some(line), Some(character)) => code.project_dir(p).map(|dir| self.languages.ask(&dir, p, f, kind, (line, character), text(5))),
+                _ => Err(need()),
+            },
+            // A rename's changes to files other than the open one, made on disk as the person's own.
+            "applyEdits" => match (text(0), args.get(1).and_then(Value::as_array)) {
+                (Some(p), Some(files)) => {
+                    let mut changed = vec![];
+                    for file in files {
+                        let (Some(f), Some(edits)) = (file.get("path").and_then(Value::as_str), file.get("edits").and_then(Value::as_array)) else { continue };
+                        let Some(before) = code.read(p, f).ok().and_then(|r| r.get("text").and_then(Value::as_str).map(str::to_owned)) else { continue };
+                        let after = crate::code_lsp::apply_edits(&before, edits);
+                        if after != before && code.save(p, f, &after, None).is_ok() {
+                            (self.emit)("mobius:code-changed", json!({ "project": p, "path": f, "by": "person" }));
+                            changed.push(f.to_owned());
+                        }
+                    }
+                    Ok(json!({ "ok": true, "changed": changed }))
+                }
+                _ => Err("a project and changes are needed".to_owned()),
+            },
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {

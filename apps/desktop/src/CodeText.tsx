@@ -2,9 +2,11 @@ import { type MutableRefObject, type MouseEvent as ReactMouseEvent, useEffect, u
 import { IS_MAC, fileScore, findAll, findPattern, indentLines, langName, newLine, replacement, toggleComment, typePair, type FindOptions } from './code-edit';
 import { codeOutline, colourLines, type Lang } from './code-view';
 import {
-  History, addCursorV, addNextMatch, foldRegions, foldsHiding, mapPos, matchBracket, replaceSpans, stickyScopes, visibleRows, colAt, copyLines, cursor, deleteBy, deleteLines, docOf, editEach, end, home, insertText, lineEnd, lineOf, lineStarts,
+  History, addCursorV, addNextMatch, applyChanges, foldRegions, foldsHiding, mapPos, matchBracket, replaceSpans, stickyScopes, visibleRows, colAt, copyLines, cursor, deleteBy, deleteLines, docOf, editEach, end, home, insertText, lineEnd, lineOf, lineStarts,
   moveH, moveLines, moveV, normalize, selFrom, selTo, selectAll, selectLine, single, visualCol, wordAt, type DocState, type Step,
 } from './code-doc';
+import type { CodeCompletion, CodeProblem } from '@mobius/shared';
+import { fitting, offsetOf, spansOf, type LanguageState } from './code-lsp';
 import type { CodeState } from './useCode';
 
 const LINE = 20;
@@ -14,6 +16,31 @@ const PAD_BOTTOM = 40;
 /** Lines drawn past each edge of the view, so a quick scroll never shows a gap. */
 const OVERSCAN = 30;
 const TAB = 2;
+const NO_PROBLEMS: CodeProblem[] = [];
+/** How long the pointer rests on a word before what the language server says about it shows. */
+const HOVER_DELAY = 450;
+const COMPLETE_DELAY = 120;
+const wordStartBefore = (t: string, at: number): number => { let a = at; while (a > 0 && /[\p{L}\p{N}_$]/u.test(t[a - 1]!)) a -= 1; return a; };
+const KIND_MARK: Record<string, string> = { method: 'm', function: 'f', constructor: 'c', field: 'p', variable: 'v', class: 'C', interface: 'I', module: 'M', property: 'p', enum: 'E', keyword: 'k', snippet: 's', constant: 'K', struct: 'S', type: 'T', file: 'F', folder: 'F' };
+
+/** Hover text from a language server: its code blocks coloured as code, the rest as written. */
+function HoverText({ text, lang }: { text: string; lang: Lang }) {
+  const parts: React.ReactNode[] = [];
+  const re = /```[^\n]*\n([\s\S]*?)```/g;
+  let at = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const before = text.slice(at, m.index).trim();
+    if (before) parts.push(<p key={`t${at}`}>{before}</p>);
+    const lines = m[1]!.replace(/\n$/, '').split('\n');
+    const toks = colourLines(lines, lang);
+    parts.push(<pre key={`c${m.index}`} className="ed-hover-code">{lines.map((_, i) => <div key={i}>{(toks[i] ?? []).map((t, k) => <span key={k} className={`tok-${t.k}`}>{t.t}</span>)}</div>)}</pre>);
+    at = m.index + m[0].length;
+  }
+  const rest = text.slice(at).trim();
+  if (rest) parts.push(<p key="rest">{rest}</p>);
+  return <>{parts}</>;
+}
 
 export type BarMode = 'find' | 'replace' | 'line';
 
@@ -154,7 +181,7 @@ function diffSpan(before: string, after: string): { from: number; to: number; in
  * and Ctrl+Alt+Up or Down add cursors, Alt+Up or Down move lines, Shift+Alt+Up or Down copy them, Ctrl+Shift+K
  * deletes them, Ctrl+L selects a line, Esc goes back to one cursor.
  */
-export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; lang: Lang; bar: BarMode | null; setBar: (bar: BarMode | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null> }) {
+export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }: { code: CodeState; lang: Lang; bar: BarMode | null; setBar: (bar: BarMode | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null>; /** Language smarts, when the project has them. */ lsp?: LanguageState; onShowProblems?: () => void }) {
   const path = code.open?.path ?? '';
   const doc = useRef<DocState>(docOf(code.draft));
   const history = useRef(new History());
@@ -198,6 +225,18 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
   const [focused, setFocused] = useState(false);
   const [found, setFound] = useState<{ marks: [number, number][]; at: number }>({ marks: [], at: 0 });
   useEffect(() => { setFound({ marks: [], at: 0 }); }, [path]);
+  // Language smarts: completions, what the pointer rests on, a rename being typed, and a passing note.
+  const [complete, setComplete] = useState<{ items: CodeCompletion[]; line: number; min: number; index: number } | null>(null);
+  const [hover, setHover] = useState<{ at: number; text: string; problems: CodeProblem[] } | null>(null);
+  const [rename, setRename] = useState<{ from: number; to: number } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const hoverTimer = useRef<number | undefined>(undefined);
+  const completeTimer = useRef<number | undefined>(undefined);
+  const completeAsk = useRef(0);
+  useEffect(() => { setComplete(null); setHover(null); setRename(null); setNote(null); }, [path]);
+  useEffect(() => () => { window.clearTimeout(hoverTimer.current); window.clearTimeout(completeTimer.current); }, []);
+  const fileProblems = lsp?.problems.get(path) ?? NO_PROBLEMS;
+  const smart = lsp?.status.kind === 'server';
 
   const lines = useMemo(() => text.split('\n'), [text]);
   const starts = useMemo(() => lineStarts(text), [text]);
@@ -289,6 +328,10 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
   const caretLine = lineOf(starts, primary.head);
   const caretCol = primary.head - starts[caretLine]!;
   const xOf = (line: number, col: number) => PAD_LEFT + visualCol(lines[line] ?? '', col, TAB) * cw;
+  // The completions that fit what is typed since the list was asked for; none once the cursor leaves that word.
+  const choices: CodeCompletion[] = complete && state.sels.length === 1 && primary.anchor === primary.head && caretLine === complete.line && primary.head >= complete.min
+    ? fitting(complete.items, text.slice(wordStartBefore(text, primary.head), primary.head)).slice(0, 60)
+    : [];
 
   // The hidden field holds the whole text with the primary selection, for input methods and screen readers.
   useLayoutEffect(() => {
@@ -348,6 +391,11 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
 
   const typed = (ch: string) => {
     const s = doc.current;
+    setHover(null);
+    if (smart && ch.length === 1) {
+      if (ch === '.' || (/[\p{L}_$]/u.test(ch) && !complete)) laterComplete();
+      else if (!/[\p{L}\p{N}_$]/u.test(ch)) { completeAsk.current += 1; setComplete(null); }
+    }
     if (ch.length === 1) apply(editEach(s, (sel, t) => typePair(t, selFrom(sel), selTo(sel), ch) ?? { from: selFrom(sel), to: selTo(sel), insert: ch, select: [selFrom(sel) + 1, selFrom(sel) + 1] }), 'type');
     else apply(insertText(s, ch), 'type');
   };
@@ -360,7 +408,21 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     const lower = key.toLowerCase();
     const s = doc.current;
     const handled = () => { e.preventDefault(); e.stopPropagation(); };
-    if (mod && !e.altKey && lower === 's') { handled(); void code.save(); return; }
+    if (note) setNote(null);
+    if (hover && key !== 'Shift' && key !== 'Control' && key !== 'Alt' && key !== 'Meta') setHover(null);
+    // The completion list, while it shows, takes the arrows, Enter, Tab and Esc.
+    if (choices.length > 0 && complete) {
+      if (key === 'ArrowDown' || key === 'ArrowUp') { handled(); setComplete({ ...complete, index: (Math.min(complete.index, choices.length - 1) + (key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length }); return; }
+      if ((key === 'Enter' || key === 'Tab') && !mod && !e.shiftKey && !e.altKey) { handled(); acceptCompletion(choices[Math.min(complete.index, choices.length - 1)]!); return; }
+      if (key === 'Escape') { handled(); completeAsk.current += 1; setComplete(null); return; }
+      if (key.length > 1 && key !== 'Backspace' && key !== 'Shift') { completeAsk.current += 1; setComplete(null); }
+    }
+    if (e.ctrlKey && !e.altKey && !e.shiftKey && (key === ' ' || e.code === 'Space')) { handled(); void askComplete(); return; }
+    if (key === 'F12' && !mod && !e.altKey && !e.shiftKey) { handled(); void goDefinition(primary.head); return; }
+    if (key === 'F2' && !mod && !e.altKey && !e.shiftKey) { handled(); startRename(); return; }
+    if (key === 'F8' && !mod && !e.altKey) { handled(); nextProblem(e.shiftKey ? -1 : 1); return; }
+    if (e.shiftKey && e.altKey && !mod && e.code === 'KeyF') { handled(); void format(); return; }
+    if (mod && !e.altKey && lower === 's') { handled(); void (lsp ? lsp.save() : code.save()); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'f') { handled(); setBar('find'); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'g') { handled(); setBar('line'); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'h') { handled(); setBar('replace'); return; }
@@ -497,7 +559,13 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
   };
   const onMouseDown = (e: ReactMouseEvent) => {
     if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('.ed-hover, .ed-complete, .ed-rename')) return;
     e.preventDefault();
+    window.clearTimeout(hoverTimer.current);
+    setHover(null);
+    if (complete) { completeAsk.current += 1; setComplete(null); }
+    // Ctrl+click (⌘-click on a Mac) goes to where the word is defined, as in VS Code.
+    if ((IS_MAC ? e.metaKey : e.ctrlKey) && !e.altKey && !e.shiftKey && smart) { input.current?.focus({ preventScroll: true }); const at = posAt(e.clientX, e.clientY); place({ ...doc.current, sels: [cursor(at)], primary: 0 }); void goDefinition(at); return; }
     const more = (e.target as HTMLElement).closest<HTMLElement>('.ed-fold-more');
     if (more) { foldAt(Number(more.dataset.line), false); return; }
     input.current?.focus({ preventScroll: true });
@@ -577,6 +645,141 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
   };
   if (jump) jump.current = goLine;
 
+  // —— Language smarts ——
+  // A place sent from elsewhere (go to definition, the Problems panel): the cursor goes there once its file is open.
+  useEffect(() => {
+    const p = lsp?.takePending(path);
+    if (!p) return;
+    const st = lineStarts(doc.current.text);
+    const at = offsetOf(st, doc.current.text.length, p.line, p.character);
+    history.current.seal();
+    doc.current = { ...doc.current, sels: [cursor(at)], primary: 0 };
+    openAround(lineOf(st, at));
+    redraw();
+    input.current?.focus({ preventScroll: true });
+    requestAnimationFrame(() => reveal(true));
+  }, [path, lsp?.pendingVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  const placeOf = (at: number): [number, number] => {
+    const st = lineStarts(doc.current.text);
+    const l = lineOf(st, at);
+    return [l, at - st[l]!];
+  };
+  const problemsAt = (at: number): CodeProblem[] => {
+    const st = lineStarts(doc.current.text);
+    const n = doc.current.text.length;
+    return fileProblems.filter((p) => {
+      const a = offsetOf(st, n, p.line, p.character);
+      const b = offsetOf(st, n, p.endLine, p.endCharacter);
+      return a <= at && at <= Math.max(b, a + 1);
+    });
+  };
+  const askComplete = async () => {
+    window.clearTimeout(completeTimer.current);
+    if (!lsp || !smart) return;
+    const s = doc.current;
+    if (s.sels.length !== 1 || s.sels[0]!.anchor !== s.sels[0]!.head) return;
+    const at = s.sels[0]!.head;
+    const [line, character] = placeOf(at);
+    const n = ++completeAsk.current;
+    const answer = await lsp.ask('complete', line, character);
+    if (n !== completeAsk.current) return;
+    if (!answer.ok || !answer.items?.length) { setComplete(null); return; }
+    setComplete({ items: answer.items, line, min: wordStartBefore(s.text, at), index: 0 });
+  };
+  const laterComplete = () => {
+    window.clearTimeout(completeTimer.current);
+    completeTimer.current = window.setTimeout(() => void askComplete(), COMPLETE_DELAY);
+  };
+  const acceptCompletion = (item: CodeCompletion) => {
+    const s = doc.current;
+    const head = s.sels[s.primary]!.head;
+    const st = lineStarts(s.text);
+    const given = item.from ? offsetOf(st, s.text.length, item.from.line, item.from.character) : wordStartBefore(s.text, head);
+    const from = Math.min(given, head);
+    const changes = [{ from, to: head, insert: item.insert }];
+    const at = from + (item.caret ?? item.insert.length);
+    completeAsk.current += 1;
+    setComplete(null);
+    apply({ state: { text: applyChanges(s.text, changes), sels: [cursor(at)], primary: 0 }, changes }, 'complete');
+  };
+  const goDefinition = async (at: number) => {
+    if (!lsp || !smart) return;
+    const [line, character] = placeOf(at);
+    const answer = await lsp.ask('definition', line, character);
+    const place = answer.ok ? answer.places?.[0] : undefined;
+    if (!place) { setNote(answer.ok ? 'No definition found' : answer.message ?? 'No definition found'); return; }
+    if (place.path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(place.path)) { setNote(`Defined outside this project, in ${place.path.split(/[\\/]/).pop()}`); return; }
+    void lsp.goTo(place);
+  };
+  const startRename = () => {
+    const s = doc.current;
+    const [a, b] = wordAt(s.text, s.sels[s.primary]!.head);
+    if (a === b || !smart) return;
+    setHover(null);
+    setComplete(null);
+    setRename({ from: a, to: b });
+  };
+  const doRename = async (value: string) => {
+    const r = rename;
+    setRename(null);
+    input.current?.focus({ preventScroll: true });
+    const name = value.trim();
+    if (!lsp || !r || !name || name === doc.current.text.slice(r.from, r.to)) return;
+    const [line, character] = placeOf(r.from);
+    const answer = await lsp.ask('rename', line, character, name);
+    if (!answer.ok) { setNote(answer.message ?? 'This cannot be renamed'); return; }
+    const files = (answer.files ?? []).filter((f) => f.edits.length > 0);
+    const here = files.filter((f) => f.path === path).flatMap((f) => f.edits);
+    if (here.length > 0) {
+      const s = doc.current;
+      const spans = spansOf(s.text, lineStarts(s.text), here);
+      apply(replaceSpans(s, spans.map((x) => [x.from, x.to]), spans.map((x) => x.insert)), 'rename');
+    }
+    await lsp.applyElsewhere(files.filter((f) => f.path !== path));
+    setNote(files.length > 1 ? `Renamed in ${files.length} files` : 'Renamed');
+  };
+  const format = async () => {
+    if (!lsp || !smart) return;
+    const answer = await lsp.ask('format', 0, 0);
+    if (!answer.ok) { setNote(answer.message ?? 'This file cannot be formatted'); return; }
+    const s = doc.current;
+    const spans = spansOf(s.text, lineStarts(s.text), answer.edits ?? []);
+    if (spans.length === 0) { setNote('Already formatted'); return; }
+    apply(replaceSpans(s, spans.map((x) => [x.from, x.to]), spans.map((x) => x.insert)), 'format');
+  };
+  /** F8 and Shift+F8: the next problem in this file, its message shown where it is. */
+  const nextProblem = (dir: 1 | -1) => {
+    const s = doc.current;
+    const st = lineStarts(s.text);
+    const at = [...new Set(fileProblems.map((p) => offsetOf(st, s.text.length, p.line, p.character)))].sort((a, b) => a - b);
+    if (at.length === 0) { setNote('No problems in this file'); return; }
+    const h = s.sels[s.primary]!.head;
+    const t = dir > 0 ? at.find((o) => o > h) ?? at[0]! : [...at].reverse().find((o) => o < h) ?? at[at.length - 1]!;
+    place({ ...s, sels: [cursor(t)], primary: 0 });
+    setHover({ at: t, text: '', problems: problemsAt(t) });
+  };
+  const showHover = async (at: number) => {
+    const s = doc.current;
+    const [a, b] = wordAt(s.text, at);
+    const here = problemsAt(at);
+    if (a === b && here.length === 0) { setHover(null); return; }
+    let said = '';
+    if (smart && a !== b && lsp) {
+      const [line, character] = placeOf(at);
+      const answer = await lsp.ask('hover', line, character);
+      if (answer.ok) said = answer.text ?? '';
+    }
+    if (!said && here.length === 0) { setHover(null); return; }
+    setHover({ at: a < b ? a : at, text: said, problems: here });
+  };
+  const onMouseMove = (e: ReactMouseEvent) => {
+    if (e.buttons || !lsp) return;
+    if ((e.target as HTMLElement).closest('.ed-hover, .ed-complete, .ed-rename')) { window.clearTimeout(hoverTimer.current); return; }
+    window.clearTimeout(hoverTimer.current);
+    const { clientX, clientY } = e;
+    hoverTimer.current = window.setTimeout(() => void showHover(posAt(clientX, clientY)), HOVER_DELAY);
+  };
+
   // —— Drawing ——
   // The lines in view, top to bottom (folded lines left out).
   const inView: number[] = rows.slice(firstRow, lastRow + 1);
@@ -622,6 +825,83 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     const x1 = xOf(l, a - starts[l]!);
     return <span key={a} className="code-found" data-current={i === found.at || undefined} style={{ top: yOf(l), left: x1, width: Math.max(cw / 2, xOf(l, Math.min(b, lineEnd(text, starts, l)) - starts[l]!) - x1) }} />;
   });
+  // Problems from the language server, underlined where they are.
+  const squiggles: React.ReactNode[] = [];
+  for (const [n, p] of fileProblems.slice(0, 2000).entries()) {
+    for (let l = Math.max(p.line, first); l <= Math.min(p.endLine, last); l += 1) {
+      if (!shown(l) || l >= lines.length) continue;
+      const len = (lines[l] ?? '').length;
+      const a = l === p.line ? Math.min(p.character, len) : 0;
+      const b = l === p.endLine ? Math.min(p.endCharacter, len) : len;
+      const x1 = xOf(l, a);
+      const w = Math.max(cw, xOf(l, b) - x1);
+      squiggles.push(<span key={`p${n}-${l}`} className="ed-problem" data-severity={p.severity} style={{ top: yOf(l), left: x1, width: w }} />);
+    }
+  }
+  // What the pointer rests on, the completion list and a rename being typed: placed at their words.
+  let hoverBox: React.ReactNode = null;
+  if (hover && (hover.text || hover.problems.length > 0)) {
+    const l = lineOf(starts, Math.min(hover.at, text.length));
+    if (shown(l)) {
+      const below = yOf(l) - view.top < 140;
+      hoverBox = (
+        <div className="ed-hover" role="status" data-below={below || undefined} style={{ top: below ? yOf(l) + LINE + 2 : yOf(l) - 2, left: Math.max(view.left + 4, xOf(l, hover.at - starts[l]!)) }}>
+          {hover.problems.map((p, i) => (
+            <p key={i} className="ed-hover-problem" data-severity={p.severity}><span className="ed-hover-mark" aria-hidden="true" />{p.message}{p.source ? <span className="ed-hover-source"> {p.source}{p.code != null ? `(${p.code})` : ''}</span> : null}</p>
+          ))}
+          {hover.text && <HoverText text={hover.text} lang={lang} />}
+        </div>
+      );
+    }
+  }
+  let completeBox: React.ReactNode = null;
+  if (choices.length > 0 && complete) {
+    const at = Math.min(complete.index, choices.length - 1);
+    const from = wordStartBefore(text, primary.head);
+    const chosen = choices[at]!;
+    completeBox = (
+      <div className="ed-complete" style={{ top: yOf(caretLine) + LINE + 2, left: xOf(caretLine, from - starts[caretLine]!) - 22 }}>
+        <ul id="ed-complete-list" role="listbox" aria-label="Completions">
+          {choices.map((c, i) => (
+            <li
+              key={`${c.label}-${i}`}
+              id={`ed-complete-${i}`}
+              role="option"
+              aria-selected={i === at}
+              ref={i === at ? (el) => el?.scrollIntoView({ block: 'nearest' }) : undefined}
+              onMouseDown={(e) => { e.preventDefault(); acceptCompletion(c); }}
+            >
+              <span className="ed-complete-kind" data-kind={c.kind} aria-hidden="true">{KIND_MARK[c.kind] ?? '·'}</span>
+              <span className="ed-complete-label">{c.label}</span>
+              {i === at && c.detail && <span className="ed-complete-detail">{c.detail}</span>}
+            </li>
+          ))}
+        </ul>
+        {chosen.documentation && <div className="ed-complete-doc">{chosen.documentation}</div>}
+      </div>
+    );
+  }
+  let renameBox: React.ReactNode = null;
+  if (rename) {
+    const l = lineOf(starts, rename.from);
+    renameBox = (
+      <input
+        className="ed-rename"
+        aria-label="New name"
+        autoFocus
+        defaultValue={text.slice(rename.from, rename.to)}
+        spellCheck={false}
+        style={{ top: yOf(l) + LINE + 2, left: xOf(l, rename.from - starts[l]!) }}
+        onFocus={(e) => e.currentTarget.select()}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') { e.preventDefault(); void doRename(e.currentTarget.value); }
+          if (e.key === 'Escape') { e.preventDefault(); setRename(null); input.current?.focus({ preventScroll: true }); }
+        }}
+        onBlur={() => setRename(null)}
+      />
+    );
+  }
   // The bracket at the cursor and its partner, boxed; and, with nothing selected, the other uses of the word under the cursor.
   const boxes: React.ReactNode[] = [];
   if (primary.anchor === primary.head && !multi) {
@@ -712,20 +992,28 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
               ))}
             </div>
           )}
-          <div className="ed-content" ref={content} style={{ height, width }} onMouseDown={onMouseDown}>
+          <div className="ed-content" ref={content} style={{ height, width }} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseLeave={() => { window.clearTimeout(hoverTimer.current); setHover(null); }}>
             <span className="ed-measure" ref={measure} aria-hidden="true">{'M'.repeat(20)}</span>
             {guides}
             {marks}
             {selRects}
             {boxes}
             {visible}
+            {squiggles}
             {focused && cursors}
+            {hoverBox}
+            {completeBox}
+            {renameBox}
             <textarea
               ref={input}
               className="ed-input"
               style={{ top: yOf(caretLine), left: xOf(caretLine, caretCol) }}
               aria-label={`Contents of ${path || 'the file'}`}
               aria-multiline="true"
+              aria-autocomplete={smart ? 'list' : undefined}
+              aria-expanded={smart ? choices.length > 0 : undefined}
+              aria-controls={choices.length > 0 ? 'ed-complete-list' : undefined}
+              aria-activedescendant={choices.length > 0 && complete ? `ed-complete-${Math.min(complete.index, choices.length - 1)}` : undefined}
               spellCheck={false}
               autoCapitalize="off"
               autoCorrect="off"
@@ -741,7 +1029,20 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
       </div>
       <footer className="code-status" aria-label="Where the cursor is">
         <span>Ln {caretLine + 1}, Col {caretCol + 1}{picked > 0 ? ` (${picked} selected)` : ''}{multi ? ` · ${state.sels.length} cursors` : ''}</span>
-        <span>{langName(path)}</span>
+        {note && <span role="status" className="code-status-note">{note}</span>}
+        {lsp && lsp.status.kind !== 'none' && (
+          <button type="button" className="code-status-btn" aria-label={`Problems: ${lsp.counts.errors} errors, ${lsp.counts.warnings} warnings`} title="Problems (F8 goes to the next one in this file)" onClick={onShowProblems}>
+            <span className="code-status-err" aria-hidden="true" />{lsp.counts.errors}
+            <span className="code-status-warn" aria-hidden="true" />{lsp.counts.warnings}
+          </button>
+        )}
+        {lsp?.status.kind === 'server' && (
+          <button type="button" className="code-status-btn" aria-pressed={lsp.formatOnSave} title="Format this file each time it is saved (Shift+Alt+F formats now)" onClick={() => lsp.setFormatOnSave(!lsp.formatOnSave)}>Format on save</button>
+        )}
+        {lsp?.status.kind === 'missing' && (
+          <span className="code-status-missing" title={lsp.status.program ? `Install ${lsp.status.program} on this computer (or in this project) for completions, problems and go to definition in ${lsp.status.language}.` : undefined}>No {lsp.status.language} server</span>
+        )}
+        <span title={lsp?.status.kind === 'server' ? `Language smarts from ${lsp.status.server}` : undefined}>{langName(path)}</span>
         <span>Spaces: {TAB}</span>
       </footer>
     </div>

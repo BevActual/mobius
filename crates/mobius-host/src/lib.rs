@@ -19,6 +19,7 @@ pub mod projects;
 pub mod code_tests;
 pub mod code_git;
 pub mod code_processes;
+pub mod code_lsp;
 pub mod web;
 pub mod pages;
 pub mod database;

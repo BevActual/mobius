@@ -11,6 +11,7 @@ import { IS_MAC, cursorAt, deletePair, findAll, indentLines, keyLabel, langName,
 import { applyGroups, changeGroups, codeOutline, gitMarks, highlight, langOf, lineDiff, testLineKind, testsGlance, type DiffRow, type GitMark, type Lang } from './code-view';
 import { RowMark } from './RowMark';
 import type { CodeState, CodeTests } from './useCode';
+import { useLanguage, type LanguageState } from './code-lsp';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
@@ -519,6 +520,8 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
   // Not while Mobius's turn still runs: its change is shown as it lands, and kept or put back once it is whole.
   const running = useContext(TurnRunningContext);
   const jump = useRef<((line: number) => void) | null>(null);
+  const lsp = useLanguage(code);
+  const [showProblems, setShowProblems] = useState(0);
   useEffect(() => {
     if (!showSuggestion || running) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -540,6 +543,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
   const bottomPanels: PanelSpec[] = [
     { id: 'tests', name: 'Tests', dock: 'bottom', group: 'run', shown: true, render: () => <TestsPanel code={code} /> },
     { id: 'console', name: 'Console', dock: 'bottom', group: 'run', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
+    { id: 'problems', name: 'Problems', dock: 'bottom', group: 'run', shown: false, reveal: showProblems, render: () => <ProblemsPanel lsp={lsp} /> },
     ...terminalPanels,
   ];
   const lang = code.open ? langOf(code.open.path) : 'plain';
@@ -565,7 +569,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
               {code.dirty && <span className="code-dirty" role="status">Not saved</span>}
               <span className="code-head-actions">
                 {code.dirty && <button type="button" className="btn" onClick={() => code.setDraft(code.open?.text ?? '')}>Revert</button>}
-                {code.open.text !== null && <Button kind={code.dirty ? 'primary' : 'quiet'} disabled={!code.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void code.save()}>Save</Button>}
+                {code.open.text !== null && <Button kind={code.dirty ? 'primary' : 'quiet'} disabled={!code.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void lsp.save()}>Save</Button>}
               </span>
             </header>
             {code.message && <p className="tasks-message" role="alert">{code.message}</p>}
@@ -574,7 +578,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
             ) : showSuggestion && rows ? (
               <Suggestion rows={rows} lang={lang} endsWithNewline={code.open.text.endsWith('\n')} onWrite={(t) => void code.write(t)} onKeepAll={() => void keepAll()} onDiscardAll={() => void discardAll()} {...(review ? { conversation: review.conversation } : {})} />
             ) : (
-              <CodeText code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} />
+              <CodeText code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} lsp={lsp} onShowProblems={() => setShowProblems((n) => n + 1)} />
             )}
           </>
         ) : (
@@ -584,6 +588,40 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
       {quick && <QuickOpen code={code} onClose={() => setQuick(false)} />}
     </section>
     </PanelLayout>
+  );
+}
+
+/** Problems (bottom dock, beside Tests): what the project's language servers found, file by file; a click goes there. */
+function ProblemsPanel({ lsp }: { lsp: LanguageState }) {
+  const files = [...lsp.problems.entries()].sort(([a], [b]) => a.localeCompare(b));
+  if (files.length === 0) {
+    return (
+      <p className="code-panel code-problems-empty">
+        {lsp.status.kind === 'missing'
+          ? `Problems in ${lsp.status.language} files show here once ${lsp.status.program ?? 'a language server'} is installed on this computer or in this project.`
+          : lsp.status.kind === 'server' ? 'No problems found.' : 'Problems show here for files a language server knows.'}
+      </p>
+    );
+  }
+  return (
+    <div className="code-panel code-problems">
+      {files.map(([path, items]) => (
+        <section key={path} aria-label={path}>
+          <h3>{path} · {items.length}</h3>
+          <ul>
+            {items.map((p, i) => (
+              <li key={i}>
+                <button type="button" className="code-problem" data-severity={p.severity} onClick={() => void lsp.goTo({ path, line: p.line, character: p.character })}>
+                  <span className="ed-hover-mark" aria-hidden="true" />
+                  <span>{p.message}</span>
+                  <span className="code-problem-where">{p.source ? `${p.source} · ` : ''}Ln {p.line + 1}, Col {p.character + 1}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 

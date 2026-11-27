@@ -43,7 +43,7 @@ import {
   type CodeTestRun,
   type PhotosChanged,
   type VideoChanged,
-  type CodeTestsEvent,
+  type CodeTestsEvent, type CodeProblems,
 } from '@mobius/shared';
 
 /**
@@ -510,6 +510,12 @@ export function createTauriBridge(): MobiusBridge {
       push: (project) => call('code', 'push', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
       onChanged: (listener) => on<CodeChanged>('mobius:code-changed', listener),
       onTests: (listener) => on<CodeTestsEvent>('mobius:code-tests', listener),
+      lspSync: (project, path, text) => call('code', 'lspSync', [project, path, text], () => ({ ok: false as const, none: true as const })),
+      lspClose: (project, path) => call('code', 'lspClose', [project, path], () => ({ ok: true })),
+      lspProblems: (project) => call('code', 'lspProblems', [project], () => []),
+      lspAsk: (project, path, kind, line, character, extra) => call('code', 'lspAsk', [project, path, kind, line, character, extra ?? null], () => ({ ok: false as const, none: true as const })),
+      applyEdits: (project, files) => call('code', 'applyEdits', [project, files], () => ({ ok: false as const, message: 'Code is not available.' })),
+      onProblems: (listener) => on<CodeProblems>('mobius:code-problems', listener),
     },
     sheets: {
       list: () => call('sheets', 'list', [], () => []),

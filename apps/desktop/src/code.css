@@ -245,3 +245,45 @@
 .code-outline-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
 .code-outline-line { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .code-outline-empty { padding: var(--sp-3); margin: 0; }
+
+/* Language smarts: problems underlined, what the pointer rests on, completions, a rename, and the status line's parts. */
+.code-page .ed-problem { position: absolute; height: var(--code-line); pointer-events: none; --wave: var(--c-coral); background: radial-gradient(circle at 50% 0, transparent 1.6px, var(--wave) 1.7px, var(--wave) 2.3px, transparent 2.4px) 0 calc(100% - 1px) / 4px 3px repeat-x; }
+.code-page .ed-problem[data-severity="warning"] { --wave: var(--c-amber); }
+.code-page .ed-problem[data-severity="info"], .code-page .ed-problem[data-severity="hint"] { --wave: var(--c-blue); opacity: 0.7; }
+.code-page .ed-hover, .code-page .ed-complete { position: absolute; z-index: 4; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-2); font: var(--fs-sm)/var(--lh-tight) var(--font); color: var(--ink); white-space: normal; cursor: default; }
+.code-page .ed-hover { transform: translateY(-100%); max-width: min(520px, 70vw); max-height: 260px; overflow: auto; padding: var(--sp-2) var(--sp-3); }
+.code-page .ed-hover[data-below] { transform: none; }
+.code-page .ed-hover p { margin: 0 0 var(--sp-1); white-space: pre-wrap; }
+.code-page .ed-hover p:last-child { margin-bottom: 0; }
+.code-page .ed-hover-code { margin: 0 0 var(--sp-1); font: var(--fs-sm)/1.45 var(--font-mono); white-space: pre; }
+.code-page .ed-hover-code:last-child { margin-bottom: 0; }
+.code-page .ed-hover-problem { display: flex; align-items: baseline; gap: var(--sp-2); }
+.code-page .ed-hover-mark, .code-panel .ed-hover-mark, .code-page .code-status-err, .code-page .code-status-warn { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c-coral); }
+.code-page .ed-hover-problem[data-severity="warning"] .ed-hover-mark, .code-page .code-status-warn { background: var(--c-amber); }
+.code-page .ed-hover-problem[data-severity="info"] .ed-hover-mark, .code-page .ed-hover-problem[data-severity="hint"] .ed-hover-mark { background: var(--c-blue); }
+.code-page .ed-hover-source { color: var(--muted); }
+.code-page .ed-complete { display: flex; align-items: flex-start; overflow: hidden; }
+.code-page .ed-complete ul { list-style: none; margin: 0; padding: var(--sp-1); width: 320px; max-height: calc(10 * 24px); overflow: auto; }
+.code-page .ed-complete li { display: flex; align-items: center; gap: var(--sp-2); height: 24px; padding: 0 var(--sp-2); border-radius: var(--radius-control); font-family: var(--font-mono); white-space: nowrap; }
+.code-page .ed-complete li[aria-selected="true"] { background: var(--sel); }
+.code-page .ed-complete-kind { flex: none; width: 16px; text-align: center; font-size: var(--fs-xs); color: var(--muted); }
+.code-page .ed-complete-label { overflow: hidden; text-overflow: ellipsis; }
+.code-page .ed-complete-detail { margin-left: auto; padding-left: var(--sp-3); overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: var(--fs-xs); }
+.code-page .ed-complete-doc { width: 260px; max-height: calc(10 * 24px); overflow: auto; padding: var(--sp-2) var(--sp-3); border-left: var(--hairline-w) solid var(--line); white-space: pre-wrap; color: var(--muted); }
+.code-page .ed-rename { position: absolute; z-index: 4; width: 220px; height: 26px; padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line-strong); border-radius: var(--radius-control); background: var(--raised); color: var(--ink); font: var(--fs-sm) var(--font-mono); box-shadow: var(--shadow-2); }
+.code-page .code-status-btn { display: inline-flex; align-items: center; gap: var(--sp-1); height: 20px; padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.code-page .code-status-btn:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.code-page .code-status-btn[aria-pressed="false"] { opacity: 0.7; }
+.code-page .code-status-btn[aria-pressed="true"] { color: var(--ink); }
+.code-page .code-status-warn { margin-left: var(--sp-1); }
+.code-page .code-status-note { color: var(--ink); }
+.code-panel.code-problems { overflow: auto; height: 100%; padding: var(--sp-1) 0; font-size: var(--fs-sm); }
+.code-panel.code-problems h3 { margin: var(--sp-2) var(--sp-3) var(--sp-1); font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
+.code-panel.code-problems ul { list-style: none; margin: 0; padding: 0; }
+.code-panel .code-problem { display: flex; align-items: baseline; gap: var(--sp-2); width: 100%; padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-5); border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.code-panel .code-problem:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.code-panel .code-problem .ed-hover-mark { align-self: center; }
+.code-panel .code-problem[data-severity="warning"] .ed-hover-mark { background: var(--c-amber); }
+.code-panel .code-problem[data-severity="info"] .ed-hover-mark, .code-panel .code-problem[data-severity="hint"] .ed-hover-mark { background: var(--c-blue); }
+.code-panel .code-problem-where { margin-left: auto; color: var(--muted); white-space: nowrap; font-size: var(--fs-xs); }
+.code-panel.code-problems-empty { margin: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
