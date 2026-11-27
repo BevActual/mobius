@@ -686,7 +686,11 @@ test('the editor splits: the same file shows in both, another file opens beside 
   const otherText = other.getByRole('textbox', { name: 'Contents of tests/budget.test.js' });
   await expect(otherText).toHaveValue(TEST);
   await expect(main).toHaveCount(1);
-  await otherText.focus();
+  // F6 moves the keyboard between the editors.
+  await shell().keyboard.press('F6');
+  await expect(main).toBeFocused();
+  await shell().keyboard.press('F6');
+  await expect(otherText).toBeFocused();
   await shell().keyboard.press('Control+Home');
   await shell().keyboard.type('// checked\n');
   await expect(other.getByRole('status').filter({ hasText: 'Not saved' })).toBeVisible();

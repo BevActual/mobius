@@ -481,6 +481,12 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
         // In the second editor, Ctrl+P opens a file there.
         if ((document.activeElement as HTMLElement | null)?.closest('.code-pane-side')) setSideQuick(true); else setQuick(true);
       }
+      // F6 and Shift+F6 move the keyboard between the two editors of a split, as in VS Code.
+      if (e.key === 'F6' && !e.altKey && !e.ctrlKey && !e.metaKey && document.querySelector('.code-pane-side .ed-input')) {
+        e.preventDefault();
+        const inSide = (document.activeElement as HTMLElement | null)?.closest('.code-pane-side');
+        document.querySelector<HTMLTextAreaElement>(inSide ? '.code-pane-main .ed-input' : '.code-pane-side .ed-input')?.focus({ preventScroll: true });
+      }
       // Ctrl+\ splits the editor: the open file beside itself, or the split closed when there is one.
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === '\\' || e.code === 'Backslash') && code.open) {
         e.preventDefault();
@@ -671,7 +677,7 @@ function SidePane({ side, lsp, base, bar, setBar, onQuick, onShowProblems }: { s
         </nav>
         {state.dirty && <span className="code-dirty" role="status">Not saved</span>}
         <span className="code-head-actions">
-          <Button kind="quiet" title={`Open another file here (${keyLabel('P')} while this editor has the keyboard)`} onClick={onQuick}>Open…</Button>
+          <Button kind="quiet" title={`Open another file here (${keyLabel('P')} while this editor has the keyboard; F6 moves between the editors)`} onClick={onQuick}>Open…</Button>
           {file?.text != null && <Button kind={state.dirty ? 'primary' : 'quiet'} disabled={!state.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void (side.shared ? state.save() : lsp.save())}>Save</Button>}
         </span>
       </header>
