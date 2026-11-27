@@ -293,7 +293,8 @@ test('a job that took several steps offers Save as Ability in the Inbox, which w
   await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
   await openApp('Agent');
   const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
-  await inbox.getByRole('button', { name: 'Save Fix the tap as an Ability' }).click({ timeout: 15_000 });
+  // Pressed twice at once: one Ability, not two.
+  await inbox.getByRole('button', { name: 'Save Fix the tap as an Ability' }).dblclick({ timeout: 15_000 });
   await expect(shell().locator('.toast')).toHaveText('Mobius is writing it as an Ability. It will be in your Inbox to keep.');
   // It is asked from the job's own steps, with only the Abilities' and files' tools, and not to do the job again.
   await expect.poll(() => model!.requests.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(5);
@@ -308,6 +309,11 @@ test('a job that took several steps offers Save as Ability in the Inbox, which w
   await expect(inbox.getByRole('button', { name: /^Save Ability from/ })).toHaveCount(0);
   await inbox.getByRole('button', { name: 'Keep all of Ability from Fix the tap' }).click();
   expect(fs.readFileSync(path.join(userData, 'workspace', 'skills', 'find-a-tradesperson', 'SKILL.md'), 'utf8')).toBe(skill);
+  // Once kept, the job it came from still does not offer it again, and only one Ability was asked for.
+  await expect(inbox.getByRole('button', { name: /^Open Fix the tap/ })).toBeVisible();
+  await expect(inbox.getByRole('button', { name: 'Save Fix the tap as an Ability' })).toHaveCount(0);
+  expect(model!.requests.filter((r) => JSON.stringify(r).includes('as an Ability')).length).toBeLessThanOrEqual(3);
+  expect(model!.requests.length).toBe(7);
 });
 
 test('Assign to Mobius on a note, from its row in Notebooks, asks about that note and lands in the Inbox', async () => {

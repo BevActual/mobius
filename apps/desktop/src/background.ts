@@ -1,4 +1,4 @@
-import { ABILITY_ITEM, jobSteps } from './ability-offer';
+import { ABILITY_ITEM, jobSteps, savedJobs } from './ability-offer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConversationInfo } from '@mobius/shared';
 import { KEPT_EVENT, fileKept, keepTurn, keptTurns, reviewable, turnId } from './ReviewStrip';
@@ -70,7 +70,7 @@ export function useBackgroundRuns(conversations: readonly ConversationInfo[]) {
     const c = conversations.find((x) => x.id === r.conversation);
     return c ? c.activity !== 'working' && c.waiting === 0 : false;
   });
-  const key = finished.map((r) => `${r.conversation}:${r.at}:${r.stopped ? 's' : ''}:${conversations.find((x) => x.id === r.conversation)?.activity ?? ''}`).join(',') + `|${runs.filter((r) => r.item?.startsWith(ABILITY_ITEM)).length}`;
+  const key = finished.map((r) => `${r.conversation}:${r.at}:${r.stopped ? 's' : ''}:${conversations.find((x) => x.id === r.conversation)?.activity ?? ''}`).join(',') + `|${runs.filter((r) => r.item?.startsWith(ABILITY_ITEM)).length}|${savedJobs().length}`;
   const reads = useRef(0);
   const load = useCallback(async () => {
     const n = ++reads.current;
@@ -82,7 +82,7 @@ export function useBackgroundRuns(conversations: readonly ConversationInfo[]) {
       const failed = conversations.find((x) => x.id === r.conversation)?.activity === 'failed';
       const text = r.kind ? await answerOf(r.conversation) : undefined;
       // Not one that writes an Ability, nor one already being saved as one.
-      const saving = r.item?.startsWith(ABILITY_ITEM) || readRuns().some((x) => x.item === `${ABILITY_ITEM}${r.conversation}`);
+      const saving = r.item?.startsWith(ABILITY_ITEM) || savedJobs().includes(r.conversation);
       const steps = r.kind || failed || r.stopped || saving ? 0 : jobSteps(await window.mobius.agent.history(r.conversation).catch(() => [])).steps.length;
       return { ...r, files, turn, ...(failed ? { failed } : {}), ...(text ? { text } : {}), ...(steps ? { steps } : {}) };
     }));

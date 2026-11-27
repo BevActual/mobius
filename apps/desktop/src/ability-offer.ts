@@ -12,6 +12,25 @@ export const ABILITY_MIN_STEPS = 3;
 /** The Inbox's mark on a run that writes an Ability, so its own row offers nothing more. */
 export const ABILITY_ITEM = 'ability:';
 
+const SAVED_KEY = 'mobius.abilities-saved';
+const SAVED_MAX = 200;
+/** The jobs (by chat) already saved as an Ability, or being saved: their rows offer it no more, even once the new
+ * Ability has been kept and its own row has gone. */
+export function savedJobs(): string[] {
+  try {
+    const v: unknown = JSON.parse(window.localStorage.getItem(SAVED_KEY) ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch { return []; }
+}
+/** Marks a job as saved, at once (so a second press does nothing); false when it already was. `undo` clears it again. */
+export function markSaved(conversation: string, undo = false): boolean {
+  const all = savedJobs();
+  if (!undo && all.includes(conversation)) return false;
+  const next = undo ? all.filter((c) => c !== conversation) : [...all, conversation].slice(-SAVED_MAX);
+  try { window.localStorage.setItem(SAVED_KEY, JSON.stringify(next)); } catch { /* Not remembered. */ }
+  return true;
+}
+
 export interface JobSteps { ask: string; steps: string[]; answer: string }
 
 const one = (text: string, n: number) => { const t = text.replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
