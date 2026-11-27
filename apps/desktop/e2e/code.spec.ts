@@ -418,3 +418,19 @@ test('regions fold from the gutter or the keys, the scope stays at the top while
   await shell().keyboard.press('Enter');
   await expect(shell().getByText('Ln 84, Col 1')).toBeVisible();
 });
+
+test('a change made outside the editor, such as Revert, is one more step for undo, so undo never mixes up the text', async () => {
+  await start();
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await expect(editor).toHaveValue(BUDGET);
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('const a = 1');
+  await shell().getByRole('button', { name: 'Revert' }).click();
+  await expect(editor).toHaveValue(BUDGET);
+  await editor.focus();
+  await shell().keyboard.press('Control+z');
+  await expect(editor).toHaveValue(`${BUDGET}const a = 1`);
+  await shell().keyboard.press('Control+z');
+  await expect(editor).toHaveValue(BUDGET);
+});

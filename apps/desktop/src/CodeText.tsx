@@ -170,11 +170,20 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     history.current.clear();
     folds.current = new Set();
   } else if (doc.current.text !== code.draft) {
-    const n = code.draft.length;
+    // Changed outside the editor (Revert, a change kept from Mobius, a reload): kept as a step of its own, so undo
+    // stays exact and can take it back too, with the cursors moved along with it.
     const was = doc.current;
-    const sels = normalize(was.sels.map((s) => ({ anchor: Math.min(s.anchor, n), head: Math.min(s.head, n) })), was.primary);
-    doc.current = { text: code.draft, sels: sels.sels, primary: sels.primary };
-    history.current.seal();
+    const span = diffSpan(was.text, code.draft);
+    if (span) {
+      const changes = [span];
+      const n = normalize(was.sels.map((s) => ({ anchor: mapPos(s.anchor, changes), head: mapPos(s.head, changes) })), was.primary);
+      const step = { state: { text: code.draft, sels: n.sels, primary: n.primary }, changes };
+      history.current.seal();
+      history.current.record(was, step, 'outside');
+      history.current.seal();
+      if (folds.current.size > 0) folds.current = new Set([...folds.current].map((p) => mapPos(p, changes, false)));
+      doc.current = step.state;
+    }
   }
   const state = doc.current;
   const text = state.text;
