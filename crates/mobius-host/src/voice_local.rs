@@ -132,6 +132,15 @@ pub fn is_listen_model(model: &str) -> bool {
 /// About what the packed program takes to download (it is counted before its size is known).
 const PROGRAM_BYTES: u64 = 15 * 1024 * 1024;
 
+/// The slowest connection a download is waited for, in bytes a second (256 KB/s).
+const SLOWEST: u64 = 256 * 1024;
+
+/// How long a file's whole download may take: ureq's body timeout covers all of it, not a pause, so it grows with the
+/// file. A minute, and the file at the slowest connection: Parakeet's 652 MB encoder gets about 43 minutes.
+fn body_time(size: u64) -> Duration {
+    Duration::from_secs(60 + size / SLOWEST)
+}
+
 /// What a model takes on disk, with the speech detector; the program comes on top.
 #[must_use]
 pub fn model_bytes(model: &str) -> u64 {
@@ -284,7 +293,7 @@ impl DeviceVoice {
         self.set(model, State::Downloading { done, total });
         if !program_here {
             let packed = self.dir.join(format!("{PROGRAM}.gz.part"));
-            self.download(&program, &program_sha, &packed, model, &mut done, total)?;
+            self.download(&program, &program_sha, PROGRAM_BYTES, &packed, model, &mut done, total)?;
             let part = self.dir.join(format!("{PROGRAM}.part"));
             let unpacked = std::fs::File::open(&packed).and_then(|f| {
                 let mut gz = flate2::read::GzDecoder::new(f).take(MAX_BYTES);
@@ -303,15 +312,17 @@ impl DeviceVoice {
         }
         for file in files {
             let part = self.dir.join("models").join(format!("{}.part", file.name));
-            self.download(file.name, file.sha, &part, model, &mut done, total)?;
+            self.download(file.name, file.sha, file.size, &part, model, &mut done, total)?;
             std::fs::rename(&part, self.file_path(file)).map_err(|e| Failure(format!("Mobius could not save the speech model: {e}"), false))?;
         }
         Ok(())
     }
 
     /// One file from the release into `to`, checked against `sha`. A file that doesn't match is deleted.
-    fn download(&self, name: &str, sha: &str, to: &Path, model: &str, done: &mut u64, total: u64) -> Result<(), Failure> {
-        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_connect(Some(Duration::from_secs(15))).timeout_recv_body(Some(Duration::from_secs(60))).build().into();
+    /// `size` is about what it is, for how long its download may take.
+    #[allow(clippy::too_many_arguments)]
+    fn download(&self, name: &str, sha: &str, size: u64, to: &Path, model: &str, done: &mut u64, total: u64) -> Result<(), Failure> {
+        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_connect(Some(Duration::from_secs(15))).timeout_recv_body(Some(body_time(size))).build().into();
         let mut response = agent.get(&format!("{}{name}", self.release)).call().map_err(|e| match e {
             ureq::Error::StatusCode(code) => Failure(format!("The speech model could not be downloaded (GitHub answered {code})."), false),
             _ => Failure("Mobius couldn't reach GitHub to download the speech model. Check the connection and try again.".into(), true),
@@ -685,6 +696,14 @@ mod tests {
         assert!(is_listen_model(PARAKEET_MODEL) && !is_listen_model(SPEAKERS_MODEL) && !is_listen_model(SPEAK_MODEL));
         assert!(model_bytes(PARAKEET_MODEL) > 660_000_000 && model_bytes(PARAKEET_MODEL) < 680_000_000);
         assert!(model_bytes(SPEAKERS_MODEL) > 30_000_000 && model_bytes(SPEAKERS_MODEL) < 32_000_000);
+    }
+
+    #[test]
+    fn a_large_file_is_given_time_to_download_on_a_slow_connection() {
+        assert_eq!(body_time(0), Duration::from_secs(60));
+        // 3.5 MB/s took about 190 s for Parakeet's encoder; the old flat minute cut it off every time.
+        assert!(body_time(PARAKEET[0].size) > Duration::from_secs(40 * 60));
+        assert!(body_time(PROGRAM_BYTES) <= Duration::from_secs(2 * 60));
     }
 
     #[test]
