@@ -176,6 +176,12 @@ const Registry = createContext<((app: PanelsOfApp | null) => void) | null>(null)
 /** The frame provides this: the open app's layout registers itself, so the Panels menu can list it. */
 export const PanelRegistryContext = Registry;
 
+/** In split view only the focused pane's app lists its panels in the Panels menu; the other pane's layouts stay quiet. */
+export function PanelsListed({ on, children }: { on: boolean; children: ReactNode }) {
+  const register = useContext(Registry);
+  return <Registry.Provider value={on ? register : null}>{children}</Registry.Provider>;
+}
+
 const mac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.platform);
 
 /**

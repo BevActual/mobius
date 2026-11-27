@@ -240,6 +240,8 @@
 .ui-panel[data-shape="strip"] .side nav { display: contents; }
 .ui-panel[data-shape="strip"] .side > *, .ui-panel[data-shape="strip"] .side nav > * { flex: none; width: calc(var(--sp-8) * 7); box-sizing: border-box; }
 .ui-panel[data-shape="strip"] .side :is(section, .ui-side-section) { max-height: 100%; overflow: hidden auto; }
+/* Side by side, each group starts at the top: the gap that parts stacked groups would push the second one down. */
+.ui-panel[data-shape="strip"] .side .ui-side-section + .ui-side-section { margin-top: 0; }
 .ui-panel[data-shape="strip"] .side-search { margin: 0 0 var(--sp-2); }
 .ui-panel[data-shape="strip"] .app-side-new { align-self: flex-start; }
 /* A thin column: rows keep their names and drop what is beside them. */

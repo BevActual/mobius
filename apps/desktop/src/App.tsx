@@ -109,7 +109,7 @@ import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
 import { BESIDE_EVENT, besideUrlOk, type Beside } from './beside';
-import { pressIs } from './ui/PanelLayout';
+import { PanelsListed, pressIs } from './ui/PanelLayout';
 import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
 import { alertDue, alertSaid } from './calendar-alerts';
 import { stopReading } from './useSpeech';
@@ -796,9 +796,12 @@ export function App() {
   // 1024 wide, Notes had about 370px). Home is the chat itself and keeps its list. A choice made in the Panels menu is
   // kept, as for Mail.
   const mobiusDocked = chatOpen && appearance.value.rightSidebar !== 'floating';
+  // The Browser in half the window (beside Code's preview, say) starts without its tabs, so the page has the pane's room;
+  // the Panels menu brings them back, and that choice is kept.
+  const listShown = (id: string): boolean => (id === 'agent' ? true : id === 'browser' && split ? false : id === 'mail' || id === 'calendar' ? roomy : roomy || !mobiusDocked);
   const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
-    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'agent' ? true : id === 'mail' || id === 'calendar' ? roomy : roomy || !mobiusDocked, render: () => ownListRef.current(id as AppId) },
-  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy, mobiusDocked]);
+    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: listShown(id), render: () => ownListRef.current(id as AppId) },
+  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy, mobiusDocked, split]); // eslint-disable-line react-hooks/exhaustive-deps
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
@@ -2435,7 +2438,7 @@ export function App() {
                 onFocus={() => { if (split && focused !== index) setFocused(index); }}
                 onChoose={(next) => choosePane(index, next)} onSwap={swapPanes} onClose={() => closePane(index)}>
                 {/* The apps show the current conversation's changes as they land; their Keep waits for its turn to end. */}
-                <TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider>
+                <PanelsListed on={!split || focused === index}><TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider></PanelsListed>
               </Pane>
             );
             return at === 1

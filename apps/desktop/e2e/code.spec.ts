@@ -380,6 +380,9 @@ test('the preview\'s page tells Code its errors and the element the person picks
   const before = await loads();
   await shell().evaluate(() => window.mobius.code!.previewSay!('offsite-planner', 'reload'));
   await expect.poll(loads).toBeGreaterThan(before);
+  // When the preview stops, the open page says so rather than looking live.
+  await shell().evaluate(() => window.mobius.code!.stopPreview!('offsite-planner'));
+  await expect(page.getByRole('status')).toHaveText('This preview has stopped. Open Preview in Code to see the page again.');
   await page.close();
 });
 
@@ -387,9 +390,12 @@ test('the preview page opens as a tab in the Browser beside Code, once', { tag: 
   const url = await servePreview();
   await openBeside(url);
   const right = shell().getByRole('region', { name: 'Right pane: Browser' });
-  await expect(right.locator('.tab-title')).toHaveText(['Fixture home', 'Offsite']);
+  // In half the window the Browser starts without its tabs, so the page keeps the pane's room.
+  await expect(right.getByRole('complementary', { name: 'Tabs' })).toBeHidden();
+  const titles = () => shell().evaluate(async () => (await window.mobius.browser.getState()).tabs.map((t) => t.title));
+  await expect.poll(titles).toEqual(['Fixture home', 'Offsite']);
   await openBeside(url);
-  await expect(right.locator('.tab-title')).toHaveText(['Fixture home', 'Offsite']);
+  await expect.poll(titles).toEqual(['Fixture home', 'Offsite']);
 });
 
 test('find and replace changes one match or all of them, by whole word or pattern, and select all makes them cursors', async () => {
