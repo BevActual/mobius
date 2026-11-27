@@ -12,6 +12,8 @@ import type { Here } from './surface';
 export interface ItemChats { items: Record<string, { id: string; label: string }>; general?: string }
 
 const KEY = 'mobius.item-chats';
+/** Said on `window` when which chat belongs to which item changes, so what names a chat by its item can redraw. */
+export const ITEM_CHATS_EVENT = 'mobius:item-chats';
 const MAX = 400;
 
 export function readItemChats(): ItemChats {
@@ -25,7 +27,12 @@ export function readItemChats(): ItemChats {
 function writeItemChats(chats: ItemChats): void {
   const keys = Object.keys(chats.items);
   const items = keys.length > MAX ? Object.fromEntries(keys.slice(-MAX).map((k) => [k, chats.items[k]!])) : chats.items;
-  try { window.localStorage.setItem(KEY, JSON.stringify({ ...chats, items })); } catch { /* Not remembered. */ }
+  const text = JSON.stringify({ ...chats, items });
+  try {
+    if (window.localStorage.getItem(KEY) === text) return;
+    window.localStorage.setItem(KEY, text);
+  } catch { /* Not remembered. */ }
+  window.dispatchEvent(new Event(ITEM_CHATS_EVENT));
 }
 
 /** What a chat is about, for All chats: the item's name, or null for the general chat and older chats. */
@@ -61,23 +68,39 @@ export function itemChatFor(here: { key: string; label: string }): string {
   return next.id;
 }
 
+/** How long the person stays on a place before its chat is shown: flicking through apps moves no chat, and the app's
+ * own loading comes first (each move reads a chat's history and what its last turn changed from the core). */
+export const SETTLE_MS = 300;
+
 /**
  * Follows the person from item to item: opening a note shows its chat, leaving it for a place with no item shows the
- * general chat. Never while Mobius is working in the open chat (it may be opening things itself) or while what it
- * changed waits for Keep (the person is likely going to look at it), and not in the Agent app, where the chat is the
+ * general chat, once the person has stayed there a moment. Never while Mobius is working in the open chat (it may be
+ * opening things itself), while what it changed waits for Keep or is still being read (the person is likely going to
+ * look at it), once the person has used the open chat since arriving, and not in the Agent app, where the chat is the
  * page and the person picks it.
  */
-export function useItemChats(here: Here | null, on: boolean, open: { id: string; empty: boolean; busy: boolean; waiting: boolean }, select: (id: string) => void): void {
+export function useItemChats(here: Here | null, on: boolean, open: { id: string; empty: boolean; count: number; busy: boolean; waiting: boolean }, reading: { current: boolean }, select: (id: string) => void): void {
   const now = useRef(open);
   now.current = open;
   const key = on ? (here ? `item:${here.key}` : 'general') : null;
-  const label = here?.label ?? '';
+  const label = useRef('');
+  label.current = here?.label ?? '';
   useEffect(() => {
-    if (!key || now.current.busy || now.current.waiting) return;
-    const place = key === 'general' ? null : { key: key.slice(5), label };
-    const next = chatForPlace(readItemChats(), place, now.current, () => conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()));
-    writeItemChats(next.chats);
-    if (next.id !== now.current.id) select(next.id);
+    if (!key) return;
+    const arrived = { id: now.current.id, count: now.current.count };
+    let timer = 0;
+    let tries = 0;
+    const move = () => {
+      const o = now.current;
+      if (o.busy || o.waiting || o.id !== arrived.id || o.count !== arrived.count) return;
+      if (reading.current && ++tries < 20) { timer = window.setTimeout(move, 100); return; }
+      const place = key === 'general' ? null : { key: key.slice(5), label: label.current };
+      const next = chatForPlace(readItemChats(), place, o, () => conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()));
+      writeItemChats(next.chats);
+      if (next.id !== o.id) select(next.id);
+    };
+    timer = window.setTimeout(move, SETTLE_MS);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a change of place moves the chat.
   }, [key]);
 }

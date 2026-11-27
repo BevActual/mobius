@@ -1,5 +1,5 @@
 import type { SuggestedRead } from './surface';
-import { itemOfChat, readItemChats } from './itemChats';
+import { ITEM_CHATS_EVENT, itemOfChat, readItemChats } from './itemChats';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { pageIn } from './motion';
@@ -493,6 +493,12 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
   useEffect(() => { if (!open) setQuery(''); }, [open]);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const again = () => redraw((n) => n + 1);
+    window.addEventListener(ITEM_CHATS_EVENT, again);
+    return () => window.removeEventListener(ITEM_CHATS_EVENT, again);
+  }, []);
   const chats = readItemChats();
   // A chat on an item is named by it until it has words of its own.
   const title = conversations.find((c) => c.id === active)?.title || itemOfChat(chats, active) || 'New chat';

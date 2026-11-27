@@ -385,11 +385,14 @@ test('chats live on items: each note keeps its own chat, the list away from them
   await openApp('Notes');
   if (!(await composer().isVisible())) await shell().keyboard.press('Control+Shift+M');
   await shell().getByRole('button', { name: 'Trip', exact: true }).click();
+  // The panel takes the note's chat once the person stays on it a moment; it is named after the note until asked.
+  await expect(shell().getByRole('button', { name: 'Trip: all chats' })).toBeVisible();
   await composer().fill('When is the ferry?');
   await composer().press('Enter');
   await expect(log().locator('.msg.assistant')).toContainText('About the trip.');
   await shell().getByRole('button', { name: 'Budget', exact: true }).click();
   // Another note: its own chat, empty until asked.
+  await expect(shell().getByRole('button', { name: 'Budget: all chats' })).toBeVisible();
   await expect(log().locator('.msg')).toHaveCount(0);
   await composer().fill('How many nights?');
   await composer().press('Enter');

@@ -1353,7 +1353,7 @@ export function App() {
   // Chats live on items: opening a note, document, sheet or list shows its own chat; elsewhere, the general one. Not
   // while the Agent page is on screen (alone or in split view), where the person picks the chat. Not
   // while the open chat's changes wait for Keep: going to look at them must not take them away.
-  useItemChats(hereOf(surface), app !== 'agent' && other !== 'agent' && !settingsOpen, { id: conversation.state.conversation, empty: conversation.state.items.length === 0, busy: conversation.state.busy, waiting: turnMarks.files.length > 0 || marksReading.current }, conversation.select);
+  useItemChats(hereOf(surface), app !== 'agent' && other !== 'agent' && !settingsOpen, { id: conversation.state.conversation, empty: conversation.state.items.length === 0, count: conversation.state.items.length, busy: conversation.state.busy, waiting: turnMarks.files.length > 0 }, marksReading, conversation.select);
   // Ask from anywhere: Ctrl+Shift+J with something chosen in the open app asks about it there, in a card by it.
   const [askHere, setAskHere] = useState<{ picked: Picked; back: Element | null; range: Range | null; chat: string } | null>(null);
   // The card asks in the item's own chat (so opening the item later shows it), unless that chat is busy right now.
