@@ -92,6 +92,7 @@ import { eventsOn, isoDay, rangeLabel as calendarRange } from './calendar-view';
 import { Desk } from './Desk';
 import { useBackgroundRuns } from './background';
 import { BRIEF_TITLE, BRIEF_TOOLS, useMorningBrief } from './brief';
+import { checkInTitle, useCheckIns } from './checkins';
 import { ASSIGN_EVENT, type Assignment } from './assign';
 import { AskHere, inlineAnswer, pickedNow, plainAnswer, type Picked } from './AskHere';
 import { hereOf } from './surface';
@@ -1422,6 +1423,14 @@ export function App() {
     const result = await conversation.assign(text, [], 'home', { ask: true, tools: BRIEF_TOOLS });
     if ('error' in result) return false;
     handoffs.start(result.id, BRIEF_TITLE, 'brief');
+    return true;
+  });
+  // Check-ins: the first time each day the person stays in Mail, Tasks, Calendar or Notes, Mobius looks there (Ask
+  // mode, that app's tools only) and leaves a few suggestions in the Inbox. Not while Settings is open.
+  useCheckIns(settingsOpen ? '' : app, preferences.value.checkInApps, preferences.loaded, async (where, text) => {
+    const result = await conversation.assign(text, [], where, { ask: true, tools: [where] });
+    if ('error' in result) return false;
+    handoffs.start(result.id, checkInTitle(where), 'check-in', where);
     return true;
   });
   useEffect(() => {

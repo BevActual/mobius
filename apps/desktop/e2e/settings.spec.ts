@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { choose, goToPlace, interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
+import { choose, goTo, goToPlace, interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -566,4 +566,37 @@ test('the morning brief: Write one now asks in Ask mode, and it lands in the Inb
   await expect(inbox.getByRole('alert')).toBeVisible();
   await inbox.getByRole('button', { name: 'Done with Morning brief' }).click();
   await expect(inbox.getByRole('button', { name: 'Open Morning brief' })).toHaveCount(0);
+});
+
+test('check-ins: staying in an app looks there once a day and leaves suggestions in the Inbox, only reading', async () => {
+  await start([says(['- Reply to Sam about the lease\n- Plan the harbour walk'])]);
+  await shell().evaluate(() => window.mobius.preferences.set({ notifyFinished: false }));
+  await openSettings();
+  await go('Schedules', 'Check-ins');
+  const apps = page().getByRole('switch', { name: 'When I open an app' });
+  // The tests start with check-ins off; here they are turned on, and Tasks was last looked at yesterday.
+  await expect(apps).not.toBeChecked();
+  await apps.click();
+  await expect(apps).toBeChecked();
+  await shell().evaluate(() => window.localStorage.setItem('mobius.check-ins', JSON.stringify({ tasks: '2000-01-01' })));
+  await shell().keyboard.press('Escape');
+  await expect(page()).toHaveCount(0);
+  await goTo(shell(), 'Tasks');
+  // A moment in Tasks, then Mobius looks: Ask mode, with Tasks' reading tools only.
+  await expect.poll(() => model!.requests.length, { timeout: 15_000 }).toBe(1);
+  const request = model!.requests[0]!;
+  expect(JSON.stringify(request.messages)).toContain('suggest up to three things I could do next there');
+  const tools = ((request.tools ?? []) as Array<{ function?: { name?: string }; name?: string }>).map((t) => t.function?.name ?? t.name ?? '').filter((t) => !['todo-write', 'ask-person'].includes(t));
+  expect(tools.length).toBeGreaterThan(0);
+  expect(tools.every((t) => t.startsWith('tasks-') && !/add|delete|update|write|schedule/.test(t))).toBe(true);
+  await goToPlace(shell(), 'Home');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: 'Open Suggestions for Tasks' })).toBeVisible({ timeout: 15_000 });
+  await expect(inbox.getByRole('list', { name: 'Suggestions for Tasks, as written' }).getByRole('listitem')).toHaveText(['Reply to Sam about the lease', 'Plan the harbour walk']);
+  // Suggestions are not read aloud: no Play on them.
+  await expect(inbox.getByRole('button', { name: /^Play Suggestions/ })).toHaveCount(0);
+  // Once a day: back in Tasks, nothing more is asked.
+  await goTo(shell(), 'Tasks');
+  await shell().waitForTimeout(5000);
+  expect(model!.requests.length).toBe(1);
 });

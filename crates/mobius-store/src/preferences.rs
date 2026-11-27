@@ -74,7 +74,7 @@ fn is_signatures(v: &Value) -> bool {
     v.as_object().is_some_and(|m| m.len() <= 20 && m.iter().all(|(k, s)| !k.is_empty() && k.len() <= 200 && s.as_str().is_some_and(|s| s.chars().count() <= 2000 && !s.contains('\0'))))
 }
 
-static FIELDS: [Field; 30] = [
+static FIELDS: [Field; 31] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -107,6 +107,8 @@ static FIELDS: [Field; 30] = [
     Field { name: "readAloud", default: || json!(false), check: is_flag },
     // Each morning Mobius writes a brief of the day into Home's Inbox, only reading to do it. On until turned off.
     Field { name: "morningBrief", default: || json!(true), check: is_flag },
+    // When an app is opened, once a day each, Mobius leaves a few suggestions for it in the Inbox, only reading to do it.
+    Field { name: "checkInApps", default: || json!(true), check: is_flag },
     Field { name: "appAccess", default: app_access_default, check: is_app_access },
     Field { name: "quickModel", default: || json!(""), check: is_quick_model },
     // The model that makes pictures: empty (none) or `gateway|model`, as for the quick model.

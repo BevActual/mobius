@@ -275,16 +275,17 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                 </li>
               );
             })}
-            {handedOff.map((run) => run.kind === 'brief' && run.text && !run.stopped && !run.failed ? (
+            {handedOff.map((run) => run.kind && run.text && !run.stopped && !run.failed ? (
+              // The morning brief, or an app's check-in: what it wrote, as a few lines under its name.
               <li key={`background:${run.conversation}:${run.at}`} data-key={`background:${run.conversation}`} className="desk-row desk-brief" data-background>
-                <button type="button" className="desk-open" aria-label={`Open ${BRIEF_TITLE}`} onClick={() => background?.onOpen(run)}>
-                  <Icon app="agent" />
-                  <span className="desk-name">{BRIEF_TITLE}</span>
+                <button type="button" className="desk-open" aria-label={`Open ${run.ask}`} onClick={() => background?.onOpen(run)}>
+                  <Icon app={run.kind === 'check-in' && run.app && run.app in APP_ICONS ? run.app as AppId : 'agent'} />
+                  <span className="desk-name">{run.ask}</span>
                   {go('Open')}
                 </button>
-                <BriefPlay id={`brief:${run.conversation}`} text={run.text} />
-                <button type="button" className="desk-act" aria-label={`Done with ${BRIEF_TITLE}`} title="Clear it from the Inbox" onClick={() => finishRun(run, false)}>Done</button>
-                <ul className="desk-brief-text" aria-label={`${BRIEF_TITLE}, as written`}>
+                {run.kind === 'brief' && <BriefPlay id={`brief:${run.conversation}`} text={run.text} />}
+                <button type="button" className="desk-act" aria-label={`Done with ${run.ask}`} title="Clear it from the Inbox" onClick={() => finishRun(run, false)}>Done</button>
+                <ul className="desk-brief-text" aria-label={`${run.ask}, as written`}>
                   {briefLines(run.text).map((line, i) => <li key={i}>{line}</li>)}
                 </ul>
               </li>
