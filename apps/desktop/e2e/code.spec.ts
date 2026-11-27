@@ -387,9 +387,9 @@ test('the preview page opens as a tab in the Browser beside Code, once', { tag: 
   const url = await servePreview();
   await openBeside(url);
   const right = shell().getByRole('region', { name: 'Right pane: Browser' });
-  await expect(right.locator('.tab-title')).toHaveText(['Offsite']);
+  await expect(right.locator('.tab-title')).toHaveText(['Fixture home', 'Offsite']);
   await openBeside(url);
-  await expect(right.locator('.tab-title')).toHaveText(['Offsite']);
+  await expect(right.locator('.tab-title')).toHaveText(['Fixture home', 'Offsite']);
 });
 
 test('find and replace changes one match or all of them, by whole word or pattern, and select all makes them cursors', async () => {
