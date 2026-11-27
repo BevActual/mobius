@@ -392,6 +392,8 @@ pub struct Bridge {
     drives: Arc<crate::drives::Drives>,
     /// Watches the "This computer" folders so Files refreshes when another app changes them.
     place_watcher: Mutex<Option<::notify::RecommendedWatcher>>,
+    /// The Code app's projects, watched for changes other apps make (another editor, git).
+    code_watcher: Mutex<Option<crate::code_watch::CodeWatch>>,
     /// Files picked on Google Drive, opened from Files (`drive.file` only).
     google_drive: Mutex<Arc<crate::google_drive::GoogleDrive>>,
     /// Google and Microsoft accounts signed in to once for several apps (Settings › Accounts).
@@ -549,6 +551,7 @@ impl Bridge {
             browser: OnceLock::new(),
             dialogs: OnceLock::new(),
             place_watcher: Mutex::new(None),
+            code_watcher: Mutex::new(None),
             agent,
             appearance: Mutex::new(appearance::open(data_dir.join("appearance.json"))),
             preferences: Mutex::new(preferences::open(data_dir.join("preferences.json"))),
@@ -664,6 +667,7 @@ impl Bridge {
             space_emit("mobius:messages-changed", json!({ "account": account, "channel": null }));
             Ok(())
         }));
+        bridge.watch_code();
         // The first checkpoint of a session is slow (every file is looked at); done now, while the window loads, the
         // first turn's checkpoint only has to save. Counted as a mark, so what waits for marks (Remove all data among
         // them) waits for it too.
@@ -3688,7 +3692,22 @@ impl Bridge {
     }
 
     /// The Code app: projects in `code/`, their files, and the person's test command for each.
+    /// Code projects changed by other apps (another editor, git, a script) show in Code: an open file with nothing
+    /// typed reads again. Watched once the Code folder exists (at start, or once Code is first used).
+    fn watch_code(&self) {
+        let mut watching = lock(&self.code_watcher);
+        let root = self.data_dir.join("workspace").join("code");
+        if watching.is_some() || !root.is_dir() {
+            return;
+        }
+        let emit = self.emit.clone();
+        *watching = crate::code_watch::watch(&root, Arc::new(move |project: &str, path: Option<&str>| {
+            emit("mobius:code-changed", json!({ "project": project, "path": path, "by": "another app" }));
+        }));
+    }
+
     fn code_call(&self, method: &str, args: &[Value]) -> Value {
+        self.watch_code();
         let text = |i: usize| args.get(i).and_then(Value::as_str);
         let code = &self.code;
         let need = || "a project and a file are needed".to_owned();

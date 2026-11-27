@@ -149,6 +149,19 @@ export function useCode(active = true) {
       if (!now.project || (change.project && change.project !== now.project)) return;
       void loadTree(now.project);
       if (now.open && (change.path === null || change.path === now.open.path)) {
+        if (change.by === 'another app' && now.open.text !== null) {
+          // Seen on disk (another editor, git, a script; or this app's own save coming back): read it to tell which.
+          const { project, open } = { project: now.project, open: now.open };
+          void api.read(project, open.path).then((got) => {
+            const cur = live.current;
+            if (isNotesFailure(got) || cur.project !== project || cur.open?.path !== open.path || cur.open.text === null) return;
+            // The same words: only its time moves on, so a later save is not taken for a clash.
+            if (got.text === cur.open.text) { if (got.modified !== cur.open.modified) setOpen({ ...cur.open, modified: got.modified }); return; }
+            if (cur.draft === cur.open.text) void openFile(open.path, project);
+            else setMessage('Another app changed this file on disk while you were typing. Copy what you typed, then open the file again to see theirs.');
+          });
+          return;
+        }
         // Someone else changed the open file. If nothing is typed here, show theirs; if something is, the save says so.
         if (now.open.text === null || now.draft === now.open.text) void openFile(now.open.path, now.project);
       }
