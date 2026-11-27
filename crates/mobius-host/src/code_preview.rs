@@ -300,15 +300,29 @@ fn checked_report(v: &Value) -> Option<Value> {
     Some(Value::Object(out))
 }
 
-/// The page with Mobius's script first in its head (or first of all, when it has none), so it hears every error.
+/// The page with Mobius's script first in its head, so it hears every error. A page without a head gets it after its
+/// `<html>` or its doctype, never before the doctype, which would put the page in quirks mode.
 fn with_script(body: &[u8]) -> Vec<u8> {
     let lower = body.to_ascii_lowercase();
-    let at = find(&lower, b"<head").and_then(|start| lower[start..].iter().position(|&b| b == b'>').map(|end| start + end + 1)).unwrap_or(0);
+    let at = [&b"<head"[..], b"<html", b"<!doctype"].iter().find_map(|tag| after_tag(&lower, tag)).unwrap_or(0);
     let mut out = Vec::with_capacity(body.len() + SCRIPT_TAG.len());
     out.extend_from_slice(&body[..at]);
     out.extend_from_slice(SCRIPT_TAG.as_bytes());
     out.extend_from_slice(&body[at..]);
     out
+}
+
+/// Just past the first `<tag ...>` (the name whole: `<head` is not `<header`).
+fn after_tag(lower: &[u8], tag: &[u8]) -> Option<usize> {
+    let mut from = 0;
+    while let Some(at) = find(&lower[from..], tag).map(|i| from + i) {
+        let next = lower.get(at + tag.len()).copied();
+        if matches!(next, Some(b'>' | b' ' | b'\t' | b'\n' | b'\r' | b'/')) {
+            return lower[at..].iter().position(|&b| b == b'>').map(|end| at + end + 1);
+        }
+        from = at + tag.len();
+    }
+    None
 }
 
 fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
@@ -521,6 +535,9 @@ mod tests {
     fn a_page_without_a_head_gets_the_script_first() {
         assert_eq!(with_script(b"<h1>x</h1>"), format!("{SCRIPT_TAG}<h1>x</h1>").into_bytes());
         assert_eq!(with_script(b"<!doctype html><HEAD lang=en><b>"), format!("<!doctype html><HEAD lang=en>{SCRIPT_TAG}<b>").into_bytes());
+        // Never before the doctype (quirks mode), and a <header> is not the head.
+        assert_eq!(with_script(b"<!DOCTYPE html>\n<title>x</title>"), format!("<!DOCTYPE html>{SCRIPT_TAG}\n<title>x</title>").into_bytes());
+        assert_eq!(with_script(b"<!doctype html><html lang=en><header>h</header>"), format!("<!doctype html><html lang=en>{SCRIPT_TAG}<header>h</header>").into_bytes());
     }
 
     #[test]
