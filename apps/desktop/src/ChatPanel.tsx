@@ -1,4 +1,5 @@
 import type { SuggestedRead } from './surface';
+import { ITEM_CHATS_EVENT, itemOfChat, readItemChats } from './itemChats';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { pageIn } from './motion';
@@ -492,7 +493,15 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
   useEffect(() => { if (!open) setQuery(''); }, [open]);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const title = conversations.find((c) => c.id === active)?.title ?? 'New chat';
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const again = () => redraw((n) => n + 1);
+    window.addEventListener(ITEM_CHATS_EVENT, again);
+    return () => window.removeEventListener(ITEM_CHATS_EVENT, again);
+  }, []);
+  const chats = readItemChats();
+  // A chat on an item is named by it until it has words of its own.
+  const title = conversations.find((c) => c.id === active)?.title || itemOfChat(chats, active) || 'New chat';
   // The list opens under its button, moved left as far as it takes to stay inside the window (the panel is on the right).
   const [shift, setShift] = useState(0);
   useLayoutEffect(() => {
@@ -568,6 +577,7 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
                 return (
                   <button key={conversation.id} type="button" role="menuitem" className="convo-item" data-chat={conversation.id} aria-current={conversation.id === active ? 'true' : undefined} onClick={() => choose(() => onSelect(conversation.id))}>
                     <span className="convo-item-title">{conversation.title}</span>
+                    {itemOfChat(chats, conversation.id) && <span className="convo-item-about">{itemOfChat(chats, conversation.id)}</span>}
                     <span className="convo-item-time" data-waits={waits || undefined}>{waits ? (conversation.waiting > 1 ? `${conversation.waiting} questions` : 'Needs you') : relativeTime(conversation.updated_ms, Date.now())}</span>
                   </button>
                 );

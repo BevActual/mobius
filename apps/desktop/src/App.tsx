@@ -94,6 +94,7 @@ import { useBackgroundRuns } from './background';
 import { ASSIGN_EVENT, type Assignment } from './assign';
 import { AskHere, inlineAnswer, pickedNow, plainAnswer, type Picked } from './AskHere';
 import { hereOf } from './surface';
+import { itemChatFor, useItemChats } from './itemChats';
 import type { SendOptions } from './composer/Composer';
 import { inboxItems } from './inbox';
 import { fitDocks } from './dock-fit';
@@ -684,7 +685,8 @@ export function App() {
   useEffect(() => window.mobius.tray?.onQuitting(() => { void saveAll().finally(() => void window.mobius.tray?.savedForQuit().catch(() => undefined)); }), []);
   const activity = activityOf(conversation.state);
   const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
-  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone);
+  const marksReading = useRef(false);
+  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone, marksReading);
   // Tasks, Calendar and Sheets draw the running turn's changes as each call lands; the other apps when the turn ends.
   // Notes and Docs (marked): a folder Files syncs with a drive shows the sync glyph after its name.
   const syncedIn = (app: string) => (folder: string) => {
@@ -1348,8 +1350,21 @@ export function App() {
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
+  // Chats live on items: opening a note, document, sheet or list shows its own chat; elsewhere, the general one. Not
+  // while the Agent page is on screen (alone or in split view), where the person picks the chat. Not
+  // while the open chat's changes wait for Keep: going to look at them must not take them away.
+  useItemChats(hereOf(surface), app !== 'agent' && other !== 'agent' && !settingsOpen, { id: conversation.state.conversation, empty: conversation.state.items.length === 0, count: conversation.state.items.length, busy: conversation.state.busy, waiting: turnMarks.files.length > 0 }, marksReading, conversation.select);
   // Ask from anywhere: Ctrl+Shift+J with something chosen in the open app asks about it there, in a card by it.
-  const [askHere, setAskHere] = useState<{ picked: Picked; back: Element | null; range: Range | null } | null>(null);
+  const [askHere, setAskHere] = useState<{ picked: Picked; back: Element | null; range: Range | null; chat: string } | null>(null);
+  // The card asks in the item's own chat (so opening the item later shows it), unless that chat is busy right now.
+  const askChatFor = useRef<() => string>(() => conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()));
+  askChatFor.current = () => {
+    const here = hereOf(surface);
+    const fresh = () => conversationIdFor(MAIN_BOT_ID, crypto.randomUUID());
+    if (!here) return fresh();
+    const id = itemChatFor(here);
+    return id === conversation.state.conversation && conversation.state.busy ? fresh() : id;
+  };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented || !pressIs('mod+shift+j', event, window.mobius.platform === 'darwin')) return;
@@ -1360,7 +1375,7 @@ export function App() {
       if (!picked) return;
       event.preventDefault();
       const selection = document.getSelection();
-      setAskHere({ picked, back: document.activeElement, range: selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null });
+      setAskHere({ picked, back: document.activeElement, range: selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null, chat: askChatFor.current() });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -2304,7 +2319,7 @@ export function App() {
               : [pane];
           })}
           {toast && <div className="toast" role="status">{toast}</div>}
-          {askHere && <AskHere picked={askHere.picked} here={hereOf(surface)} app={app} onClose={() => closeAskHere()}
+          {askHere && <AskHere picked={askHere.picked} here={hereOf(surface)} app={app} chat={askHere.chat} onClose={() => closeAskHere()}
             {...(!askHere.picked.cells && askHere.range && askHere.back instanceof HTMLElement && askHere.back.isContentEditable ? { onReplace: (text: string) => closeAskHere(text) } : {})}
             onContinue={(id) => { setAskHere(null); conversation.select(id); openRight(); setFocusToken((n) => n + 1); }} />}
           {/* An alert, unless the meeting's own nudge is already saying it is starting. */}

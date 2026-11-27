@@ -67,8 +67,8 @@ export function placeCard(rect: Picked['rect'], view: { width: number; height: n
 }
 
 /**
- * The card: a question about what is selected, sent in Ask mode (read and answer, change nothing) to a chat of its
- * own, with the answer shown here as it comes. Continue in chat opens that chat in the panel; Esc puts the keyboard
+ * The card: a question about what is selected, sent in Ask mode (read and answer, change nothing) to the item's own
+ * chat (or one of its own when there is no item), with the answer shown here as it comes. Continue in chat opens that chat in the panel; Esc puts the keyboard
  * back where it was.
  */
 /** The answer as plain words, for putting in place of the chosen ones: no headings' hashes, bold stars or code ticks. */
@@ -96,8 +96,10 @@ export function inlineAnswer(markdown: string, after: string): string {
   return after.trim() ? one.replace(/[.,;:!?…]+$/, '') : one;
 }
 
-export function AskHere({ picked, here, app, onClose, onContinue, onReplace }: {
+export function AskHere({ picked, here, app, chat: chatId, onClose, onContinue, onReplace }: {
   picked: Picked;
+  /** The chat it asks in: the item's own, so the question is found again with it. */
+  chat?: string;
   here: Here | null;
   app: string;
   onClose: () => void;
@@ -111,7 +113,7 @@ export function AskHere({ picked, here, app, onClose, onContinue, onReplace }: {
   const [state, setState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const chat = useRef<string>(conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()));
+  const chat = useRef<string>(chatId ?? conversationIdFor(MAIN_BOT_ID, crypto.randomUUID()));
   const field = useRef<HTMLInputElement>(null);
   const card = useRef<HTMLDivElement>(null);
   // Placed from its own size, again as the answer grows: under the selection, or above it with its bottom edge by it.

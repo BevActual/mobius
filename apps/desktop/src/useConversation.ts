@@ -73,6 +73,8 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
 
   /** Conversations whose running turn this window has heard from (and listed) since it began. */
   const heard = useRef(new Set<string>());
+  /** The chat whose running turn this window sent, until it ends. */
+  const ownTurn = useRef<string | null>(null);
   const refresh = useCallback(async () => {
     setList(await window.mobius.agent.conversations());
   }, []);
@@ -93,10 +95,12 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
         // A turn started elsewhere (a schedule, Little Mobius) was opened while it ran, before its request was saved:
         // once it ends, read it again so the request shows above the reply.
         const ended = notification.method === 'agent.event' && ['done', 'failed', 'cancelled'].includes(notification.params.event.kind);
-        if (ended && notification.params.conversation === active.current && !stateNow.current.items.some((item) => item.kind === 'user')) {
+        // So was a turn sent from elsewhere into the open chat (the Ask card asks in the item's chat): its question too.
+        if (ended && notification.params.conversation === active.current && (!stateNow.current.items.some((item) => item.kind === 'user') || ownTurn.current !== active.current)) {
           const id = active.current;
           void window.mobius.agent.history(id).then((messages) => { if (active.current === id) dispatch({ type: 'loaded', messages, conversation: id }); });
         }
+        if (ended && notification.params.conversation === ownTurn.current) ownTurn.current = null;
       }),
     [refresh],
   );
@@ -145,6 +149,7 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
       dispatch({ type: 'sent', text, context, images, ...(options.model ? { model: options.model } : {}) });
       const id = active.current;
       sending.current = id;
+      ownTurn.current = id;
       const extra = { ...(options.plan ? { plan: true } : {}), ...(options.ask ? { ask: true } : {}), ...(options.quick ? { quick: true } : {}), ...(options.mode ? { mode: options.mode } : {}), ...(images.length > 0 ? { images } : {}), ...(options.reads && options.reads.length > 0 ? { reads: options.reads } : {}), ...(options.finish ? { finish: true } : {}), ...(options.tools && options.tools.length > 0 ? { tools: options.tools } : {}), ...(options.effort ? { effort: options.effort } : {}), ...(appRef.current ? { app: appRef.current } : {}) };
       // A choice made just before sending (the effort, say) reaches the core first.
       await preferencesSettled();

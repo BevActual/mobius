@@ -135,6 +135,10 @@ checkpoints live in their own store and never touch a folder's own git history.
 - **Questions.** When Mobius needs something from you, it asks with a few choices or room for your own words. The
   turn waits, and the question survives a reload.
 - **Queue.** Messages you send while Mobius is working wait in a queue. Each can be edited or removed.
+- **Chats live on what they are about.** Each note, document, sheet or task list keeps its own chat with Mobius:
+  open the note and its chat is there in the panel, as you left it. Away from any item (Mail's list, Calendar, the
+  browser), the panel shows one general chat. The panel doesn't move while Mobius is working, or while what it
+  changed waits for **Keep**. **All chats**, in the panel and on the Agent page, lists every chat with what it is about.
 - **Also running.** Work Mobius is doing in other chats (sent in the background, started by a schedule, or left
   running when you moved on) is listed under the open chat, each with what it is doing (*In the background*,
   *Working*, *Needs you*) and **Stop**. Press one to open that chat.
