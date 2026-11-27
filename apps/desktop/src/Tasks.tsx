@@ -1,5 +1,5 @@
 import { assignToMobius, taskAssignment } from './assign';
-import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
 import { arrange, byDay, byDone, byList, DEFAULT_LIST_NAME, planDay, SOMEDAY, upcomingDay, whenLabel, TASK_FILTERS, TASK_SORTS, type TaskFilter, type TaskSort, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, tasksGlance, timeWords, type Located, type SmartView } from './tasks-view';
@@ -286,6 +286,17 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const completing = useCompleting(() => stepAway(line.current, () => tasks.complete(list, task)));
   useEffect(() => { if (editing) field.current?.select(); }, [editing]);
   useEffect(() => { if (refocus?.list === list && refocus.text === task.text) { refocus = null; line.current?.focus(); } }, [list, task.text, task.line]);
+  // A save elsewhere in the list (a task moved out, say) can draw this row anew, keyed by its line: if it had the
+  // keyboard, the new row takes it, rather than it falling to the page and the next arrow key going nowhere.
+  useLayoutEffect(() => {
+    const el = line.current;
+    return () => {
+      if (el && el === document.activeElement) {
+        refocus = { list, text: task.text };
+        window.setTimeout(() => { if (refocus?.list === list && refocus.text === task.text) refocus = null; }, 1000);
+      }
+    };
+  }, [list, task.text, task.line]);
   const finish = (keep: boolean) => {
     setEditing(false);
     const next = words.trim();

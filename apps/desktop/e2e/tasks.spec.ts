@@ -272,6 +272,8 @@ test('Upcoming sorts by day, a task has a right-click menu, and the keyboard mov
   await shell().getByRole('menuitem', { name: 'Move to Garden' }).click();
   await expect.poll(() => fs.readFileSync(file('Garden'), 'utf8')).toContain('Fix the tap');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).not.toContain('Fix the tap');
+  // The list has been drawn again without it, so the arrow keys below move through the rows that stay.
+  await expect(todo().locator('.task-line', { hasText: 'Fix the tap' })).toHaveCount(0);
 
   // Keyboard: down from the add field, down again, ⌘/Ctrl+I opens details, Space ticks (Ctrl+Z unticks), Delete deletes.
   await page().getByRole('textbox', { name: 'New task', exact: true }).press('ArrowDown');
