@@ -3,7 +3,7 @@ import { AppGlance, useGlanceSlot } from './PanelSlots';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { FromMobius } from './FromMobius';
-import { Fragment, type MutableRefObject, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, type MutableRefObject, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { onCommand, sendCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
@@ -14,6 +14,7 @@ import type { CodeState, CodeTests } from './useCode';
 import { useLanguage, type LanguageState } from './code-lsp';
 import { pagePath, pickedLine, sourcePath, useCodePreview, type PreviewState } from './code-preview';
 import { useSideFile, type SideFile } from './code-split';
+import { testArgs, testKey, type TestMark } from './code-run';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
@@ -334,7 +335,7 @@ function TestsPanel({ code }: { code: CodeState }) {
       <header className="code-tests-head">
         {summary ? <span className="code-tests-summary" data-state={tests.running ? 'running' : last?.passed ? 'pass' : 'fail'} role="status">{summary}{tests.by === 'assistant' && !tests.running ? ' · run by Mobius' : ''}</span> : <span className="code-tests-summary">{tests.command ? 'Not run yet' : 'No test command'}</span>}
         <span className="code-tests-actions">
-          {!editing && tests.command && <code className="code-tests-command" title="The command Mobius runs for this project's tests">{tests.command}</code>}
+          {!editing && tests.command && <code className="code-tests-command" title={tests.ran && !tests.running ? 'What the last run ran: your test command narrowed to one test' : "The command Mobius runs for this project's tests"}>{tests.ran && !tests.running ? tests.ran : tests.command}</code>}
           {!editing && <Button kind="quiet" onClick={start}>{tests.command ? 'Change' : 'Choose command'}</Button>}
           {!editing && tests.command && <button type="button" className="btn primary" disabled={tests.running} onClick={() => void code.runTests()}>Run</button>}
         </span>
@@ -549,6 +550,29 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   const [sideQuick, setSideQuick] = useState(false);
   useEffect(() => { setSideBar(null); }, [side.path]);
   const [showProblems, setShowProblems] = useState(0);
+  const [showTests, setShowTests] = useState(0);
+  /** Run buttons beside a pane's tests: the file saved first, then the project's test command narrowed to that test. */
+  const runnerFor = (state: CodeState) => {
+    const path = state.open?.path ?? '';
+    const what = (m: TestMark) => (m.group ? `the tests in “${m.name}”` : `“${m.name}”`);
+    return {
+      results: code.tests.results,
+      running: code.tests.running,
+      keyOf: (m: TestMark) => testKey(path, m),
+      label: (m: TestMark) => {
+        if (!code.tests.command) return `Run ${what(m)} (choose a test command first)`;
+        const r = code.tests.results.get(testKey(path, m));
+        return r === 'running' ? `Running ${what(m)}…` : r === 'passed' ? `Passed. Run ${what(m)} again` : r === 'failed' ? `Failed. Run ${what(m)} again` : `Run ${what(m)}`;
+      },
+      run: (m: TestMark) => void (async () => {
+        setShowTests((n) => n + 1);
+        const command = code.tests.command;
+        if (!command || !path) return;
+        if (state.dirty && !(await state.save())) return;
+        await code.runTests({ key: testKey(path, m), args: testArgs(command, path, m, langOf(path)) });
+      })(),
+    };
+  };
   splitRef.current = () => {
     if (side.path) { side.close(); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.code-pane-main .ed-input')?.focus({ preventScroll: true })); return; }
     if (!code.open) return;
@@ -573,7 +597,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   if (!code.project) return <PanelLayout app="code" panels={[...listPanels, ...terminalPanels]}><section className="code-page empty" aria-label="Code"><EmptyState app="code" title="No project open" line="A project is a folder of files Mobius can read, suggest changes to and test." action={{ label: 'New project', run: () => void code.createProject('Project') }} /></section></PanelLayout>;
   // Tests and Console (bottom dock, side by side): the test run and a shell in the project.
   const bottomPanels: PanelSpec[] = [
-    { id: 'tests', name: 'Tests', dock: 'bottom', group: 'run', shown: true, render: () => <TestsPanel code={code} /> },
+    { id: 'tests', name: 'Tests', dock: 'bottom', group: 'run', shown: true, reveal: showTests, render: () => <TestsPanel code={code} /> },
     { id: 'console', name: 'Console', dock: 'bottom', group: 'run', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
     { id: 'problems', name: 'Problems', dock: 'bottom', group: 'run', shown: false, reveal: showProblems, render: () => <ProblemsPanel lsp={lsp} /> },
     ...terminalPanels,
@@ -619,14 +643,14 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
             ) : showSuggestion && rows ? (
               <Suggestion rows={rows} lang={lang} endsWithNewline={code.open.text.endsWith('\n')} onWrite={(t) => void code.write(t)} onKeepAll={() => void keepAll()} onDiscardAll={() => void discardAll()} {...(review ? { conversation: review.conversation } : {})} />
             ) : (
-              <CodeText code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} lsp={lsp} onShowProblems={() => setShowProblems((n) => n + 1)} {...(base !== undefined ? { base } : {})} />
+              <CodeText code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} lsp={lsp} onShowProblems={() => setShowProblems((n) => n + 1)} runner={runnerFor(code)} {...(base !== undefined ? { base } : {})} />
             )}
           </>
         ) : (
           <NoFileOpen code={code} onQuick={() => setQuick(true)} />
         )}
        </div>
-        {side.state && <SidePane side={side} lsp={side.shared ? lsp : sideLsp} base={side.shared ? base : sideBase} bar={sideBar} setBar={setSideBar} onQuick={() => setSideQuick(true)} onShowProblems={() => setShowProblems((n) => n + 1)} />}
+        {side.state && <SidePane side={side} lsp={side.shared ? lsp : sideLsp} base={side.shared ? base : sideBase} bar={sideBar} setBar={setSideBar} onQuick={() => setSideQuick(true)} onShowProblems={() => setShowProblems((n) => n + 1)} runner={runnerFor(side.state)} />}
       </div>
       {quick && <QuickOpen code={code} onClose={() => setQuick(false)} />}
       {sideQuick && side.state && <QuickOpen code={{ ...side.state, openFile: (p: string) => side.open(p) }} onClose={() => { setSideQuick(false); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.code-pane-side .ed-input')?.focus({ preventScroll: true })); }} />}
@@ -655,7 +679,7 @@ function useGitBase(code: CodeState): string | undefined {
 }
 
 /** The second editor: its file's name, Open file…, Save and Close, then the file itself. */
-function SidePane({ side, lsp, base, bar, setBar, onQuick, onShowProblems }: { side: SideFile; lsp: LanguageState; base: string | undefined; bar: BarMode | null; setBar: (bar: BarMode | null) => void; onQuick: () => void; onShowProblems: () => void }) {
+function SidePane({ side, lsp, base, bar, setBar, onQuick, onShowProblems, runner }: { side: SideFile; lsp: LanguageState; base: string | undefined; bar: BarMode | null; setBar: (bar: BarMode | null) => void; onQuick: () => void; onShowProblems: () => void; runner: ComponentProps<typeof CodeText>['runner'] }) {
   const state = side.state;
   if (!state) return null;
   const file = state.open;
@@ -685,7 +709,7 @@ function SidePane({ side, lsp, base, bar, setBar, onQuick, onShowProblems }: { s
       {file === null ? null : file.text === null ? (
         <p className="note-empty">This file is {file.why ?? 'not shown'}.</p>
       ) : (
-        <CodeText code={state} lang={langOf(file.path)} bar={bar} setBar={setBar} lsp={lsp} onShowProblems={onShowProblems} {...(base !== undefined ? { base } : {})} />
+        <CodeText code={state} lang={langOf(file.path)} bar={bar} setBar={setBar} lsp={lsp} onShowProblems={onShowProblems} runner={runner} {...(base !== undefined ? { base } : {})} />
       )}
     </div>
   );

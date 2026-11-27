@@ -252,6 +252,10 @@ A code editor for projects in your workspace.
   show as you type or with Ctrl+Space, resting the pointer on a word shows what it is, F12 or Ctrl+click goes to its
   definition, F2 renames it everywhere, and Shift+Alt+F formats (**Format on save** is a switch in the status line). A
   server that is missing or would not start says so in the status line, with Retry.
+- **Run buttons** sit beside each test and group of tests in a test file (Vitest, Jest, cargo, pytest and go test).
+  One saves the file, runs your test command narrowed to that test, and turns green or red with how it went. Your
+  chosen command stays as it is; a runner Code does not know runs the whole command.
+- **Split** (Ctrl+\\) puts a second editor beside the first, on the same file or another one; F6 moves between them.
 - **Review Mobius's change** as removed and added lines, keeping or putting back each one.
 - **Debug** mode (in the composer's Mode menu while you are in Code) has Mobius reproduce the bug first, then propose
   the fix.

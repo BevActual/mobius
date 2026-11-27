@@ -7,7 +7,8 @@ import {
 } from './code-doc';
 import type { CodeCompletion, CodeProblem } from '@mobius/shared';
 import { fitting, offsetOf, spansOf, type LanguageState } from './code-lsp';
-import type { CodeState } from './useCode';
+import type { CodeState, TestResult } from './useCode';
+import { testsIn, type TestMark } from './code-run';
 
 const LINE = 20;
 const PAD_TOP = 8;
@@ -181,7 +182,7 @@ function diffSpan(before: string, after: string): { from: number; to: number; in
  * and Ctrl+Alt+Up or Down add cursors, Alt+Up or Down move lines, Shift+Alt+Up or Down copy them, Ctrl+Shift+K
  * deletes them, Ctrl+L selects a line, Esc goes back to one cursor.
  */
-export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, base }: { code: CodeState; lang: Lang; bar: BarMode | null; setBar: (bar: BarMode | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null>; /** Language smarts, when the project has them. */ lsp?: LanguageState; onShowProblems?: () => void; /** The file as the last commit has it, for the change marks; undefined when there is none. */ base?: string }) {
+export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, base, runner }: { /** Run buttons beside the file's tests. */ runner?: { results: ReadonlyMap<string, TestResult>; running: boolean; keyOf: (mark: TestMark) => string; run: (mark: TestMark) => void; label: (mark: TestMark) => string }; code: CodeState; lang: Lang; bar: BarMode | null; setBar: (bar: BarMode | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null>; /** Language smarts, when the project has them. */ lsp?: LanguageState; onShowProblems?: () => void; /** The file as the last commit has it, for the change marks; undefined when there is none. */ base?: string }) {
   const path = code.open?.path ?? '';
   const doc = useRef<DocState>(docOf(code.draft));
   const history = useRef(new History());
@@ -249,6 +250,7 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, b
   const [foldsVersion, setFoldsVersion] = useState(0);
   const [symbols, setSymbols] = useState(false);
   const regions = useMemo(() => foldRegions(lines, TAB), [lines]);
+  const testMarks = useMemo(() => (runner ? new Map(testsIn(text, lang, path).map((m) => [m.line, m])) : new Map<number, TestMark>()), [runner !== undefined, text, lang, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const foldedLines = useMemo(() => {
     const out = new Set<number>();
     for (const p of folds.current) {
@@ -1021,7 +1023,7 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, b
   const topRow = Math.max(0, Math.floor((view.top - PAD_TOP) / LINE));
   let sticky = view.top > PAD_TOP ? stickyScopes(rows[topRow] ?? 0, regions) : [];
   if (sticky.length > 0) sticky = stickyScopes(rows[Math.min(rows.length - 1, topRow + sticky.length)] ?? 0, regions);
-  const gutterWidth = `${String(lines.length).length + 4}ch`;
+  const gutterWidth = `${String(lines.length).length + (testMarks.size > 0 ? 6 : 4)}ch`;
   const height = PAD_TOP + rows.length * LINE + PAD_BOTTOM;
   const width = PAD_LEFT + widest * cw + 6 * cw;
   const picked = state.sels.reduce((n, s) => n + selTo(s) - selFrom(s), 0);
@@ -1037,6 +1039,16 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, b
             {inView.map((i) => (
               <span key={i} className="ed-n" style={{ top: yOf(i) }} data-current={i === caretLine || undefined}>
                 <span aria-hidden="true">{i + 1}</span>
+                {runner && testMarks.has(i) && (() => {
+                  const m = testMarks.get(i)!;
+                  const result = runner.results.get(runner.keyOf(m));
+                  const label = runner.label(m);
+                  return (
+                    <button type="button" tabIndex={-1} className="ed-run" data-result={result} aria-label={label} title={label} disabled={runner.running} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={() => runner.run(m)}>
+                      <svg viewBox="0 0 20 20" aria-hidden="true">{result === 'passed' ? <path d="m5 10.5 3.2 3L15 6.5" /> : result === 'failed' ? <path d="m6 6 8 8m0-8-8 8" /> : result === 'running' ? <circle cx="10" cy="10" r="5" /> : <path d="M7 5.5v9l7.5-4.5z" />}</svg>
+                    </button>
+                  );
+                })()}
                 {regions.has(i) && (
                   <button
                     type="button"

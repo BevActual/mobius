@@ -1442,6 +1442,13 @@ fn code_projects_run_only_the_test_command_the_person_chose() {
     let run = call(&b, "code", "runTests", json!(["planner"]));
     assert_eq!(run["passed"], true);
     assert!(events.lock().unwrap().iter().any(|(name, _)| name == "mobius:code-tests"));
+    // A Run button in the margin adds to the person's command; the command kept stays theirs.
+    let more = if cfg!(windows) { " src\\budget.ts" } else { " src/budget.ts" };
+    assert_eq!(call(&b, "code", "runTests", json!(["planner", more]))["passed"], true);
+    let last = events.lock().unwrap().iter().rev().find(|(name, _)| name == "mobius:code-tests").map(|(_, v)| v.clone()).unwrap();
+    assert_eq!(last["command"], check);
+    assert_eq!(last["ran"], format!("{check}{more}"));
+    assert_eq!(call(&b, "code", "runTests", json!(["planner", " a\nrm -rf x"]))["ok"], false);
 }
 
 #[cfg(unix)]

@@ -3757,8 +3757,16 @@ impl Bridge {
             "runTests" => text(0).ok_or_else(need).and_then(|p| {
                 let dir = code.project_dir(p)?;
                 let command = self.code_tests.get(p).ok_or("Choose a test command first.")?;
-                let result = crate::code_tests::run(&dir, &command, crate::code_tests::TIMEOUT);
-                (self.emit)("mobius:code-tests", json!({ "project": p, "running": false, "result": result, "command": command, "by": "person" }));
+                let mut ran = command.clone();
+                // A Run button in the editor's margin narrows the person's command to one test with what it adds.
+                if let Some(extra) = text(1).filter(|e| !e.trim().is_empty()) {
+                    if extra.len() > 500 || extra.contains(['\n', '\r', '\0']) {
+                        return Err("that test cannot be run on its own".to_owned());
+                    }
+                    ran.push_str(extra);
+                }
+                let result = crate::code_tests::run(&dir, &ran, crate::code_tests::TIMEOUT);
+                (self.emit)("mobius:code-tests", json!({ "project": p, "running": false, "result": result, "command": command, "ran": ran, "by": "person" }));
                 Ok(result)
             }),
             // Language smarts: what a file holds now, and questions about a place in it (see code_lsp.rs).

@@ -301,7 +301,7 @@ export interface CodePlace { path: string; line: number; character: number }
 /** Which language server answers for a file: none for its language, or one that is not on this computer. */
 export type CodeLanguage = { ok: true; server: string } | { ok: false; none: true } | { ok: false; missing: true; language: string; program: string | null } | { ok: false; failed: true; language: string; program: string; message: string } | NotesFailure;
 export type CodeAnswer = { ok: true; items?: CodeCompletion[]; text?: string; places?: CodePlace[]; files?: { path: string; edits: CodeTextEdit[] }[]; edits?: CodeTextEdit[] } | { ok: false; message?: string; missing?: true; none?: true };
-export interface CodeTestsEvent { project: string; running: boolean; result?: CodeTestRun; command?: string; by: 'person' | 'assistant' }
+export interface CodeTestsEvent { project: string; running: boolean; result?: CodeTestRun; command?: string; /** The command as run, when a Run button narrowed it to one test. */ ran?: string; by: 'person' | 'assistant' }
 export interface CellChange { row: number; col: number; text: string }
 /** An event the agent suggests, waiting for the person to Add or Decline. All-day `end` is the last day, included. */
 export interface CalendarSuggestion { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; why: string }
@@ -1258,7 +1258,8 @@ export interface MobiusBridge {
     onPreview?(listener: (report: CodePreviewReport) => void): () => void;
     testCommand(project: string): Promise<{ command: string | null; suggested: string | null } | NotesFailure>;
     setTestCommand(project: string, command: string): Promise<{ ok: true } | NotesFailure>;
-    runTests(project: string): Promise<CodeTestRun | NotesFailure>;
+    /** The project's test command; `only` is added to it to run one test (a Run button in the editor's margin). */
+    runTests(project: string, only?: string): Promise<CodeTestRun | NotesFailure>;
     /** A command the person typed in the console, run in the project's folder. */
     runCommand(project: string, command: string): Promise<CodeTestRun | NotesFailure>;
     /** Commands left running in the project (a server, a watcher), with what they printed last. */

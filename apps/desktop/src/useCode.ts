@@ -24,8 +24,15 @@ function recentFiles(): Record<string, string[]> {
   return {};
 }
 
-export interface CodeTests { command: string | null; suggested: string | null; running: boolean; last: CodeTestRun | null; by: 'person' | 'assistant' | null }
-const NO_TESTS: CodeTests = { command: null, suggested: null, running: false, last: null, by: null };
+export type TestResult = 'running' | 'passed' | 'failed';
+export interface CodeTests {
+  command: string | null; suggested: string | null; running: boolean; last: CodeTestRun | null; by: 'person' | 'assistant' | null;
+  /** The command the last run ran, when a Run button in the margin narrowed it to one test. */
+  ran: string | null;
+  /** How each test run from the margin last went, by testKey (code-run.ts). */
+  results: ReadonlyMap<string, TestResult>;
+}
+const NO_TESTS: CodeTests = { command: null, suggested: null, running: false, last: null, by: null, ran: null, results: new Map() };
 
 /** The Code app's state: projects, the open project's files, the open file as typed, and its tests. */
 export function useCode(active = true) {
@@ -79,7 +86,7 @@ export function useCode(active = true) {
 
   const loadTests = useCallback(async (name: string) => {
     const t = await api?.testCommand(name);
-    setTests((was) => (t && !isNotesFailure(t) ? { ...NO_TESTS, last: was.last, command: t.command, suggested: t.suggested } : NO_TESTS));
+    setTests((was) => (t && !isNotesFailure(t) ? { ...NO_TESTS, last: was.last, ran: was.ran, results: was.results, command: t.command, suggested: t.suggested } : NO_TESTS));
   }, [api]);
 
   const openFile = useCallback(async (path: string, name = live.current.project) => {
@@ -146,7 +153,7 @@ export function useCode(active = true) {
     });
     const offTests = api?.onTests((event) => {
       if (event.project !== live.current.project) return;
-      setTests((was) => ({ ...was, running: event.running, last: event.result ?? was.last, by: event.by, command: event.command ?? was.command }));
+      setTests((was) => ({ ...was, running: event.running, last: event.result ?? was.last, ran: event.result ? event.ran ?? null : was.ran, by: event.by, command: event.command ?? was.command }));
     });
     const offConsole = api?.onConsole((event) => {
       if (event.project !== live.current.project || event.by === 'person') return;
@@ -225,13 +232,20 @@ export function useCode(active = true) {
     return true;
   }, [api, loadTests]);
 
-  const runTests = useCallback(async () => {
+  /** Runs the tests; `only` narrows the command to one test (its key and what to add, from a Run button in the margin). */
+  const runTests = useCallback(async (only?: { key: string; args: string | null }) => {
     const now = live.current;
     if (!api || !now.project) return;
-    setTests((was) => ({ ...was, running: true, by: 'person' }));
-    const result = await api.runTests(now.project);
-    if (isNotesFailure(result)) { setMessage(result.message); setTests((was) => ({ ...was, running: false })); return; }
-    setTests((was) => ({ ...was, running: false, last: result, by: 'person' }));
+    const mark = (r: TestResult | null) => (was: ReadonlyMap<string, TestResult>) => {
+      if (!only) return was;
+      const next = new Map(was);
+      if (r) next.set(only.key, r); else next.delete(only.key);
+      return next;
+    };
+    setTests((was) => ({ ...was, running: true, by: 'person', results: mark('running')(was.results) }));
+    const result = await api.runTests(now.project, only?.args ?? undefined);
+    if (isNotesFailure(result)) { setMessage(result.message); setTests((was) => ({ ...was, running: false, results: mark(null)(was.results) })); return; }
+    setTests((was) => ({ ...was, running: false, last: result, ran: only?.args ? `${was.command ?? ''}${only.args}` : null, by: 'person', results: mark(result.passed ? 'passed' : 'failed')(was.results) }));
   }, [api]);
 
   const runCommand = useCallback(async (command: string) => {
