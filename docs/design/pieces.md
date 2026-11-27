@@ -125,6 +125,21 @@ pieces included:
   puts it back.
 - **Resize** stays as it is, with a visible grip on hover.
 - **Remembered** per app, where each panel is, with Reset layout to undo.
+- **Panels adapt to where they are** (Andrew, 27 November: "how panels change when resized, popped out, moved
+  around so it's actually useful"). A panel lays itself out by the space it has, not by which dock it was made for.
+  Each one declares a minimum width and height, and below that minimum the dock won't shrink it.
+  - **Narrow** (a side dock at its smallest): essentials only. One line per row, secondary details hidden, tools
+    folded into the panel's ⋯ menu.
+  - **Wide** (a wide side dock, or a popped-out window): more columns, previews beside the list, and tools out in
+    the open.
+  - **Short and wide** (the bottom dock): rows become a horizontal strip or columns, rather than a tall list squeezed
+    flat.
+  - **Popped out:** the window's room is used fully, it is resizable like any window, and the panel follows the same
+    rules there.
+  - Nothing is cut off at any size: text wraps or ends in an ellipsis with the full text on hover, and nothing
+    scrolls sideways.
+  - This is built once in `PanelLayout`: each panel is told its size class through container queries and a
+    `usePanelSize()` hook. Each app's panels are then checked at each size.
 
 The shell's panels (Mobius, then pieces) already sit in the same menu as the app's (`ShellPanel` beside
 `PanelsOfApp`), so pieces join that list once round 0 is done.
@@ -170,8 +185,9 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
 
 ## First rounds
 
-0. **Panels that move and pop out** (above), for every app's panels.
-1. **Pieces as shell panels:** listed in the Panels menu, placed in the right dock, movable and remembered, with
+0. **Panels, done properly** (above), in this order: visible resize grips; moving between docks; panels that adapt
+   to their size and place; then pop out. Every app's panels are checked at each size.
+1. **Pieces as shell panels** (then judge how they feel before adding more): listed in the Panels menu, placed in the right dock, movable and remembered, with
    the dock motion.
 2. **Three pieces:**
    - **Mail thread:** the thread, with reply in place.
