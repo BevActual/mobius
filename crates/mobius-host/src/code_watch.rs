@@ -25,7 +25,8 @@ pub fn change_in(root: &Path, path: &Path) -> Option<(String, String)> {
     let rest = path.strip_prefix(root).ok()?;
     let parts: Vec<String> = rest.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
     let (project, inner) = parts.split_first()?;
-    if inner.is_empty() || project.starts_with('.') || inner.iter().any(|p| SKIPPED.contains(&p.as_str())) {
+    // A save's temporary copy (`.name.mobius-tmp`, renamed over the file) is not a change of its own.
+    if inner.is_empty() || project.starts_with('.') || inner.iter().any(|p| SKIPPED.contains(&p.as_str())) || inner.last().is_some_and(|n| n.ends_with(".mobius-tmp")) {
         return None;
     }
     Some((project.clone(), inner.join("/")))
@@ -139,6 +140,7 @@ mod tests {
         assert_eq!(change_in(root, Path::new("/w/code/site/node_modules/x/index.js")), None);
         assert_eq!(change_in(root, Path::new("/w/code/site/.git/HEAD")), None);
         assert_eq!(change_in(root, Path::new("/w/code/site")), None);
+        assert_eq!(change_in(root, Path::new("/w/code/site/src/.app.ts.mobius-tmp")), None);
         assert_eq!(change_in(root, Path::new("/w/other/a.ts")), None);
     }
 

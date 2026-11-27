@@ -769,6 +769,20 @@ test('a file another app changes on disk shows in Code: read again when nothing 
   await shell().keyboard.press('Control+End');
   await shell().keyboard.type('// typing\n');
   fs.writeFileSync(path.join(project, 'src', 'budget.js'), `${BUDGET}// theirs again\n`);
-  await expect(shell().getByText(/Another app changed this file on disk while you were typing/)).toBeVisible({ timeout: 10_000 });
+  const clash = shell().getByRole('alert').filter({ hasText: 'Another app changed this file on disk while you were typing.' });
+  await expect(clash).toBeVisible({ timeout: 10_000 });
   await expect(editor).toHaveValue(`${BUDGET}// theirs\n// typing\n`);
+  // Keep mine writes what was typed over theirs.
+  await clash.getByRole('button', { name: 'Keep mine' }).click();
+  await expect.poll(budget).toBe(`${BUDGET}// theirs\n// typing\n`);
+  await expect(clash).toHaveCount(0);
+  // Another clash; Use theirs shows the file as it is on disk.
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('// more\n');
+  fs.writeFileSync(path.join(project, 'src', 'budget.js'), `${BUDGET}// final\n`);
+  await expect(clash).toBeVisible({ timeout: 10_000 });
+  await clash.getByRole('button', { name: 'Use theirs' }).click();
+  await expect(editor).toHaveValue(`${BUDGET}// final\n`);
+  await expect(clash).toHaveCount(0);
 });

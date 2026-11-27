@@ -636,7 +636,15 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
                 {code.open.text !== null && <Button kind={code.dirty ? 'primary' : 'quiet'} disabled={!code.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void lsp.save()}>Save</Button>}
               </span>
             </header>
-            {code.message && <p className="tasks-message" role="alert">{code.message}</p>}
+            {code.message && (
+              <p className="tasks-message" role="alert">
+                {code.message}
+                {code.clash && <>
+                  {' '}<button type="button" className="btn" title="Show the file as it is on disk; what you typed goes" onClick={() => void code.settleClash('theirs')}>Use theirs</button>
+                  {' '}<button type="button" className="btn" title="Write what you typed over the file on disk" onClick={() => void code.settleClash('mine')}>Keep mine</button>
+                </>}
+              </p>
+            )}
             <PreviewNotice code={code} lsp={lsp} preview={preview} {...(onAsk ? { onAsk } : {})} {...(onDraft ? { onDraft } : {})} />
             {code.open.text === null ? (
               <p className="note-empty">This file is {code.open.why ?? 'not shown'}.</p>
