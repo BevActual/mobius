@@ -233,7 +233,7 @@
 .code-side .code-git-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); height: var(--row-side); padding: 0 var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
 .code-side .code-git-branch { display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; color: var(--ink); font: var(--fs-sm) var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .code-side .code-git-branch svg { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linecap: round; }
-.code-side .code-git-count { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+.code-side .code-git-count { flex: none; font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
 .code-side .code-git-form { display: flex; gap: var(--sp-2); padding: 0 var(--sp-2) var(--sp-2); }
 .code-side .code-git-form input { flex: 1; min-width: 0; height: var(--control-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); border: var(--hairline-w) solid var(--line); background: var(--paper); color: inherit; font: inherit; }
 .code-side .code-git-change, .code-side .code-git-more, .code-side .code-git-review { gap: var(--sp-2); }
@@ -243,7 +243,7 @@
 .code-side .code-git-more { color: var(--muted); font-size: var(--fs-sm); }
 .code-side .code-git-review { color: var(--mobius); font-size: var(--fs-sm); }
 /* The branch: a quiet button that opens the branches below it (switch, or New branch… from here). */
-.code-side button.code-git-branch { height: calc(var(--row-side) - 6px); margin-left: calc(-1 * var(--sp-1)); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-small); background: none; cursor: pointer; }
+.code-side button.code-git-branch { flex: 0 1 auto; height: calc(var(--row-side) - 6px); margin-left: calc(-1 * var(--sp-1)); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-small); background: none; cursor: pointer; }
 .code-side button.code-git-branch:hover, .code-side button.code-git-branch[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .code-side button.code-git-branch > span { overflow: hidden; text-overflow: ellipsis; }
 .code-side .code-git-branch .code-git-caret { width: 12px; height: 12px; stroke-width: 1.6; }
@@ -259,7 +259,7 @@
 .code-side .code-git-discard:hover { color: var(--ink); }
 .code-side .code-git-confirm { display: flex; align-items: center; gap: var(--sp-1); min-height: var(--row-side); padding: 0 var(--sp-2); }
 .code-side .code-git-confirm .code-git-where { color: var(--ink); font-size: var(--fs-sm); }
-.code-side .code-git-confirm .btn.danger { color: var(--danger); }
+.code-side .code-git-confirm .btn.code-git-yes { color: var(--danger); }
 .code-side .code-git-confirm .btn { height: 22px; padding: 0 var(--sp-2); font-size: var(--fs-xs); }
 /* Git's letter: grey, and red only for deleted and in conflict, so red stays the one status colour. */
 .code-side .code-git-letter { flex: none; margin-left: auto; width: 16px; text-align: center; font: var(--fw-semibold) var(--fs-floor)/1 var(--font-mono); color: var(--muted); }

@@ -270,13 +270,13 @@ function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: strin
         <ul className="ui-side-list code-git-changes" aria-label="Changed files">
           {shown.map(([path, mark]) => {
             const name = path.split('/').pop() ?? path;
-            const where = path.slice(0, path.length - name.length - 1);
+            const where = path.includes('/') ? path.slice(0, path.length - name.length - 1) : '';
             return (
               <li key={path} className="code-git-row">
                 {confirm === path ? (
                   <div className="code-git-confirm" role="group" aria-label={`Discard changes to ${path}?`}>
                     <span className="code-git-where">{mark.letter === '?' || mark.letter === 'A' ? `Delete ${name}?` : `Put back ${name}?`}</span>
-                    <button type="button" className="btn danger" autoFocus onClick={() => void discard(path)}>Discard</button>
+                    <button type="button" className="btn code-git-yes" autoFocus onClick={() => void discard(path)}>Discard</button>
                     <button type="button" className="btn" onClick={() => setConfirm(null)}>Keep</button>
                   </div>
                 ) : (
@@ -375,7 +375,7 @@ function QuickOpen({ code, onClose }: { code: CodeState; onClose: () => void }) 
         <ul id="code-quick-list" role="listbox" aria-label="Files">
           {found.map((path, i) => {
             const name = path.split('/').pop() ?? path;
-            const where = path.slice(0, path.length - name.length - 1);
+            const where = path.includes('/') ? path.slice(0, path.length - name.length - 1) : '';
             return (
               <li key={path} id={`code-quick-${i}`} role="option" aria-selected={i === lit} onMouseEnter={() => setLit(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(path)}>
                 <FileGlyph />
@@ -537,7 +537,7 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
             <ul>
               {code.recent.slice(0, 5).map((path) => {
                 const name = path.split('/').pop() ?? path;
-                const where = path.slice(0, path.length - name.length - 1);
+                const where = path.includes('/') ? path.slice(0, path.length - name.length - 1) : '';
                 return (
                   <li key={path}>
                     <button type="button" className="code-none-row" onClick={() => void code.openFile(path)}>
