@@ -12,6 +12,7 @@ import { applyGroups, changeGroups, codeOutline, gitMarks, highlight, langOf, li
 import { RowMark } from './RowMark';
 import type { CodeState, CodeTests } from './useCode';
 import { useLanguage, type LanguageState } from './code-lsp';
+import { pagePath, pickedLine, sourcePath, useCodePreview, type PreviewState } from './code-preview';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
@@ -467,7 +468,7 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
 
 
 /** The open file: as Mobius changed it (to keep or discard) or as you type it, and the project's tests below. */
-export function CodeEditor({ code, review, listPanels = [], terminal }: { code: CodeState; review?: { conversation: string; settled?: boolean } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[]; /** The workspace's terminal, Code's Terminal panel (the Terminal app folded in). */ terminal?: ReactNode }) {
+export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onDraft }: { /** Sends a request to Mobius (Fix with Mobius). */ onAsk?: (prompt: string) => void; /** Puts a request in Mobius's box for the person to finish (Ask Mobius about a picked element). */ onDraft?: (prompt: string) => void; code: CodeState; review?: { conversation: string; settled?: boolean } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[]; /** The workspace's terminal, Code's Terminal panel (the Terminal app folded in). */ terminal?: ReactNode }) {
   const file = code.open && code.project ? `code/${code.project}/${code.open.path}` : null;
   const [bar, setBar] = useState<BarMode | null>(null);
   const [quick, setQuick] = useState(false);
@@ -521,6 +522,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
   const running = useContext(TurnRunningContext);
   const jump = useRef<((line: number) => void) | null>(null);
   const lsp = useLanguage(code);
+  const preview = useCodePreview(code);
   // The open file as the last commit has it, for the editor's change marks (read again after each save and commit).
   const [base, setBase] = useState<string | undefined>(undefined);
   useEffect(() => {
@@ -579,11 +581,18 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
               </nav>
               {code.dirty && <span className="code-dirty" role="status">Not saved</span>}
               <span className="code-head-actions">
+                {window.mobius.code?.preview && (
+                  <>
+                    <Button kind="quiet" pressed={preview.url !== null} title="Show the project's page in the Browser beside Code; saving reloads it" onClick={() => void preview.open()}>Preview</Button>
+                    {preview.url && <Button kind="quiet" pressed={preview.picking} title="Click an element on the page to go to its code" onClick={() => void preview.pick()}>Pick</Button>}
+                  </>
+                )}
                 {code.dirty && <button type="button" className="btn" onClick={() => code.setDraft(code.open?.text ?? '')}>Revert</button>}
                 {code.open.text !== null && <Button kind={code.dirty ? 'primary' : 'quiet'} disabled={!code.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void lsp.save()}>Save</Button>}
               </span>
             </header>
             {code.message && <p className="tasks-message" role="alert">{code.message}</p>}
+            <PreviewNotice code={code} lsp={lsp} preview={preview} {...(onAsk ? { onAsk } : {})} {...(onDraft ? { onDraft } : {})} />
             {code.open.text === null ? (
               <p className="note-empty">This file is {code.open.why ?? 'not shown'}.</p>
             ) : showSuggestion && rows ? (
@@ -600,6 +609,49 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
     </section>
     </PanelLayout>
   );
+}
+
+/** What the preview reported: the page's last error, or the element just picked, each with a way to its code and to Mobius. */
+function PreviewNotice({ code, lsp, preview, onAsk, onDraft }: { code: CodeState; lsp: LanguageState; preview: PreviewState; onAsk?: (prompt: string) => void; onDraft?: (prompt: string) => void }) {
+  const error = preview.errors.at(-1);
+  const pick = preview.picked;
+  const project = code.project ?? '';
+  if (preview.message) return <p className="code-preview-note" role="alert">{preview.message}</p>;
+  if (preview.picking) return <p className="code-preview-note" role="status">Click an element on the page beside to pick it (Esc on the page stops).</p>;
+  if (pick) {
+    const page = pagePath(pick.path);
+    const what = `<${pick.tag ?? 'element'}>${pick.text ? ` “${pick.text.trim().slice(0, 40)}”` : ''}`;
+    const goToCode = async () => {
+      const got = await window.mobius.code?.read(project, page).catch(() => null);
+      const text = got && 'text' in got && typeof got.text === 'string' ? got.text : null;
+      const line = text === null ? -1 : pickedLine(text, pick);
+      if (line < 0) { code.setMessage(`That element was not found in ${page}; it may be made by a script.`); return; }
+      void lsp.goTo({ path: page, line, character: Math.max(0, (text!.split('\n')[line] ?? '').search(/\S/)) });
+    };
+    return (
+      <div className="code-preview-note" role="status" data-kind="pick">
+        <span className="code-preview-text">Picked {what} on {page}</span>
+        <Button kind="quiet" onClick={() => void goToCode()}>Go to code</Button>
+        {onDraft && <Button kind="quiet" onClick={() => onDraft(`In the preview of the Code project "${project}", on ${page}, this element:\n\n\`\`\`html\n${(pick.html ?? '').slice(0, 1500)}\n\`\`\`\n\n`)}>Ask Mobius</Button>}
+        <button type="button" className="ed-peek-close" aria-label="Dismiss" onClick={preview.clearPicked}>×</button>
+      </div>
+    );
+  }
+  if (error) {
+    const file = sourcePath(error.source, preview.url);
+    const where = file ? `${file}${error.line ? `:${error.line}` : ''}` : '';
+    const more = preview.errors.length > 1 ? ` (and ${preview.errors.length - 1} more)` : '';
+    return (
+      <div className="code-preview-note" role="alert" data-kind="error">
+        <span className="ed-hover-mark" aria-hidden="true" />
+        <span className="code-preview-text">The page has an error: {error.message}{where ? ` · ${where}` : ''}{more}</span>
+        {file && <Button kind="quiet" onClick={() => void lsp.goTo({ path: file, line: Math.max(0, (error.line ?? 1) - 1), character: Math.max(0, (error.column ?? 1) - 1) })}>Go to it</Button>}
+        {onAsk && <Button kind="quiet" onClick={() => { onAsk(`The preview of the Code project "${project}" shows this error:\n${error.message}${where ? `\nat ${where}${error.column ? `:${error.column}` : ''}` : ''}${error.stack ? `\n${error.stack}` : ''}\nFind the cause in the project and fix it.`); preview.clearErrors(); }}>Fix with Mobius</Button>}
+        <button type="button" className="ed-peek-close" aria-label="Dismiss" onClick={preview.clearErrors}>×</button>
+      </div>
+    );
+  }
+  return null;
 }
 
 /** Problems (bottom dock, beside Tests): what the project's language servers found, file by file; a click goes there. */

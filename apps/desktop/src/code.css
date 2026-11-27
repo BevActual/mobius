@@ -301,3 +301,9 @@
 .code-page .ed-peek-close:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
 .code-page .ed-peek-was { margin: 0; max-height: 240px; overflow: auto; padding: var(--sp-1) var(--sp-3) var(--sp-2); border-top: var(--hairline-w) solid var(--line); background: color-mix(in srgb, var(--c-coral) 10%, transparent); font: var(--code-font); white-space: pre; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--c-coral) 60%, transparent); }
 .code-page .code-status-missing { opacity: 0.8; }
+
+/* The preview's note under the file's head: the page's error or the element picked, with their actions. */
+.code-page .code-preview-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: 0; min-height: 32px; padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); font-size: var(--fs-sm); color: var(--muted); }
+.code-page .code-preview-note[data-kind="error"] { background: color-mix(in srgb, var(--c-coral) 8%, transparent); color: var(--ink); }
+.code-page .code-preview-note[data-kind="pick"] { color: var(--ink); }
+.code-page .code-preview-text { flex: 1 1 220px; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
