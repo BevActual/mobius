@@ -583,7 +583,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
               <span className="code-head-actions">
                 {window.mobius.code?.preview && (
                   <>
-                    <Button kind="quiet" pressed={preview.url !== null} title="Show the project's page in the Browser beside Code; saving reloads it" onClick={() => void preview.open()}>Preview</Button>
+                    <Button kind="quiet" pressed={preview.url !== null} title="Show the project's page in the Browser beside Code; saving reloads it" onClick={() => void preview.open().then(() => document.querySelector<HTMLTextAreaElement>('.code-page .ed-input')?.focus({ preventScroll: true }))}>Preview</Button>
                     {preview.url && <Button kind="quiet" pressed={preview.picking} title="Click an element on the page to go to its code" onClick={() => void preview.pick()}>Pick</Button>}
                   </>
                 )}

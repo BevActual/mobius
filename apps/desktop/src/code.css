@@ -307,3 +307,6 @@
 .code-page .code-preview-note[data-kind="error"] { background: color-mix(in srgb, var(--c-coral) 8%, transparent); color: var(--ink); }
 .code-page .code-preview-note[data-kind="pick"] { color: var(--ink); }
 .code-page .code-preview-text { flex: 1 1 220px; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+/* Dismiss keeps to the note's top right corner, so the note's actions wrap only when the text needs the room. */
+.code-page .code-preview-note[data-kind] { position: relative; padding-right: 36px; }
+.code-page .code-preview-note > .ed-peek-close { position: absolute; top: 4px; right: 4px; }
