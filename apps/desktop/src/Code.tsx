@@ -15,6 +15,8 @@ import { useLanguage, type LanguageState } from './code-lsp';
 import { pagePath, pickedLine, sourcePath, useCodePreview, type PreviewState } from './code-preview';
 import { useSideFile, type SideFile } from './code-split';
 import { testArgs, testKey, type TestMark } from './code-run';
+import { fixPrompt, reviewRequest } from './code-mobius';
+import type { CodeProblem, ContextItem } from '@mobius/shared';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
@@ -23,7 +25,7 @@ import { CodeText, type BarMode } from './CodeText';
 import { afterPaint } from './ui/frame';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
-export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: CodeState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
+export function CodeSidebar({ code, pin, changed, starts, onStart, onReview }: { code: CodeState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void; /** Sends Review with Mobius (answered, nothing changed). */ onReview?: (prompt: string, item: ContextItem) => void }) {
   const [naming, setNaming] = useState<'project' | 'file' | null>(null);
   const [name, setName] = useState('');
   useEffect(() => onCommand('new-project', () => { setNaming('project'); setName(''); }), []);
@@ -77,7 +79,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
           {code.projects.map((p) => <SidebarRow key={p.name} label={p.name} current={p.name === code.project} onSelect={() => { if (p.name !== code.project) void code.openProject(p.name); }} />)}
         </SidebarSection>
       )}
-      {code.project && code.git.repo && <GitBar code={code} />}
+      {code.project && code.git.repo && <GitBar code={code} {...(onReview ? { onReview } : {})} />}
       {code.project && (
         <nav className="ui-side-section code-tree" aria-label="Files">
           <div className="side-head"><h3 className="side-title">Files</h3></div>
@@ -153,8 +155,9 @@ function GitLetter({ mark }: { mark: GitMark }) {
 const SHOWN_CHANGES = 6;
 
 /** The project's branch and what changed since its last commit, with Commit and Push. Mobius asks before either. */
-function GitBar({ code }: { code: CodeState }) {
+function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: string, item: ContextItem) => void }) {
   const [writing, setWriting] = useState(false);
+  const [reading, setReading] = useState(false);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -167,6 +170,17 @@ function GitBar({ code }: { code: CodeState }) {
     setBusy(true);
     if (await code.commit(message)) { setWriting(false); setMessage(''); }
     setBusy(false);
+  };
+  const review = async () => {
+    const project = code.project;
+    if (!onReview || !project || !window.mobius.code?.gitDiff) return;
+    setReading(true);
+    const got = await window.mobius.code.gitDiff(project).catch(() => null);
+    setReading(false);
+    if (!got || !('repo' in got) || !got.repo) { code.setMessage('What changed could not be read.'); return; }
+    if (!got.diff.trim()) { code.setMessage('Nothing has changed since the last commit.'); return; }
+    const { prompt, item } = reviewRequest(project, branch, got.diff, got.truncated);
+    onReview(prompt, item);
   };
   const status = `${changes.length === 0 ? 'Nothing to commit' : changes.length === 1 ? '1 change' : `${changes.length} changes`}${ahead ? ` · ${ahead} to push` : ''}`;
   return (
@@ -207,6 +221,11 @@ function GitBar({ code }: { code: CodeState }) {
             <li><button type="button" className="list-row code-git-more" onClick={() => setShowAll((all) => !all)}>{showAll ? 'Show fewer' : `${marks.length - SHOWN_CHANGES} more`}</button></li>
           )}
         </ul>
+      )}
+      {onReview && shown.length > 0 && (
+        <button type="button" className="list-row code-git-review" disabled={reading} title="Mobius reads what changed since the last commit and says what it would fix. It changes nothing." onClick={() => void review()}>
+          <span className="code-git-name">{reading ? 'Reading the changes…' : 'Review with Mobius'}</span>
+        </button>
       )}
     </section>
   );
@@ -470,7 +489,7 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
 
 
 /** The open file: as Mobius changed it (to keep or discard) or as you type it, and the project's tests below. */
-export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onDraft }: { /** Sends a request to Mobius (Fix with Mobius). */ onAsk?: (prompt: string) => void; /** Puts a request in Mobius's box for the person to finish (Ask Mobius about a picked element). */ onDraft?: (prompt: string) => void; code: CodeState; review?: { conversation: string; settled?: boolean } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[]; /** The workspace's terminal, Code's Terminal panel (the Terminal app folded in). */ terminal?: ReactNode }) {
+export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onDraft, busy = false }: { /** Mobius is working: Fix with Mobius waits, and Ctrl+. is left to stop it. */ busy?: boolean; /** Sends a request to Mobius (Fix with Mobius). */ onAsk?: (prompt: string) => void; /** Puts a request in Mobius's box for the person to finish (Ask Mobius about a picked element). */ onDraft?: (prompt: string) => void; code: CodeState; review?: { conversation: string; settled?: boolean } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[]; /** The workspace's terminal, Code's Terminal panel (the Terminal app folded in). */ terminal?: ReactNode }) {
   const file = code.open && code.project ? `code/${code.project}/${code.open.path}` : null;
   const [bar, setBar] = useState<BarMode | null>(null);
   const [quick, setQuick] = useState(false);
@@ -551,6 +570,9 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   useEffect(() => { setSideBar(null); }, [side.path]);
   const [showProblems, setShowProblems] = useState(0);
   const [showTests, setShowTests] = useState(0);
+  /** Fix with Mobius, for a problem in a file (the open one travels with the message; Mobius reads others itself). */
+  const fixFor = (path: string, problem: CodeProblem) => { if (onAsk && code.project) onAsk(fixPrompt(code.project, path, problem)); };
+  const fixIn = (state: CodeState | null) => (onAsk && !busy && state?.open ? (p: CodeProblem) => fixFor(state.open!.path, p) : undefined);
   /** Run buttons beside a pane's tests: the file saved first, then the project's test command narrowed to that test. */
   const runnerFor = (state: CodeState) => {
     const path = state.open?.path ?? '';
@@ -599,7 +621,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   const bottomPanels: PanelSpec[] = [
     { id: 'tests', name: 'Tests', dock: 'bottom', group: 'run', shown: true, reveal: showTests, render: () => <TestsPanel code={code} /> },
     { id: 'console', name: 'Console', dock: 'bottom', group: 'run', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
-    { id: 'problems', name: 'Problems', dock: 'bottom', group: 'run', shown: false, reveal: showProblems, render: () => <ProblemsPanel lsp={lsp} /> },
+    { id: 'problems', name: 'Problems', dock: 'bottom', group: 'run', shown: false, reveal: showProblems, render: () => <ProblemsPanel lsp={lsp} {...(onAsk && !busy ? { onFix: fixFor } : {})} /> },
     ...terminalPanels,
   ];
   const lang = code.open ? langOf(code.open.path) : 'plain';
@@ -651,14 +673,14 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
             ) : showSuggestion && rows ? (
               <Suggestion rows={rows} lang={lang} endsWithNewline={code.open.text.endsWith('\n')} onWrite={(t) => void code.write(t)} onKeepAll={() => void keepAll()} onDiscardAll={() => void discardAll()} {...(review ? { conversation: review.conversation } : {})} />
             ) : (
-              <CodeText code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} lsp={lsp} onShowProblems={() => setShowProblems((n) => n + 1)} runner={runnerFor(code)} {...(base !== undefined ? { base } : {})} />
+              <CodeText code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} lsp={lsp} onShowProblems={() => setShowProblems((n) => n + 1)} runner={runnerFor(code)} {...(fixIn(code) ? { onFix: fixIn(code)! } : {})} {...(base !== undefined ? { base } : {})} />
             )}
           </>
         ) : (
           <NoFileOpen code={code} onQuick={() => setQuick(true)} />
         )}
        </div>
-        {side.state && <SidePane side={side} lsp={side.shared ? lsp : sideLsp} base={side.shared ? base : sideBase} bar={sideBar} setBar={setSideBar} onQuick={() => setSideQuick(true)} onShowProblems={() => setShowProblems((n) => n + 1)} runner={runnerFor(side.state)} />}
+        {side.state && <SidePane side={side} lsp={side.shared ? lsp : sideLsp} base={side.shared ? base : sideBase} bar={sideBar} setBar={setSideBar} onQuick={() => setSideQuick(true)} onShowProblems={() => setShowProblems((n) => n + 1)} runner={runnerFor(side.state)} {...(fixIn(side.state) ? { onFix: fixIn(side.state)! } : {})} />}
       </div>
       {quick && <QuickOpen code={code} onClose={() => setQuick(false)} />}
       {sideQuick && side.state && <QuickOpen code={{ ...side.state, openFile: (p: string) => side.open(p) }} onClose={() => { setSideQuick(false); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.code-pane-side .ed-input')?.focus({ preventScroll: true })); }} />}
@@ -687,7 +709,7 @@ function useGitBase(code: CodeState): string | undefined {
 }
 
 /** The second editor: its file's name, Open file…, Save and Close, then the file itself. */
-function SidePane({ side, lsp, base, bar, setBar, onQuick, onShowProblems, runner }: { side: SideFile; lsp: LanguageState; base: string | undefined; bar: BarMode | null; setBar: (bar: BarMode | null) => void; onQuick: () => void; onShowProblems: () => void; runner: ComponentProps<typeof CodeText>['runner'] }) {
+function SidePane({ side, lsp, base, bar, setBar, onQuick, onShowProblems, runner, onFix }: { side: SideFile; lsp: LanguageState; base: string | undefined; bar: BarMode | null; setBar: (bar: BarMode | null) => void; onQuick: () => void; onShowProblems: () => void; runner: ComponentProps<typeof CodeText>['runner']; onFix?: (problem: CodeProblem) => void }) {
   const state = side.state;
   if (!state) return null;
   const file = state.open;
@@ -717,7 +739,7 @@ function SidePane({ side, lsp, base, bar, setBar, onQuick, onShowProblems, runne
       {file === null ? null : file.text === null ? (
         <p className="note-empty">This file is {file.why ?? 'not shown'}.</p>
       ) : (
-        <CodeText code={state} lang={langOf(file.path)} bar={bar} setBar={setBar} lsp={lsp} onShowProblems={onShowProblems} runner={runner} {...(base !== undefined ? { base } : {})} />
+        <CodeText code={state} lang={langOf(file.path)} bar={bar} setBar={setBar} lsp={lsp} onShowProblems={onShowProblems} runner={runner} {...(onFix ? { onFix } : {})} {...(base !== undefined ? { base } : {})} />
       )}
     </div>
   );
@@ -767,7 +789,7 @@ function PreviewNotice({ code, lsp, preview, onAsk, onDraft }: { code: CodeState
 }
 
 /** Problems (bottom dock, beside Tests): what the project's language servers found, file by file; a click goes there. */
-function ProblemsPanel({ lsp }: { lsp: LanguageState }) {
+function ProblemsPanel({ lsp, onFix }: { lsp: LanguageState; onFix?: (path: string, problem: CodeProblem) => void }) {
   const files = [...lsp.problems.entries()].sort(([a], [b]) => a.localeCompare(b));
   if (files.length === 0) {
     return (
@@ -793,6 +815,7 @@ function ProblemsPanel({ lsp }: { lsp: LanguageState }) {
                   <span>{p.message}</span>
                   <span className="code-problem-where">{p.source ? `${p.source} · ` : ''}Ln {p.line + 1}, Col {p.character + 1}</span>
                 </button>
+                {onFix && <button type="button" className="code-problem-fix" aria-label={`Fix with Mobius, line ${p.line + 1}`} title={`Fix with Mobius: ${p.message}`} onClick={() => onFix(path, p)}>Fix</button>}
               </li>
             ))}
           </ul>

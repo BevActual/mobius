@@ -104,6 +104,43 @@ pub fn head_text(dir: &Path, path: &str) -> Value {
     json!({ "repo": true, "text": text })
 }
 
+/// What changed since the last commit, as one unified diff for a review: tracked files' changes, then each new file
+/// whole. Cut at `limit` bytes (on a line), with `truncated` saying so.
+pub fn diff(dir: &Path, limit: usize) -> Value {
+    if !dir.join(".git").exists() {
+        return json!({ "repo": false });
+    }
+    let tracked = git_bytes(dir, &["diff", "HEAD", "--no-color", "--no-ext-diff", "-U3"], QUICK)
+        .or_else(|_| git_bytes(dir, &["diff", "--no-color", "--no-ext-diff", "-U3"], QUICK))
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+        .unwrap_or_default();
+    let mut out = tracked;
+    let new = git(dir, &["ls-files", "--others", "--exclude-standard"], QUICK).unwrap_or_default();
+    for path in new.lines().filter(|p| !p.is_empty()).take(50) {
+        if out.len() >= limit {
+            break;
+        }
+        let Some(text) = std::fs::read(dir.join(path)).ok().and_then(|b| String::from_utf8(b).ok()) else { continue };
+        let lines: Vec<&str> = text.lines().collect();
+        out.push_str(&format!("diff --git a/{path} b/{path}\nnew file\n--- /dev/null\n+++ b/{path}\n@@ -0,0 +1,{} @@\n", lines.len()));
+        for l in lines {
+            out.push('+');
+            out.push_str(l);
+            out.push('\n');
+        }
+    }
+    let truncated = out.len() > limit;
+    if truncated {
+        let mut cut = limit;
+        while !out.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        cut = out[..cut].rfind('\n').map_or(cut, |n| n + 1);
+        out.truncate(cut);
+    }
+    json!({ "repo": true, "diff": out, "truncated": truncated })
+}
+
 /// Commits everything changed. Refused with nothing to commit, or a message that is empty or too long.
 pub fn commit(dir: &Path, message: &str) -> Result<Value, String> {
     let message = message.trim();
@@ -180,6 +217,30 @@ mod tests {
         assert_eq!(branch_line("main...origin/main [ahead 12, behind 1]"), ("main".into(), Some(12)));
         assert_eq!(branch_line("main...origin/main [behind 3]"), ("main".into(), Some(0)));
         assert_eq!(branch_line("HEAD (no branch)"), (String::new(), None));
+    }
+
+    #[test]
+    fn a_review_gets_changes_and_new_files_as_one_diff_cut_to_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        assert_eq!(diff(d, 1000), json!({ "repo": false }));
+        if git(d, &["init", "-q"], QUICK).is_err() {
+            return;
+        }
+        let _ = git(d, &["config", "user.email", "test@example.com"], QUICK);
+        let _ = git(d, &["config", "user.name", "Test"], QUICK);
+        std::fs::write(d.join("a.js"), "one\ntwo\n").unwrap();
+        commit(d, "first").unwrap();
+        std::fs::write(d.join("a.js"), "one\n2\n").unwrap();
+        std::fs::write(d.join("b.js"), "new\n").unwrap();
+        let all = diff(d, 10_000);
+        let text = all["diff"].as_str().unwrap();
+        assert!(text.contains("-two\n+2\n"), "{text}");
+        assert!(text.contains("+++ b/b.js\n@@ -0,0 +1,1 @@\n+new\n"), "{text}");
+        assert_eq!(all["truncated"], false);
+        let cut = diff(d, 40);
+        assert_eq!(cut["truncated"], true);
+        assert!(cut["diff"].as_str().unwrap().len() <= 40 && cut["diff"].as_str().unwrap().ends_with('\n'));
     }
 
     #[test]
