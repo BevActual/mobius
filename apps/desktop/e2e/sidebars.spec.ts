@@ -61,8 +61,12 @@ test('the tabs panel can be dragged wider, within limits, and the Browser keeps 
   const y = box.y + 200;
   await shell().mouse.move(x, y);
   await shell().mouse.down();
+  // The edge can be seen: a small grip at rest, and it says while it is held.
+  expect(await handle.evaluate((e) => getComputedStyle(e, '::after').height)).toBe('32px');
   await shell().mouse.move(x + 60, y, { steps: 6 });
+  await expect(handle).toHaveAttribute('data-dragging', 'true');
   await shell().mouse.up();
+  await expect(handle).not.toHaveAttribute('data-dragging');
   await expect(handle).toHaveAttribute('aria-valuenow', '308');
   await expect.poll(pageOnSlot).toBeLessThanOrEqual(2);
   await shell().mouse.move(x + 60, y);
@@ -184,4 +188,91 @@ test('the Mobius panel starts closed, and its button opens it beside the work', 
   // These tests set up no model, so the panel opens on the model choice rather than the message box.
   await expect(shell().locator('.dock.right > .chat')).toBeVisible();
   await expect(shell().getByRole('button', { name: 'Hide Mobius', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a panel moves to another dock from its header\'s menu or by dragging its header, and stays there', async () => {
+  await goTo(shell(), 'Tasks');
+  const lists = (dock: string) => shell().locator(`.ui-dock[data-dock="${dock}"] section[aria-label="Lists"]`);
+  await expect(lists('left')).toBeVisible();
+  // Its header's menu (right-click, or the menu key) moves it.
+  await lists('left').locator('.ui-panel-head').click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Move to the right' }).click();
+  await expect(lists('right')).toBeVisible();
+  await expect(lists('left')).toHaveCount(0);
+  // Dragging its header near the page's left side moves it back; the docks it could go to show while it is held.
+  const head = (await lists('right').locator('.ui-panel-head').boundingBox())!;
+  const page = (await shell().locator('.ui-panels').boundingBox())!;
+  await shell().mouse.move(head.x + 20, head.y + head.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(page.x + page.width / 2, page.y + page.height / 2, { steps: 4 });
+  await expect(shell().locator('.ui-dock-target')).toHaveCount(2);
+  await shell().mouse.move(page.x + 40, page.y + page.height / 2, { steps: 4 });
+  await expect(shell().locator('.ui-dock-target[data-dock="left"][data-over]')).toHaveCount(1);
+  await shell().mouse.up();
+  await expect(shell().locator('.ui-dock-target')).toHaveCount(0);
+  await expect(lists('left')).toBeVisible();
+  // Escape while dragging leaves it where it was.
+  const again = (await lists('left').locator('.ui-panel-head').boundingBox())!;
+  await shell().mouse.move(again.x + 20, again.y + again.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(page.x + page.width - 40, page.y + page.height / 2, { steps: 6 });
+  await shell().keyboard.press('Escape');
+  await shell().mouse.up();
+  await expect(lists('left')).toBeVisible();
+  // The move is kept with the app's layout; Reset layout puts it back.
+  await lists('left').locator('.ui-panel-head').click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Move to the bottom' }).click();
+  await expect(lists('bottom')).toBeVisible();
+  expect(await shell().evaluate(() => JSON.parse(localStorage.getItem('mobius.layout.tasks') ?? '{}').dock)).toEqual({ list: 'bottom' });
+  // At the bottom it lays itself out for a short, wide place: its lists flow into columns, not rows the page's width.
+  await expect(lists('bottom')).toHaveAttribute('data-shape', 'strip');
+  const today = (await lists('bottom').getByRole('button', { name: 'Today', exact: true }).boundingBox())!;
+  const inbox = (await lists('bottom').getByRole('button', { name: /^Inbox/ }).boundingBox())!;
+  expect(inbox.x).toBeGreaterThan(today.x + today.width / 2);
+  expect(today.width).toBeLessThan(400);
+  // Each group stays whole, in one column under its heading.
+  const logbook = (await lists('bottom').getByRole('button', { name: 'Logbook', exact: true }).boundingBox())!;
+  expect(Math.round(logbook.x)).toBe(Math.round(today.x));
+});
+
+test('a panel pops out to float over the page, moves and sizes there, and docks again', async () => {
+  await goTo(shell(), 'Tasks');
+  const docked = shell().locator('.ui-dock[data-dock="left"] section[aria-label="Lists"]');
+  const floating = shell().locator('.ui-float section[aria-label="Lists"]');
+  await expect(docked).toBeVisible();
+  await docked.locator('.ui-panel-head').click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Pop out' }).click();
+  await expect(floating).toBeVisible();
+  await expect(docked).toHaveCount(0);
+  // Its header moves it, its corner sizes it, and both are kept.
+  const card = shell().locator('.ui-float');
+  const before = (await card.boundingBox())!;
+  const head = (await floating.locator('.ui-panel-head').boundingBox())!;
+  await shell().mouse.move(head.x + 30, head.y + head.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(head.x + 330, head.y + head.height / 2 + 60, { steps: 6 });
+  await shell().mouse.up();
+  await expect.poll(async () => Math.round((await card.boundingBox())!.x - before.x)).toBe(300);
+  const moved = (await card.boundingBox())!;
+  await shell().mouse.move(moved.x + moved.width - 4, moved.y + moved.height - 4);
+  await shell().mouse.down();
+  await shell().mouse.move(moved.x + moved.width + 76, moved.y + moved.height + 36, { steps: 6 });
+  await shell().mouse.up();
+  await expect.poll(async () => Math.round((await card.boundingBox())!.width - moved.width)).toBe(80);
+  const kept = await shell().evaluate(() => JSON.parse(localStorage.getItem('mobius.layout.tasks') ?? '{}').float?.list);
+  expect(kept).toMatchObject({ width: Math.round(moved.width + 80) });
+  // Docked again from its menu.
+  await floating.locator('.ui-panel-head').click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Dock on the left' }).click();
+  await expect(docked).toBeVisible();
+  await expect(card).toHaveCount(0);
+  // Dragged from its dock and let go over the middle of the page, it floats there (once the dock has slid in).
+  await expect(shell().locator('.ui-dock[data-dock="left"]')).not.toHaveAttribute('data-moving');
+  const again = (await docked.locator('.ui-panel-head').boundingBox())!;
+  const page = (await shell().locator('.ui-panels').boundingBox())!;
+  await shell().mouse.move(again.x + 30, again.y + again.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(page.x + page.width / 2, page.y + page.height / 3, { steps: 6 });
+  await shell().mouse.up();
+  await expect(floating).toBeVisible();
 });

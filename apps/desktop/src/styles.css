@@ -883,7 +883,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .pane-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .split-divider { position: absolute; top: 0; bottom: 0; left: calc(var(--split) - var(--divider) / 2); width: var(--divider); cursor: col-resize; z-index: 3; background: var(--sidebar); touch-action: none; }
 .split-divider::after { content: ''; position: absolute; top: 50%; left: 50%; width: 3px; height: 32px; margin: -16px 0 0 -1.5px; border-radius: var(--radius-pill); background: var(--line-strong); transition: background var(--dur-fast) var(--ease); }
-.split-divider:hover::after, .split-divider:focus-visible::after { background: var(--accent); }
+.split-divider:hover::after, .split-divider:focus-visible::after { background: var(--muted); }
 .split-divider:focus-visible { outline: none; }
 
 /* Little Mobius: the conversation alone, filling a small window. */
