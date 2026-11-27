@@ -1,3 +1,4 @@
+import { ABILITY_ITEM, jobSteps, savedJobs } from './ability-offer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConversationInfo } from '@mobius/shared';
 import { KEPT_EVENT, fileKept, keepTurn, keptTurns, reviewable, turnId } from './ReviewStrip';
@@ -8,7 +9,7 @@ import { KEPT_EVENT, fileKept, keepTurn, keptTurns, reviewable, turnId } from '.
  */
 export interface BackgroundRun { conversation: string; ask: string; at: number; /** Stopped before it finished. */ stopped?: boolean; /** The morning brief (brief.ts) or an app's check-in (checkins.ts): its row shows what it wrote. */ kind?: 'brief' | 'check-in'; /** A check-in's app. */ app?: string; /** What was handed off (assign.ts `item`), so the same item is not started twice while two items that share a name are not confused. */ item?: string }
 /** A run that has finished: what it changed and still waits for Keep (none for an answer that changed nothing). */
-export interface BackgroundDone extends BackgroundRun { files: string[]; turn: string | null; /** Its last turn failed. */ failed?: boolean; /** A brief's answer, as written. */ text?: string }
+export interface BackgroundDone extends BackgroundRun { files: string[]; turn: string | null; /** Its last turn failed. */ failed?: boolean; /** A brief's answer, as written. */ text?: string; /** How many tool steps its job took (ability-offer.ts): several, and its row offers to save it as an Ability. */ steps?: number }
 
 const KEY = 'mobius.background';
 const MAX = 20;
@@ -69,7 +70,7 @@ export function useBackgroundRuns(conversations: readonly ConversationInfo[]) {
     const c = conversations.find((x) => x.id === r.conversation);
     return c ? c.activity !== 'working' && c.waiting === 0 : false;
   });
-  const key = finished.map((r) => `${r.conversation}:${r.at}:${r.stopped ? 's' : ''}:${conversations.find((x) => x.id === r.conversation)?.activity ?? ''}`).join(',');
+  const key = finished.map((r) => `${r.conversation}:${r.at}:${r.stopped ? 's' : ''}:${conversations.find((x) => x.id === r.conversation)?.activity ?? ''}`).join(',') + `|${runs.filter((r) => r.item?.startsWith(ABILITY_ITEM)).length}|${savedJobs().length}`;
   const reads = useRef(0);
   const load = useCallback(async () => {
     const n = ++reads.current;
@@ -80,7 +81,13 @@ export function useBackgroundRuns(conversations: readonly ConversationInfo[]) {
       const files = changes && !(turn && keptTurns().includes(turn)) ? changes.files.filter((f) => reviewable(f) && !(turn && fileKept(turn, f))) : [];
       const failed = conversations.find((x) => x.id === r.conversation)?.activity === 'failed';
       const text = r.kind ? await answerOf(r.conversation) : undefined;
-      return { ...r, files, turn, ...(failed ? { failed } : {}), ...(text ? { text } : {}) };
+      // Not one that writes an Ability, nor one already being saved as one.
+      // Saved once its Ability was kept; being saved while its Ability run is on or waits for Keep. A run that failed
+      // or was stopped saved nothing, so the job offers it again.
+      const writing = (x: BackgroundRun) => x.item === `${ABILITY_ITEM}${r.conversation}` && !x.stopped && conversations.find((c) => c.id === x.conversation)?.activity !== 'failed';
+      const saving = r.item?.startsWith(ABILITY_ITEM) || savedJobs().includes(r.conversation) || readRuns().some(writing);
+      const steps = r.kind || failed || r.stopped || saving ? 0 : jobSteps(await window.mobius.agent.history(r.conversation).catch(() => [])).steps.length;
+      return { ...r, files, turn, ...(failed ? { failed } : {}), ...(text ? { text } : {}), ...(steps ? { steps } : {}) };
     }));
     if (n === reads.current) setDone(out);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` names the finished runs.

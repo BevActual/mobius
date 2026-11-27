@@ -217,6 +217,11 @@ Built in the second round: an agent's "When mail comes" from a sender (`mailFrom
 mail by message id after each sync, starts the agent in a chat of its own (at most five runs per look), and the run
 lands in Home's Inbox (`mobius:agent-started`).
 
+Built in the third round: Assign to one of your own agents by name from any item's menu (`assignEntries` in
+`assign.ts`), with the agent named on its Inbox row and in its chat box. Then "Save as Ability": a handed-off job that
+took three or more tool steps offers it on its Inbox row, and Mobius writes a `SKILL.md` from that job's own steps
+(`ability-offer.ts`), using only the Abilities and files tools. The new Ability waits for Keep.
+
 The round after is the agent factory: "Starts when" with events, "Can use" and "Sources" on each agent, with its runs
 in the Inbox. Embeddings come after that, as an opt-in capability.
 

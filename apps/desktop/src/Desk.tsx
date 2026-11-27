@@ -9,6 +9,7 @@ import { agoLabel, deskGreeting, deskQuiet, deskTitle, upcoming, whenLabel } fro
 import { APP_ICONS } from './Rail';
 import { useFollowUps, waitingOn } from './mail-follow-ups';
 import { doneText, type BackgroundDone } from './background';
+import { ABILITY_MIN_STEPS } from './ability-offer';
 import { BRIEF_TITLE, briefLines } from './brief';
 import { checkInLines } from './checkins';
 import { useSpeech } from './useSpeech';
@@ -53,7 +54,7 @@ interface Props {
    */
   inbox?: { items: readonly InboxItem[]; onOpen: (item: InboxItem) => void; onDone: (item: InboxItem) => Promise<boolean> };
   /** Work handed to Mobius in the background that has finished: Open goes to its chat, Keep all keeps what it changed. */
-  background?: { items: readonly BackgroundDone[]; /** The agent that did a run, when it is one of the person's own rather than Mobius. */ by?: (run: BackgroundDone) => string | undefined; onOpen: (run: BackgroundDone) => void; onKeep: (run: BackgroundDone) => void; onDone: (run: BackgroundDone) => void };
+  background?: { items: readonly BackgroundDone[]; /** The agent that did a run, when it is one of the person's own rather than Mobius. */ by?: (run: BackgroundDone) => string | undefined; /** Save a job that took several steps as an Ability (ability-offer.ts). */ onSaveAbility?: (run: BackgroundDone) => void; onOpen: (run: BackgroundDone) => void; onKeep: (run: BackgroundDone) => void; onDone: (run: BackgroundDone) => void };
   now?: Date;
 }
 
@@ -301,6 +302,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                   <span className="desk-text">{doneText(run.files, run, background?.by?.(run))}</span>
                   {go('Open')}
                 </button>
+                {background?.onSaveAbility && (run.steps ?? 0) >= ABILITY_MIN_STEPS && <button type="button" className="desk-act" aria-label={`Save ${run.ask} as an Ability`} title="Keep how this was done, to have it done the same way again" onClick={() => background.onSaveAbility?.(run)}>Save as Ability</button>}
                 {run.files.length > 0
                   ? <button type="button" className="desk-act" data-primary aria-label={`Keep all of ${run.ask}`} title="Keep everything it changed" onClick={() => finishRun(run, true)}>Keep all</button>
                   : <button type="button" className="desk-act" aria-label={`Done with ${run.ask}`} title="Clear it from the Inbox" onClick={() => finishRun(run, false)}>Done</button>}

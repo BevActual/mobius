@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
 import { startMailServers } from './mail-fixture';
-import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { callsTool, refuses, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -276,6 +276,61 @@ test('a task can go to one of the person\'s own agents by name, which works on i
   await expect(inbox.getByRole('button', { name: 'Open Fix the tap: Handy finished in the background' })).toBeVisible({ timeout: 15_000 });
   await inbox.getByRole('button', { name: 'Open Fix the tap: Handy finished in the background' }).click();
   await expect(composer()).toHaveAttribute('placeholder', 'Message Handy');
+});
+
+test('a job that took several steps offers Save as Ability in the Inbox, which writes one from its steps to Keep', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Fix the tap\n');
+  const skill = '---\nname: find-a-tradesperson\ndescription: When something at home needs fixing\n---\n\n1. Read the task.\n2. Look for local tradespeople.\n3. Say who to call.\n';
+  await start([
+    callsTool('tasks-list'), callsTool('notes-search', { query: 'plumber' }), callsTool('files-list', { path: 'notes' }), says(['Call the plumber on Friday.']),
+    callsTool('skills-list'), callsTool('files-write', { path: 'skills/find-a-tradesperson/SKILL.md', content: skill }), says(['Saved it as find-a-tradesperson.']),
+  ]);
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'propose' }));
+  await openApp('Tasks');
+  await shell().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Home/ }).click();
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Fix the tap', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  // Pressed twice at once: one Ability, not two.
+  await inbox.getByRole('button', { name: 'Save Fix the tap as an Ability' }).dblclick({ timeout: 15_000 });
+  await expect(shell().locator('.toast')).toHaveText('Mobius is writing it as an Ability. It will be in your Inbox to keep.');
+  // It is asked from the job's own steps, with only the Abilities' and files' tools, and not to do the job again.
+  await expect.poll(() => model!.requests.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(5);
+  const asked = JSON.stringify(model!.requests[4]!);
+  expect(asked).toContain('Save \\"Fix the tap\\" as an Ability');
+  expect(asked).toContain('notes.search (query: plumber)');
+  expect(asked).toContain('Do not do the job again');
+  expect(asked).not.toContain('"tasks-add"');
+  // The new Ability waits in the Inbox to keep; the job's own row no longer offers it.
+  await expect(inbox.getByRole('button', { name: 'Open Ability from Fix the tap: Finished in the background · 1 change to keep' })).toBeVisible({ timeout: 15_000 });
+  await expect(inbox.getByRole('button', { name: 'Save Fix the tap as an Ability' })).toHaveCount(0);
+  await expect(inbox.getByRole('button', { name: /^Save Ability from/ })).toHaveCount(0);
+  await inbox.getByRole('button', { name: 'Keep all of Ability from Fix the tap' }).click();
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'skills', 'find-a-tradesperson', 'SKILL.md'), 'utf8')).toBe(skill);
+  // Once kept, the job it came from still does not offer it again, and only one Ability was asked for.
+  await expect(inbox.getByRole('button', { name: /^Open Fix the tap/ })).toBeVisible();
+  await expect(inbox.getByRole('button', { name: 'Save Fix the tap as an Ability' })).toHaveCount(0);
+  expect(model!.requests.filter((r) => JSON.stringify(r).includes('as an Ability')).length).toBeLessThanOrEqual(3);
+  expect(model!.requests.length).toBe(7);
+});
+
+test('an Ability that could not be written leaves its job offering Save as Ability again', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Clean the gutters\n');
+  await start([callsTool('tasks-list'), callsTool('notes-search', { query: 'gutters' }), callsTool('files-list', { path: 'notes' }), says(['Book a cleaner.']), refuses(400, 'The model is not available.')]);
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'propose' }));
+  await openApp('Tasks');
+  await shell().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Home/ }).click();
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Clean the gutters', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await inbox.getByRole('button', { name: 'Save Clean the gutters as an Ability' }).click({ timeout: 15_000 });
+  await expect(inbox.getByRole('button', { name: 'Open Ability from Clean the gutters: Did not finish: something went wrong' })).toBeVisible({ timeout: 15_000 });
+  // It saved nothing, so the job can be saved again.
+  await expect(inbox.getByRole('button', { name: 'Save Clean the gutters as an Ability' })).toBeVisible();
 });
 
 test('Assign to Mobius on a note, from its row in Notebooks, asks about that note and lands in the Inbox', async () => {
