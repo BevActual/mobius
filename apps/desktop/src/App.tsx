@@ -109,7 +109,7 @@ import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
 import { BESIDE_EVENT, besideUrlOk, type Beside } from './beside';
-import { pressIs } from './ui/PanelLayout';
+import { PanelsListed, pressIs } from './ui/PanelLayout';
 import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
 import { alertDue, alertSaid } from './calendar-alerts';
 import { stopReading } from './useSpeech';
@@ -2438,7 +2438,7 @@ export function App() {
                 onFocus={() => { if (split && focused !== index) setFocused(index); }}
                 onChoose={(next) => choosePane(index, next)} onSwap={swapPanes} onClose={() => closePane(index)}>
                 {/* The apps show the current conversation's changes as they land; their Keep waits for its turn to end. */}
-                <TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider>
+                <PanelsListed on={!split || focused === index}><TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider></PanelsListed>
               </Pane>
             );
             return at === 1

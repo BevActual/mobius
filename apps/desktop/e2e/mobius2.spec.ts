@@ -54,6 +54,19 @@ test('split view shows two apps, follows the focused pane, swaps and closes', as
   // Its name, not the middle of the header, where (by window size) one of the app buttons can sit.
   await right.locator('.pane-name').click();
   await expect(shell().getByRole('complementary', { name: 'Notebooks' })).toBeVisible();
+  // The View menu's panels are the focused pane's: Notes' Notebooks, not the Browser's Tabs; and the other way round.
+  const viewMenu = async () => {
+    await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
+    return shell().getByRole('menu', { name: 'View' });
+  };
+  await expect((await viewMenu()).getByRole('menuitemcheckbox', { name: 'Notebooks' })).toBeVisible();
+  await expect((await viewMenu()).getByRole('menuitemcheckbox', { name: 'Tabs' })).toHaveCount(0);
+  await shell().keyboard.press('Escape');
+  await left.locator('.pane-name').click();
+  await expect((await viewMenu()).getByRole('menuitemcheckbox', { name: 'Tabs' })).toBeVisible();
+  await expect((await viewMenu()).getByRole('menuitemcheckbox', { name: 'Notebooks' })).toHaveCount(0);
+  await shell().keyboard.press('Escape');
+  await right.locator('.pane-name').click();
   await right.getByRole('button', { name: 'Swap panes' }).click();
   await expect(shell().getByRole('region', { name: 'Left pane: Notes' })).toBeVisible();
   await shell().getByRole('separator', { name: 'Resize the panes' }).focus();
