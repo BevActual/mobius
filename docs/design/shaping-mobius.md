@@ -206,12 +206,47 @@ One branch, one PR, each piece usable on its own:
 The round after is the agent factory: "Starts when" with events, "Can use" and "Sources" on each agent, with its runs
 in the Inbox. Embeddings come after that, as an opt-in capability.
 
+## Compared with Hermes Agent
+
+Andrew asked on 27 November 2026 how this compares with Hermes Agent (Nous Research, MIT), from
+[its site](https://hermes-agent.nousresearch.com/), [docs](https://hermes-agent.nousresearch.com/docs) and
+[desktop page](https://hermes-agent.nousresearch.com/desktop):
+
+- **What it is.** One agent and no apps. It runs in a terminal, on a server or on a sandbox service. It is reached
+  from more than 20 chat platforms (Telegram, Slack, Signal, Matrix, email and others) through one gateway. A desktop
+  app adds chat, sessions and file browsing.
+- **What it does well.**
+  - Memory that persists, with search across past sessions using SQLite full-text search.
+  - Skills it writes from experience and improves as it uses them, in the open agentskills.io format.
+  - Scheduled jobs that report to any of those platforms.
+  - More than 60 tools, MCP, and any model.
+
+How Mobius compares:
+
+- **Hermes is the agent without the workspace; Mobius is both.** Hermes works on your things through tools and
+  replies in a chat. Mobius owns the mail, docs, tasks and calendar, so its work is shown, kept or discarded where it
+  happens. Hermes has no equivalent of the dashed changes, Keep and Discard, or the Inbox.
+- **It supports this plan's index choice.** Hermes recalls past sessions with SQLite full-text search, the same
+  word-search-first start recommended here.
+- **Three things worth taking:**
+  - **Skills Mobius writes itself.** The agent plan's "show it once" becomes: after a task, Mobius offers to save it
+    as an Ability, and improves that Ability when the person corrects it. Mobius's Abilities are already `SKILL.md`
+    folders, the same shape as the open standard, so they can be shared both ways.
+  - **Reach Mobius from your phone.** Messages already runs on Matrix. A Mobius member in your own space would let you
+    ask it from any Matrix app, with the answers and any changes still waiting in the Inbox. This fits the solo
+    rule: the space is yours alone.
+  - **Running without the window.** Hermes runs on a server. Mobius's plan already says the core should keep running
+    without the window, and later on a machine the person owns. Hermes shows people want that.
+
 ## Decisions for Andrew
 
-1. **Event triggers for agents.** May an agent that Andrew made start on an event (a mail, an assigned task) and work
-   under its own permission setting? Or should event-started runs only suggest, like check-ins? The recommendation is
-   to let them work under the permission he sets for that agent, with the floors still asking.
-2. **Embeddings.** Should Mobius offer a downloadable local embedding model, opt-in, with its size shown? Word search
-   comes first either way.
-3. **Store under Settings.** Should the Store and its Abilities stay their own app, or become a section of Settings?
-   The recommendation is to keep it as an app for now.
+Andrew answered on 27 November 2026 ("Will go with your recommendations"):
+
+1. **Event triggers: yes.** An agent he made may start on its own when a mail arrives or a task is assigned to it.
+   Its results land in Home's Inbox, its changes dashed for Keep or Discard, and the floors still ask before anything
+   leaves his hands.
+2. **Embeddings: yes, as an optional download, off by default.** Word search comes first either way.
+3. **Store into Settings: asked again.** Andrew agreed to fold the Store into Settings, but this plan finds a reason
+   to keep it as an app: an Ability is a kind of thing of its own, written and edited there (its own page, `/name`).
+   The Store's catalogue of apps and extensions is also opened on purpose to add things. The question went back to
+   him before anything moves.
