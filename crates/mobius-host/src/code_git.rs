@@ -23,6 +23,11 @@ pub fn tool_descriptions() -> Vec<Value> {
 }
 
 fn git(dir: &Path, args: &[&str], timeout: Duration) -> Result<String, String> {
+    git_bytes(dir, args, timeout).map(|out| String::from_utf8_lossy(&out).trim().to_owned())
+}
+
+/// What git printed, as it printed it (a file's text keeps its last newline).
+fn git_bytes(dir: &Path, args: &[&str], timeout: Duration) -> Result<Vec<u8>, String> {
     let mut cmd = Command::new("git");
     cmd.args(args).current_dir(dir).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).env("GIT_TERMINAL_PROMPT", "0").env("GIT_OPTIONAL_LOCKS", "0");
     #[cfg(windows)]
@@ -43,7 +48,7 @@ fn git(dir: &Path, args: &[&str], timeout: Duration) -> Result<String, String> {
     }
     let text = |b: &[u8]| String::from_utf8_lossy(b).trim().to_owned();
     if out.status.success() {
-        Ok(text(&out.stdout))
+        Ok(out.stdout)
     } else {
         let err = text(&out.stderr);
         Err(if err.is_empty() { text(&out.stdout) } else { err }.chars().take(2000).collect())
@@ -84,6 +89,19 @@ fn branch_line(line: &str) -> (String, Option<u64>) {
         }
         None => (name.to_owned(), None),
     }
+}
+
+/// A file as the last commit has it, for the editor's change marks: `text` is null for a file the commit does not
+/// have (new, or no commit yet) or one that is not text.
+pub fn head_text(dir: &Path, path: &str) -> Value {
+    if !dir.join(".git").exists() {
+        return json!({ "repo": false });
+    }
+    if path.is_empty() || path.starts_with(['/', '\\']) || path.split(['/', '\\']).any(|p| p == "..") {
+        return json!({ "repo": true, "text": null });
+    }
+    let text = git_bytes(dir, &["show", &format!("HEAD:./{}", path.replace('\\', "/"))], QUICK).ok().and_then(|b| String::from_utf8(b).ok());
+    json!({ "repo": true, "text": text })
 }
 
 /// Commits everything changed. Refused with nothing to commit, or a message that is empty or too long.
@@ -162,5 +180,24 @@ mod tests {
         assert_eq!(branch_line("main...origin/main [ahead 12, behind 1]"), ("main".into(), Some(12)));
         assert_eq!(branch_line("main...origin/main [behind 3]"), ("main".into(), Some(0)));
         assert_eq!(branch_line("HEAD (no branch)"), (String::new(), None));
+    }
+
+    #[test]
+    fn the_last_commits_text_keeps_its_last_newline() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        if git(d, &["init", "-q"], QUICK).is_err() {
+            return;
+        }
+        let _ = git(d, &["config", "user.email", "test@example.com"], QUICK);
+        let _ = git(d, &["config", "user.name", "Test"], QUICK);
+        std::fs::create_dir_all(d.join("src")).unwrap();
+        std::fs::write(d.join("src/a.js"), "one\ntwo\n").unwrap();
+        assert_eq!(head_text(d, "src/a.js")["text"], Value::Null);
+        commit(d, "first").unwrap();
+        std::fs::write(d.join("src/a.js"), "changed").unwrap();
+        assert_eq!(head_text(d, "src/a.js")["text"], "one\ntwo\n");
+        assert_eq!(head_text(d, "../x")["text"], Value::Null);
+        assert_eq!(head_text(&d.join("src"), "a.js"), json!({ "repo": false }));
     }
 }

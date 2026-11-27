@@ -1256,6 +1256,8 @@ export interface MobiusBridge {
     onConsole(listener: (event: { project: string; command: string; result: CodeTestRun; by: 'person' | 'assistant' }) => void): () => void;
     /** The project's git state, when it is a repository. */
     git(project: string): Promise<CodeGit | NotesFailure>;
+    /** A file as the last commit has it (null when the commit does not have it), for the editor's change marks. */
+    gitBase(project: string, path: string): Promise<{ repo: false } | { repo: true; text: string | null } | NotesFailure>;
     commit(project: string, message: string): Promise<{ ok: true; commit: string } | NotesFailure>;
     push(project: string): Promise<{ ok: true; branch: string } | NotesFailure>;
     onChanged(listener: (change: CodeChanged) => void): () => void;

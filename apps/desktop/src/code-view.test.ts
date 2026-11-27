@@ -115,3 +115,17 @@ describe('codeOutline', () => {
     expect(codeOutline('{"a": 1}', 'json')).toEqual([]);
   });
 });
+
+describe('change marks against the last commit', () => {
+  it('marks added, changed and deleted lines where they are now', async () => {
+    const { changeMarks } = await import('./code-view');
+    const before = 'a\nb\nc\nd\ne\n';
+    const after = 'a\nB\nc\nnew\nd\n';
+    expect(changeMarks(lineDiff(before, after))).toEqual([
+      { kind: 'change', first: 1, last: 1, removed: ['b'] },
+      { kind: 'add', first: 3, last: 3, removed: [] },
+      { kind: 'delete', first: 4, last: 4, removed: ['e'], atEnd: true },
+    ]);
+    expect(changeMarks(lineDiff('a\nb\nc\n', 'a\nc\n'))).toEqual([{ kind: 'delete', first: 1, last: 1, removed: ['b'] }]);
+  });
+});
