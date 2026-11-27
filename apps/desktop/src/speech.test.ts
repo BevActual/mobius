@@ -71,9 +71,12 @@ describe('a title with a full stop', () => {
 });
 
 describe('the first part', () => {
-  it('can be shorter than the rest', () => {
+  it('is short, and each next part at most a quarter longer than the one before', () => {
     const text = 'One two three. Four five six. Seven eight nine. Ten eleven twelve.';
-    expect(speechParts(text, 40, 15)).toEqual(['One two three.', 'Four five six. Seven eight nine.', 'Ten eleven twelve.']);
+    expect(speechParts(text, 40, 15)).toEqual(['One two three.', 'Four five six.', 'Seven eight nine.', 'Ten eleven twelve.']);
+    const parts = speechParts('Word word. '.repeat(40), 60, 20);
+    parts.forEach((p, i) => expect(p.length).toBeLessThanOrEqual(Math.min(60, Math.round(20 * 1.25 ** i))));
+    expect(parts.at(-2)!.length).toBeGreaterThan(40);
   });
 });
 

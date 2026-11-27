@@ -44,8 +44,10 @@ function DeviceModelSetup({ model, name }: { model: DeviceModel; name: string })
   const [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    void window.mobius.voice?.deviceStatus?.(model).then((r) => { if (live && r && 'state' in r) setStatus(r); }).catch(() => undefined);
-    const stop = window.mobius.voice?.onDevice?.((next) => { if (next.model === model) setStatus(next); });
+    const fetch = () => void window.mobius.voice?.deviceStatus?.(model).then((r) => { if (live && r && 'state' in r) setStatus(r); }).catch(() => undefined);
+    fetch();
+    // Another model set up or removed can bring or take the program, which changes what this one would download.
+    const stop = window.mobius.voice?.onDevice?.((next) => { if (next.model === model) setStatus(next); else if (next.state === 'ready' || next.state === 'absent') fetch(); });
     return () => { live = false; stop?.(); };
   }, [model]);
   if (!status) return null;

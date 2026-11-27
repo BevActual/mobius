@@ -633,14 +633,7 @@ impl Bridge {
         // A new install listens on this computer for free once that is set up (where there's a build of it for this
         // computer), and until then with the chat model's server, as before. One already in use keeps what it had.
         if fresh {
-            let mut start = json!({ "installedApps": preferences::DEFAULT_APPS });
-            if crate::voice_local::available() {
-                start["listenWith"] = json!("device");
-                start["listenFallback"] = json!("chat");
-                // Speaking on this computer too: nothing is read aloud until the person presses Listen (readAloud stays off).
-                start["speakWith"] = json!("device");
-            }
-            lock(&bridge.preferences).set(&start);
+            lock(&bridge.preferences).set(&first_preferences(crate::voice_local::available()));
         }
         let _ = bridge.restore_quick();
         // Once the local space's server answers, the person's account and the space are made (the first time) or brought
@@ -5386,4 +5379,18 @@ enum TabChange {
     TakeOver,
     HandBack,
     End,
+}
+
+/// What a new install starts with: its apps, and listening and speaking on this computer where there's a build of the
+/// voice program for it (`on_device`).
+#[must_use]
+pub fn first_preferences(on_device: bool) -> Value {
+    let mut start = json!({ "installedApps": preferences::DEFAULT_APPS });
+    if on_device {
+        start["listenWith"] = json!("device");
+        start["listenFallback"] = json!("chat");
+        // Speaking on this computer too: nothing is read aloud until the person presses Listen (readAloud stays off).
+        start["speakWith"] = json!("device");
+    }
+    start
 }

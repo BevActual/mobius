@@ -68,7 +68,7 @@ const TITLES: Record<string, string> = { Dr: 'Doctor', Mr: 'Mister', Mrs: 'Missu
 
 /**
  * A long text in parts to read one after another, so the first is heard soon: whole paragraphs, or sentences of a long
- * one, each at most `most` characters, the first at most `first` (a sentence longer than that is cut at a space).
+ * one, each at most `most` characters, the first at most `first` and each next at most a quarter longer (a sentence longer than that is cut at a space).
  */
 export function speechParts(text: string, most = 500, first = most): string[] {
   const parts: string[] = [];
@@ -76,8 +76,9 @@ export function speechParts(text: string, most = 500, first = most): string[] {
   const add = (piece: string) => {
     const p = piece.trim();
     if (!p) return;
-    // The first part can be shorter, so the first sound is heard sooner.
-    const max = parts.length ? most : first;
+    // The first part can be shorter, so the first sound is heard sooner; each next one is at most a quarter longer than
+    // the one before, so it is made (a little faster than it plays) while the one before is still heard.
+    const max = Math.min(most, Math.round(first * 1.25 ** parts.length));
     if (now && now.length + 1 + p.length > max) { parts.push(now); now = ''; }
     if (p.length <= max) { now = now ? `${now} ${p}` : p; return; }
     let rest = p;

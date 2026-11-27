@@ -226,12 +226,23 @@ test('Listen in Notes reads the open page aloud with whoever speaks, in parts, a
   // Nothing is read until Listen is pressed.
   expect(speech!.heard.filter((h) => h.path === '/v1/audio/speech')).toHaveLength(0);
   await shell().getByRole('button', { name: 'Listen', exact: true }).click();
-  // The page as words, without its Markdown, in parts of at most 500 characters: the first is asked for alone.
+  // The page as words, without its Markdown, in parts of at most 500 characters (the first shorter): the first is asked for alone.
   await expect.poll(() => speech!.heard.filter((h) => h.path === '/v1/audio/speech').length).toBeGreaterThanOrEqual(2);
   const said = speech!.heard.filter((h) => h.path === '/v1/audio/speech').map((h) => JSON.parse(h.text).input as string);
   expect(said[0]).toContain('Garden. Plant the tulips before the frost.');
   expect(said.join(' ')).not.toContain('**');
   expect(said.every((s) => s.length <= 500)).toBe(true);
+  // Leaving the note stops its reading: no part is asked for after that.
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Docs');
+  await shell().keyboard.press('Enter');
+  await expect(shell().locator('[data-listen]')).toHaveCount(0);
+  const asked = speech!.heard.filter((h) => h.path === '/v1/audio/speech').length;
+  await shell().waitForTimeout(1500);
+  expect(speech!.heard.filter((h) => h.path === '/v1/audio/speech').length).toBe(asked);
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('frost');
+  await shell().getByRole('option', { name: /^Garden/ }).click();
 
   // With speaking off, Listen says so and opens Settings, Models at Speaking.
   await shell().evaluate(() => window.mobius.preferences.set({ speakWith: 'off' }));

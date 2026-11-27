@@ -78,7 +78,8 @@ export function useSpeech() {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && current.current.state !== 'idle' && current.current.state !== 'failed') stop(); };
     window.addEventListener('keydown', onKey);
     readers.add(stop);
-    return () => { window.removeEventListener('keydown', onKey); readers.delete(stop); audio.current?.pause(); };
+    // Leaving the page (or the app) stops its reading too: nothing is left playing that its button and Esc can't reach.
+    return () => { window.removeEventListener('keydown', onKey); readers.delete(stop); run.current += 1; audio.current?.pause(); audio.current = null; };
   }, [stop]);
 
   return { speech, speak, stop, dismiss: () => apply({ kind: 'stop' }) };
