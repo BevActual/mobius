@@ -303,3 +303,19 @@ test('Assets places a copy of a component and puts a colour style on what is pic
   await assets.getByRole('button', { name: 'Use Ink' }).click();
   await expect.poll(() => saved().frames[0]!.fill).toBe('style:Ink');
 });
+
+test('with no designs at all, the empty page starts one itself: New design is right there', async () => {
+  fs.rmSync(path.join(userData, 'workspace', 'designs'), { recursive: true, force: true });
+  model = await startModel([]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  await resizeWindow(mobius.app, 1440, 900);
+  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Design');
+  await shell().keyboard.press('Enter');
+  const empty = shell().getByRole('region', { name: 'Design', exact: true });
+  await expect(empty).toContainText('No designs yet');
+  await empty.getByRole('button', { name: 'New design' }).click();
+  await expect(empty.getByText('No designs yet')).toHaveCount(0);
+  await expect.poll(() => fs.readdirSync(path.join(userData, 'workspace', 'designs', 'Designs')).filter((f) => f.endsWith('.json')).length).toBe(1);
+});

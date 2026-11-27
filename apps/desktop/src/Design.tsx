@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { isNotesFailure } from '@mobius/shared';
-import { NotesSidebar, type SidebarWords } from './NotesSidebar';
+import { newItemIn, NotesSidebar, type SidebarWords } from './NotesSidebar';
 import { newestPage } from './useNotes';
 import { PanelLayout, ToolbarControls, type PanelSpec } from './ui';
 import { EmptyState } from './EmptyState';
@@ -533,8 +533,9 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Design opens on a design, never on an empty window: the last one (useNotes remembers it), else the newest.
-  // Only with no designs at all is there nothing to show, and New sits in the sidebar (Ctrl+N).
-  if (!designs.page) return <section className="design-page empty" aria-label="Design"><EmptyState icon={<path d={ICON.frame} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />} label="No designs yet" title="No designs yet" line="Start one with New design in Designs (Ctrl+N)." /></section>;
+  // Only with no designs at all is there nothing to show: New design is right there, as Notes and Sheets have it, so
+  // the person never has to find the Designs panel first (it may be closed).
+  if (!designs.page) return <section className="design-page empty" aria-label="Design"><EmptyState icon={<path d={ICON.frame} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />} label="No designs yet" title="No designs yet" line="A design is frames and their layers, kept as a file Mobius can read and change too." action={{ label: 'New design', run: () => newItemIn(designs, null, DESIGN_WORDS.defaultGroup) }} /></section>;
   if (!doc) {
     return (
       <section className="design-page empty" aria-label="Design">
