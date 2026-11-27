@@ -198,6 +198,29 @@ export function changeGroups(rows: readonly DiffRow[]): [number, number][] {
   return out;
 }
 
+/**
+ * The editor's change marks against the last commit, as VS Code draws them in the gutter: lines added, lines
+ * changed, and a place where lines were deleted. Lines are from 0 in the new text; `removed` is what was there.
+ */
+export interface ChangeMark { kind: 'add' | 'change' | 'delete'; first: number; last: number; removed: string[]; /** Deleted lines that were after the last line. */ atEnd?: boolean }
+export function changeMarks(rows: readonly DiffRow[]): ChangeMark[] {
+  const marks: ChangeMark[] = [];
+  for (const [s, e] of changeGroups(rows)) {
+    const part = rows.slice(s, e + 1);
+    const removed = part.filter((r) => r.kind === 'del').map((r) => r.text);
+    const added = part.filter((r) => r.kind === 'add');
+    if (added.length === 0) {
+      // Deleted lines are marked on the line after them (or the last line, at the end of the file).
+      const after = rows.slice(e + 1).find((r) => r.n !== null)?.n;
+      const at = after ?? rows.filter((r) => r.n !== null).at(-1)?.n ?? 1;
+      marks.push({ kind: 'delete', first: at - 1, last: at - 1, removed, ...(after === undefined ? { atEnd: true } : {}) });
+    } else {
+      marks.push({ kind: removed.length === 0 ? 'add' : 'change', first: added[0]!.n! - 1, last: added[added.length - 1]!.n! - 1, removed });
+    }
+  }
+  return marks;
+}
+
 /** `before` with only the changes in the groups kept applied; the others are put back. */
 export function applyGroups(rows: readonly DiffRow[], keep: ReadonlySet<number>, endsWithNewline: boolean): string {
   const groups = changeGroups(rows);

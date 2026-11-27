@@ -1,6 +1,6 @@
-import { type MutableRefObject, type MouseEvent as ReactMouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type MutableRefObject, type MouseEvent as ReactMouseEvent, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { IS_MAC, fileScore, findAll, findPattern, indentLines, langName, newLine, replacement, toggleComment, typePair, type FindOptions } from './code-edit';
-import { codeOutline, colourLines, type Lang } from './code-view';
+import { changeMarks, codeOutline, colourLines, lineDiff, type ChangeMark, type Lang } from './code-view';
 import {
   History, addCursorV, addNextMatch, applyChanges, foldRegions, foldsHiding, mapPos, matchBracket, replaceSpans, stickyScopes, visibleRows, colAt, copyLines, cursor, deleteBy, deleteLines, docOf, editEach, end, home, insertText, lineEnd, lineOf, lineStarts,
   moveH, moveLines, moveV, normalize, selFrom, selTo, selectAll, selectLine, single, visualCol, wordAt, type DocState, type Step,
@@ -181,7 +181,7 @@ function diffSpan(before: string, after: string): { from: number; to: number; in
  * and Ctrl+Alt+Up or Down add cursors, Alt+Up or Down move lines, Shift+Alt+Up or Down copy them, Ctrl+Shift+K
  * deletes them, Ctrl+L selects a line, Esc goes back to one cursor.
  */
-export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }: { code: CodeState; lang: Lang; bar: BarMode | null; setBar: (bar: BarMode | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null>; /** Language smarts, when the project has them. */ lsp?: LanguageState; onShowProblems?: () => void }) {
+export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, base }: { code: CodeState; lang: Lang; bar: BarMode | null; setBar: (bar: BarMode | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null>; /** Language smarts, when the project has them. */ lsp?: LanguageState; onShowProblems?: () => void; /** The file as the last commit has it, for the change marks; undefined when there is none. */ base?: string }) {
   const path = code.open?.path ?? '';
   const doc = useRef<DocState>(docOf(code.draft));
   const history = useRef(new History());
@@ -236,9 +236,14 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
   useEffect(() => { setComplete(null); setHover(null); setRename(null); setNote(null); }, [path]);
   useEffect(() => () => { window.clearTimeout(hoverTimer.current); window.clearTimeout(completeTimer.current); }, []);
   const fileProblems = lsp?.problems.get(path) ?? NO_PROBLEMS;
+  // Change marks against the last commit, worked out a moment behind the typing; one open shows what was there.
+  const [peek, setPeek] = useState<number | null>(null);
+  useEffect(() => { setPeek(null); }, [path]);
   const smart = lsp?.status.kind === 'server';
 
   const lines = useMemo(() => text.split('\n'), [text]);
+  const settled = useDeferredValue(text);
+  const changes = useMemo<ChangeMark[]>(() => (base === undefined || settled.length > 2_000_000 ? [] : changeMarks(lineDiff(base, settled))), [base, settled]);
   const starts = useMemo(() => lineStarts(text), [text]);
   // Folding: closed regions kept as the places their first lines start, so they move with changes above them.
   const [foldsVersion, setFoldsVersion] = useState(0);
@@ -393,7 +398,8 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
     const s = doc.current;
     setHover(null);
     if (smart && ch.length === 1) {
-      if (ch === '.') laterComplete('.');
+      // A dot starts a new list: the one for the word before it goes at once, so it never shows for a moment.
+      if (ch === '.') { completeAsk.current += 1; setComplete(null); laterComplete('.'); }
       else if (/[\p{L}_$]/u.test(ch) && !complete) laterComplete();
       else if (!/[\p{L}\p{N}_$]/u.test(ch)) { completeAsk.current += 1; setComplete(null); }
     }
@@ -421,6 +427,8 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
     if (e.ctrlKey && !e.altKey && !e.shiftKey && (key === ' ' || e.code === 'Space')) { handled(); void askComplete(); return; }
     if (key === 'F12' && !mod && !e.altKey && !e.shiftKey) { handled(); void goDefinition(primary.head); return; }
     if (key === 'F2' && !mod && !e.altKey && !e.shiftKey) { handled(); startRename(); return; }
+    if (key === 'F5' && e.altKey && !mod) { handled(); nextChange(e.shiftKey ? -1 : 1); return; }
+    if (peek !== null && key === 'Escape') { handled(); setPeek(null); return; }
     if (key === 'F8' && !mod && !e.altKey) { handled(); nextProblem(e.shiftKey ? -1 : 1); return; }
     if (e.shiftKey && e.altKey && !mod && e.code === 'KeyF') { handled(); void format(); return; }
     if (mod && !e.altKey && lower === 's') { handled(); void (lsp ? lsp.save() : code.save()); return; }
@@ -560,7 +568,7 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
   };
   const onMouseDown = (e: ReactMouseEvent) => {
     if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest('.ed-hover, .ed-complete, .ed-rename')) return;
+    if ((e.target as HTMLElement).closest('.ed-hover, .ed-complete, .ed-rename, .ed-peek')) return;
     e.preventDefault();
     window.clearTimeout(hoverTimer.current);
     setHover(null);
@@ -759,6 +767,42 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
     place({ ...s, sels: [cursor(t)], primary: 0 });
     setHover({ at: t, text: '', problems: problemsAt(t) });
   };
+  /** Puts one change back as the last commit had it, as a step of its own. */
+  const revertChange = (m: ChangeMark) => {
+    const s = doc.current;
+    const t = s.text;
+    const st = lineStarts(t);
+    setPeek(null);
+    input.current?.focus({ preventScroll: true });
+    let from: number;
+    let to: number;
+    let insert: string;
+    if (m.kind === 'delete' && m.atEnd) {
+      from = to = t.length;
+      const nl = t.endsWith('\n');
+      insert = `${nl || t === '' ? '' : '\n'}${m.removed.join('\n')}${nl ? '\n' : ''}`;
+    } else if (m.kind === 'delete') {
+      from = to = st[Math.min(m.first, st.length - 1)]!;
+      insert = m.removed.map((l) => `${l}\n`).join('');
+    } else {
+      from = st[m.first] ?? t.length;
+      to = m.last + 1 < st.length ? st[m.last + 1]! : t.length;
+      insert = m.removed.map((l) => `${l}\n`).join('');
+      if (to === t.length && !t.endsWith('\n')) insert = insert.replace(/\n$/, '');
+      if (m.removed.length === 0 && to === t.length && from > 0 && !t.endsWith('\n')) from -= 1;
+    }
+    apply(replaceSpans(s, [[from, to]], [insert]), 'revert');
+  };
+  /** Alt+F5 and Shift+Alt+F5: the next change since the last commit, shown with what was there. */
+  const nextChange = (dir: 1 | -1) => {
+    if (changes.length === 0) { setNote('No changes since the last commit'); return; }
+    const line = lineOf(lineStarts(doc.current.text), doc.current.sels[doc.current.primary]!.head);
+    const i = dir > 0 ? changes.findIndex((c) => c.first > line) : changes.map((c) => c.last < line).lastIndexOf(true);
+    const k = i >= 0 ? i : dir > 0 ? 0 : changes.length - 1;
+    const st = lineStarts(doc.current.text);
+    place({ ...doc.current, sels: [cursor(st[Math.min(changes[k]!.first, st.length - 1)]!)], primary: 0 });
+    setPeek(k);
+  };
   const showHover = async (at: number) => {
     const s = doc.current;
     const [a, b] = wordAt(s.text, at);
@@ -841,6 +885,36 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
   }
   // What the pointer rests on, the completion list and a rename being typed: placed at their words.
   let hoverBox: React.ReactNode = null;
+  const changeBars: React.ReactNode[] = [];
+  changes.forEach((m, k) => {
+    if (m.last < first || m.first > last) return;
+    const a = Math.max(m.first, first);
+    let b = Math.min(m.last, last);
+    while (b > a && !shown(b)) b -= 1;
+    if (!shown(a) && !shown(b)) return;
+    const what = m.kind === 'add' ? 'added' : m.kind === 'change' ? 'changed' : 'deleted';
+    const label = m.kind === 'delete' ? `${m.removed.length} line${m.removed.length === 1 ? '' : 's'} deleted here since the last commit` : `Lines ${m.first + 1} to ${m.last + 1} ${what} since the last commit`;
+    changeBars.push(
+      <button key={`m${k}`} type="button" tabIndex={-1} className="ed-change" data-kind={m.kind} aria-label={label} title={label} style={{ top: yOf(a), height: m.kind === 'delete' ? undefined : yOf(b) - yOf(a) + LINE }} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setPeek(peek === k ? null : k); }} />,
+    );
+  });
+  let peekBox: React.ReactNode = null;
+  const peeked = peek !== null ? changes[peek] : undefined;
+  if (peeked && shown(Math.min(peeked.last, lines.length - 1))) {
+    const l = Math.min(peeked.last, lines.length - 1);
+    peekBox = (
+      <div className="ed-peek" role="dialog" aria-label="Change since the last commit" style={{ top: yOf(l) + LINE + 2 }}>
+        <div className="ed-peek-head">
+          <span>{peeked.kind === 'add' ? 'Added since the last commit' : peeked.kind === 'delete' ? 'Deleted since the last commit' : 'Changed since the last commit'}</span>
+          <button type="button" className="btn" onMouseDown={(e) => e.preventDefault()} onClick={() => revertChange(peeked)}>Revert this change</button>
+          <button type="button" className="ed-peek-close" aria-label="Close" onMouseDown={(e) => e.preventDefault()} onClick={() => { setPeek(null); input.current?.focus({ preventScroll: true }); }}>×</button>
+        </div>
+        {peeked.removed.length > 0 && (
+          <pre className="ed-peek-was" aria-label="What was there">{colourLines(peeked.removed, lang).map((toks, i) => <div key={i}>{toks.map((t, k) => <span key={k} className={`tok-${t.k}`}>{t.t}</span>)}{peeked.removed[i] === '' ? '\u200b' : null}</div>)}</pre>
+        )}
+      </div>
+    );
+  }
   if (hover && (hover.text || hover.problems.length > 0)) {
     const l = lineOf(starts, Math.min(hover.at, text.length));
     if (shown(l)) {
@@ -959,6 +1033,7 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
       <div className="ed" data-focused={focused || undefined}>
         <div className="ed-gutter" style={{ width: gutterWidth }}>
           <div style={{ height, transform: `translateY(${-view.top}px)` }}>
+            {changeBars}
             {inView.map((i) => (
               <span key={i} className="ed-n" style={{ top: yOf(i) }} data-current={i === caretLine || undefined}>
                 <span aria-hidden="true">{i + 1}</span>
@@ -1005,6 +1080,7 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
             {hoverBox}
             {completeBox}
             {renameBox}
+            {peekBox}
             <textarea
               ref={input}
               className="ed-input"

@@ -581,3 +581,41 @@ test('a language server on the computer brings problems, completions, hover, go 
   await expect.poll(budget).toBe(text);
   await expect(editor).toHaveValue(text);
 });
+
+test('lines changed since the last commit are marked in the gutter, and one change can be put back', async () => {
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: project, encoding: 'utf8' }).trim();
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 'test@example.com');
+  git('config', 'user.name', 'Test');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'first');
+  await start();
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await expect(editor).toHaveValue(BUDGET);
+  await expect(shell().locator('.ed-change')).toHaveCount(0);
+  await editor.focus();
+  // Line 4 changed, a line added after it, and the first line deleted.
+  await shell().keyboard.press('Control+g');
+  await shell().getByRole('textbox', { name: 'Line number' }).fill('4');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' // shares');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('const spare = 0');
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.press('Control+Shift+k');
+  await expect(shell().getByRole('button', { name: 'Lines 3 to 4 changed since the last commit' })).toBeAttached();
+  await expect(shell().getByRole('button', { name: '1 line deleted here since the last commit' })).toBeAttached();
+  // Alt+F5 shows the next change with what was there, and Revert this change puts it back.
+  await shell().keyboard.press('Alt+F5');
+  const peek = shell().getByRole('dialog', { name: 'Change since the last commit' });
+  await expect(peek.getByLabel('What was there')).toContainText('const each = cents / people');
+  await peek.getByRole('button', { name: 'Revert this change' }).click();
+  await expect(editor).toHaveValue(BUDGET.slice(BUDGET.indexOf('\n') + 1));
+  await expect(shell().getByRole('button', { name: /changed since the last commit/ })).toHaveCount(0);
+  await editor.focus();
+  await shell().keyboard.press('Alt+F5');
+  await peek.getByRole('button', { name: 'Revert this change' }).click();
+  await expect(editor).toHaveValue(BUDGET);
+  await expect(shell().locator('.ed-change')).toHaveCount(0);
+});

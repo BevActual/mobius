@@ -521,6 +521,17 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
   const running = useContext(TurnRunningContext);
   const jump = useRef<((line: number) => void) | null>(null);
   const lsp = useLanguage(code);
+  // The open file as the last commit has it, for the editor's change marks (read again after each save and commit).
+  const [base, setBase] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const api = window.mobius.code;
+    const project = code.project;
+    const path = code.open?.path;
+    if (!api || !project || !path || !code.git.repo) { setBase(undefined); return undefined; }
+    let on = true;
+    void api.gitBase(project, path).then((r) => { if (on) setBase('repo' in r && r.repo && r.text !== null ? r.text : undefined); }).catch(() => { if (on) setBase(undefined); });
+    return () => { on = false; };
+  }, [code.project, code.open?.path, code.git]); // eslint-disable-line react-hooks/exhaustive-deps
   const [showProblems, setShowProblems] = useState(0);
   useEffect(() => {
     if (!showSuggestion || running) return;
@@ -578,7 +589,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
             ) : showSuggestion && rows ? (
               <Suggestion rows={rows} lang={lang} endsWithNewline={code.open.text.endsWith('\n')} onWrite={(t) => void code.write(t)} onKeepAll={() => void keepAll()} onDiscardAll={() => void discardAll()} {...(review ? { conversation: review.conversation } : {})} />
             ) : (
-              <CodeText code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} lsp={lsp} onShowProblems={() => setShowProblems((n) => n + 1)} />
+              <CodeText code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} lsp={lsp} onShowProblems={() => setShowProblems((n) => n + 1)} {...(base !== undefined ? { base } : {})} />
             )}
           </>
         ) : (

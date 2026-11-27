@@ -287,3 +287,17 @@
 .code-panel .code-problem[data-severity="info"] .ed-hover-mark, .code-panel .code-problem[data-severity="hint"] .ed-hover-mark { background: var(--c-blue); }
 .code-panel .code-problem-where { margin-left: auto; color: var(--muted); white-space: nowrap; font-size: var(--fs-xs); }
 .code-panel.code-problems-empty { margin: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
+
+/* Change marks against the last commit, in the gutter's left edge, and the look at what was there. */
+.code-page .ed-change { position: absolute; left: 0; z-index: 1; width: 4px; height: var(--code-line); padding: 0; border: 0; border-radius: 0 2px 2px 0; background: var(--c-blue); cursor: pointer; }
+.code-page .ed-change[data-kind="add"] { background: var(--c-green); }
+.code-page .ed-change[data-kind="delete"] { height: 8px; margin-top: -4px; width: 0; border-radius: 0; background: transparent; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 6px solid var(--c-coral); }
+.code-page .ed-change:hover { width: 6px; }
+.code-page .ed-change[data-kind="delete"]:hover { width: 0; }
+.code-page .ed-peek { position: absolute; left: 0; right: 0; z-index: 4; margin: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-2); font: var(--fs-sm)/var(--lh-tight) var(--font); color: var(--ink); white-space: normal; cursor: default; }
+.code-page .ed-peek-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3); }
+.code-page .ed-peek-head > span { margin-right: auto; color: var(--muted); }
+.code-page .ed-peek-close { width: 24px; height: 24px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); font-size: var(--fs-lg); cursor: pointer; }
+.code-page .ed-peek-close:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.code-page .ed-peek-was { margin: 0; max-height: 240px; overflow: auto; padding: var(--sp-1) var(--sp-3) var(--sp-2); border-top: var(--hairline-w) solid var(--line); background: color-mix(in srgb, var(--c-coral) 10%, transparent); font: var(--code-font); white-space: pre; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--c-coral) 60%, transparent); }
+.code-page .code-status-missing { opacity: 0.8; }
