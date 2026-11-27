@@ -53,7 +53,7 @@ interface Props {
    */
   inbox?: { items: readonly InboxItem[]; onOpen: (item: InboxItem) => void; onDone: (item: InboxItem) => Promise<boolean> };
   /** Work handed to Mobius in the background that has finished: Open goes to its chat, Keep all keeps what it changed. */
-  background?: { items: readonly BackgroundDone[]; onOpen: (run: BackgroundDone) => void; onKeep: (run: BackgroundDone) => void; onDone: (run: BackgroundDone) => void };
+  background?: { items: readonly BackgroundDone[]; /** The agent that did a run, when it is one of the person's own rather than Mobius. */ by?: (run: BackgroundDone) => string | undefined; onOpen: (run: BackgroundDone) => void; onKeep: (run: BackgroundDone) => void; onDone: (run: BackgroundDone) => void };
   now?: Date;
 }
 
@@ -295,10 +295,10 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
               </li>
             ) : (
               <li key={`background:${run.conversation}:${run.at}`} data-key={`background:${run.conversation}`} className="desk-row" data-changed={run.files.length > 0 || undefined} data-background>
-                <button type="button" className="desk-open" aria-label={`Open ${run.ask}: ${doneText(run.files, run)}`} onClick={() => background?.onOpen(run)}>
+                <button type="button" className="desk-open" aria-label={`Open ${run.ask}: ${doneText(run.files, run, background?.by?.(run))}`} onClick={() => background?.onOpen(run)}>
                   <Icon app="agent" />
                   <span className="desk-name">{run.ask}</span>
-                  <span className="desk-text">{doneText(run.files, run)}</span>
+                  <span className="desk-text">{doneText(run.files, run, background?.by?.(run))}</span>
                   {go('Open')}
                 </button>
                 {run.files.length > 0

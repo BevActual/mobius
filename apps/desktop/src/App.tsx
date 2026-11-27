@@ -1431,7 +1431,8 @@ export function App() {
   assignNow.current = (a: Assignment) => {
     // Assigned again while Mobius is still on it: said, not started twice (two runs, two Inbox rows).
     const who = a.bot?.name ?? 'Mobius';
-    const already = handoffs.runs.find((r) => r.ask === a.title && conversation.list.some((c) => c.id === r.conversation && (c.activity === 'working' || c.activity === 'needs_you')));
+    const key = a.item ?? a.title;
+    const already = handoffs.runs.find((r) => (r.item ?? r.ask) === key && conversation.list.some((c) => c.id === r.conversation && (c.activity === 'working' || c.activity === 'needs_you')));
     if (already) {
       const on = botOfConversation(already.conversation, botIds);
       const busy = on === MAIN_BOT_ID ? 'Mobius' : (bots.bots.find((b) => b.id === on)?.name ?? 'An agent');
@@ -1440,7 +1441,7 @@ export function App() {
     }
     void conversation.assign(a.ask, a.context ?? [], a.app, a.bot ? { bot: a.bot.id } : {}).then((result) => {
       if ('error' in result) { setToast(`${who} could not take it: ${result.error}`); return; }
-      handoffs.start(result.id, a.title);
+      handoffs.start(result.id, a.title, undefined, undefined, key);
       setToast(`Assigned to ${who}. It will be in your Inbox when done.`);
     });
   };
@@ -2107,6 +2108,7 @@ export function App() {
             surface={surface}
             onOpenItem={openTarget}
             variant="full"
+            {...(chatAgent ? { hint: `Message ${chatAgent}` } : {})}
             desk={(starters) => (
               <Desk
                 starters={starters}
@@ -2134,6 +2136,7 @@ export function App() {
                 }}
                 background={{
                   items: handoffs.done,
+                  by: (run) => { const on = botOfConversation(run.conversation, botIds); return on === MAIN_BOT_ID ? undefined : bots.bots.find((b) => b.id === on)?.name; },
                   onOpen: (run) => { handoffs.drop(run.conversation); conversation.select(run.conversation); openRight(); setFocusToken((n) => n + 1); },
                   onKeep: handoffs.keep,
                   onDone: (run) => handoffs.drop(run.conversation),
@@ -2180,7 +2183,10 @@ export function App() {
   // What the agent's message box suggests asking about where the person is ("Ask about your mail"). With nothing
   // particular to point at, it keeps its own "Message Mobius".
   const asked = settingsOpen ? 'Ask about settings' : askAbout(app, !!surface.note || (inBrowser && surface.hasPage) || (inSheets && !!sheets.data) || (inPhoto && !!photos.open) || (inVideo && !!video.project) || (inCode && !!code.open));
-  const askHint = asked === 'Ask Mobius' ? undefined : asked;
+  // In one of the person's own agents' chats, the box names that agent instead ("Message Handy").
+  const chatBot = botOfConversation(conversation.id, botIds);
+  const chatAgent = chatBot === MAIN_BOT_ID ? undefined : bots.bots.find((b) => b.id === chatBot)?.name;
+  const askHint = chatAgent ? `Message ${chatAgent}` : asked === 'Ask Mobius' ? undefined : asked;
   // The agent's panel: beside the page, or in the sidebar.
   const chatPanel = (pinned: React.ReactNode) => (
           <ChatPanel

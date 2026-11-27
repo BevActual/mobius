@@ -17,6 +17,9 @@ export interface Assignment {
   /** The app the item lives in, so Mobius starts there and the run is shown as that app's. */
   app: string;
   context?: ContextItem[];
+  /** Which item this is (a task's list and text, a message id, a page's path), so assigning the same one again while
+   * it is being worked on says so, and two items that share a name do not. Falls back to the title. */
+  item?: string;
   /** One of the person's own agents to hand it to, instead of Mobius: it runs with that agent's instructions and model. */
   bot?: { id: string; name: string };
 }
@@ -70,7 +73,7 @@ export function taskAssignment(list: string, task: { text: string; notes?: strin
     'Do as much of it as you can in my apps, then tell me in a few lines what you did and what is left for me. Only mark the task done if it is completely finished.',
   ];
   const title = short(task.text) || 'Task';
-  return { ask: `${title}\n\n${lines.join(' ')}`, title, app: 'tasks' };
+  return { ask: `${title}\n\n${lines.join(' ')}`, title, app: 'tasks', item: `tasks:${list}:${task.text}` };
 }
 
 /** A note or a document: do what it asks for, or its next steps, adding to it only where it says so. */
@@ -81,6 +84,7 @@ export function pageAssignment(app: 'notes' | 'docs', page: { path: string; titl
     ask: `${title}\n\nWork on my ${where} ${quote(page.title)} (${app}/${page.path}). Read it, then do what it asks for or the next steps it lists, as far as you can in my apps. Add to it only where it asks you to. Tell me in a few lines what you did and what is left for me.`,
     title,
     app,
+    item: `${app}:${page.path}`,
   };
 }
 
@@ -95,7 +99,7 @@ export function projectAssignment(p: { name: string; list?: string; target?: str
     ...(last ? [`Its last update says: ${quote(last.slice(0, 2000))}.`] : []),
     'Take the next steps you can in my apps, leaving ticks and anything that sends or deletes to me, then tell me in a few lines what you did and what is left for me.',
   ];
-  return { ask: `${title}\n\n${lines.join(' ')}`, title, app: 'projects' };
+  return { ask: `${title}\n\n${lines.join(' ')}`, title, app: 'projects', item: `projects:${p.name}` };
 }
 
 /** A message: read it and prepare what it needs (a draft reply, a task, an event), sending nothing. */
@@ -107,5 +111,6 @@ export function mailAssignment(m: { id: string; subject: string; from: { name?: 
     ask: `${title}\n\nDeal with this email in Mail: ${quote(subject)} from ${who} (message id ${m.id}). Read it, then prepare what it needs, such as a draft reply, a task or a calendar event. Do not send anything: leave drafts for me to look over, and tell me in a few lines what you prepared.`,
     title,
     app: 'mail',
+    item: `mail:${m.id}`,
   };
 }

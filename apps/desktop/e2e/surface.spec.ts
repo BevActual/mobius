@@ -272,7 +272,10 @@ test('a task can go to one of the person\'s own agents by name, which works on i
   expect(asked).toContain('Fix the tap');
   await openApp('Agent');
   const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
-  await expect(inbox.getByRole('button', { name: /^Open Fix the tap/ })).toBeVisible({ timeout: 15_000 });
+  // Its row says which agent did it, and opening it shows a box that names that agent.
+  await expect(inbox.getByRole('button', { name: 'Open Fix the tap: Handy finished in the background' })).toBeVisible({ timeout: 15_000 });
+  await inbox.getByRole('button', { name: 'Open Fix the tap: Handy finished in the background' }).click();
+  await expect(composer()).toHaveAttribute('placeholder', 'Message Handy');
 });
 
 test('Assign to Mobius on a note, from its row in Notebooks, asks about that note and lands in the Inbox', async () => {

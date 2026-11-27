@@ -19,6 +19,9 @@ describe('work handed off to the background', () => {
     expect(doneText([], { stopped: true })).toBe('Stopped before it finished');
     expect(doneText(['notes/A.md'], { stopped: true })).toBe('Stopped before it finished · 1 change to keep');
     expect(doneText([], { failed: true })).toBe('Did not finish: something went wrong');
+    // One of the person's own agents did it: the row names it.
+    expect(doneText(['notes/A.md'], {}, 'Handy')).toBe('Handy finished in the background · 1 change to keep');
+    expect(doneText([], { stopped: true }, 'Handy')).toBe('Handy stopped before it finished');
   });
   it('marks only the stopped run', () => {
     const runs = [{ conversation: 'c-1', ask: 'A', at: 1 }, { conversation: 'c-2', ask: 'B', at: 2 }];
