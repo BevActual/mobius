@@ -418,6 +418,9 @@ test('a list shown beside stays as a piece in other apps: tick and add there, op
   // Open in Tasks goes to the list; Put away takes the piece off every app.
   await piece.getByRole('button', { name: 'Open in Tasks' }).click();
   await expect(shell().locator('.toolbar-sub')).toHaveText('Errands');
+  // The list open in Tasks is not shown again beside it; another list brings the piece back.
+  await expect(piece).toHaveCount(0);
+  await lists().getByRole('button', { name: /^Today/ }).click();
   await piece.getByRole('button', { name: 'Put away Errands' }).click();
   await expect(piece).toHaveCount(0);
   expect(await shell().evaluate(() => localStorage.getItem('mobius.pieces'))).toBe('[]');
@@ -474,6 +477,7 @@ test('a piece Mobius brought goes when its change is discarded', async () => {
   await expect(piece).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Errands'), 'utf8')).toBe('# Errands\n\n- [ ] Post the parcel\n');
   // A piece whose list is gone puts itself away.
+  await lists().getByRole('button', { name: /^Today/ }).click();
   await lists().getByRole('button', { name: /^Errands/ }).click({ button: 'right' });
   await shell().getByRole('menuitem', { name: 'Show beside' }).click();
   await expect(piece).toBeVisible();
@@ -506,6 +510,7 @@ test('a piece Mobius brought stays once the person uses it, and Esc puts away on
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Tasks');
   await shell().keyboard.press('Enter');
+  await lists().getByRole('button', { name: /^Today/ }).click();
   await lists().getByRole('button', { name: /^Errands/ }).click({ button: 'right' });
   await shell().getByRole('menuitem', { name: 'Show beside' }).click();
   await expect(piece).toBeVisible();

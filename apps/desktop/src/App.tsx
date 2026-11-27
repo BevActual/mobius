@@ -1433,7 +1433,14 @@ export function App() {
   }), [openPieces]);
   // A conversation open in Mail on screen is not shown again in its piece beside it.
   const mailOnScreen = app === 'mail' || (split && panes.includes('mail'));
-  const shownPieces = useMemo(() => (mailOnScreen && mail.open ? piecePanels.filter((p) => p.id !== piecePanelId({ kind: 'mail.thread', item: mail.open!.id })) : piecePanels), [piecePanels, mailOnScreen, mail.open]);
+  // Nor is the list open in Tasks on screen.
+  const tasksOnScreen = app === 'tasks' || (split && panes.includes('tasks'));
+  const shownPieces = useMemo(() => {
+    const same = new Set<string>();
+    if (mailOnScreen && mail.open) same.add(piecePanelId({ kind: 'mail.thread', item: mail.open.id }));
+    if (tasksOnScreen && tasks.view.kind === 'list') same.add(piecePanelId({ kind: 'tasks.list', item: tasks.view.name }));
+    return same.size === 0 ? piecePanels : piecePanels.filter((p) => !same.has(p.id));
+  }, [piecePanels, mailOnScreen, mail.open, tasksOnScreen, tasks.view]);
   // Mobius brings up the piece it works in (docs/design/pieces.md, round 3): the first list, day or conversation a turn
   // changes comes beside the work, once a turn, unless its app is on screen. The pill says so first. A piece Mobius
   // brought goes when its work is kept or discarded, unless the person used it; Esc puts Mobius's pieces away.
