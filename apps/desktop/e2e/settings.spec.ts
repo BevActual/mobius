@@ -529,6 +529,9 @@ test('Accounts lists one row per account, opens its own page, and Add Account of
 
 test('the morning brief: Write one now asks in Ask mode, and it lands in the Inbox written, with Play and Done', async () => {
   await start([says(['## Today\n\n- Two tasks due, one overdue\n- Dentist at 15:00'])]);
+  // The test window often does not have the focus, so a finished request says so in a notice, and the window coming to
+  // the front just after opens that request's chat (the person most likely came for it). Here the Inbox is the point.
+  await shell().evaluate(() => window.mobius.preferences.set({ notifyFinished: false }));
   await openSettings();
   await go('Schedules', 'Check-ins');
   const brief = page().getByRole('switch', { name: 'Morning brief' });
@@ -552,11 +555,6 @@ test('the morning brief: Write one now asks in Ask mode, and it lands in the Inb
   await expect(page()).toHaveCount(0);
   await goToPlace(shell(), 'Home');
   const desk = shell().getByRole('region', { name: 'Desk' });
-  // What the Agent page shows instead, said on the console when the Desk is not there.
-  if (!(await desk.isVisible().catch(() => false))) {
-    await shell().waitForTimeout(2000);
-    if (!(await desk.isVisible())) console.log('[agent page]', JSON.stringify((await shell().locator('main, .stage').first().innerText().catch(() => '')).slice(0, 1500)), 'open chat:', await log().locator('.msg').count());
-  }
   await expect(desk).toBeVisible();
   // It is listed once its chat is no longer working and what it wrote is read back (each a read of the core, which
   // takes most of a second on a busy Windows runner).
