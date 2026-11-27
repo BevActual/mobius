@@ -1437,6 +1437,11 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .term-state { color: var(--muted); }
 .term-proc-out { width: 100%; max-height: 180px; overflow: auto; margin: 0; padding: 6px 8px; border-radius: 6px; background: #1c1c1e; color: #d1d1d6; font: 11px/1.4 var(--font-mono); white-space: pre-wrap; }
 .term-hint { padding: 0 var(--sp-3); }
+/* In Code's bottom dock: the screen, and its places and running commands to the right. */
+.term-panel { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 200px; }
+.term-panel .term-page { position: relative; inset: auto; min-height: 0; display: flex; flex-direction: column; background: #1c1c1e; color: #e5e5ea; font: 13px/1.5 var(--font-mono); }
+.term-panel .term-side { min-height: 0; overflow-y: auto; border-left: 1px solid var(--border); }
+@media (max-width: 720px) { .term-panel { grid-template-columns: minmax(0, 1fr); } .term-panel .term-side { display: none; } }
 
 /* Database: databases and their tables on the left; a statement and its rows. Tokens only (Instrument, compact). */
 .db-list { list-style: none; margin: 0; padding: 0 var(--sp-2); display: flex; flex-direction: column; gap: var(--hairline-w); overflow-y: auto; }

@@ -61,7 +61,7 @@ import { ReaderPage, readerSub, saveToReader } from './Reader';
 import { parseArticle, READING_LIST } from './reader-format';
 import { DatabasePage, DatabaseSidebar, databasePlace, databaseSub } from './Database';
 import { useDatabases } from './useDatabases';
-import { TerminalPage, TerminalSidebar } from './Terminal';
+import { TerminalPage, TerminalPanel, TerminalSidebar } from './Terminal';
 import { useTerminal } from './useTerminal';
 import { ReviewPage, ReviewSidebar, useReview } from './Review';
 import { BrowserChrome, BrowserPage, BrowserSidebar, ownTab, stepSpace } from './Browser';
@@ -1485,6 +1485,8 @@ export function App() {
     window.addEventListener(OPEN_SPEAKING_SETTINGS, open);
     return () => window.removeEventListener(OPEN_SPEAKING_SETTINGS, open);
   }, [setSettingsOpen]);
+  // A terminal block, beside the message box for a question about it.
+  const askAboutTerminal = (title: string, text: string) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item: { kind: 'file', title, source: `terminal/${terminal.cwd || '~'}`, text } }); };
   // Going to another app, tab or Settings stops a page being read aloud (Mobius's replies read on).
   useEffect(() => { stopReading(); }, [app, active?.id, settingsOpen]);
   const menuContext: MenuContext = {
@@ -1970,7 +1972,8 @@ export function App() {
       case 'files':
         return <FilesPage files={files} onOpenFile={openChangedFile} onAsk={startWithMobius} />;
       case 'terminal':
-        return <TerminalPage term={terminal} focusToken={terminalFocus} onAsk={(title, text) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item: { kind: 'file', title, source: `terminal/${terminal.cwd || '~'}`, text } }); }} />;
+        // Terminal alone (Ctrl+K, New command): the terminal folded into Code, opened by itself.
+        return <TerminalPage term={terminal} focusToken={terminalFocus} onAsk={askAboutTerminal} />;
       case 'database':
         return <DatabasePage db={databases} listPanels={listFor('database')} review={databases.open && liveMarks.databases.has(databases.open) ? { conversation: conversation.state.conversation } : null} />;
       case 'projects':
@@ -2012,7 +2015,7 @@ export function App() {
       case 'canvas':
         return <CanvasBoard boards={boards} review={boards.page && liveMarks.boards.has(boards.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'code':
-        return <CodeEditor code={code} listPanels={listFor('code')} review={code.open && code.project && liveMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
+        return <CodeEditor code={code} listPanels={listFor('code')} terminal={<TerminalPanel term={terminal} onAsk={askAboutTerminal} />} review={code.open && code.project && liveMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'messages':
