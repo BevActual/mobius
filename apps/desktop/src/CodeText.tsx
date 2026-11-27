@@ -393,7 +393,8 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
     const s = doc.current;
     setHover(null);
     if (smart && ch.length === 1) {
-      if (ch === '.' || (/[\p{L}_$]/u.test(ch) && !complete)) laterComplete();
+      if (ch === '.') laterComplete('.');
+      else if (/[\p{L}_$]/u.test(ch) && !complete) laterComplete();
       else if (!/[\p{L}\p{N}_$]/u.test(ch)) { completeAsk.current += 1; setComplete(null); }
     }
     if (ch.length === 1) apply(editEach(s, (sel, t) => typePair(t, selFrom(sel), selTo(sel), ch) ?? { from: selFrom(sel), to: selTo(sel), insert: ch, select: [selFrom(sel) + 1, selFrom(sel) + 1] }), 'type');
@@ -673,7 +674,7 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
       return a <= at && at <= Math.max(b, a + 1);
     });
   };
-  const askComplete = async () => {
+  const askComplete = async (trigger?: string) => {
     window.clearTimeout(completeTimer.current);
     if (!lsp || !smart) return;
     const s = doc.current;
@@ -681,14 +682,14 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
     const at = s.sels[0]!.head;
     const [line, character] = placeOf(at);
     const n = ++completeAsk.current;
-    const answer = await lsp.ask('complete', line, character);
+    const answer = await lsp.ask('complete', line, character, trigger);
     if (n !== completeAsk.current) return;
     if (!answer.ok || !answer.items?.length) { setComplete(null); return; }
     setComplete({ items: answer.items, line, min: wordStartBefore(s.text, at), index: 0 });
   };
-  const laterComplete = () => {
+  const laterComplete = (trigger?: string) => {
     window.clearTimeout(completeTimer.current);
-    completeTimer.current = window.setTimeout(() => void askComplete(), COMPLETE_DELAY);
+    completeTimer.current = window.setTimeout(() => void askComplete(trigger), COMPLETE_DELAY);
   };
   const acceptCompletion = (item: CodeCompletion) => {
     const s = doc.current;
@@ -1030,7 +1031,7 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
       <footer className="code-status" aria-label="Where the cursor is">
         <span>Ln {caretLine + 1}, Col {caretCol + 1}{picked > 0 ? ` (${picked} selected)` : ''}{multi ? ` · ${state.sels.length} cursors` : ''}</span>
         {note && <span role="status" className="code-status-note">{note}</span>}
-        {lsp && lsp.status.kind !== 'none' && (
+        {lsp?.status.kind === 'server' && (
           <button type="button" className="code-status-btn" aria-label={`Problems: ${lsp.counts.errors} errors, ${lsp.counts.warnings} warnings`} title="Problems (F8 goes to the next one in this file)" onClick={onShowProblems}>
             <span className="code-status-err" aria-hidden="true" />{lsp.counts.errors}
             <span className="code-status-warn" aria-hidden="true" />{lsp.counts.warnings}
@@ -1038,6 +1039,12 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems }:
         )}
         {lsp?.status.kind === 'server' && (
           <button type="button" className="code-status-btn" aria-pressed={lsp.formatOnSave} title="Format this file each time it is saved (Shift+Alt+F formats now)" onClick={() => lsp.setFormatOnSave(!lsp.formatOnSave)}>Format on save</button>
+        )}
+        {lsp?.status.kind === 'failed' && (
+          <span className="code-status-missing" title={`${lsp.status.program} would not start: ${lsp.status.message}`}>
+            {lsp.status.language} server would not start
+            <button type="button" className="code-status-btn" onClick={() => void lsp.retry()}>Retry</button>
+          </span>
         )}
         {lsp?.status.kind === 'missing' && (
           <span className="code-status-missing" title={lsp.status.program ? `Install ${lsp.status.program} on this computer (or in this project) for completions, problems and go to definition in ${lsp.status.language}.` : undefined}>No {lsp.status.language} server</span>

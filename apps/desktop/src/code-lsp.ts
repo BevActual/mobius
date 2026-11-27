@@ -52,11 +52,12 @@ export function fitting(items: readonly CodeCompletion[], typed: string): CodeCo
   return [...starts, ...holds];
 }
 
-export type LanguageStatus = { kind: 'none' } | { kind: 'server'; server: string } | { kind: 'missing'; language: string; program: string | null };
+export type LanguageStatus = { kind: 'none' } | { kind: 'server'; server: string } | { kind: 'missing'; language: string; program: string | null } | { kind: 'failed'; language: string; program: string; message: string };
 
 const statusOf = (answer: CodeLanguage): LanguageStatus => {
   if (answer.ok) return { kind: 'server', server: answer.server };
   if ('missing' in answer) return { kind: 'missing', language: answer.language, program: answer.program };
+  if ('failed' in answer) return { kind: 'failed', language: answer.language, program: answer.program, message: answer.message };
   return { kind: 'none' };
 };
 
@@ -76,22 +77,23 @@ export function useLanguage(code: CodeState) {
   const live = useRef({ project, path, draft: code.draft });
   live.current = { project, path, draft: code.draft };
 
-  const flush = useCallback(async () => {
+  /** Sends the open file's text when it changed; `again` also tries a server that was not found or would not start. */
+  const flush = useCallback(async (again = false) => {
     window.clearTimeout(timer.current);
     timer.current = undefined;
     const now = live.current;
     if (!api || !now.project || !now.path) return;
     const key = `${now.project}\u0001${now.path}`;
-    if (sent.current?.key === key && sent.current.text === now.draft) return;
+    if (!again && sent.current?.key === key && sent.current.text === now.draft) return;
     sent.current = { key, text: now.draft };
-    const answer = await api.lspSync(now.project, now.path, now.draft).catch(() => null);
+    const answer = await api.lspSync(now.project, now.path, now.draft, again).catch(() => null);
     if (answer && live.current.path === now.path) setStatus(statusOf(answer));
   }, [api]);
 
   // The open file is sent when it opens and a moment after each change; closed when another one opens.
   useEffect(() => {
     if (!project || !path) { setStatus({ kind: 'none' }); return undefined; }
-    void flush();
+    void flush(true);
     return () => {
       sent.current = null;
       if (api) void api.lspClose(project, path).catch(() => null);
@@ -103,6 +105,8 @@ export function useLanguage(code: CodeState) {
     timer.current = window.setTimeout(() => void flush(), SYNC_DELAY);
   }, [code.draft, path, flush]);
 
+  // Leaving a project stops its servers, so they do not keep running behind another one.
+  useEffect(() => () => { if (api && project) void api.lspStop(project).catch(() => null); }, [api, project]);
   useEffect(() => {
     setProblems(new Map());
     if (!api || !project) return undefined;
@@ -122,6 +126,8 @@ export function useLanguage(code: CodeState) {
     await flush();
     return api.lspAsk(now.project, now.path, kind, line, character, extra).catch(() => ({ ok: false as const }));
   }, [api, flush]);
+
+  const retry = useCallback(() => flush(true), [flush]);
 
   /** Opens a place: in the open file at once, else once its file has opened. */
   const goTo = useCallback(async (place: CodePlace) => {
@@ -163,6 +169,6 @@ export function useLanguage(code: CodeState) {
   const counts = { errors: 0, warnings: 0 };
   for (const items of problems.values()) for (const p of items) { if (p.severity === 'error') counts.errors += 1; else if (p.severity === 'warning') counts.warnings += 1; }
 
-  return { status, problems, counts, ask, goTo, takePending, pendingVersion, applyElsewhere, save, formatOnSave, setFormatOnSave };
+  return { retry, status, problems, counts, ask, goTo, takePending, pendingVersion, applyElsewhere, save, formatOnSave, setFormatOnSave };
 }
 export type LanguageState = ReturnType<typeof useLanguage>;

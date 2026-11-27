@@ -3744,7 +3744,7 @@ impl Bridge {
             }),
             // Language smarts: what a file holds now, and questions about a place in it (see code_lsp.rs).
             "lspSync" => match (text(0), text(1), text(2)) {
-                (Some(p), Some(f), Some(t)) => code.project_dir(p).map(|dir| self.languages.sync(&dir, p, f, t)),
+                (Some(p), Some(f), Some(t)) => code.project_dir(p).map(|dir| self.languages.sync(&dir, p, f, t, args.get(3).and_then(Value::as_bool).unwrap_or(false))),
                 _ => Err(need()),
             },
             "lspClose" => match (text(0), text(1)) {
@@ -3752,6 +3752,10 @@ impl Bridge {
                 _ => Err(need()),
             },
             "lspProblems" => text(0).ok_or_else(need).map(|p| self.languages.problems(p)),
+            "lspStop" => text(0).ok_or_else(need).map(|p| {
+                self.languages.stop_project(p);
+                json!({ "ok": true })
+            }),
             "lspAsk" => match (text(0), text(1), text(2), args.get(3).and_then(Value::as_u64), args.get(4).and_then(Value::as_u64)) {
                 (Some(p), Some(f), Some(kind), Some(line), Some(character)) => code.project_dir(p).map(|dir| self.languages.ask(&dir, p, f, kind, (line, character), text(5))),
                 _ => Err(need()),

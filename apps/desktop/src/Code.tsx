@@ -597,7 +597,9 @@ function ProblemsPanel({ lsp }: { lsp: LanguageState }) {
   if (files.length === 0) {
     return (
       <p className="code-panel code-problems-empty">
-        {lsp.status.kind === 'missing'
+        {lsp.status.kind === 'failed'
+          ? `The ${lsp.status.language} server (${lsp.status.program}) would not start: ${lsp.status.message}`
+          : lsp.status.kind === 'missing'
           ? `Problems in ${lsp.status.language} files show here once ${lsp.status.program ?? 'a language server'} is installed on this computer or in this project.`
           : lsp.status.kind === 'server' ? 'No problems found.' : 'Problems show here for files a language server knows.'}
       </p>

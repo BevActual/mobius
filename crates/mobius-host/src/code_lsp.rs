@@ -119,6 +119,12 @@ fn read_message(input: &mut impl BufRead) -> Option<Value> {
 
 type Waiting = Arc<Mutex<HashMap<i64, mpsc::Sender<Value>>>>;
 
+/// Why a server is not running: no program for it on this computer, or one that would not start (and what it said).
+enum StartError {
+    Missing(Option<&'static str>),
+    Failed(&'static str, String),
+}
+
 struct Server {
     program: String,
     dir: PathBuf,
@@ -134,8 +140,8 @@ struct Server {
 }
 
 impl Server {
-    fn start(dir: &Path, project: &str, language: &Language, emit: &Emit) -> Result<Server, Option<&'static str>> {
-        let (program, args, path) = language.programs.iter().find_map(|(p, a)| find_program(dir, p).map(|path| (*p, *a, path))).ok_or(language.programs.first().map(|p| p.0))?;
+    fn start(dir: &Path, project: &str, language: &Language, emit: &Emit) -> Result<Server, StartError> {
+        let (program, args, path) = language.programs.iter().find_map(|(p, a)| find_program(dir, p).map(|path| (*p, *a, path))).ok_or(StartError::Missing(language.programs.first().map(|p| p.0)))?;
         let mut cmd = Command::new(&path);
         cmd.args(args).current_dir(dir).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
         #[cfg(windows)]
@@ -143,15 +149,29 @@ impl Server {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x0800_0000);
         }
-        let mut child = cmd.spawn().map_err(|_| Some(program))?;
+        let mut child = cmd.spawn().map_err(|e| StartError::Failed(program, e.to_string()))?;
         let (Some(input), Some(output), Some(mut errors)) = (child.stdin.take(), child.stdout.take(), child.stderr.take()) else {
             let _ = child.kill();
-            return Err(Some(program));
+            return Err(StartError::Failed(program, "it could not be started".into()));
         };
-        // What it says on its error output is only read so it never fills up and stops the server.
+        // Its error output is read so it never fills up and stops the server; the last of it says why one would not start.
+        let said: Arc<Mutex<String>> = Arc::default();
+        let kept = Arc::clone(&said);
         std::thread::spawn(move || {
-            let mut sink = [0u8; 4096];
-            while matches!(errors.read(&mut sink), Ok(n) if n > 0) {}
+            let mut buf = [0u8; 4096];
+            while let Ok(n) = errors.read(&mut buf) {
+                if n == 0 {
+                    break;
+                }
+                if let Ok(mut said) = kept.lock() {
+                    said.push_str(&String::from_utf8_lossy(&buf[..n]));
+                    if said.len() > 4000 {
+                        let cut = said.len() - 2000;
+                        let cut = (cut..said.len()).find(|&i| said.is_char_boundary(i)).unwrap_or(0);
+                        said.drain(..cut);
+                    }
+                }
+            }
         });
         let server = Server {
             program: program.to_owned(),
@@ -185,9 +205,10 @@ impl Server {
                 },
             },
         });
-        server.ask_for("initialize", init, START_TIMEOUT).map_err(|_| {
+        server.ask_for("initialize", init, START_TIMEOUT).map_err(|message| {
             server.stop();
-            Some(program)
+            let stderr = said.lock().map(|s| s.trim().lines().rev().take(6).collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n")).unwrap_or_default();
+            StartError::Failed(program, if stderr.is_empty() || message.contains("TypeScript") { message } else { format!("{message}: {stderr}") })
         })?;
         server.tell("initialized", json!({}));
         Ok(server)
@@ -491,7 +512,9 @@ type Key = (String, &'static str);
 
 pub struct Languages {
     servers: Mutex<HashMap<Key, Arc<Server>>>,
-    missing: Mutex<HashMap<Key, Instant>>,
+    /// Servers that are not on this computer or would not start, with what the editor was told, not tried again for a
+    /// while (opening a file, or Retry, tries again at once).
+    missing: Mutex<HashMap<Key, (Instant, Value)>>,
     emit: Emit,
 }
 
@@ -507,9 +530,8 @@ impl Languages {
         if let Some(server) = self.servers.lock().ok().and_then(|s| s.get(&key).cloned()).filter(|s| s.alive.load(Ordering::SeqCst)) {
             return Ok((server, language_id));
         }
-        let missing = |program: Option<&str>| json!({ "ok": false, "missing": true, "language": language.name, "program": program });
-        if self.missing.lock().ok().and_then(|m| m.get(&key).copied()).is_some_and(|t| t.elapsed() < MISSING_AGAIN) {
-            return Err(missing(language.programs.first().map(|p| p.0)));
+        if let Some((_, told)) = self.missing.lock().ok().and_then(|m| m.get(&key).cloned()).filter(|(t, _)| t.elapsed() < MISSING_AGAIN) {
+            return Err(told);
         }
         match Server::start(dir, project, language, &self.emit) {
             Ok(server) => {
@@ -527,17 +549,25 @@ impl Languages {
                 }
                 Ok((server, language_id))
             }
-            Err(program) => {
+            Err(why) => {
+                let told = match why {
+                    StartError::Missing(program) => json!({ "ok": false, "missing": true, "language": language.name, "program": program }),
+                    StartError::Failed(program, message) => json!({ "ok": false, "failed": true, "language": language.name, "program": program, "message": message.chars().take(1000).collect::<String>() }),
+                };
                 if let Ok(mut m) = self.missing.lock() {
-                    m.insert(key, Instant::now());
+                    m.insert(key, (Instant::now(), told.clone()));
                 }
-                Err(missing(program))
+                Err(told)
             }
         }
     }
 
     /// Tells the server what a file holds now (opening it the first time) and says which program answers for it.
-    pub fn sync(&self, dir: &Path, project: &str, file: &str, text: &str) -> Value {
+    /// `again` tries a server that was not found or would not start straight away (a file just opened, or Retry).
+    pub fn sync(&self, dir: &Path, project: &str, file: &str, text: &str, again: bool) -> Value {
+        if again && let Ok(mut m) = self.missing.lock() {
+            m.retain(|k, _| k.0 != project);
+        }
         match self.server(dir, project, file) {
             Ok((server, language_id)) => {
                 server.sync(&dir.join(file), language_id, text);
@@ -577,7 +607,15 @@ impl Languages {
         let document = json!({ "uri": file_uri(&dir.join(file)) });
         let at = json!({ "textDocument": document, "position": { "line": line, "character": character } });
         let answer = match kind {
-            "complete" => server.ask_for("textDocument/completion", at, ASK_TIMEOUT).map(|r| json!({ "items": completions_of(&r) })),
+            "complete" => {
+                // A list asked for by typing a character the server waits for (a dot) says so, as some servers answer only then.
+                let mut params = at;
+                params["context"] = match extra.filter(|c| !c.is_empty()) {
+                    Some(c) => json!({ "triggerKind": 2, "triggerCharacter": c }),
+                    None => json!({ "triggerKind": 1 }),
+                };
+                server.ask_for("textDocument/completion", params, ASK_TIMEOUT).map(|r| json!({ "items": completions_of(&r) }))
+            }
             "hover" => server.ask_for("textDocument/hover", at, ASK_TIMEOUT).map(|r| json!({ "text": r.get("contents").map(markdown_of).unwrap_or_default() })),
             "definition" => server.ask_for("textDocument/definition", at, ASK_TIMEOUT).map(|r| json!({ "places": places_of(dir, &r) })),
             "rename" => {
@@ -597,6 +635,17 @@ impl Languages {
                 value
             }
             Err(message) => json!({ "ok": false, "message": message }),
+        }
+    }
+
+    /// Stops a project's servers, when another project is opened.
+    pub fn stop_project(&self, project: &str) {
+        let servers: Vec<Arc<Server>> = self.servers.lock().map(|mut s| {
+            let keys: Vec<Key> = s.keys().filter(|k| k.0 == project).cloned().collect();
+            keys.iter().filter_map(|k| s.remove(k)).collect()
+        }).unwrap_or_default();
+        for server in servers {
+            server.stop();
         }
     }
 
@@ -683,7 +732,7 @@ mod tests {
         let kept = Arc::clone(&heard);
         let languages = Languages::new(Arc::new(move |name: &str, value: Value| kept.lock().unwrap().push(json!({ "name": name, "value": value }))));
         let text = "const total = 1\ntotal.\nTODO\n";
-        assert_eq!(languages.sync(dir.path(), "demo", "a.ts", text)["server"], "typescript-language-server");
+        assert_eq!(languages.sync(dir.path(), "demo", "a.ts", text, false)["server"], "typescript-language-server");
         let t = Instant::now();
         while heard.lock().unwrap().is_empty() && t.elapsed() < Duration::from_secs(5) {
             std::thread::sleep(Duration::from_millis(20));
@@ -700,7 +749,33 @@ mod tests {
         assert_eq!(languages.ask(dir.path(), "demo", "a.ts", "definition", (1, 2), None)["places"][0]["line"], 0);
         let renamed = languages.ask(dir.path(), "demo", "a.ts", "rename", (0, 7), Some("sum"));
         assert_eq!(apply_edits(text, renamed["files"][0]["edits"].as_array().unwrap()), "const sum = 1\nsum.\nTODO\n");
-        assert_eq!(languages.sync(dir.path(), "demo", "notes.md", "")["none"], true);
-        languages.stop_all();
+        assert_eq!(languages.sync(dir.path(), "demo", "notes.md", "", false)["none"], true);
+        languages.stop_project("demo");
+        assert!(languages.problems("demo").as_array().unwrap().is_empty());
+    }
+
+    /// A server that is there but will not start says why, and is tried again when asked.
+    #[test]
+    fn a_server_that_will_not_start_says_why() {
+        if cfg!(windows) {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("node_modules/.bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let program = bin.join("typescript-language-server");
+        std::fs::write(&program, "#!/bin/sh\necho 'needs TypeScript 5' >&2\nexit 1\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let languages = Languages::new(Arc::new(|_: &str, _: Value| {}));
+        let told = languages.sync(dir.path(), "demo", "a.ts", "", false);
+        assert_eq!(told["failed"], true, "{told}");
+        assert!(told["message"].as_str().unwrap().contains("needs TypeScript 5"), "{told}");
+        std::fs::remove_file(&program).unwrap();
+        assert_eq!(languages.sync(dir.path(), "demo", "a.ts", "", false)["failed"], true);
+        assert_eq!(languages.sync(dir.path(), "demo", "a.ts", "", true)["missing"], true);
     }
 }

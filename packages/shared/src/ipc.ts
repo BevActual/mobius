@@ -292,7 +292,7 @@ export interface CodeCompletion { label: string; kind: string; detail?: string |
 export interface CodeTextEdit { line: number; character: number; endLine: number; endCharacter: number; text: string }
 export interface CodePlace { path: string; line: number; character: number }
 /** Which language server answers for a file: none for its language, or one that is not on this computer. */
-export type CodeLanguage = { ok: true; server: string } | { ok: false; none: true } | { ok: false; missing: true; language: string; program: string | null } | NotesFailure;
+export type CodeLanguage = { ok: true; server: string } | { ok: false; none: true } | { ok: false; missing: true; language: string; program: string | null } | { ok: false; failed: true; language: string; program: string; message: string } | NotesFailure;
 export type CodeAnswer = { ok: true; items?: CodeCompletion[]; text?: string; places?: CodePlace[]; files?: { path: string; edits: CodeTextEdit[] }[]; edits?: CodeTextEdit[] } | { ok: false; message?: string; missing?: true; none?: true };
 export interface CodeTestsEvent { project: string; running: boolean; result?: CodeTestRun; command?: string; by: 'person' | 'assistant' }
 export interface CellChange { row: number; col: number; text: string }
@@ -1261,7 +1261,9 @@ export interface MobiusBridge {
     onChanged(listener: (change: CodeChanged) => void): () => void;
     onTests(listener: (event: CodeTestsEvent) => void): () => void;
     /** Language smarts from a language server on this computer: what a file holds now (opened the first time). */
-    lspSync(project: string, path: string, text: string): Promise<CodeLanguage>;
+    lspSync(project: string, path: string, text: string, again?: boolean): Promise<CodeLanguage>;
+    /** Stops the project's language servers (another project was opened). */
+    lspStop(project: string): Promise<unknown>;
     lspClose(project: string, path: string): Promise<unknown>;
     /** Every problem known in the project, file by file. */
     lspProblems(project: string): Promise<{ path: string; items: CodeProblem[] }[]>;
