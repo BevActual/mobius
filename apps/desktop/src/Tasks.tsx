@@ -1,4 +1,5 @@
 import { assignEntries, taskAssignment } from './assign';
+import { startBranch } from './code-branch';
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
@@ -358,6 +359,8 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
     ...others.map((l, i) => ({ label: `Move to ${l.name}`, separated: i === 0, run: () => void tasks.move(list, task, l.name) })),
     // Shell: Assign to Mobius (assign.ts) works on it in the background; the result lands in Home's Inbox.
     ...(task.done ? [] : assignEntries(() => taskAssignment(list, task), () => line.current)),
+    // Code: the task's words as a new branch's name, offered in Code's Changes to start.
+    ...(task.done || !window.mobius.code ? [] : [{ label: 'Start a branch in Code', run: () => startBranch(task.text) }]),
     { label: 'Delete', danger: true, separated: true, keys: 'Delete', run: remove },
   ];
   const note = (task.notes ?? '').split('\n')[0] ?? '';

@@ -242,6 +242,25 @@
 .code-side .code-git-where { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
 .code-side .code-git-more { color: var(--muted); font-size: var(--fs-sm); }
 .code-side .code-git-review { color: var(--mobius); font-size: var(--fs-sm); }
+/* The branch: a quiet button that opens the branches below it (switch, or New branch… from here). */
+.code-side button.code-git-branch { height: calc(var(--row-side) - 6px); margin-left: calc(-1 * var(--sp-1)); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-small); background: none; cursor: pointer; }
+.code-side button.code-git-branch:hover, .code-side button.code-git-branch[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.code-side button.code-git-branch > span { overflow: hidden; text-overflow: ellipsis; }
+.code-side .code-git-branch .code-git-caret { width: 12px; height: 12px; stroke-width: 1.6; }
+.code-side .code-git-branches { display: flex; flex-direction: column; margin: 0 var(--sp-1) var(--sp-2); padding: var(--sp-1) 0; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); }
+.code-side .code-git-branches .code-git-form { padding: var(--sp-1) var(--sp-2); }
+.code-side .code-git-branches .code-git-change[aria-current] .code-git-name { font-weight: var(--fw-semibold); }
+.code-side .code-git-new { color: var(--muted); font-size: var(--fs-sm); }
+/* A changed file's Discard: shown on hover, and asks once before it puts the file back. */
+.code-side .code-git-row { position: relative; }
+.code-side .code-git-discard { position: absolute; right: 28px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--radius-small); background: var(--raised); color: var(--muted); cursor: pointer; opacity: 0; transition: opacity var(--dur-fast); }
+.code-side .code-git-discard svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.code-side .code-git-row:hover .code-git-discard, .code-side .code-git-discard:focus-visible { opacity: 1; }
+.code-side .code-git-discard:hover { color: var(--ink); }
+.code-side .code-git-confirm { display: flex; align-items: center; gap: var(--sp-1); min-height: var(--row-side); padding: 0 var(--sp-2); }
+.code-side .code-git-confirm .code-git-where { color: var(--ink); font-size: var(--fs-sm); }
+.code-side .code-git-confirm .btn.danger { color: var(--danger); }
+.code-side .code-git-confirm .btn { height: 22px; padding: 0 var(--sp-2); font-size: var(--fs-xs); }
 /* Git's letter: grey, and red only for deleted and in conflict, so red stays the one status colour. */
 .code-side .code-git-letter { flex: none; margin-left: auto; width: 16px; text-align: center; font: var(--fw-semibold) var(--fs-floor)/1 var(--font-mono); color: var(--muted); }
 .code-side .code-git-letter[data-letter="D"], .code-side .code-git-letter[data-letter="C"] { color: var(--danger); }
@@ -302,6 +321,20 @@
 .code-panel.code-problems li:has(.code-problem-fix) .code-problem { padding-right: calc(var(--sp-3) + 44px); }
 .code-panel .code-problem-fix { position: absolute; right: var(--sp-2); top: 50%; transform: translateY(-50%); padding: 1px var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-small); background: var(--raised); color: var(--ink); font: inherit; font-size: var(--fs-xs); cursor: pointer; opacity: 0; transition: opacity var(--dur-fast); }
 .code-panel.code-problems li:hover .code-problem-fix, .code-panel .code-problem-fix:focus-visible { opacity: 1; }
+.code-panel.code-history { overflow: auto; height: 100%; padding: var(--sp-1) 0; font-size: var(--fs-sm); }
+.code-panel.code-history ul { list-style: none; margin: 0; padding: 0; }
+.code-panel .code-commit, .code-panel .code-commit-file { display: flex; align-items: baseline; gap: var(--sp-2); width: 100%; padding: var(--sp-1) var(--sp-3); border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.code-panel .code-commit:hover, .code-panel .code-commit-file:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.code-panel .code-commit-subject { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-panel .code-commit-where { margin-left: auto; flex: none; color: var(--muted); font-size: var(--fs-xs); white-space: nowrap; }
+.code-panel .code-commit-where code { font: var(--fs-xs) var(--font-mono); }
+.code-panel .code-commit-tag { flex: none; padding: 0 var(--sp-1); border-radius: var(--radius-small); background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--muted); font-size: var(--fs-xs); }
+.code-panel .code-commit-open { padding: 0 0 var(--sp-2) var(--sp-5); }
+.code-panel .code-commit-body { margin: 0 var(--sp-3) var(--sp-1) var(--sp-3); color: var(--muted); white-space: pre-wrap; }
+.code-panel .code-commit-file { font: var(--fs-sm) var(--font-mono); }
+.code-panel .code-commit-count { margin-left: auto; font-size: var(--fs-xs); white-space: nowrap; }
+.code-panel .code-commit-count [data-kind="add"] { color: var(--c-green); }
+.code-panel .code-commit-count [data-kind="del"] { color: var(--c-coral); }
 .code-panel.code-problems-empty { margin: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
 
 /* Change marks against the last commit, in the gutter's left edge, and the look at what was there. */
