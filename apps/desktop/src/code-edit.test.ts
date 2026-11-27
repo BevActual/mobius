@@ -93,3 +93,14 @@ describe('keyLabel', () => {
     expect(keyLabel('P', false)).toBe('Ctrl+P');
   });
 });
+
+describe('find options', () => {
+  it('finds whole words and regular expressions, and fills $1 in replacements', async () => {
+    const { findAll: find, replacement } = await import('./code-edit');
+    expect(find('cat concat cat', 'cat', { word: true })).toEqual([[0, 3], [11, 14]]);
+    expect(find('a1 b22', '\\d+', { regex: true })).toEqual([[1, 2], [4, 6]]);
+    expect(find('a(b', '(', { regex: true })).toEqual([]);
+    expect(find('a.b', '.', {})).toEqual([[1, 2]]);
+    expect(replacement('let x = 1', [4, 9], '(\\w) = (\\d)', '$2 = $1', { regex: true })).toBe('1 = x');
+  });
+});

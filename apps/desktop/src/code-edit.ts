@@ -117,14 +117,44 @@ export function newLine(text: string, start: number, end: number, unit = '  '): 
   return { from: start, to: end, insert, select: [start + insert.length, start + insert.length] };
 }
 
-/** Every place `query` is found, as [start, end], ignoring case unless `matchCase`. */
-export function findAll(text: string, query: string, matchCase = false, limit = 5000): [number, number][] {
-  if (!query) return [];
-  const hay = matchCase ? text : text.toLowerCase();
-  const needle = matchCase ? query : query.toLowerCase();
+export interface FindOptions { matchCase?: boolean; word?: boolean; regex?: boolean }
+
+/** The pattern a query searches with, or null when it is empty or (as a regular expression) does not read. */
+export function findPattern(query: string, opts: FindOptions = {}): RegExp | null {
+  if (!query) return null;
+  const body = opts.regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const bounded = opts.word ? `(?<![\\p{L}\\p{N}_$])(?:${body})(?![\\p{L}\\p{N}_$])` : body;
+  try {
+    return new RegExp(bounded, `gu${opts.matchCase ? '' : 'i'}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every place `query` is found, as [start, end]: ignoring case unless `matchCase` (or a boolean, as before), only as a
+ * whole word with `word`, and as a regular expression with `regex`. A pattern that matches nothing in width is skipped.
+ */
+export function findAll(text: string, query: string, opts: FindOptions | boolean = false, limit = 5000): [number, number][] {
+  const o: FindOptions = typeof opts === 'boolean' ? { matchCase: opts } : opts;
+  const re = findPattern(query, o);
+  if (!re) return [];
   const out: [number, number][] = [];
-  for (let at = hay.indexOf(needle); at >= 0 && out.length < limit; at = hay.indexOf(needle, at + needle.length)) out.push([at, at + needle.length]);
+  for (let m = re.exec(text); m && out.length < limit; m = re.exec(text)) {
+    if (m[0].length === 0) { re.lastIndex += 1; continue; }
+    out.push([m.index, m.index + m[0].length]);
+  }
   return out;
+}
+
+/** What a match is replaced with: `with` as typed, or with a regular expression its $1, $2… filled in from the match. */
+export function replacement(text: string, match: [number, number], query: string, withText: string, opts: FindOptions = {}): string {
+  if (!opts.regex) return withText;
+  const re = findPattern(query, opts);
+  if (!re) return withText;
+  const found = text.slice(match[0], match[1]);
+  re.lastIndex = 0;
+  return found.replace(new RegExp(re.source, re.flags.replace('g', '')), withText);
 }
 
 /**

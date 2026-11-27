@@ -63,17 +63,36 @@
 
 /* The editor: a text area over its coloured lines, the lit line, find's marks, the bar above and the status line. */
 .code-page .code-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
-.code-page .code-edit { flex: 1; min-height: 0; display: flex; position: relative; }
-.code-page .code-gutter { flex-shrink: 0; overflow: hidden; padding: var(--sp-2) var(--sp-2) 40px var(--sp-3); text-align: right; color: var(--code-gutter); font: var(--code-font); user-select: none; }
-.code-page .code-gutter span { display: block; }
-.code-page .code-gutter span[data-current] { color: var(--ink); }
-.code-page .code-stack { position: relative; flex: 1; min-width: 0; }
-.code-page .code-under, .code-page .code-area { position: absolute; inset: 0; margin: 0; padding: var(--sp-2) var(--sp-4) 40px var(--sp-1); font: var(--code-font); tab-size: 2; white-space: pre; }
-.code-page .code-under { overflow: hidden; pointer-events: none; }
-.code-page .code-under-line { min-height: var(--code-line); }
-.code-page .code-under-line[data-current] { background: color-mix(in srgb, var(--sel) 60%, transparent); margin-left: calc(-1 * var(--sp-1)); padding-left: var(--sp-1); margin-right: calc(-1 * var(--sp-4)); }
-.code-page .code-area { width: 100%; height: 100%; resize: none; border: 0; outline: none; overflow: auto; background: transparent; color: transparent; caret-color: var(--ink); }
-.code-page .code-area::selection { background: color-mix(in srgb, var(--c-blue) 30%, transparent); color: transparent; }
+/* The editor draws its own lines (only those in view), selections and cursors over one scrolling sheet; a hidden
+   field at the cursor takes the keys. */
+.code-page .ed { flex: 1; min-height: 0; display: flex; position: relative; }
+.code-page .ed-gutter { flex-shrink: 0; overflow: hidden; position: relative; color: var(--code-gutter); font: var(--code-font); user-select: none; }
+.code-page .ed-gutter > div { position: relative; }
+.code-page .ed-gutter span { position: absolute; right: var(--sp-2); height: var(--code-line); }
+.code-page .ed-gutter span[data-current] { color: var(--ink); }
+.code-page .ed-scroll { flex: 1; min-width: 0; overflow: auto; position: relative; cursor: text; }
+.code-page .ed-content { position: relative; min-width: 100%; font: var(--code-font); white-space: pre; tab-size: 2; }
+.code-page .ed-measure { position: absolute; visibility: hidden; top: 0; left: 0; }
+.code-page .ed-line { position: absolute; left: 0; right: 0; height: var(--code-line); padding-left: 8px; }
+.code-page .ed-line[data-current] { background: color-mix(in srgb, var(--sel) 60%, transparent); }
+.code-page .ed-sel { position: absolute; height: var(--code-line); background: var(--sel); }
+.code-page .ed[data-focused] .ed-sel { background: color-mix(in srgb, var(--c-blue) 28%, transparent); }
+.code-page .ed-cursor { position: absolute; z-index: 1; width: 2px; height: var(--code-line); margin-left: -1px; background: var(--ink); pointer-events: none; animation: ed-blink calc(var(--dur-slow) * 2) steps(1, end) infinite; }
+@keyframes ed-blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .code-page .ed-cursor { animation: none; } }
+/* The field that takes the keys sits at the cursor (so an input method's window opens there) and is never seen. */
+.code-page .ed-input { position: absolute; width: 1px; height: var(--code-line); margin: 0; padding: 0; border: 0; outline: 0; resize: none; overflow: hidden; opacity: 0; font: inherit; white-space: pre; caret-color: transparent; pointer-events: none; }
+.code-page .ed-bracket { position: absolute; height: var(--code-line); box-sizing: border-box; border: var(--hairline-w) solid color-mix(in srgb, var(--ink) 45%, transparent); border-radius: 2px; background: color-mix(in srgb, var(--ink) 6%, transparent); pointer-events: none; }
+.code-page .ed-same-word { position: absolute; height: var(--code-line); border-radius: 2px; background: color-mix(in srgb, var(--ink) 9%, transparent); pointer-events: none; }
+.code-page .ed-same-word[data-here] { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.code-page .ed-guide { position: absolute; width: 0; height: var(--code-line); border-left: var(--hairline-w) solid color-mix(in srgb, var(--ink) 10%, transparent); pointer-events: none; }
+/* Find and replace: the find row, and under it the replace row while it is shown. */
+.code-page .code-find { align-items: flex-start; padding-left: var(--sp-1); }
+.code-page .code-find-rows { display: flex; flex-direction: column; gap: var(--sp-1); }
+.code-page .code-find-row { display: flex; align-items: center; gap: var(--sp-1); }
+.code-page .code-find-row input { padding: 0 var(--sp-2); border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.code-page .code-find-row input[aria-invalid] { box-shadow: inset 0 0 0 var(--hairline-w) var(--c-coral); }
+.code-page .code-find-row .btn { padding: 0 var(--sp-2); }
 .code-page .code-found { position: absolute; height: var(--code-line); border-radius: var(--radius-small); background: color-mix(in srgb, var(--c-yellow) 40%, transparent); pointer-events: none; }
 .code-page .code-found[data-current] { background: color-mix(in srgb, var(--c-yellow) 80%, transparent); box-shadow: 0 0 0 var(--hairline-w) var(--c-amber); }
 .code-page .code-status { flex: none; display: flex; align-items: center; gap: var(--sp-4); height: var(--info-h); padding: 0 var(--sp-3); border-top: var(--hairline-w) solid var(--line); font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; overflow: hidden; }
@@ -202,7 +221,7 @@
 .code-side .code-git-letter { flex: none; margin-left: auto; width: 16px; text-align: center; font: var(--fw-semibold) var(--fs-floor)/1 var(--font-mono); color: var(--muted); }
 .code-side .code-git-letter[data-letter="D"], .code-side .code-git-letter[data-letter="C"] { color: var(--danger); }
 /* Code shows the characters typed: no ligatures (=> stays two characters), so columns and find's marks line up. */
-.code-page :is(.code-under, .code-area, .code-lines, .code-gutter) { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+.code-page :is(.ed-content, .code-lines, .ed-gutter) { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
 
 /* Outline panel: what the open file defines */
 .code-outline { list-style: none; margin: 0; padding: var(--sp-1) 0; }
