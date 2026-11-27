@@ -87,8 +87,12 @@ function set(next: OpenPiece[]): void {
 const subscribe = (l: () => void) => { listeners.add(l); return () => listeners.delete(l); };
 export const usePieces = (): readonly OpenPiece[] => useSyncExternalStore(subscribe, () => pieces, () => pieces);
 
+/** Today's date as YYYY-MM-DD, here. */
+const isoToday = (): string => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 export function showPiece(kind: PieceKind, item: string, by: OpenPiece['by'] = 'you', title?: string): void {
-  set(withPiece(pieces, { kind, item, by, ...(title ? { title } : {}) }));
+  // Today is "today" however it is asked for, so it is named Today and follows the date at midnight.
+  const shown = kind === 'calendar.day' && item === isoToday() ? 'today' : item;
+  set(withPiece(pieces, { kind, item: shown, by, ...(title ? { title } : {}) }));
 }
 export function putAway(kind: PieceKind, item: string): void {
   set(pieces.filter((o) => pieceKey(o) !== pieceKey({ kind, item })));
@@ -131,4 +135,17 @@ export function workOpenIn(p: { kind: PieceKind; item: string }, now: MobiusWork
 export function putAwayMobius(only?: (p: OpenPiece) => boolean): void {
   const next = pieces.filter((o) => o.by !== 'mobius' || (only !== undefined && !only(o)));
   if (next.length !== pieces.length) set(next);
+}
+
+/** The piece a found thing shows as (Ctrl+K's Show here): a task list, a day, a mail conversation; none for the rest. */
+export function pieceOfTarget(target: { app: string; list?: string; id?: string; date?: string }, title?: string): { kind: PieceKind; item: string; title?: string } | null {
+  if (target.app === 'tasks' && target.list) return { kind: 'tasks.list', item: target.list };
+  if (target.app === 'mail' && target.id) return { kind: 'mail.thread', item: target.id, ...(title ? { title } : {}) };
+  if (target.app === 'calendar') return { kind: 'calendar.day', item: target.date && /^\d{4}-\d{2}-\d{2}$/.test(target.date) ? target.date : 'today' };
+  return null;
+}
+/** Show here, for a found thing that has a piece. */
+export function showTarget(target: { app: string; list?: string; id?: string; date?: string }, title?: string): (() => void) | undefined {
+  const p = pieceOfTarget(target, title);
+  return p ? () => showPiece(p.kind, p.item, 'you', p.title) : undefined;
 }

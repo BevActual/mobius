@@ -205,8 +205,11 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
   into it, which makes it theirs. Esc away from a field puts Mobius's pieces away. The Mail piece shows Mobius's
   suggested reply with Discard and Keep, as Mail does.
 
-Not yet: a `show` tool for Mobius to bring a piece without changing anything, Ctrl+K › Show here (round 4), a piece
-remembered by project.
+- **Show here and Show beside** (round 4): in Ctrl+K, a found mail conversation, event or task list has **Show here**
+  in its actions (Shift+Enter), which brings it beside the open app without leaving it. Calendar's event and empty-day
+  menus have **Show day beside**, next to the Tasks list menu's and Mail's Show beside.
+
+Not yet: a `show` tool for Mobius to bring a piece without changing anything, a piece remembered by project.
 
 ## First rounds
 
