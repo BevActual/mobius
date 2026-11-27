@@ -253,7 +253,8 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
       {naming && projects.problem && <p className="field-error" role="alert">{projects.problem}</p>}
       <nav aria-label="Projects">
         {/* Grouped by status once any project has one, as Linear's projects list: open work first, done and canceled last. */}
-        {groupByStatus(shown).map((g, i) => (
+        {/* No heading over nothing: with no projects yet, the page itself says how to start. */}
+        {groupByStatus(shown).filter((g) => g.projects.length > 0).map((g, i) => (
           <SidebarSection key={g.title} title={g.title} {...(pin && i === 0 ? { action: pin } : {})}>
             {g.projects.map((p) => (
               <SidebarRow key={p.id} icon={p.status ? <StatusIcon status={p.status} /> : <svg className="proj-side-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.projects}</svg>}

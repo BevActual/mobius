@@ -79,7 +79,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   await expect(page().getByRole('button', { name: new RegExp(`^Standup, ${span('9:00', '9:30')}, Work`) }).first()).toBeVisible();
   await expect(shell().getByRole('region', { name: 'My calendars' }).getByText('Work')).toBeVisible();
   // The Mobius panel's Glance sums up the rest of today. What it leads with depends on the hour the test runs: once
-  // the day's last event is over it says Next (Nothing else today) instead of counting what is still to come.
+  // the day's last event is over it says Next (Nothing else) instead of counting what is still to come.
   await expect(shell().getByRole('region', { name: 'Rest of today' }).locator('.glance-label').first()).toHaveText(/^(Still to come|Next)$/);
 
   // New event: the editor opens at the next hour today.

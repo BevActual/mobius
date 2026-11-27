@@ -840,6 +840,8 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
           <div ref={listRef} role="rowgroup" onKeyDown={onListKey}>
             {rows.length === 0 && <p className="note-empty files-none">Nothing here matches “{files.query}”.</p>}
             {rows.map((e) => {
+              // An app's own folder is shown by the app's name, as in the sidebar ("Music", not "studio").
+              const label = e.type === 'folder' && e.path === e.name ? folderName(e.name) : e.name;
               // A file from Mobius is dashed until kept; a folder only says how many such files it holds, so a drive
               // where Mobius made a little everywhere does not turn every row dashed.
               const held = e.type === 'folder' ? files.made.files.filter((f) => f.startsWith(`${e.path}/`)).length : 0;
@@ -852,14 +854,14 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
                   {...(draggable ? files.drag(e.path, chosenWith(e.path).filter(movable)) : {})} {...(e.type === 'folder' && files.can.move ? files.drop(e.path) : {})}
                   data-dragging={(files.dragging !== null && (files.dragging === e.path || (picked.has(e.path) && picked.has(files.dragging)))) || undefined}
                   data-cut={(files.clip?.mode === 'cut' && files.clip.paths.includes(e.path)) || undefined}
-                  className="files-row" data-proposed={(mine && e.type === 'file') || undefined} aria-label={mine ? `${e.name}, from Mobius` : e.name}
+                  className="files-row" data-proposed={(mine && e.type === 'file') || undefined} aria-label={mine ? `${label}, from Mobius` : label}
                   onClick={(ev) => {
                     if (ev.shiftKey) { ev.preventDefault(); pickTo(e.path, ev.ctrlKey || ev.metaKey); }
                     else if (ev.ctrlKey || ev.metaKey) { setOne(e.path); anchor.current = e.path; setPicked((cur) => { const next = new Set(cur); if (next.has(e.path)) next.delete(e.path); else next.add(e.path); return next; }); }
                     else setSelected(e.path);
                   }} onDoubleClick={() => open(e.path, e.type)}
                   onContextMenu={(ev) => { ev.preventDefault(); if (!picked.has(e.path)) setSelected(e.path); else setOne(e.path); setMenu({ path: e.path, type: e.type, x: ev.clientX, y: ev.clientY }); }}>
-                  <span role="gridcell" className="files-cell files-name">{view === 'grid' ? <FileTile path={e.path} type={e.type} /> : <FileIcon path={e.path} type={e.type} />}{nameCell(e.path, e.name)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-held" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Mobius changed 1 file here, not kept yet' : `Mobius changed ${held} files here, not kept yet`}><MobiusMark size={14} /></span>}</span>
+                  <span role="gridcell" className="files-cell files-name">{view === 'grid' ? <FileTile path={e.path} type={e.type} /> : <FileIcon path={e.path} type={e.type} />}{nameCell(e.path, label)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-held" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Mobius changed 1 file here, not kept yet' : `Mobius changed ${held} files here, not kept yet`}><MobiusMark size={14} /></span>}</span>
                   <span role="gridcell" className="files-cell files-date">{e.modified ? relativeTime(e.modified, Date.now()) : '—'}</span>
                   <span role="gridcell" className="files-cell files-kind">{fileKind(e.path, e.type)}</span>
                   <span role="gridcell" className="files-cell files-size">{e.type === 'folder' ? itemCount(e.items) : size(e.bytes)}</span>
@@ -874,7 +876,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         {parts.map((p, i) => (
           <span key={i}>
             <span aria-hidden="true"> › </span>
-            <button type="button" className="review-btn" aria-current={i === parts.length - 1 ? 'page' : undefined} onClick={() => files.setPlace({ kind: 'folder', path: parts.slice(0, i + 1).join('/') })} {...(files.can.move ? files.drop(parts.slice(0, i + 1).join('/')) : {})}>{p}</button>
+            <button type="button" className="review-btn" aria-current={i === parts.length - 1 ? 'page' : undefined} onClick={() => files.setPlace({ kind: 'folder', path: parts.slice(0, i + 1).join('/') })} {...(files.can.move ? files.drop(parts.slice(0, i + 1).join('/')) : {})}>{i === 0 ? folderName(p) : p}</button>
           </span>
         ))}
       </nav>}
