@@ -52,3 +52,12 @@ describe('bot ids and conversations', () => {
     for (const bad of [{ id: 'nope', draft }, { id: 'abc123', draft: { ...draft, name: '' } }, { draft }, null, 'x']) expect(parseBotRequest(bad)).toBeNull();
   });
 });
+
+describe('an agent that starts when mail comes', () => {
+  it('keeps who it looks out for, trimmed, and older drafts have none', () => {
+    expect(parseBotDraft({ name: 'Invoices', instructions: '', model: '', mailFrom: ' billing@acme.test ' })).toEqual({ name: 'Invoices', instructions: '', model: '', mailFrom: 'billing@acme.test' });
+    expect(parseBotDraft({ name: 'Plain', instructions: '', model: '', mailFrom: '  ' })).toEqual({ name: 'Plain', instructions: '', model: '' });
+    expect(parseBotDraft({ name: 'Bad', instructions: '', model: '', mailFrom: 'a\nb' })).toBeNull();
+    expect(parseBotDraft({ name: 'Bad', instructions: '', model: '', mailFrom: 3 })).toBeNull();
+  });
+});

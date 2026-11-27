@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { MAIN_BOT_ID, MAX_BOT_INSTRUCTIONS, MAX_BOT_NAME, botOfConversation, type Bot, type BotDraft, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
+import { MAIN_BOT_ID, MAX_BOT_INSTRUCTIONS, MAX_BOT_NAME, MAX_MAIL_FROM, botOfConversation, type Bot, type BotDraft, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
 import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
 import { dateTimeLabel } from './dates';
@@ -10,7 +10,8 @@ import { DotCharacter, Segmented, TimeField, type CharacterState } from './ui';
 import { usePreferences } from './usePreferences';
 import './agents.css';
 
-const STARTS = [{ value: 'ask', label: 'When you ask' }, { value: 'schedule', label: 'On a schedule' }] as const;
+const STARTS = [{ value: 'ask', label: 'When you ask' }, { value: 'schedule', label: 'On a schedule' }, { value: 'mail', label: 'When mail comes' }] as const;
+type Starts = (typeof STARTS)[number]['value'];
 const DAYS = [{ value: 'weekdays', label: 'Weekdays' }, { value: 'daily', label: 'Every day' }] as const;
 /** A schedule's "HH:MM" as minutes since midnight, and back. */
 const minutesOfClock = (clock: string): number | null => { const m = /^(\d{1,2}):(\d{2})$/.exec(clock); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
@@ -54,8 +55,9 @@ export function BotForm({ initial, submitLabel, onSubmit, onSaved, onCancel, onO
   const [draft, setDraft] = useState(initial);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  // How it starts: when you ask, or also at a time of day (a schedule, as in Settings › Schedules).
-  const [starts, setStarts] = useState<'ask' | 'schedule'>('ask');
+  // How it starts: when you ask, or also at a time of day (a schedule, as in Settings › Schedules), or when mail comes
+  // from someone it looks out for (then it works on that mail on its own, and its result lands in Home's Inbox).
+  const [starts, setStarts] = useState<Starts>(initial.mailFrom ? 'mail' : 'ask');
   const [time, setTime] = useState('08:00');
   const [days, setDays] = useState<'weekdays' | 'daily'>('weekdays');
   const preferences = usePreferences();
@@ -64,7 +66,7 @@ export function BotForm({ initial, submitLabel, onSubmit, onSaved, onCancel, onO
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
-    const saved = await onSubmit(draft);
+    const saved = await onSubmit({ ...draft, mailFrom: starts === 'mail' ? (draft.mailFrom ?? '').trim() : '' });
     if (!saved.ok) { setProblem(saved.error); setSaving(false); return; }
     if (canSchedule && starts === 'schedule') {
       // The schedule runs as this agent: its instructions and model.
@@ -82,11 +84,17 @@ export function BotForm({ initial, submitLabel, onSubmit, onSaved, onCancel, onO
         <input type="text" list="agent-models" value={draft.model} spellCheck={false} placeholder="The one in settings" onChange={(e) => setDraft({ ...draft, model: e.target.value })} />
         <datalist id="agent-models">{models.map((m) => <option key={m} value={m} />)}</datalist>
       </label>
-      {canSchedule && (
+      {(
         <div className="botform-starts" role="group" aria-label="How it starts">
           <span className="botform-label">How it starts</span>
-          <Segmented label="How it starts" value={starts} choices={STARTS} onChange={setStarts} />
-          {starts === 'schedule' && <span className="botform-hint">It still starts whenever you ask, too.</span>}
+          <Segmented label="How it starts" value={starts} choices={canSchedule || starts === 'schedule' ? STARTS : STARTS.filter((c) => c.value !== 'schedule')} onChange={setStarts} />
+          {starts !== 'ask' && <span className="botform-hint">It still starts whenever you ask, too.</span>}
+          {starts === 'mail' && (
+            <label className="botform-when">From
+              <input type="text" value={draft.mailFrom ?? ''} maxLength={MAX_MAIL_FROM} spellCheck={false} placeholder="An address or a name, such as billing@ or Acme" onChange={(e) => setDraft({ ...draft, mailFrom: e.target.value })} />
+            </label>
+          )}
+          {starts === 'mail' && <span className="botform-hint">When mail from them comes in, it reads it and does what its instructions say. What it changes waits for you in the Inbox, and it never sends anything without asking.</span>}
           {starts === 'schedule' && (
             <span className="botform-when">
               <Segmented label="Which days" value={days} choices={DAYS} onChange={setDays} />
@@ -101,7 +109,7 @@ export function BotForm({ initial, submitLabel, onSubmit, onSaved, onCancel, onO
       {problem && <span className="field-error" role="alert">{problem}</span>}
       <span className="botform-actions">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn primary" disabled={saving || draft.name.trim() === ''}>{submitLabel}</button>
+        <button type="submit" className="btn primary" disabled={saving || draft.name.trim() === '' || (starts === 'mail' && (draft.mailFrom ?? '').trim() === '')}>{submitLabel}</button>
       </span>
     </form>
   );
@@ -124,10 +132,14 @@ interface Props {
 }
 
 /** When an agent runs, in words, for the toolbar's grey line and the When it runs section. */
-export function agentWhen(bot: { id: string; name: string }, schedules: readonly ScheduleInfo[]): string {
+export function agentWhen(bot: { id: string; name: string; mailFrom?: string }, schedules: readonly ScheduleInfo[]): string {
   if (bot.id === MAIN_BOT_ID) return 'When you ask';
   const runs = agentSchedules(bot, schedules);
-  return runs.length === 0 ? 'When you ask' : `When you ask, and ${runs.map((s) => `${describeWhen(s.days, s.time).replace(/^(Every day|Weekdays|Weekends)/, (m) => m.toLowerCase())}${s.enabled ? '' : ' (off)'}`).join('; ')}`;
+  const parts = [
+    ...runs.map((s) => `${describeWhen(s.days, s.time).replace(/^(Every day|Weekdays|Weekends)/, (m) => m.toLowerCase())}${s.enabled ? '' : ' (off)'}`),
+    ...(bot.mailFrom ? [`when mail comes from ${bot.mailFrom}`] : []),
+  ];
+  return parts.length === 0 ? 'When you ask' : `When you ask, and ${parts.join('; ')}`;
 }
 
 /**
@@ -206,7 +218,7 @@ export function AgentPage({ view, bots, loading = false, conversations, onShow, 
   if (view.editing && !main) {
     return (
       <section className="agent-page" aria-label={`Edit ${bot.name}`}>
-        <BotForm key={`edit:${bot.id}`} initial={{ name: bot.name, instructions: bot.instructions, model: bot.model }} submitLabel="Save" {...(onOpenSafety ? { onOpenSafety } : {})}
+        <BotForm key={`edit:${bot.id}`} initial={{ name: bot.name, instructions: bot.instructions, model: bot.model, ...(bot.mailFrom ? { mailFrom: bot.mailFrom } : {}) }} submitLabel="Save" {...(onOpenSafety ? { onOpenSafety } : {})}
           onCancel={() => onShow({ kind: 'show', id: bot.id })}
           onSubmit={(draft) => onUpdate(bot.id, draft)} onSaved={() => onShow({ kind: 'show', id: bot.id })} />
       </section>

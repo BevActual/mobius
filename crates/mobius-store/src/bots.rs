@@ -19,12 +19,14 @@ pub struct Bot {
     pub name: String,
     pub instructions: String,
     pub model: String,
+    /// Starts on its own when mail comes from this sender: part of an address or a name ("ana@", "Acme"). Empty: never.
+    pub mail_from: String,
     pub created_ms: i64,
 }
 
 impl Bot {
     pub fn to_json(&self) -> Value {
-        json!({ "id": self.id, "name": self.name, "instructions": self.instructions, "model": self.model, "createdMs": self.created_ms })
+        json!({ "id": self.id, "name": self.name, "instructions": self.instructions, "model": self.model, "mailFrom": self.mail_from, "createdMs": self.created_ms })
     }
 }
 
@@ -32,6 +34,17 @@ pub struct Draft {
     pub name: String,
     pub instructions: String,
     pub model: String,
+    pub mail_from: String,
+}
+
+/// The longest "mail from" an agent watches for.
+pub const MAX_MAIL_FROM: usize = 200;
+
+/// Whether mail from this sender starts an agent watching for `from`: any part of the address or the name, ignoring
+/// case. Empty watches for nothing.
+pub fn mail_matches(from: &str, name: &str, email: &str) -> bool {
+    let want = from.trim().to_lowercase();
+    !want.is_empty() && (email.to_lowercase().contains(&want) || name.to_lowercase().contains(&want))
 }
 
 fn one_line(s: &str) -> bool {
@@ -55,7 +68,15 @@ pub fn parse_draft(v: &Value) -> Option<Draft> {
     if model.chars().count() > 200 || !one_line(model) {
         return None;
     }
-    Some(Draft { name: name.to_owned(), instructions: instructions.trim().to_owned(), model: model.to_owned() })
+    // Older drafts have no "mail from": they start only when asked or on a schedule.
+    let mail_from = match v.get("mailFrom") {
+        None | Some(Value::Null) => "",
+        Some(m) => m.as_str()?.trim(),
+    };
+    if mail_from.chars().count() > MAX_MAIL_FROM || !one_line(mail_from) {
+        return None;
+    }
+    Some(Draft { name: name.to_owned(), instructions: instructions.trim().to_owned(), model: model.to_owned(), mail_from: mail_from.to_owned() })
 }
 
 /// The bot a conversation belongs to, among the bots that exist. Anything else belongs to Mobius.
@@ -77,7 +98,7 @@ type Fail = Result<(), String>;
 
 impl Bots {
     pub fn open(file: PathBuf, clock: Box<dyn Fn() -> i64 + Send>) -> Bots {
-        let main = Bot { id: MAIN_ID.into(), name: MAIN_NAME.into(), instructions: String::new(), model: String::new(), created_ms: 0 };
+        let main = Bot { id: MAIN_ID.into(), name: MAIN_NAME.into(), instructions: String::new(), model: String::new(), mail_from: String::new(), created_ms: 0 };
         let mut b = Bots { file, bots: vec![main], clock };
         b.load();
         b
@@ -105,7 +126,7 @@ impl Bots {
             return Err(format!("You can have up to {MAX_BOTS} agents. Remove one first."));
         }
         self.name_taken(&draft.name, None)?;
-        let bot = Bot { id: self.new_id(), name: draft.name, instructions: draft.instructions, model: draft.model, created_ms: (self.clock)() };
+        let bot = Bot { id: self.new_id(), name: draft.name, instructions: draft.instructions, model: draft.model, mail_from: draft.mail_from, created_ms: (self.clock)() };
         self.bots.push(bot.clone());
         self.save();
         Ok(bot)
@@ -121,7 +142,7 @@ impl Bots {
         let draft = parse_draft(value).ok_or("That agent cannot be saved. Give it a short name on one line.")?;
         self.name_taken(&draft.name, Some(id))?;
         let bot = self.bots.iter_mut().find(|b| b.id == id).ok_or("That agent is not there any more.")?;
-        (bot.name, bot.instructions, bot.model) = (draft.name, draft.instructions, draft.model);
+        (bot.name, bot.instructions, bot.model, bot.mail_from) = (draft.name, draft.instructions, draft.model, draft.mail_from);
         let out = bot.clone();
         self.save();
         Ok(out)
@@ -187,7 +208,24 @@ impl Bots {
                 continue;
             }
             let created_ms = row.get("createdMs").and_then(Value::as_i64).unwrap_or(0);
-            self.bots.push(Bot { id: id.to_owned(), name: draft.name, instructions: draft.instructions, model: draft.model, created_ms });
+            self.bots.push(Bot { id: id.to_owned(), name: draft.name, instructions: draft.instructions, model: draft.model, mail_from: draft.mail_from, created_ms });
         }
+    }
+
+}
+
+#[cfg(test)]
+mod mail_from_tests {
+    use super::*;
+    #[test]
+    fn an_agent_can_watch_for_mail_from_someone_and_older_agents_watch_for_nothing() {
+        let draft = parse_draft(&json!({ "name": "Invoices", "instructions": "File it", "model": "", "mailFrom": " billing@acme.test " })).unwrap();
+        assert_eq!(draft.mail_from, "billing@acme.test");
+        assert_eq!(parse_draft(&json!({ "name": "Old", "instructions": "", "model": "" })).unwrap().mail_from, "");
+        assert!(parse_draft(&json!({ "name": "Bad", "instructions": "", "model": "", "mailFrom": "a\nb" })).is_none());
+        assert!(mail_matches("acme", "Billing", "billing@ACME.test"));
+        assert!(mail_matches("Ana", "Ana Silva", "ana@example.test"));
+        assert!(!mail_matches("", "Ana", "ana@example.test"));
+        assert!(!mail_matches("bob", "Ana", "ana@example.test"));
     }
 }

@@ -19,11 +19,14 @@ export interface Bot {
   instructions: string;
   /** A model name to use for this bot, or '' for the one in the settings. */
   model: string;
+  /** Starts on its own when mail comes from this sender (part of an address or a name); '' or absent: never. */
+  mailFrom?: string;
   createdMs: number;
 }
 
 /** What the person fills in. */
-export interface BotDraft { name: string; instructions: string; model: string }
+export interface BotDraft { name: string; instructions: string; model: string; /** See Bot.mailFrom. */ mailFrom?: string }
+export const MAX_MAIL_FROM = 200;
 
 export interface BotsState { bots: Bot[] }
 export type BotResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -36,14 +39,15 @@ const oneLine = (value: string) => !/[\u0000-\u001f\u007f]/.test(value);
 /** A bot as the person described it: a name that is a plain line, instructions of bounded length, and a model name if any. */
 export function parseBotDraft(value: unknown): BotDraft | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
-  const { name, instructions, model } = value as Record<string, unknown>;
+  const { name, instructions, model, mailFrom } = value as Record<string, unknown>;
   if (typeof name !== 'string' || typeof instructions !== 'string' || typeof model !== 'string') return null;
+  if (mailFrom !== undefined && (typeof mailFrom !== 'string' || mailFrom.trim().length > MAX_MAIL_FROM || !oneLine(mailFrom))) return null;
   const cleanName = name.trim();
   const cleanModel = model.trim();
   if (cleanName.length === 0 || cleanName.length > MAX_BOT_NAME || !oneLine(cleanName)) return null;
   if (instructions.length > MAX_BOT_INSTRUCTIONS || /\u0000/.test(instructions)) return null;
   if (cleanModel.length > 200 || !oneLine(cleanModel)) return null;
-  return { name: cleanName, instructions: instructions.trim(), model: cleanModel };
+  return { name: cleanName, instructions: instructions.trim(), model: cleanModel, ...(typeof mailFrom === 'string' && mailFrom.trim() ? { mailFrom: mailFrom.trim() } : {}) };
 }
 
 /** The id of the bot a conversation belongs to, among the bots that exist. Anything else belongs to Mobius. */

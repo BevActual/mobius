@@ -213,6 +213,10 @@ Built in the first round (`crates/mobius-workspace/src/index.rs`):
 - Still to do from this round: the shared manifest of kinds for chips, item chats and Assign, and Ctrl+K reading the
   same index.
 
+Built in the second round: an agent's "When mail comes" from a sender (`mailFrom` on the agent). The core checks new inbox
+mail by message id after each sync, starts the agent in a chat of its own (at most five runs per look), and the run
+lands in Home's Inbox (`mobius:agent-started`).
+
 The round after is the agent factory: "Starts when" with events, "Can use" and "Sources" on each agent, with its runs
 in the Inbox. Embeddings come after that, as an opt-in capability.
 
