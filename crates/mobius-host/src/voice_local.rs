@@ -20,7 +20,10 @@ use std::time::{Duration, Instant};
 /// Where the files are published: a prerelease that is never Latest.
 const RELEASE: &str = "https://github.com/BevActual/mobius/releases/download/voice-0.2.0/";
 /// The program for each computer and its SHA-256, from the workflow's run.
-const PROGRAMS: &[(&str, &str, &str)] = &[];
+const PROGRAMS: &[(&str, &str, &str)] = &[
+    ("windows-x86_64", "mobius-voice-0.2.0-x86_64-pc-windows-msvc.gz", "d999999cad917604cf76b9af1c406504c8f193ecdc370710d5e5fac3051cda01"),
+    ("macos-aarch64", "mobius-voice-0.2.0-aarch64-apple-darwin.gz", "9a887df3824e60ea52005b905e9f33c7523b6a596efc500aedc5b6cac454e2c8"),
+];
 /// The name it is kept under: a new version is a new file, so an old build is never run by mistake.
 const PROGRAM: &str = "mobius-voice-0.2.0";
 /// A file of a model: its name in the release, its size and its SHA-256 (the same bytes as sherpa-onnx's asr-models).
