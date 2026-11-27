@@ -552,8 +552,12 @@ test('the morning brief: Write one now asks in Ask mode, and it lands in the Inb
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
   await shell().keyboard.press('Enter');
-  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
-  await expect(inbox.getByRole('button', { name: 'Open Morning brief' })).toBeVisible();
+  const desk = shell().getByRole('region', { name: 'Desk' });
+  await expect(desk).toBeVisible();
+  // It is listed once its chat is no longer working and what it wrote is read back (each a read of the core, which
+  // takes most of a second on a busy Windows runner).
+  const inbox = desk.getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: 'Open Morning brief' })).toBeVisible({ timeout: 15_000 });
   await expect(inbox.getByRole('list', { name: 'Morning brief, as written' }).getByRole('listitem')).toHaveText(['Today', 'Two tasks due, one overdue', 'Dentist at 15:00']);
   // Nothing speaks until Play; with no voice chosen, it says so and how to set one up.
   await inbox.getByRole('button', { name: 'Play Morning brief' }).click();
