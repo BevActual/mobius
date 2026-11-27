@@ -38,7 +38,8 @@ import { useCoreStatus } from './useCoreStatus';
 import { useNotes } from './useNotes';
 import { saveAll, saveTyped } from './saveBeforeQuit';
 import { NotesSidebar } from './NotesSidebar';
-import { TasksGlance, TasksPage, TasksSidebar } from './Tasks';
+import { TasksGlance, TasksListPiece, TasksPage, TasksSidebar } from './Tasks';
+import { PIECE_APP, piecePanelId, putAway, showPiece, usePieces, type OpenPiece } from './pieces';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
 import { setLanguage } from './i18n';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
@@ -109,7 +110,7 @@ import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
 import { BESIDE_EVENT, besideUrlOk, type Beside } from './beside';
-import { PanelsListed, pressIs } from './ui/PanelLayout';
+import { PanelsListed, ShellPanelsContext, pressIs } from './ui/PanelLayout';
 import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
 import { alertDue, alertSaid } from './calendar-alerts';
 import { stopReading } from './useSpeech';
@@ -1383,6 +1384,39 @@ export function App() {
     );
   };
   ownListRef.current = ownListBody;
+  // Pieces (docs/design/pieces.md): the shell's panels, in every app's right dock until put away. Each body is drawn
+  // from the latest render through the ref, as the lists are.
+  const openPieces = usePieces();
+  const pieceBody = (p: OpenPiece): ReactNode => (p.kind === 'tasks.list' ? <TasksListPiece tasks={tasks} list={p.item} /> : null);
+  const pieceBodyRef = useRef(pieceBody);
+  pieceBodyRef.current = pieceBody;
+  const openPieceInApp = (p: OpenPiece) => {
+    openApp(PIECE_APP[p.kind].app);
+    if (p.kind === 'tasks.list') tasks.setView({ kind: 'list', name: p.item });
+  };
+  const openPieceRef = useRef(openPieceInApp);
+  openPieceRef.current = openPieceInApp;
+  const piecePanels = useMemo<readonly PanelSpec[]>(() => openPieces.map((p) => {
+    const from = PIECE_APP[p.kind].name;
+    return {
+      id: piecePanelId(p),
+      name: p.item,
+      label: `${p.item}, from ${from}`,
+      dock: 'right',
+      shown: true,
+      min: { width: 260 },
+      mobius: p.by === 'mobius',
+      hideLabel: `Put away ${p.item}`,
+      onHide: () => putAway(p.kind, p.item),
+      actions: <button type="button" title={`Open ${p.item} in ${from}`} onClick={() => openPieceRef.current(p)}>Open in {from}</button>,
+      // Using a piece Mobius brought makes it the person's: it stays when Mobius's work is done.
+      render: () => (
+        <div className="piece-body" onPointerDownCapture={() => { if (p.by === 'mobius') showPiece(p.kind, p.item, 'you'); }}>
+          {pieceBodyRef.current(p)}
+        </div>
+      ),
+    } satisfies PanelSpec;
+  }), [openPieces]);
   const settingsPanels = useMemo<readonly PanelSpec[]>(() => [
     // Settings' Sections panel: always there, as in System Settings. Hidden, it left only the page that was open and no
     // way to another.
@@ -2438,7 +2472,12 @@ export function App() {
                 onFocus={() => { if (split && focused !== index) setFocused(index); }}
                 onChoose={(next) => choosePane(index, next)} onSwap={swapPanes} onClose={() => closePane(index)}>
                 {/* The apps show the current conversation's changes as they land; their Keep waits for its turn to end. */}
-                <PanelsListed on={!split || focused === index}><TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider></PanelsListed>
+                <PanelsListed on={!split || focused === index}>
+                  {/* Pieces sit at the window's right: in split view, in the right pane only, so each shows once. */}
+                  <ShellPanelsContext.Provider value={!split || index === 1 ? piecePanels : NO_PANELS}>
+                    <TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider>
+                  </ShellPanelsContext.Provider>
+                </PanelsListed>
               </Pane>
             );
             return at === 1

@@ -389,3 +389,36 @@ test('When and Deadline: Today, Someday and the Logbook, set from Details, the m
   await lists().getByRole('button', { name: /^Logbook/ }).click();
   await expect(page().getByRole('region', { name: 'Today' }).getByRole('checkbox', { name: 'Sweep the yard' })).toBeVisible();
 });
+
+test('a list shown beside stays as a piece in other apps: tick and add there, open it in Tasks, put it away', async () => {
+  fs.mkdirSync(path.dirname(file('Errands')), { recursive: true });
+  fs.writeFileSync(file('Errands'), '# Errands\n\n- [ ] Post the parcel\n');
+  await start();
+  await lists().getByRole('button', { name: /^Errands/ }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Show beside' }).click();
+  const piece = shell().getByRole('region', { name: 'Errands, from Tasks' });
+  await expect(piece.getByRole('checkbox', { name: 'Post the parcel' })).toBeVisible();
+  // Another app: the piece is still there, at the right, and works there.
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByRole('complementary', { name: 'Notebooks' })).toBeVisible();
+  await expect(piece).toBeVisible();
+  const field = piece.getByRole('textbox', { name: 'New task', exact: true });
+  await field.fill('Buy stamps');
+  await field.press('Enter');
+  await expect(piece.getByRole('checkbox', { name: 'Buy stamps' })).toBeVisible();
+  await piece.getByRole('checkbox', { name: 'Post the parcel' }).click();
+  await expect(piece.getByRole('checkbox', { name: 'Post the parcel' })).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Errands'), 'utf8')).toBe(`# Errands\n\n- [x] Post the parcel (done ${isoToday()})\n- [ ] Buy stamps\n`);
+  // It is listed in the View menu with the app's panels, and kept across a restart of the window's layout.
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
+  await expect(shell().getByRole('menu', { name: 'View' }).getByRole('menuitemcheckbox', { name: 'Errands' })).toBeChecked();
+  await shell().keyboard.press('Escape');
+  // Open in Tasks goes to the list; Put away takes the piece off every app.
+  await piece.getByRole('button', { name: 'Open in Tasks' }).click();
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Errands');
+  await piece.getByRole('button', { name: 'Put away Errands' }).click();
+  await expect(piece).toHaveCount(0);
+  expect(await shell().evaluate(() => localStorage.getItem('mobius.pieces'))).toBe('[]');
+});

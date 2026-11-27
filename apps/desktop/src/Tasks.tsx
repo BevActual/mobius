@@ -12,6 +12,7 @@ import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, PanelLayout, type PanelSpec } from './ui';
 import './tasks.css';
+import { showPiece } from './pieces';
 import { foldWhile } from './app-motion';
 import { FADE_MS, GROW_MS } from './motion';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
@@ -146,7 +147,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
               ) : (
                 <>
                   <button type="button" className="list-row" data-proposed={changed?.has(l.name) || undefined} aria-current={current('list', l.name)} onClick={() => tasks.setView({ kind: 'list', name: l.name })}
-                    onContextMenu={(e) => { if (l.name !== DEFAULT_LIST_NAME) { e.preventDefault(); setMenu({ name: l.name, x: e.clientX, y: e.clientY }); } }}>
+                    onContextMenu={(e) => { e.preventDefault(); setMenu({ name: l.name, x: e.clientX, y: e.clientY }); }}>
                     <ListIcon name={l.name} />
                     <span className="list-name">{l.name}</span>
                     <span className="list-count" title={changed?.has(l.name) ? 'Mobius changed this list. Open it to keep or discard the change' : undefined}>{l.open || ''}</span>
@@ -154,15 +155,19 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
                   {onPin && <button type="button" className="list-pin" aria-pressed={pinned?.has(l.name) ?? false} aria-label={pinned?.has(l.name) ? `Unpin ${l.name}` : `Pin ${l.name}`} title={pinned?.has(l.name) ? 'Unpin' : 'Pin to the top'} onClick={() => onPin(l.name)}>
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
                   </button>}
-                  {l.name !== DEFAULT_LIST_NAME && (
+                  {(
                     <button type="button" className="list-more" aria-label={`More for ${l.name}`} aria-haspopup="menu" aria-expanded={menu?.name === l.name} title="More" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m?.name === l.name ? null : { name: l.name, x: r.left, y: r.bottom + 4 })); }}>
                       <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
                     </button>
                   )}
                   {menu?.name === l.name && (
                     <PointMenu x={menu.x} y={menu.y} label={l.name} onClose={() => setMenu((m) => (m?.name === l.name ? null : m))} entries={[
-                      { label: 'Rename…', run: () => setRenaming(l.name) },
-                      { label: 'Delete list…', danger: true, separated: true, run: () => setDeleting(l.name) },
+                      // Pieces (docs/design/pieces.md): the list beside whatever app is open, until it is put away.
+                      { label: 'Show beside', run: () => showPiece('tasks.list', l.name) },
+                      ...(l.name !== DEFAULT_LIST_NAME ? [
+                        { label: 'Rename…', separated: true, run: () => setRenaming(l.name) },
+                        { label: 'Delete list…', danger: true, separated: true, run: () => setDeleting(l.name) },
+                      ] : []),
                     ]} />
                   )}
                 </>
@@ -857,5 +862,30 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
         )}
       </section>
     </PanelLayout>
+  );
+}
+
+/**
+ * The Tasks list piece (docs/design/pieces.md): one list beside any app, with ticking and adding, drawn from the same
+ * rows and field as the app. The shell draws its header (the list's name, Open in Tasks, Put away).
+ */
+export function TasksListPiece({ tasks, list }: { tasks: TasksState; list: string }) {
+  const now = new Date();
+  const all = tasks.all[list];
+  if (!tasks.loaded) return <ul className="notes-loading" aria-hidden="true"><li /><li /></ul>;
+  if (all === undefined) return <p className="tasks-empty tasks-piece-gone">There is no list called “{list}” any more.</p>;
+  const open = splitDone(nest(all).map((n) => n.task)).open;
+  const subsOf = (t: TaskItem) => all.filter((s) => s.parent === t.line && s !== t);
+  return (
+    <div className="tasks-main tasks-piece">
+      <NewTask tasks={tasks} target={list} focusToken={0} defaultWhen={null} placeholder={`Add to ${list}`} />
+      {open.length === 0 ? <p className="tasks-empty">All done.</p> : (
+        <ul className="task-items" role="list" aria-label={`To do in ${list}`}>
+          {open.filter((t) => t.parent == null).map((task) => (
+            <TaskRow key={`${list}:${task.line}:${task.text}`} tasks={tasks} list={list} task={task} subtasks={subsOf(task)} showList={false} now={now} />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

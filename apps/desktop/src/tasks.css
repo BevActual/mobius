@@ -15,7 +15,7 @@
 [data-color="red"] { --lc: var(--c-coral); }
 [data-color="yellow"] { --lc: var(--c-yellow); }
 /* The check's size and gap, so the hairline, the add row and the subtasks line up with the words. */
-.tasks-page { --check: 18px; --check-gap: var(--sp-3); --row-pad: var(--sp-1); }
+.tasks-page, .tasks-piece { --check: 18px; --check-gap: var(--sp-3); --row-pad: var(--sp-1); }
 
 /* ---------- Sidebar (ui/AppSidebar) ---------- */
 
@@ -56,16 +56,18 @@
 .stage .tasks-page.tasks-page, .pane-body .tasks-page.tasks-page { display: grid; grid-template-columns: minmax(0, 1fr); padding: 0; overflow: hidden; }
 .tasks-page > .tasks-main { max-width: none; margin: 0; }
 .tasks-main { min-width: 0; overflow: auto; padding: var(--sp-6) var(--sp-8) var(--sp-8); }
+/* The Tasks list piece: the same rows and field, at a panel's margins. */
+.tasks-main.tasks-piece { height: 100%; box-sizing: border-box; padding: var(--sp-2) var(--sp-2) var(--sp-4); }
 .tasks-main > * { max-width: var(--reading-w); margin-left: auto; margin-right: auto; }
 /* The tasks line up under the add row, at the same width. */
 .tasks-main > .task-items { margin-left: auto; margin-right: auto; }
 
 /* The add row: a row like the others, with a + where the check would be. */
-.tasks-page .task-new { gap: var(--check-gap); min-height: var(--row-list); padding: 0 var(--sp-2) 0 var(--row-pad); border-bottom: 0; border-radius: var(--radius-control); }
-.tasks-page .task-new:focus-within { background: color-mix(in srgb, var(--sel) 55%, transparent); }
-.tasks-page .task-new input[aria-label="New task"] { height: var(--control-h); font-size: var(--fs-md); }
+:is(.tasks-page, .tasks-piece) .task-new { gap: var(--check-gap); min-height: var(--row-list); padding: 0 var(--sp-2) 0 var(--row-pad); border-bottom: 0; border-radius: var(--radius-control); }
+:is(.tasks-page, .tasks-piece) .task-new:focus-within { background: color-mix(in srgb, var(--sel) 55%, transparent); }
+:is(.tasks-page, .tasks-piece) .task-new input[aria-label="New task"] { height: var(--control-h); font-size: var(--fs-md); }
 .task-new input[aria-label="New task"]::placeholder { color: var(--faint); }
-.tasks-page .task-date { height: var(--control-h); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+:is(.tasks-page, .tasks-piece) .task-date { height: var(--control-h); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .task-when { flex: none; height: var(--control-h); padding: 0 var(--sp-2); gap: var(--sp-1); border: 0; border-radius: var(--radius-pill); background: var(--sel); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; animation: tasks-pop var(--dur-fast) var(--ease); }
 .task-when svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .task-new:has(.task-when) .task-date { display: none; }
@@ -115,18 +117,18 @@ html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list
 .task-items .task-body:has(> .task-edit) > .task-note { display: none; }
 
 /* The trailing edge: subtask count, list, flag, then the due date. Grey and tabular; red only when overdue. */
-.tasks-page .task-meta { flex: none; display: inline-flex; align-items: center; gap: var(--sp-3); margin-left: auto; padding: 0; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
-.tasks-page .task-meta .task-list::before { content: none; }
+:is(.tasks-page, .tasks-piece) .task-meta { flex: none; display: inline-flex; align-items: center; gap: var(--sp-3); margin-left: auto; padding: 0; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+:is(.tasks-page, .tasks-piece) .task-meta .task-list::before { content: none; }
 .task-list { display: inline-flex; align-items: center; }
 /* When it is planned for (Things' When), grey beside the deadline: a day, or Someday. */
 .task-plan { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .inspector-someday { color: var(--ink); }
 .task-list .list-dot { width: var(--sp-4); height: var(--sp-4); }
 .task-list .list-dot::before { width: 6px; height: 6px; }
-.tasks-page .task-due { color: var(--muted); font-weight: var(--fw-regular); }
-.tasks-page .task-due[data-tone="today"] { color: var(--muted); font-weight: var(--fw-regular); }
-.tasks-page .task-due[data-tone="late"] { color: var(--danger); }
-.tasks-page .task[data-done] > .task-line .task-due { color: var(--muted); }
+:is(.tasks-page, .tasks-piece) .task-due { color: var(--muted); font-weight: var(--fw-regular); }
+:is(.tasks-page, .tasks-piece) .task-due[data-tone="today"] { color: var(--muted); font-weight: var(--fw-regular); }
+:is(.tasks-page, .tasks-piece) .task-due[data-tone="late"] { color: var(--danger); }
+:is(.tasks-page, .tasks-piece) .task[data-done] > .task-line .task-due { color: var(--muted); }
 .task-flagged { flex: none; display: inline-grid; place-items: center; color: var(--muted); }
 .task-flagged svg { width: 13px; height: 13px; fill: currentColor; stroke: currentColor; stroke-width: 1.2; stroke-linejoin: round; }
 .task-repeat { display: inline-flex; align-items: center; color: var(--muted); vertical-align: -2px; }
@@ -164,11 +166,11 @@ html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list
 .tasks-searching { display: flex; align-items: center; justify-content: space-between; margin-top: 0; color: var(--muted); font-size: var(--fs-sm); }
 
 /* An empty view: one plain line under the add row, which is the New action. */
-.tasks-page .tasks-empty { margin: var(--sp-6) auto 0; color: var(--muted); font-size: var(--fs-md); text-align: center; }
-.tasks-page .tasks-message { font-size: var(--fs-sm); }
+:is(.tasks-page, .tasks-piece) .tasks-empty { margin: var(--sp-6) auto 0; color: var(--muted); font-size: var(--fs-md); text-align: center; }
+:is(.tasks-page, .tasks-piece) .tasks-message { font-size: var(--fs-sm); }
 
 /* The Completed fold. */
-.tasks-page .tasks-done-head { min-height: var(--row-list); }
+:is(.tasks-page, .tasks-piece) .tasks-done-head { min-height: var(--row-list); }
 .tasks-done-head .notebook-toggle { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--muted); }
 .tasks-done-more { opacity: 0; }
 .tasks-done-head:is(:hover, :focus-within) .tasks-done-more, .tasks-done-more[aria-expanded="true"], .tasks-done-more[data-popup-open] { opacity: 1; }
@@ -227,7 +229,7 @@ html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list
 }
 
 /* Completed sits one row's gap under the list, as part of it. */
-.tasks-page .tasks-done { margin-top: var(--sp-2); }
+:is(.tasks-page, .tasks-piece) .tasks-done { margin-top: var(--sp-2); }
 /* A list Mobius changed keeps its count; the change itself is shown in the list (and under From Mobius), not as a dot. */
 .ui-dock[data-dock="left"] .side .list-row[data-proposed]:has(> .list-count)::after { content: none; }
 /* The page heading: the list's name, the size Settings and Knowledge use, and its count, muted. */

@@ -110,6 +110,12 @@
 .ui-panel { display: flex; flex-direction: column; }
 .ui-panel-head { flex: none; display: flex; align-items: center; gap: var(--sp-2); height: var(--panel-head-h, var(--control-h)); padding: 0 var(--sp-1) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); }
 .ui-panel-name { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
+/* A piece's own buttons (Open in Tasks) sit before Hide, as quiet as it is. */
+.ui-panel-actions { flex: none; display: flex; align-items: center; gap: var(--sp-1); }
+.ui-panel-actions button { height: var(--sp-6); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); font: inherit; font-size: var(--fs-xs); }
+.ui-panel-actions button:hover, .ui-panel-close:hover { color: var(--ink); background: var(--sel); }
+/* Brought by Mobius and not yet the person's: the dashed edge, as Mobius's changes have. Only the edge changes when it becomes theirs. */
+.ui-panel[data-mobius] { outline: calc(var(--hairline-w) * 2) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -2); transition: outline-color var(--dur-fast) var(--ease); }
 /* A tab group's header: the panels' names as tabs, the one in front ink with an ink underline on the header's edge. */
 .ui-panel[data-tabbed] > .ui-panel-head { padding-left: var(--sp-1); }
 .ui-panel-tabs { flex: 1; display: flex; align-items: stretch; align-self: stretch; gap: var(--sp-1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
