@@ -1,6 +1,6 @@
 import { useSideFolds } from '../side-fold';
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { Menu, type MenuEntry } from './Menu';
+import { Menu, PointMenu, type MenuEntry } from './Menu';
 import { useInspector } from './PanelTabs';
 import { afterPaint } from './frame';
 import { dockIn, dockLeaves, dockOut } from '../motion';
@@ -57,6 +57,8 @@ export interface SavedLayout {
   size: Partial<Record<PanelDock, number>>;
   /** The panel in front of each tab group, by group. */
   front?: Record<string, string>;
+  /** Panels the person moved to another dock, by id. */
+  dock?: Record<string, PanelDock>;
 }
 
 const storeKey = (app: string) => `mobius.layout.${app}`;
@@ -74,7 +76,8 @@ export function parseLayout(text: string | null): SavedLayout {
       if (typeof n === 'number' && Number.isFinite(n)) size[dock] = n;
     }
     const front = Object.fromEntries(Object.entries(v.front ?? {}).filter(([, id]) => typeof id === 'string')) as Record<string, string>;
-    return Object.keys(front).length > 0 ? { shown, size, front } : { shown, size };
+    const dock = Object.fromEntries(Object.entries(v.dock ?? {}).filter(([, d]) => (DOCKS as readonly unknown[]).includes(d))) as Record<string, PanelDock>;
+    return { shown, size, ...(Object.keys(front).length > 0 ? { front } : {}), ...(Object.keys(dock).length > 0 ? { dock } : {}) };
   } catch {
     return EMPTY;
   }
@@ -85,7 +88,7 @@ function readLayout(app: string): SavedLayout {
 }
 function writeLayout(app: string, layout: SavedLayout) {
   try {
-    if (DOCKS.every((d) => layout.size[d] === undefined) && Object.keys(layout.shown).length === 0 && Object.keys(layout.front ?? {}).length === 0) window.localStorage.removeItem(storeKey(app));
+    if (DOCKS.every((d) => layout.size[d] === undefined) && Object.keys(layout.shown).length === 0 && Object.keys(layout.front ?? {}).length === 0 && Object.keys(layout.dock ?? {}).length === 0) window.localStorage.removeItem(storeKey(app));
     else window.localStorage.setItem(storeKey(app), JSON.stringify(layout));
   } catch { /* Kept only until Mobius closes. */ }
 }
@@ -131,6 +134,8 @@ export function pressIs(keys: string, e: { key: string; ctrlKey: boolean; metaKe
 export interface PanelsOfApp {
   panels: { id: string; name: string; dock: PanelDock; shown: boolean; keys?: string }[];
   toggle: (id: string) => void;
+  /** Puts a panel in another dock, shown; its own dock again forgets the move. */
+  move?: (id: string, dock: PanelDock) => void;
   /** Back to the app's own layout: its panels as declared, its docks at their default sizes. */
   reset: () => void;
 }
@@ -146,8 +151,10 @@ const mac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.plat
  * `away` is true while the app is put aside for another place (Settings over it): its docks then go and come back with
  * that place, without sliding.
  */
-export function PanelLayout({ app, panels, away = false, children }: { app: string; panels: readonly PanelSpec[]; away?: boolean; children: ReactNode }) {
+export function PanelLayout({ app, panels: declared, away = false, children }: { app: string; panels: readonly PanelSpec[]; away?: boolean; children: ReactNode }) {
   const [saved, setSaved] = useState<SavedLayout>(() => readLayout(app));
+  // Each panel where it is now: in the dock the person moved it to, or its own.
+  const panels = useMemo(() => placedPanels(declared, saved.dock), [declared, saved.dock]);
   // Another app's layout is read when the app changes; not again on mount, which would draw everything a second time.
   const readFor = useRef(app);
   useEffect(() => {
@@ -174,6 +181,16 @@ export function PanelLayout({ app, panels, away = false, children }: { app: stri
     update((was) => ({ ...withFront(was, on ? [] : [p]), shown: { ...was.shown, [id]: !on } }));
   }, [panels, isShown, isFront, update]);
   const reset = useCallback(() => update(() => EMPTY), [update]);
+  const move = useCallback((id: string, dock: PanelDock) => {
+    const own = declared.find((x) => x.id === id);
+    if (!own || own.fixed) return;
+    update((was) => {
+      const moved = { ...was.dock };
+      if (dock === own.dock) delete moved[id]; else moved[id] = dock;
+      const { dock: _, ...rest } = was;
+      return { ...rest, ...(Object.keys(moved).length > 0 ? { dock: moved } : {}), shown: { ...was.shown, [id]: true } };
+    });
+  }, [declared, update]);
   // A panel whose `reveal` changed since the last render is shown.
   const reveals = useRef<Record<string, number | undefined>>({});
   useEffect(() => {
@@ -188,7 +205,8 @@ export function PanelLayout({ app, panels, away = false, children }: { app: stri
     panels: panels.filter((p) => !p.fixed).map((p) => ({ id: p.id, name: p.name, dock: p.dock, shown: isShown(p), ...(p.keys ? { keys: p.keys } : {}) })),
     toggle,
     reset,
-  }), [panels, isShown, toggle, reset]);
+    move,
+  }), [panels, isShown, toggle, reset, move]);
   useEffect(() => { register?.(listed); }, [register, listed]);
   useEffect(() => () => register?.(null), [register]);
 
@@ -252,8 +270,10 @@ export function PanelLayout({ app, panels, away = false, children }: { app: stri
     if (rest.length > 0) update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(rest.map((p) => [p.id, false])) } }));
   };
   const choose = (p: PanelSpec) => update((was) => withFront(was, [p]));
+  // Moving a panel: its header dragged over a dock's edge of the page (or its menu's Move to).
+  const [moving, setMoving] = useState<{ id: string; from: PanelDock; over: PanelDock | null } | null>(null);
   const draw = (shown: PanelSpec[]) => dockPlaces(shown, saved.front).map((place) => (
-    <Panel key={place.key} place={place} onHide={() => hide(place)} onChoose={choose} />
+    <Panel key={place.key} place={place} onHide={() => hide(place)} onChoose={choose} onMove={(p, dock) => move(p.id, dock)} onDrag={setMoving} />
   ));
 
   // Each dock slides out of its edge as it opens and back as it closes (dockIn, dockOut); switching app, or going to
@@ -267,7 +287,7 @@ export function PanelLayout({ app, panels, away = false, children }: { app: stri
   const leaving = (m: DockMotion) => (m.leaving ? { inert: true, 'aria-hidden': true } : {});
 
   return (
-    <div className="ui-panels" data-app={app}>
+    <div className="ui-panels" data-app={app} {...(moving ? { 'data-moving-panel': moving.id } : {})}>
       {l.panels.length > 0 && (
         <div ref={leftDock} className="ui-dock" data-dock="left" style={{ width: l.size }} {...leaving(l)}>
           {draw(l.panels)}
@@ -289,8 +309,31 @@ export function PanelLayout({ app, panels, away = false, children }: { app: stri
           {draw(r.panels)}
         </div>
       )}
+      {moving && (
+        <div className="ui-dock-targets" aria-hidden="true">
+          {DOCKS.filter((d) => d !== moving.from).map((d) => <div key={d} className="ui-dock-target" data-dock={d} data-over={moving.over === d || undefined} />)}
+        </div>
+      )}
     </div>
   );
+}
+
+/** Panels in the docks the person moved them to (a fixed panel stays). */
+export function placedPanels(declared: readonly PanelSpec[], moved: SavedLayout['dock']): PanelSpec[] {
+  return declared.map((p) => {
+    const to = moved?.[p.id];
+    return to && to !== p.dock && !p.fixed ? { ...p, dock: to } : p;
+  });
+}
+
+/** Where a panel dragged to (x, y) over the page would go: near its left or right side, or its bottom; else nowhere. */
+export function dockAt(x: number, y: number, page: { left: number; top: number; width: number; height: number }): PanelDock | null {
+  const [dx, dy] = [(x - page.left) / page.width, (y - page.top) / page.height];
+  if (dx < 0 || dx > 1 || dy < 0 || dy > 1) return null;
+  if (dx < 0.22) return 'left';
+  if (dx > 0.78) return 'right';
+  if (dy > 0.7) return 'bottom';
+  return null;
 }
 
 interface DockMotion { panels: PanelSpec[]; size: number; leaving: boolean }
@@ -336,10 +379,55 @@ function withFront(was: SavedLayout, shown: readonly PanelSpec[]): SavedLayout {
 }
 
 /** Every panel has the same header: its name (or, for a tab group, its tabs), then close. Nothing else lives there. */
-function Panel({ place, onHide, onChoose }: { place: DockPlace; onHide: () => void; onChoose: (p: PanelSpec) => void }) {
+function Panel({ place, onHide, onChoose, onMove, onDrag }: {
+  place: DockPlace;
+  onHide: () => void;
+  onChoose: (p: PanelSpec) => void;
+  onMove: (p: PanelSpec, dock: PanelDock) => void;
+  onDrag: (moving: { id: string; from: PanelDock; over: PanelDock | null } | null) => void;
+}) {
   const spec = place.front;
   const tabbed = place.panels.length > 1;
   const list = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const movable = !spec.fixed;
+  const moveEntries: MenuEntry[] = movable ? DOCKS.filter((d) => d !== spec.dock).map((d) => ({ label: d === 'bottom' ? 'Move to the bottom' : `Move to the ${d}`, run: () => onMove(spec, d) })) : [];
+  const drag = useRef<{ x: number; y: number; page: DOMRect; over: PanelDock | null; live: boolean } | null>(null);
+  const [held, setHeld] = useState(false);
+  const down = (e: ReactPointerEvent<HTMLElement>) => {
+    if (!movable || e.button !== 0 || (e.target as Element).closest('button')) return;
+    const page = e.currentTarget.closest('.ui-panels')?.getBoundingClientRect();
+    if (!page) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { x: e.clientX, y: e.clientY, page, over: null, live: false };
+  };
+  const dragMove = (e: ReactPointerEvent<HTMLElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    if (!d.live && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
+    const at = dockAt(e.clientX, e.clientY, d.page);
+    const over = at === spec.dock ? null : at;
+    // The page draws again only when the drag starts or the dock under it changes.
+    if (d.live && over === d.over) return;
+    if (!d.live) setHeld(true);
+    d.live = true;
+    d.over = over;
+    onDrag({ id: spec.id, from: spec.dock, over });
+  };
+  const drop = (keep: boolean) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d?.live) return;
+    setHeld(false);
+    onDrag(null);
+    if (keep && d.over) onMove(spec, d.over);
+  };
+  // Escape puts a dragged panel back where it was.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape' && drag.current?.live) { e.preventDefault(); e.stopPropagation(); drop(false); } };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  });
   const key = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     const at = place.panels.indexOf(spec);
     const to = e.key === 'ArrowRight' ? at + 1 : e.key === 'ArrowLeft' ? at - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? place.panels.length - 1 : null;
@@ -351,8 +439,23 @@ function Panel({ place, onHide, onChoose }: { place: DockPlace; onHide: () => vo
   };
   const hideLabel = tabbed ? `Hide ${place.panels.map((p) => p.name).join(', ')}` : `Hide ${spec.name}`;
   return (
-    <section className="ui-panel" aria-label={spec.label ?? spec.name} data-panel={spec.id} {...(tabbed ? { 'data-tabbed': true } : {})}>
-      <header className="ui-panel-head">
+    <section className="ui-panel" aria-label={spec.label ?? spec.name} data-panel={spec.id} {...(tabbed ? { 'data-tabbed': true } : {})} {...(held ? { 'data-held': true } : {})}>
+      <header
+        className="ui-panel-head"
+        {...(movable ? { 'data-movable': true } : {})}
+        onPointerDown={down}
+        onPointerMove={dragMove}
+        onPointerUp={() => drop(true)}
+        onPointerCancel={() => drop(false)}
+        onLostPointerCapture={() => drop(false)}
+        onContextMenu={(e) => {
+          if (!movable) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const at = e.currentTarget.getBoundingClientRect();
+          setMenu({ x: e.clientX || at.left + 8, y: e.clientY || at.bottom });
+        }}
+      >
         {tabbed ? (
           <div ref={list} className="ui-panel-tabs" role="tablist" aria-label="Panels" onKeyDown={key}>
             {place.panels.map((p) => {
@@ -382,6 +485,15 @@ function Panel({ place, onHide, onChoose }: { place: DockPlace; onHide: () => vo
           </button>
         )}
       </header>
+      {menu && (
+        <PointMenu
+          x={menu.x}
+          y={menu.y}
+          label={`${spec.name} panel`}
+          entries={[...moveEntries, { label: hideLabel, run: onHide, separated: true }]}
+          onClose={() => setMenu(null)}
+        />
+      )}
       <div className="ui-panel-body" id={`panel-body-${spec.id}`} {...(tabbed ? { role: 'tabpanel', 'aria-labelledby': `panel-tab-${spec.id}` } : {})}>{spec.render()}</div>
     </section>
   );

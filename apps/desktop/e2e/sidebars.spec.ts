@@ -189,3 +189,39 @@ test('the Mobius panel starts closed, and its button opens it beside the work', 
   await expect(shell().locator('.dock.right > .chat')).toBeVisible();
   await expect(shell().getByRole('button', { name: 'Hide Mobius', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('a panel moves to another dock from its header\'s menu or by dragging its header, and stays there', async () => {
+  await goTo(shell(), 'Tasks');
+  const lists = (dock: string) => shell().locator(`.ui-dock[data-dock="${dock}"] section[aria-label="Lists"]`);
+  await expect(lists('left')).toBeVisible();
+  // Its header's menu (right-click, or the menu key) moves it.
+  await lists('left').locator('.ui-panel-head').click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Move to the right' }).click();
+  await expect(lists('right')).toBeVisible();
+  await expect(lists('left')).toHaveCount(0);
+  // Dragging its header near the page's left side moves it back; the docks it could go to show while it is held.
+  const head = (await lists('right').locator('.ui-panel-head').boundingBox())!;
+  const page = (await shell().locator('.ui-panels').boundingBox())!;
+  await shell().mouse.move(head.x + 20, head.y + head.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(page.x + page.width / 2, page.y + page.height / 2, { steps: 4 });
+  await expect(shell().locator('.ui-dock-target')).toHaveCount(2);
+  await shell().mouse.move(page.x + 40, page.y + page.height / 2, { steps: 4 });
+  await expect(shell().locator('.ui-dock-target[data-dock="left"][data-over]')).toHaveCount(1);
+  await shell().mouse.up();
+  await expect(shell().locator('.ui-dock-target')).toHaveCount(0);
+  await expect(lists('left')).toBeVisible();
+  // Escape while dragging leaves it where it was.
+  const again = (await lists('left').locator('.ui-panel-head').boundingBox())!;
+  await shell().mouse.move(again.x + 20, again.y + again.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(page.x + page.width - 40, page.y + page.height / 2, { steps: 6 });
+  await shell().keyboard.press('Escape');
+  await shell().mouse.up();
+  await expect(lists('left')).toBeVisible();
+  // The move is kept with the app's layout; Reset layout puts it back.
+  await lists('left').locator('.ui-panel-head').click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Move to the bottom' }).click();
+  await expect(lists('bottom')).toBeVisible();
+  expect(await shell().evaluate(() => JSON.parse(localStorage.getItem('mobius.layout.tasks') ?? '{}').dock)).toEqual({ list: 'bottom' });
+});

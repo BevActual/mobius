@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { DOCK_KEYS, DOCK_SIZE, PanelLayout, clampDock, dockPlaces, parseLayout, pressIs, type PanelSpec } from './PanelLayout';
+import { DOCK_KEYS, DOCK_SIZE, PanelLayout, clampDock, dockAt, dockPlaces, parseLayout, placedPanels, pressIs, type PanelSpec } from './PanelLayout';
 
 const press = (key: string, over: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({ key, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...over });
 
@@ -102,8 +102,35 @@ describe('panels', () => {
     expect(parseLayout('{"shown":{"a":true,"b":"x"},"size":{"right":400,"bottom":"tall"}}')).toEqual({ shown: { a: true }, size: { right: 400 } });
     expect(parseLayout('{"shown":{},"size":{"left":300}}')).toEqual({ shown: {}, size: { left: 300 } });
     expect(parseLayout('{"shown":{},"size":{},"front":{"run":"tests","bad":3}}')).toEqual({ shown: {}, size: {}, front: { run: 'tests' } });
+    expect(parseLayout('{"shown":{},"size":{},"dock":{"outline":"left","x":"top"}}')).toEqual({ shown: {}, size: {}, dock: { outline: 'left' } });
     expect(parseLayout('not json')).toEqual({ shown: {}, size: {} });
     expect(parseLayout(null)).toEqual({ shown: {}, size: {} });
+  });
+
+  it('put a moved panel in the dock it was moved to, except a fixed one, and draw it there', () => {
+    const outline: PanelSpec = { id: 'outline', name: 'Outline', dock: 'right', shown: true, render: () => <p>Symbols</p> };
+    const list: PanelSpec = { id: 'list', name: 'Sections', dock: 'left', fixed: true, render: () => <p>List</p> };
+    const placed = placedPanels([outline, list], { outline: 'bottom', list: 'right' });
+    expect(placed.map((p) => p.dock)).toEqual(['bottom', 'left']);
+    expect(placed[1]).toBe(list);
+    const was = (globalThis as { window?: unknown }).window;
+    (globalThis as { window?: unknown }).window = { localStorage: { getItem: () => JSON.stringify({ shown: {}, size: {}, dock: { outline: 'left' } }) } };
+    try {
+      const html = renderToStaticMarkup(<PanelLayout app="code" panels={[outline]}><p>Content</p></PanelLayout>);
+      expect(html).toContain('data-dock="left"');
+      expect(html).not.toContain('data-dock="right"');
+    } finally {
+      (globalThis as { window?: unknown }).window = was;
+    }
+  });
+
+  it('take a panel dragged near the page\'s sides or bottom to that dock, and anywhere else to none', () => {
+    const page = { left: 0, top: 0, width: 1000, height: 800 };
+    expect(dockAt(100, 400, page)).toBe('left');
+    expect(dockAt(900, 400, page)).toBe('right');
+    expect(dockAt(500, 700, page)).toBe('bottom');
+    expect(dockAt(500, 300, page)).toBeNull();
+    expect(dockAt(-5, 300, page)).toBeNull();
   });
 
   it('match keys with mod as Control (or Command on a Mac), and nothing extra held', () => {
