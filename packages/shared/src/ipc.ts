@@ -186,6 +186,13 @@ export interface MusicPosition {
   session?: Record<string, { slot: number | null; start: number | null; queued: number | 'stop' | null }>;
 }
 
+/** What a page of Code's preview reported (`code.onPreview`). Paths are the page's own, from the project's folder. */
+export type CodePreviewReport = { project: string } & (
+  | { kind: 'error'; message: string; source?: string; line?: number; column?: number; stack?: string }
+  | { kind: 'pick'; selector?: string; tag?: string; text?: string; html?: string; path?: string }
+  | { kind: 'pickCancelled' }
+  | { kind: 'loaded'; path?: string; title?: string }
+);
 export interface NotesFailure { ok: false; message: string; conflict?: boolean }
 /** `undo` is something put back from the review strip: open pages reload, as for the assistant, without new marks. */
 export interface NotesChange { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
@@ -1235,6 +1242,10 @@ export interface MobiusBridge {
     /** The project's folder served on this computer only, for its preview in the Browser beside Code. */
     preview?(project: string): Promise<{ url: string } | NotesFailure>;
     stopPreview?(project: string): Promise<{ ok: true } | NotesFailure>;
+    /** Tells the preview's open pages to reload, or to let the person pick an element (`stopPick` ends that); `pages` heard it. */
+    previewSay?(project: string, what: 'reload' | 'pick' | 'stopPick'): Promise<{ ok: true; pages: number } | NotesFailure>;
+    /** What the preview's pages report: an error, the element picked, a pick given up, a page loaded. */
+    onPreview?(listener: (report: CodePreviewReport) => void): () => void;
     testCommand(project: string): Promise<{ command: string | null; suggested: string | null } | NotesFailure>;
     setTestCommand(project: string, command: string): Promise<{ ok: true } | NotesFailure>;
     runTests(project: string): Promise<CodeTestRun | NotesFailure>;

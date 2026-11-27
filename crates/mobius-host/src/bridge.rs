@@ -3715,8 +3715,17 @@ impl Bridge {
                 _ => Err("a project and a command are needed".to_owned()),
             },
             // The project's folder served on this computer, for its preview in the Browser beside Code.
-            "preview" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p).and_then(|dir| self.code_previews.serve(p, &dir))).map(|url| json!({ "url": url })),
+            // Its pages report their errors and the element the person picks as `mobius:code-preview`.
+            "preview" => text(0).ok_or_else(need).and_then(|p| {
+                let emit = self.emit.clone();
+                code.project_dir(p).and_then(|dir| self.code_previews.serve(p, &dir, Arc::new(move |report| emit("mobius:code-preview", report))))
+            }).map(|url| json!({ "url": url })),
             "stopPreview" => text(0).ok_or_else(need).map(|p| { self.code_previews.stop(p); json!({ "ok": true }) }),
+            // Tells the preview's open pages to reload, or to let the person pick an element (or stop).
+            "previewSay" => match (text(0), text(1).and_then(crate::code_preview::Say::parse)) {
+                (Some(p), Some(what)) => self.code_previews.say(p, what).map(|pages| json!({ "ok": true, "pages": pages })).ok_or_else(|| "the preview is not running".to_owned()),
+                _ => Err("a project and reload, pick or stopPick are needed".to_owned()),
+            },
             "git" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p)).map(|dir| crate::code_git::status(&dir)),
             "commit" => match (text(0), text(1)) {
                 (Some(p), Some(m)) => code.project_dir(p).and_then(|dir| crate::code_git::commit(&dir, m)),
