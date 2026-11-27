@@ -5,6 +5,8 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -49,11 +51,35 @@ pub fn suggested_command(dir: &Path) -> Option<&'static str> {
 pub struct TestCommands {
     file: PathBuf,
     lock: Mutex<()>,
+    /// The person's runs going now, by project, each with its Stop.
+    running: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 
 impl TestCommands {
     pub fn new(file: impl Into<PathBuf>) -> TestCommands {
-        TestCommands { file: file.into(), lock: Mutex::new(()) }
+        TestCommands { file: file.into(), lock: Mutex::new(()), running: Mutex::default() }
+    }
+
+    /// A run starting in `project`: its Stop, until `ended`.
+    pub fn started(&self, project: &str) -> Arc<AtomicBool> {
+        let stop = Arc::new(AtomicBool::new(false));
+        if let Ok(mut all) = self.running.lock() {
+            all.insert(project.to_owned(), Arc::clone(&stop));
+        }
+        stop
+    }
+
+    pub fn ended(&self, project: &str, stop: &Arc<AtomicBool>) {
+        if let Ok(mut all) = self.running.lock()
+            && all.get(project).is_some_and(|s| Arc::ptr_eq(s, stop))
+        {
+            all.remove(project);
+        }
+    }
+
+    /// Stops the run going in `project`; false when none is.
+    pub fn stop(&self, project: &str) -> bool {
+        self.running.lock().ok().and_then(|all| all.get(project).map(|s| s.store(true, Ordering::SeqCst))).is_some()
     }
 
     fn all(&self) -> Map<String, Value> {
@@ -165,8 +191,18 @@ pub fn shell_command(dir: &Path, command: &str) -> Command {
 /// The result of one run: whether it passed (exit code 0), the code, the output (stdout and stderr, in the order
 /// they came as far as two pipes allow, cut to the last 64 KB), how long it took, and whether it ran out of time.
 pub fn run(dir: &Path, command: &str, timeout: Duration) -> Value {
+    run_until(dir, command, timeout, &AtomicBool::new(false))
+}
+
+/// As `run`, and stopped (with all it started) as soon as `stop` is set.
+pub fn run_until(dir: &Path, command: &str, timeout: Duration, stop: &AtomicBool) -> Value {
     let started = Instant::now();
     let mut cmd = shell_command(dir, command);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => return json!({ "ok": false, "passed": false, "code": null, "output": format!("The test command could not start: {e}"), "seconds": 0.0, "timedOut": false }),
@@ -194,13 +230,18 @@ pub fn run(dir: &Path, command: &str, timeout: Duration) -> Value {
             })
         })
         .collect();
-    let mut timed_out = false;
+    let (mut timed_out, mut stopped) = (false, false);
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break Some(status),
+            Ok(None) if stop.load(Ordering::SeqCst) => {
+                stopped = true;
+                crate::code_processes::kill_tree(&mut child);
+                break None;
+            }
             Ok(None) if started.elapsed() > timeout => {
                 timed_out = true;
-                let _ = child.kill();
+                crate::code_processes::kill_tree(&mut child);
                 break child.wait().ok();
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(50)),
@@ -209,7 +250,7 @@ pub fn run(dir: &Path, command: &str, timeout: Duration) -> Value {
     };
     // Something the command started may still hold the pipes open; wait a little for the rest of the output, no more.
     let waited = Instant::now();
-    while !timed_out && readers.iter().any(|r| !r.is_finished()) && waited.elapsed() < Duration::from_secs(2) {
+    while !timed_out && !stopped && readers.iter().any(|r| !r.is_finished()) && waited.elapsed() < Duration::from_secs(2) {
         std::thread::sleep(Duration::from_millis(20));
     }
     let bytes = output.lock().map(|o| o.clone()).unwrap_or_default();
@@ -219,8 +260,11 @@ pub fn run(dir: &Path, command: &str, timeout: Duration) -> Value {
     if timed_out {
         text.push_str(&format!("\nStopped after {} seconds.", timeout.as_secs()));
     }
+    if stopped {
+        text.push_str("\nStopped.");
+    }
     let code = status.and_then(|s| s.code());
-    json!({ "ok": true, "passed": code == Some(0) && !timed_out, "code": code, "output": text, "seconds": (started.elapsed().as_secs_f64() * 100.0).round() / 100.0, "timedOut": timed_out })
+    json!({ "ok": true, "passed": code == Some(0) && !timed_out && !stopped, "code": code, "output": text, "seconds": (started.elapsed().as_secs_f64() * 100.0).round() / 100.0, "timedOut": timed_out, "stopped": stopped })
 }
 
 /// Colour codes some tools print even when asked not to.
@@ -257,6 +301,32 @@ pub fn tool_text(project: &str, result: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn a_run_is_stopped_with_what_it_started() {
+        let dir = tempfile::tempdir().unwrap();
+        let commands = TestCommands::new(dir.path().join("t.json"));
+        assert!(!commands.stop("p"));
+        let stop = commands.started("p");
+        let flag = Arc::clone(&stop);
+        let marker = dir.path().join("late");
+        let later = format!("sleep 1 && touch {}", marker.display());
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            flag.store(true, Ordering::SeqCst);
+        });
+        let t = Instant::now();
+        let result = run_until(dir.path(), &format!("echo begun; ({later}) & sleep 30"), TIMEOUT, &stop);
+        assert!(t.elapsed() < Duration::from_secs(5), "{:?}", t.elapsed());
+        assert_eq!((result["passed"].as_bool(), result["stopped"].as_bool()), (Some(false), Some(true)));
+        assert!(result["output"].as_str().unwrap().ends_with("Stopped."), "{result}");
+        std::thread::sleep(Duration::from_millis(1500));
+        assert!(!marker.exists(), "what the command started was stopped too");
+        assert!(commands.stop("p"));
+        commands.ended("p", &stop);
+        assert!(!commands.stop("p"));
+    }
 
     #[test]
     fn a_run_buttons_addition_is_only_arguments() {

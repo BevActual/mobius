@@ -254,7 +254,8 @@ A code editor for projects in your workspace.
   server that is missing or would not start says so in the status line, with Retry.
 - **Run buttons** sit beside each test and group of tests in a test file (Vitest, Jest, cargo, pytest and go test).
   One saves the file, runs your test command narrowed to that test, and turns green or red with how it went. Your
-  chosen command stays as it is; a runner Code does not know runs the whole command.
+  chosen command stays as it is; a runner Code does not know runs the whole command. **Stop** on the Tests panel, or the
+  running test's own button, ends a run and everything it started.
 - **Split** (Ctrl+\\) puts a second editor beside the first, on the same file or another one; F6 moves between them.
 - **Fix with Mobius**: a problem's hover, its row in Problems, or Ctrl+. on its line sends it to Mobius with its
   place, to fix as a change you keep or discard.

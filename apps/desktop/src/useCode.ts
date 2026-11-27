@@ -254,8 +254,14 @@ export function useCode(active = true) {
         const why = lines.find((l) => testLineKind(l) === 'fail') ?? lines.at(-1);
         if (!result.passed && why) notes.set(only.key, why.slice(0, 200)); else notes.delete(only.key);
       }
-      return { ...was, running: false, last: result, by: 'person', results: mark(result.passed ? 'passed' : 'failed')(was.results), notes };
+      return { ...was, running: false, last: result, by: 'person', results: mark(result.stopped ? null : result.passed ? 'passed' : 'failed')(was.results), notes };
     });
+  }, [api]);
+
+  /** Stop on the Tests panel: the run going ends, with all it started; its output says so. */
+  const stopTests = useCallback(async () => {
+    const now = live.current;
+    if (api?.stopTests && now.project) await api.stopTests(now.project).catch(() => null);
   }, [api]);
 
   const runCommand = useCallback(async (command: string) => {
@@ -336,7 +342,7 @@ export function useCode(active = true) {
 
   return {
     available: api !== undefined, projects, project, recent, entries, open, draft, setDraft, dirty, tabs, closeTab, unsaved, message, setMessage, expanded, toggle, tests,
-    git, commit, push, consoleRuns, runCommand, processes, startProcess, stopProcess, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests,
+    git, commit, push, consoleRuns, runCommand, processes, startProcess, stopProcess, refresh, openProject, openFile, save, write, reload, createProject, createFile, removeFile, setTestCommand, runTests, stopTests,
   };
 }
 export type CodeState = ReturnType<typeof useCode>;

@@ -289,7 +289,7 @@ export interface DbChange { name: string | null; by: 'person' | 'assistant' | 'a
 export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
 export interface CodeBranch { name: string; current: boolean; when: number }
 export interface CodeCommit { id: string; when: number; author: string; subject: string; pushed: boolean }
-export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
+export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean; /** Stopped by the person's Stop. */ stopped?: boolean }
 export interface CodeProcess { id: number; command: string; by: 'person' | 'assistant'; started: number; running: boolean; code: number | null; output: string }
 export type CodeGit = { repo: false } | { repo: true; branch: string; changes: { status: string; path: string }[]; ahead: number | null };
 export interface CodeChanged { project: string | null; path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
@@ -1262,6 +1262,8 @@ export interface MobiusBridge {
     setTestCommand(project: string, command: string): Promise<{ ok: true } | NotesFailure>;
     /** The project's test command; `only` is added to it to run one test (a Run button in the editor's margin). */
     runTests(project: string, only?: string): Promise<CodeTestRun | NotesFailure>;
+    /** Stops the person's test run going in the project, with all it started. */
+    stopTests?(project: string): Promise<{ ok: true; stopped: boolean } | NotesFailure>;
     /** A command the person typed in the console, run in the project's folder. */
     runCommand(project: string, command: string): Promise<CodeTestRun | NotesFailure>;
     /** Commands left running in the project (a server, a watcher), with what they printed last. */

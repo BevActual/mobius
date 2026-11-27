@@ -425,7 +425,7 @@ function TestsPanel({ code }: { code: CodeState }) {
   const start = () => { setCommand(tests.command ?? tests.suggested ?? ''); setEditing(true); };
   const save = async (e: FormEvent) => { e.preventDefault(); if (await code.setTestCommand(command)) setEditing(false); };
   const last = tests.last;
-  const summary = tests.running ? 'Running…' : last ? (last.timedOut ? 'Ran out of time' : last.passed ? `Passed · ${last.seconds} s` : `Failed · ${last.seconds} s`) : '';
+  const summary = tests.running ? 'Running…' : last ? (last.stopped ? `Stopped · ${last.seconds} s` : last.timedOut ? 'Ran out of time' : last.passed ? `Passed · ${last.seconds} s` : `Failed · ${last.seconds} s`) : '';
   return (
     <section className="code-tests code-panel">
       <header className="code-tests-head">
@@ -433,7 +433,9 @@ function TestsPanel({ code }: { code: CodeState }) {
         <span className="code-tests-actions">
           {!editing && tests.command && <code className="code-tests-command" title={tests.ran && !tests.running ? 'What the last run ran: your test command narrowed to one test' : "The command Mobius runs for this project's tests"}>{tests.ran && !tests.running ? tests.ran : tests.command}</code>}
           {!editing && <Button kind="quiet" onClick={start}>{tests.command ? 'Change' : 'Choose command'}</Button>}
-          {!editing && tests.command && <button type="button" className="btn primary" disabled={tests.running} onClick={() => void code.runTests()}>Run</button>}
+          {!editing && tests.command && (tests.running && tests.by === 'person'
+            ? <button type="button" className="btn" onClick={() => void code.stopTests()}>Stop</button>
+            : <button type="button" className="btn primary" disabled={tests.running} onClick={() => void code.runTests()}>Run</button>)}
         </span>
       </header>
       {editing && (
@@ -661,10 +663,11 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
       label: (m: TestMark) => {
         if (!code.tests.command) return `Run ${what(m)} (choose a test command first)`;
         const r = code.tests.results.get(testKey(path, m));
-        return r === 'running' ? `Running ${what(m)}…` : r === 'passed' ? `Passed. Run ${what(m)} again` : r === 'failed' ? `Failed${code.tests.notes.get(testKey(path, m)) ? `: ${code.tests.notes.get(testKey(path, m))}` : ''}. Run ${what(m)} again` : `Run ${what(m)}`;
+        return r === 'running' ? `Running ${what(m)}… Click to stop` : r === 'passed' ? `Passed. Run ${what(m)} again` : r === 'failed' ? `Failed${code.tests.notes.get(testKey(path, m)) ? `: ${code.tests.notes.get(testKey(path, m))}` : ''}. Run ${what(m)} again` : `Run ${what(m)}`;
       },
       run: (m: TestMark) => void (async () => {
         setShowTests((n) => n + 1);
+        if (code.tests.results.get(testKey(path, m)) === 'running') { await code.stopTests(); return; }
         const command = code.tests.command;
         if (!command || !path) return;
         if (state.dirty && !(await state.save())) return;
