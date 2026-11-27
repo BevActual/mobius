@@ -4,7 +4,7 @@ import { conversationIdFor, type Bot, type ConversationInfo, type Message, type 
 import { appName, isInstalled, type AppId } from './apps';
 import { APP_ICONS } from './Rail';
 import { ActionIcon, ContextMenu } from './ContextMenu';
-import { assignToMobius, projectAssignment } from './assign';
+import { assignEntries, projectAssignment } from './assign';
 import { AppMenu, AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SideNew } from './SideNew';
 import { changesSince, draftAsk, groupByStatus, healthName, latestUpdate, parseDraft, PROJECT_HEALTHS, PROJECT_STATUSES, progressOf, projectSummary, projectThreads, ruleApps, statusName, targetLine, threadLine, updateDue } from './projects-view';
@@ -270,7 +270,7 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
           { action: 'open', run: () => projects.setOpenId(menu.project.id) },
           { action: 'rename', label: 'Rename…', keys: RENAME_KEYS, run: () => projects.ask(menu.project.id, 'rename') },
           // Assign to Mobius (marked; assign.ts): its next steps run in a chat of their own and come back to the Inbox.
-          { label: 'Assign to Mobius', separated: true, run: () => { const { project, row } = menu; assignToMobius(projectAssignment(project), () => row); } },
+          ...assignEntries(() => projectAssignment(menu.project), () => menu.row),
           { action: 'delete', label: 'Delete project…', keys: DELETE_KEYS, danger: true, separated: true, run: () => projects.ask(menu.project.id, 'delete') },
         ]} />,
         document.body,

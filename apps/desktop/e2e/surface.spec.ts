@@ -252,6 +252,29 @@ test('Assign to Mobius on a task runs it in a chat of its own and lands in the I
   await expect(composer()).toBeFocused();
 });
 
+test('a task can go to one of the person\'s own agents by name, which works on it with its own instructions', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Fix the tap\n');
+  await start([says(['Booked a plumber for Friday.'])]);
+  const made = await shell().evaluate(() => window.mobius.bots.create({ name: 'Handy', instructions: 'Find local tradespeople and book them.', model: '' }));
+  expect(made.ok).toBe(true);
+  await openApp('Tasks');
+  await shell().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Home/ }).click();
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Fix the tap', exact: true }).click({ button: 'right' });
+  // Mobius first, then the person's agents by name.
+  await expect(shell().getByRole('menuitem', { name: /^Assign to / })).toHaveText(['Assign to Mobius', 'Assign to Handy']);
+  await shell().getByRole('menuitem', { name: 'Assign to Handy' }).click();
+  await expect(shell().locator('.toast')).toHaveText('Assigned to Handy. It will be in your Inbox when done.');
+  await expect.poll(() => model!.requests.length).toBe(1);
+  // It runs as that agent: its instructions are in the ask, along with the task.
+  const asked = JSON.stringify(model!.requests[0]!);
+  expect(asked).toContain('Find local tradespeople and book them.');
+  expect(asked).toContain('Fix the tap');
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: /^Open Fix the tap/ })).toBeVisible({ timeout: 15_000 });
+});
+
 test('Assign to Mobius on a note, from its row in Notebooks, asks about that note and lands in the Inbox', async () => {
   fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Work'), { recursive: true });
   fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Offsite.md'), '# Offsite\n\n- Find a venue\n');

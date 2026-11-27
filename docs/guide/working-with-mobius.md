@@ -153,6 +153,8 @@ checkpoints live in their own store and never touch a folder's own git history.
   the chat you have open. Assigning it again while Mobius is still on it says so rather than starting a second run. A task it does as far as it can, ticking it off only when it is finished; a message it reads
   and prepares what it needs (a draft reply, a task, an event), sending nothing. The result lands in Home's Inbox,
   named after the item; one you stopped, or one that went wrong, says so there rather than that it finished.
+  The same menu lists your own agents too (**Assign to Invoices**, say, up to four of them): the item goes to that agent
+  instead, which works on it with its own instructions and model, and its result lands in the Inbox the same way.
 - **Take over** (beside Stop). While a task is running you can take control: Mobius pauses at the next safe step and the
   apps are yours. Then **Hand back**, optionally telling it what you changed or what to do next ("I booked it myself;
   just send the summary"), or **Stop**. Starting to type in the app Mobius is working in (the note it is writing, say)

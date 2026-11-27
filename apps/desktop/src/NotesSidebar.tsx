@@ -9,7 +9,7 @@ import type { NotesState } from './useNotes';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { assignToMobius, pageAssignment } from './assign';
+import { assignEntries, pageAssignment } from './assign';
 import { AppSidebar, SidebarRow, SidebarSection, SidebarSearch } from './ui';
 import { afterPaint } from './ui/frame';
 
@@ -292,7 +292,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           ...(onPin ? [{ action: pinned?.has(menu.page.path) ? 'unpin' : 'pin', run: () => onPin(menu.page.path, menu.page.title) }] : []),
           // Assign to Mobius (marked; assign.ts): the note or document is worked on in a chat of its own, in the
           // background, and comes back to Home's Inbox.
-          ...(notes.kind === 'notes' || notes.kind === 'docs' ? [{ label: 'Assign to Mobius', separated: true, run: () => { const { page, row } = menu; assignToMobius(pageAssignment(notes.kind as 'notes' | 'docs', page), () => row); } }] : []),
+          ...(notes.kind === 'notes' || notes.kind === 'docs' ? assignEntries(() => pageAssignment(notes.kind as 'notes' | 'docs', menu.page), () => menu.row) : []),
           ...(notes.move ? notes.notebooks.filter((nb) => nb.name !== menu.page.path.split('/')[0]).map((nb, i) => ({ action: 'move', label: `Move to ${nb.name}`, separated: i === 0, run: () => void notes.move?.(menu.page.path, nb.name) })) : []),
           notes.trash
             ? { action: 'delete', label: 'Move to Trash', danger: true, run: () => void notes.trash?.(menu.page.path) }

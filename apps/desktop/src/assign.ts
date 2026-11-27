@@ -1,4 +1,5 @@
-import type { ContextItem } from '@mobius/shared';
+import { MAIN_BOT_ID, type ContextItem } from '@mobius/shared';
+import type { MenuEntry } from './ui/Menu';
 
 /**
  * Assign to Mobius (docs/design/mobius-agent.md, "Hand it off, it comes back to the Inbox"): an item in an app is
@@ -16,6 +17,28 @@ export interface Assignment {
   /** The app the item lives in, so Mobius starts there and the run is shown as that app's. */
   app: string;
   context?: ContextItem[];
+  /** One of the person's own agents to hand it to, instead of Mobius: it runs with that agent's instructions and model. */
+  bot?: { id: string; name: string };
+}
+
+/** The person's own agents, in their order (the shell keeps this current), offered beside Mobius in Assign menus. */
+let agents: readonly { id: string; name: string }[] = [];
+/** How many agents an item's menu offers by name; the rest are on the Agents page. */
+export const ASSIGN_AGENTS_SHOWN = 4;
+
+export function setAssignAgents(list: readonly { id: string; name: string }[]): void {
+  agents = list.filter((b) => b.id !== MAIN_BOT_ID).map((b) => ({ id: b.id, name: b.name }));
+}
+
+/**
+ * An item's Assign rows: Mobius first, then each of the person's agents by name, so a task can go to the agent made for
+ * it ("Assign to Invoices"). `make` builds the hand-off when a row is chosen.
+ */
+export function assignEntries(make: () => Assignment, back?: () => HTMLElement | null | undefined): MenuEntry[] {
+  return [
+    { label: 'Assign to Mobius', separated: true, run: () => assignToMobius(make(), back) },
+    ...agents.slice(0, ASSIGN_AGENTS_SHOWN).map((bot) => ({ label: `Assign to ${bot.name}`, run: () => assignToMobius({ ...make(), bot }, back) })),
+  ];
 }
 
 /**

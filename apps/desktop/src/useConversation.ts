@@ -41,7 +41,7 @@ export interface Conversation {
   startFresh(bot?: string): void;
   /** Start work in a chat of its own, in the background, leaving the open chat as it is (Assign to Mobius). Resolves with the new chat's id, or what went wrong. */
   /** `ask` sends it in Ask mode (it only reads); `tools` offers only those apps' tools. */
-  assign(text: string, context: ContextItem[], app: string, options?: { ask?: boolean; tools?: readonly string[] }): Promise<{ id: string } | { error: string }>;
+  assign(text: string, context: ContextItem[], app: string, options?: { ask?: boolean; tools?: readonly string[]; bot?: string }): Promise<{ id: string } | { error: string }>;
   select(id: string): void;
   /** Resolves with an explanation when it could not be deleted, otherwise null. */
   remove(id: string): Promise<string | null>;
@@ -243,8 +243,9 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     setId(next);
   }, []);
 
-  const assign = useCallback(async (text: string, context: ContextItem[], app: string, options: { ask?: boolean; tools?: readonly string[] } = {}): Promise<{ id: string } | { error: string }> => {
-    const target = newId(MAIN_BOT_ID);
+  const assign = useCallback(async (text: string, context: ContextItem[], app: string, { bot, ...options }: { ask?: boolean; tools?: readonly string[]; bot?: string } = {}): Promise<{ id: string } | { error: string }> => {
+    // One of the person's agents when named, so the run has its instructions and model; Mobius otherwise.
+    const target = newId(bot ?? MAIN_BOT_ID);
     await preferencesSettled();
     const result = await window.mobius.agent.send(target, text, context, { app, ...options }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
     void refresh();
