@@ -320,7 +320,7 @@ test('Stop in the panel leaves the keyboard in the message box', async () => {
 test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a card by them, without opening the panel', async () => {
   fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Work'), { recursive: true });
   fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), '# Trip\n\nThe ferry leaves Piraeus at dawn.\n');
-  await start([says(['Piraeus is ', 'the port of Athens.'], 300), says(['## City\n\n**Athens**.'], 100)]);
+  await start([says(['Piraeus is ', 'the port of Athens.'], 300), says(['## City\n\n**Athens**.'], 100), says(['Yes, at dawn.'], 100)]);
   await openApp('Notes');
   if (await composer().isVisible()) await shell().keyboard.press('Control+Shift+M');
   await shell().getByRole('button', { name: 'Trip', exact: true }).click();
@@ -362,9 +362,19 @@ test('Ask from anywhere: Ctrl+Shift+J on words in a note asks about them in a ca
   // Inside one line: one line, without the answer's heading or a second full stop.
   await expect(note).toContainText('The ferry leaves Athens at dawn.');
   await expect.poll(() => fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Trip.md'), 'utf8')).toContain('The ferry leaves Athens at dawn.');
-  // Asked in the note's own chat: the panel beside it has the questions.
+  // Asked in the note's own chat: the panel beside it has the questions, and one asked while it is open shows there.
   await shell().keyboard.press('Control+Shift+M');
   await expect(log().locator('.msg.user').first()).toContainText('Where is this?');
+  await note.focus();
+  await note.evaluate((el) => {
+    const p = [...el.querySelectorAll('p')].find((x) => x.textContent?.includes('ferry'))!;
+    const r = document.createRange(); r.selectNodeContents(p); const s = document.getSelection()!; s.removeAllRanges(); s.addRange(r);
+  });
+  await shell().keyboard.press('Control+Shift+J');
+  await card.getByRole('textbox', { name: 'Ask about the selection' }).fill('Is it early?');
+  await card.getByRole('textbox', { name: 'Ask about the selection' }).press('Enter');
+  await expect(card.getByRole('status', { name: "Mobius's answer" })).toContainText('Yes');
+  await expect(log().locator('.msg.user').last()).toContainText('Is it early?');
 });
 
 test('chats live on items: each note keeps its own chat, the list away from them is the general one', async () => {
