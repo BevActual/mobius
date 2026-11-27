@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { choose, goTo, interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
+import { choose, goToPlace, interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -550,8 +550,13 @@ test('the morning brief: Write one now asks in Ask mode, and it lands in the Inb
 
   await shell().keyboard.press('Escape');
   await expect(page()).toHaveCount(0);
-  await goTo(shell(), 'Agent');
+  await goToPlace(shell(), 'Home');
   const desk = shell().getByRole('region', { name: 'Desk' });
+  // What the Agent page shows instead, said on the console when the Desk is not there.
+  if (!(await desk.isVisible().catch(() => false))) {
+    await shell().waitForTimeout(2000);
+    if (!(await desk.isVisible())) console.log('[agent page]', JSON.stringify((await shell().locator('main, .stage').first().innerText().catch(() => '')).slice(0, 1500)), 'open chat:', await log().locator('.msg').count());
+  }
   await expect(desk).toBeVisible();
   // It is listed once its chat is no longer working and what it wrote is read back (each a read of the core, which
   // takes most of a second on a busy Windows runner).
