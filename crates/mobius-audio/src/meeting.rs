@@ -46,8 +46,15 @@ pub fn wav16(samples: &[i16]) -> Vec<u8> {
     out
 }
 
-/// Cuts 16 kHz mono sound into parts of `part_seconds`, each written to `dir` as `part-<n>.wav`, up to `max_seconds`
-/// in all.
+/// How far back from a part's full length its cut may move to land in a pause, at most: a word is never split in
+/// two between parts (the speech models heard neither half), as long as the speaker breathes in these seconds.
+const SEEK_SECONDS: u32 = 3;
+/// The stretch whose loudness is weighed when looking for the pause: 30 ms, shorter than a gap between words.
+const FRAME: usize = RATE as usize * 30 / 1000;
+
+/// Cuts 16 kHz mono sound into parts of about `part_seconds`, each written to `dir` as `part-<n>.wav`, up to
+/// `max_seconds` in all. Each cut falls in the quietest moment of the part's last few seconds, and what follows it
+/// begins the next part.
 pub struct Parts {
     dir: PathBuf,
     part: usize,
@@ -55,13 +62,33 @@ pub struct Parts {
     buffer: Vec<i16>,
     index: u32,
     total: u64,
+    /// The samples already written in parts, where the next part starts.
+    written: u64,
+}
+
+/// Where to cut `samples`, whose full length is the part's: at the end of the quietest 30 ms in the last
+/// `SEEK_SECONDS` (or the last half, for a short part). Ties go to the latest, so steady sound is cut at the full length.
+#[must_use]
+pub fn quiet_cut(samples: &[i16]) -> usize {
+    let len = samples.len();
+    let seek = (SEEK_SECONDS as usize * RATE as usize).min(len / 2);
+    let frames = seek / FRAME;
+    let mut best = (len, u64::MAX);
+    for k in 0..frames {
+        let end = len - k * FRAME;
+        let energy: u64 = samples[end - FRAME..end].iter().map(|&v| (i64::from(v) * i64::from(v)) as u64).sum();
+        if energy < best.1 {
+            best = (end, energy);
+        }
+    }
+    best.0
 }
 
 impl Parts {
     #[must_use]
     pub fn new(dir: &Path, part_seconds: u32, max_seconds: u32) -> Parts {
         let part = (part_seconds.max(1) * RATE) as usize;
-        Parts { dir: dir.to_path_buf(), part, max: u64::from(max_seconds) * u64::from(RATE), buffer: Vec::with_capacity(part), index: 0, total: 0 }
+        Parts { dir: dir.to_path_buf(), part, max: u64::from(max_seconds) * u64::from(RATE), buffer: Vec::with_capacity(part), index: 0, total: 0, written: 0 }
     }
 
     /// The seconds heard so far.
@@ -86,7 +113,8 @@ impl Parts {
             self.buffer.push(if s < 0.0 { (s * 32768.0) as i16 } else { (s * 32767.0) as i16 });
             self.total += 1;
             if self.buffer.len() >= self.part {
-                out(self.write());
+                let cut = quiet_cut(&self.buffer);
+                out(self.write(cut));
             }
         }
     }
@@ -94,16 +122,20 @@ impl Parts {
     /// Writes the last part, if it holds enough sound.
     pub fn finish(mut self, out: &mut impl FnMut(Result<Part, String>)) {
         if self.buffer.len() >= SHORTEST_PART {
-            out(self.write());
+            let all = self.buffer.len();
+            out(self.write(all));
         }
     }
 
-    fn write(&mut self) -> Result<Part, String> {
-        let samples = std::mem::take(&mut self.buffer);
+    /// Writes the first `count` samples as the next part; the rest stay to begin the one after.
+    fn write(&mut self, count: usize) -> Result<Part, String> {
+        let rest = self.buffer.split_off(count.min(self.buffer.len()));
+        let samples = std::mem::replace(&mut self.buffer, rest);
         let index = self.index;
         self.index += 1;
         let file = self.dir.join(format!("part-{index}.wav"));
-        let start = (self.total - samples.len() as u64) as f64 / f64::from(RATE);
+        let start = self.written as f64 / f64::from(RATE);
+        self.written += samples.len() as u64;
         std::fs::write(&file, wav16(&samples)).map_err(|e| format!("Part of the meeting could not be kept to write it down: {e}"))?;
         Ok(Part { index, start, seconds: samples.len() as f64 / f64::from(RATE), file })
     }
@@ -429,6 +461,26 @@ mod tests {
         assert_eq!(wav.len(), 44 + 2 * 2 * RATE as usize);
         assert_eq!(&wav[0..4], b"RIFF");
         assert_eq!(u32::from_le_bytes([wav[24], wav[25], wav[26], wav[27]]), RATE);
+    }
+
+    #[test]
+    fn a_part_is_cut_in_the_pause_before_its_end_so_no_word_is_split() {
+        let dir = tempfile::tempdir().unwrap();
+        let (got, mut out) = collect();
+        let mut parts = Parts::new(dir.path(), 10, 60);
+        // Speech for 9 s, a 0.2 s pause, then speech straddling the 10 s mark until 12 s, then an end.
+        let rate = RATE as usize;
+        let mut sound = vec![0.3; 9 * rate];
+        sound.extend(vec![0.0; rate / 5]);
+        sound.extend(vec![0.3; 3 * rate - rate / 5]);
+        parts.push(&sound, &mut out);
+        parts.finish(&mut out);
+        let got = got.lock().unwrap();
+        assert_eq!(got.len(), 2);
+        // The cut is inside the pause (9.0 to 9.2 s), not at 10 s in the middle of the word.
+        assert!(got[0].seconds > 9.0 && got[0].seconds <= 9.2, "{}", got[0].seconds);
+        assert!((got[1].start - got[0].seconds).abs() < 1e-9);
+        assert!((got[0].seconds + got[1].seconds - 12.0).abs() < 1e-9, "nothing lost or doubled");
     }
 
     #[test]
