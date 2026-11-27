@@ -207,6 +207,7 @@ const SECTIONS: readonly SettingsSection[] = [
       ] },
       { id: 'check-ins', label: 'Check-ins', rows: [
         row('morning-brief', 'Morning brief', 'Each morning after 5, Mobius writes what the day holds in your Inbox in Home: tasks due, events and mail waiting. It only reads to do it. Play reads it aloud.', 'brief', 'daily', 'digest', 'summary', 'today', 'inbox', 'check in', 'morning'),
+        row('app-check-ins', 'When I open an app', 'The first time each day you open Mail, Tasks, Calendar or Notes, Mobius looks there and leaves up to three suggestions in your Inbox. It only reads and suggests; it never acts on them alone.', 'check in', 'suggestions', 'ideas', 'next steps', 'proactive', 'inbox', 'how often', 'frequency'),
       ] },
     ],
   },

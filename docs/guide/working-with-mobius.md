@@ -178,6 +178,11 @@ changes nothing. **Play** reads it aloud with the voice chosen in Settings › M
 press it), **Open** shows it as a chat you can carry on, and **Done** clears it. Turn it off, or have one written now, in
 **Settings › Schedules › Check-ins**.
 
+Mobius also checks in when you open an app. The first time each day you stay a moment in Mail, Tasks, Calendar or
+Notes, it looks there and leaves up to three suggestions for it in the Inbox (from the day after you first open that
+app). It only reads and suggests, and never acts on a suggestion by itself: **Open** carries on in its chat, where you
+can ask it to do one. Turn this off with **When I open an app** in **Settings › Schedules › Check-ins**.
+
 ## Schedules
 
 **Settings › Schedules** asks Mobius something at a time of day, on the days you choose (a morning brief, say). Each

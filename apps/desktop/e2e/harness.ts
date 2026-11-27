@@ -100,11 +100,11 @@ export async function launch(startUrl: string, options: { env?: Record<string, s
   const userData = options.userData ?? fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-e2e-'));
   // Every fixture page lives on this computer, so the tests start with the agent allowed to use local addresses. They
   // also start in Ask each time, so each tool the agent uses shows its approval, unless the test is about a new person,
-  // and with no morning brief, which would otherwise take a test's first scripted answer.
+  // and with no morning brief or check-ins, which would otherwise take a test's scripted answers.
   const prefsFile = path.join(userData, 'preferences.json');
   if (!options.realNetworkRules && !fs.existsSync(prefsFile)) {
     fs.mkdirSync(userData, { recursive: true });
-    fs.writeFileSync(prefsFile, JSON.stringify(options.newPerson ? { agentPrivateUrls: true, morningBrief: false } : { agentPrivateUrls: true, approvalMode: 'manual', morningBrief: false }));
+    fs.writeFileSync(prefsFile, JSON.stringify(options.newPerson ? { agentPrivateUrls: true, morningBrief: false, checkInApps: false } : { agentPrivateUrls: true, approvalMode: 'manual', morningBrief: false, checkInApps: false }));
   }
   const launched = LOCAL ? await launchLocal(userData, options.env ?? {}) : await launchTauri(startUrl, userData, options.env ?? {});
   if (options.openMobius !== false) {

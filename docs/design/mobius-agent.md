@@ -123,4 +123,7 @@ Decided by Andrew on 26 November 2026: the morning brief is written first, as a 
 not read aloud on its own until he turns that on; conversations move onto items (seventh round). Built in the eighth
 round (brief.ts): once a day from 5 o'clock, asked in Ask mode in its own chat with only the Tasks, Calendar and Mail
 tools, landing as one Inbox row with what it wrote, Play, Open and Done; on by default, with Write one now, in
-Settings › Schedules › Check-ins.
+Settings › Schedules › Check-ins. Check-ins on opening an app (Andrew, same day) are in the ninth round (checkins.ts):
+once a day for each of Mail, Tasks, Calendar and Notes, after four seconds in the app, an Ask-mode turn with only that
+app's tools leaves "Suggestions for <app>" in the Inbox; never on the first day an app is opened; off with When I open
+an app.

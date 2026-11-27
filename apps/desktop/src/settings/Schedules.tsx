@@ -59,13 +59,19 @@ export function SchedulesSection(props: SectionProps) {
 /** Mobius's own check-ins: the morning brief, written into Home's Inbox. */
 function CheckIns({ subpage, highlight, preferences, onPreferences }: SectionProps) {
   const description = 'Each morning after 5, Mobius writes what the day holds in your Inbox in Home: tasks due, events and mail waiting. It only reads to do it. Play reads it aloud.';
+  const appsDescription = 'The first time each day you open Mail, Tasks, Calendar or Notes, Mobius looks there and leaves up to three suggestions in your Inbox. It only reads and suggests; it never acts on them alone.';
   const [asked, setAsked] = useState(false);
   return (
+    <>
     <Row path={settingPath('schedules', subpage, 'morning-brief')} title="Morning brief" description={description} highlight={highlight === 'morning-brief'}>
       <Toggle label="Morning brief" checked={preferences.morningBrief} onChange={(morningBrief) => void onPreferences({ morningBrief })} />
       <button type="button" className="btn" onClick={() => { window.dispatchEvent(new Event(BRIEF_NOW_EVENT)); setAsked(true); }}>Write one now</button>
       {asked && <p className="srow-text" role="status">Asked. It will be in your Inbox in Home when it is written.</p>}
     </Row>
+    <Row path={settingPath('schedules', subpage, 'app-check-ins')} title="When I open an app" description={appsDescription} highlight={highlight === 'app-check-ins'}>
+      <Toggle label="When I open an app" checked={preferences.checkInApps} onChange={(checkInApps) => void onPreferences({ checkInApps })} />
+    </Row>
+    </>
   );
 }
 
