@@ -230,6 +230,9 @@ test('a panel moves to another dock from its header\'s menu or by dragging its h
   const inbox = (await lists('bottom').getByRole('button', { name: /^Inbox/ }).boundingBox())!;
   expect(inbox.x).toBeGreaterThan(today.x + today.width / 2);
   expect(today.width).toBeLessThan(400);
+  // Each group stays whole, in one column under its heading.
+  const logbook = (await lists('bottom').getByRole('button', { name: 'Logbook', exact: true }).boundingBox())!;
+  expect(Math.round(logbook.x)).toBe(Math.round(today.x));
 });
 
 test('a panel pops out to float over the page, moves and sizes there, and docks again', async () => {

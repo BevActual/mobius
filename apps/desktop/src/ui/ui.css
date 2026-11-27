@@ -233,18 +233,17 @@
 .ui-panel[data-held] { opacity: 0.55; }
 /* A panel laid out by its room, not its dock (usePanelShape). In a short, wide place (the bottom dock), a list of places
    flows into columns rather than stretching its rows across the whole width. */
-.ui-panel[data-shape="strip"] :is(.ui-panel-body, .app-side-body) > .side { display: block; columns: calc(var(--sp-8) * 7); column-gap: var(--sp-4); column-fill: auto; height: 100%; overflow: auto hidden; }
 .ui-panel[data-shape="strip"] .ui-panel-body > .app-side { height: 100%; }
-.ui-panel[data-shape="strip"] :is(.side-search, .side-new, .side-head, .ui-side-section > .side-head) { break-inside: avoid; break-after: avoid; }
-.ui-panel[data-shape="strip"] .ui-side-list > li { break-inside: avoid; }
-.ui-panel[data-shape="strip"] .side-search { display: block; width: calc(100% - var(--sp-2)); box-sizing: border-box; margin: 0 0 var(--sp-2); }
+/* Each group is a column of its own, whole under its heading, scrolling within itself when it is longer than the
+   strip is tall; the opening controls (search, New) share the first. More groups than fit scroll sideways. */
+.ui-panel[data-shape="strip"] :is(.ui-panel-body, .app-side-body) > .side { display: flex; flex-flow: column wrap; align-content: flex-start; column-gap: var(--sp-4); height: 100%; overflow: auto hidden; }
+.ui-panel[data-shape="strip"] .side nav { display: contents; }
+.ui-panel[data-shape="strip"] .side > *, .ui-panel[data-shape="strip"] .side nav > * { flex: none; width: calc(var(--sp-8) * 7); box-sizing: border-box; }
+.ui-panel[data-shape="strip"] .side :is(section, .ui-side-section) { max-height: 100%; overflow: hidden auto; }
+.ui-panel[data-shape="strip"] .side-search { margin: 0 0 var(--sp-2); }
 .ui-panel[data-shape="strip"] .app-side-new { align-self: flex-start; }
 /* A thin column: rows keep their names and drop what is beside them. */
 .ui-panel[data-shape="narrow"] .list-count, .ui-panel[data-shape="narrow"] .ui-side-sub { display: none; }
-/* Columns break only between blocks: the list's own wrappers flow as blocks in a strip, its rows stay whole. */
-.ui-panel[data-shape="strip"] .side :is(nav, section, ul, ol) { display: block; overflow: visible; min-height: auto; }
-.ui-panel[data-shape="strip"] .side :is(nav, section) + :is(nav, section), .ui-panel[data-shape="strip"] .side nav > * + * { margin-top: var(--sp-3); }
-.ui-panel[data-shape="strip"] .side :is(li, .side-head, section, .ui-side-section) { break-inside: avoid; }
 /* A popped-out panel floats over the page: moved by its header, sized from its corner, docked again from its menu or
    by dragging it to a dock. */
 .ui-float { position: absolute; z-index: 30; display: flex; min-width: calc(var(--sp-8) * 7); min-height: calc(var(--sp-8) * 5); border-radius: var(--radius-panel); background: var(--bg); box-shadow: 0 0 0 var(--hairline-w) var(--line), 0 var(--sp-3) var(--sp-8) color-mix(in srgb, var(--ink) 16%, transparent), 0 calc(var(--sp-1) / 2) calc(var(--sp-1) * 1.5) color-mix(in srgb, var(--ink) 8%, transparent); overflow: hidden; animation: ui-float-in var(--dur-med, 180ms) var(--ease); }
