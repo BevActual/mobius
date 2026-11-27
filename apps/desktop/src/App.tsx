@@ -1357,7 +1357,7 @@ export function App() {
         case 'canvas':
           return <CanvasSidebar boards={boards} pin={null} changed={liveMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
         case 'code':
-          return <CodeSidebar code={code} pin={null} changed={liveMarks.code} starts={startsFor('code')} onStart={startWithMobius} />
+          return <CodeSidebar code={code} pin={null} changed={liveMarks.code} starts={startsFor('code')} onStart={startWithMobius} onReview={(prompt, item) => { if (!shows('agent')) setChatOpen(true); void conversation.send(prompt, [item], { ask: true }); }} />
         case 'sheets':
           return <SheetsSidebar sheets={sheets} pin={null} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
         case 'design':
@@ -2222,7 +2222,7 @@ export function App() {
       case 'canvas':
         return <CanvasBoard boards={boards} review={boards.page && liveMarks.boards.has(boards.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'code':
-        return <CodeEditor code={code} onAsk={(prompt) => { if (!shows('agent')) setChatOpen(true); void conversation.send(prompt, surface.code ? [sheetItem(surface.code)] : []); }} onDraft={startWithMobius} listPanels={listFor('code')} terminal={<TerminalPanel term={terminal} onAsk={askAboutTerminal} />} review={code.open && code.project && liveMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
+        return <CodeEditor code={code} busy={conversation.state.busy} onAsk={(prompt) => { if (!shows('agent')) setChatOpen(true); void conversation.send(prompt, surface.code ? [sheetItem(surface.code)] : []); }} onDraft={startWithMobius} listPanels={listFor('code')} terminal={<TerminalPanel term={terminal} onAsk={askAboutTerminal} />} review={code.open && code.project && liveMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'messages':

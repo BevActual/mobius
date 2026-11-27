@@ -505,6 +505,7 @@ export function createTauriBridge(): MobiusBridge {
       runTests: (project, only) => call('code', 'runTests', only ? [project, only] : [project], () => ({ ok: false as const, message: 'Code is not available.' })),
       git: (project) => call('code', 'git', [project], () => ({ repo: false as const })),
       gitBase: (project, path) => call('code', 'gitBase', [project, path], () => ({ repo: false as const })),
+      gitDiff: (project) => call('code', 'gitDiff', [project], () => ({ repo: false as const })),
       processes: (project) => call('code', 'processes', [project], () => []),
       start: (project, command) => call('code', 'start', [project, command], () => ({ ok: false as const, message: 'Code is not available.' })),
       stopProcess: (id) => call('code', 'stopProcess', [id], () => ({ ok: false as const, message: 'Code is not available.' })),

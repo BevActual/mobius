@@ -3734,6 +3734,7 @@ impl Bridge {
                 (Some(p), Some(f)) => code.project_dir(p).map(|dir| crate::code_git::head_text(&dir, f)),
                 _ => Err(need()),
             },
+            "gitDiff" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p)).map(|dir| crate::code_git::diff(&dir, 20_000)),
             "commit" => match (text(0), text(1)) {
                 (Some(p), Some(m)) => code.project_dir(p).and_then(|dir| crate::code_git::commit(&dir, m)),
                 _ => Err("a project and a message are needed".to_owned()),

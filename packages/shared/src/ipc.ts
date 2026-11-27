@@ -1273,6 +1273,8 @@ export interface MobiusBridge {
     git(project: string): Promise<CodeGit | NotesFailure>;
     /** A file as the last commit has it (null when the commit does not have it), for the editor's change marks. */
     gitBase(project: string, path: string): Promise<{ repo: false } | { repo: true; text: string | null } | NotesFailure>;
+    /** What changed since the last commit as one diff (new files whole), cut to 20 KB (what one attachment holds), for Review with Mobius. */
+    gitDiff?(project: string): Promise<{ repo: false } | { repo: true; diff: string; truncated: boolean } | NotesFailure>;
     commit(project: string, message: string): Promise<{ ok: true; commit: string } | NotesFailure>;
     push(project: string): Promise<{ ok: true; branch: string } | NotesFailure>;
     onChanged(listener: (change: CodeChanged) => void): () => void;

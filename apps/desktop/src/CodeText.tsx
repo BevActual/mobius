@@ -9,6 +9,7 @@ import type { CodeCompletion, CodeProblem } from '@mobius/shared';
 import { fitting, offsetOf, spansOf, type LanguageState } from './code-lsp';
 import type { CodeState, TestResult } from './useCode';
 import { testsIn, type TestMark } from './code-run';
+import { problemAt } from './code-mobius';
 
 const LINE = 20;
 const PAD_TOP = 8;
@@ -182,7 +183,7 @@ function diffSpan(before: string, after: string): { from: number; to: number; in
  * and Ctrl+Alt+Up or Down add cursors, Alt+Up or Down move lines, Shift+Alt+Up or Down copy them, Ctrl+Shift+K
  * deletes them, Ctrl+L selects a line, Esc goes back to one cursor.
  */
-export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, base, runner }: { /** Run buttons beside the file's tests. */ runner?: { results: ReadonlyMap<string, TestResult>; running: boolean; keyOf: (mark: TestMark) => string; run: (mark: TestMark) => void; label: (mark: TestMark) => string }; code: CodeState; lang: Lang; bar: BarMode | null; setBar: (bar: BarMode | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null>; /** Language smarts, when the project has them. */ lsp?: LanguageState; onShowProblems?: () => void; /** The file as the last commit has it, for the change marks; undefined when there is none. */ base?: string }) {
+export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, base, runner, onFix }: { /** Asks Mobius to fix a problem (the hover's Fix with Mobius, Ctrl+.); left out while Mobius is busy. */ onFix?: (problem: CodeProblem) => void; /** Run buttons beside the file's tests. */ runner?: { results: ReadonlyMap<string, TestResult>; running: boolean; keyOf: (mark: TestMark) => string; run: (mark: TestMark) => void; label: (mark: TestMark) => string }; code: CodeState; lang: Lang; bar: BarMode | null; setBar: (bar: BarMode | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null>; /** Language smarts, when the project has them. */ lsp?: LanguageState; onShowProblems?: () => void; /** The file as the last commit has it, for the change marks; undefined when there is none. */ base?: string }) {
   const path = code.open?.path ?? '';
   const doc = useRef<DocState>(docOf(code.draft));
   const history = useRef(new History());
@@ -432,6 +433,12 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, b
     if (key === 'F5' && e.altKey && !mod) { handled(); nextChange(e.shiftKey ? -1 : 1); return; }
     if (peek !== null && key === 'Escape') { handled(); setPeek(null); return; }
     if (key === 'F8' && !mod && !e.altKey) { handled(); nextProblem(e.shiftKey ? -1 : 1); return; }
+    // Ctrl+. (VS Code's quick fix): Mobius fixes the problem at the cursor. Without one, the key is left for the app.
+    if (onFix && mod && !e.altKey && !e.shiftKey && e.code === 'Period') {
+      const l = lineOf(starts, primary.head);
+      const found = problemAt(fileProblems, l, primary.head - starts[l]!);
+      if (found) { handled(); setHover(null); onFix(found); return; }
+    }
     if (e.shiftKey && e.altKey && !mod && e.code === 'KeyF') { handled(); void format(); return; }
     if (mod && !e.altKey && lower === 's') { handled(); void (lsp ? lsp.save() : code.save()); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'f') { handled(); setBar('find'); return; }
@@ -926,6 +933,11 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, b
           {hover.problems.map((p, i) => (
             <p key={i} className="ed-hover-problem" data-severity={p.severity}><span className="ed-hover-mark" aria-hidden="true" />{p.message}{p.source ? <span className="ed-hover-source"> {p.source}{p.code != null ? `(${p.code})` : ''}</span> : null}</p>
           ))}
+          {onFix && hover.problems[0] && (
+            <p className="ed-hover-actions">
+              <button type="button" className="btn" title={`Mobius reads the file and fixes it (${IS_MAC ? '⌘' : 'Ctrl+'}.)`} onMouseDown={(e) => e.preventDefault()} onClick={() => { const first = hover.problems[0]!; setHover(null); onFix(first); }}>Fix with Mobius</button>
+            </p>
+          )}
           {hover.text && <HoverText text={hover.text} lang={lang} />}
         </div>
       );
