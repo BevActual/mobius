@@ -779,7 +779,7 @@ test('Mobius fixes a problem from its hover or Ctrl+., and reviews what changed 
   await expect(log.locator('.msg.assistant')).toHaveText('Fixed it.');
   expect(asked(0)).toContain('Fix this error in src/budget.js of the Code project \\"offsite-planner\\", line 7, column 4 (fake)');
   expect(asked(0)).toContain('> Finish this TODO');
-  expect(asked(0)).toContain('› 7 | // TODO tidy');
+  expect(asked(0)).toContain('// TODO tidy'); // the open file, attached
 
   // The problem's hover has Fix with Mobius too.
   await shell().keyboard.press('Control+Home');
@@ -794,7 +794,7 @@ test('Mobius fixes a problem from its hover or Ctrl+., and reviews what changed 
   await shell().keyboard.press('Control+s');
   const bar = shell().getByRole('region', { name: 'Changes' });
   await expect(bar.getByRole('status')).toHaveText('1 change');
-  await bar.getByRole('button', { name: 'Review' }).click();
+  await bar.getByRole('button', { name: 'Review with Mobius' }).click();
   await expect(log.locator('.msg.assistant').last()).toHaveText('One finding.');
   expect(asked(2)).toContain('Review my changes in the Code project \\"offsite-planner\\" on the branch main');
   expect(asked(2)).toContain('+// TODO tidy');

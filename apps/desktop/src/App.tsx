@@ -1357,7 +1357,7 @@ export function App() {
         case 'canvas':
           return <CanvasSidebar boards={boards} pin={null} changed={liveMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
         case 'code':
-          return <CodeSidebar code={code} pin={null} changed={liveMarks.code} starts={startsFor('code')} onStart={startWithMobius} onReview={(prompt) => { if (!shows('agent')) setChatOpen(true); void conversation.send(prompt, [], { ask: true }); }} />
+          return <CodeSidebar code={code} pin={null} changed={liveMarks.code} starts={startsFor('code')} onStart={startWithMobius} onReview={(prompt, item) => { if (!shows('agent')) setChatOpen(true); void conversation.send(prompt, [item], { ask: true }); }} />
         case 'sheets':
           return <SheetsSidebar sheets={sheets} pin={null} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
         case 'design':

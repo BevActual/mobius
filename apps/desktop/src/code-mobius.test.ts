@@ -1,32 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import type { CodeProblem } from '@mobius/shared';
-import { around, fixPrompt, problemAt, reviewPrompt } from './code-mobius';
+import { fixPrompt, problemAt, reviewRequest } from './code-mobius';
 
 const p = (o: Partial<CodeProblem>): CodeProblem => ({ line: 0, character: 0, endLine: 0, endCharacter: 1, severity: 'error', message: 'x', ...o });
 
 describe('Code asks Mobius', () => {
-  it('shows the lines around a problem, numbered, its own marked', () => {
-    const text = Array.from({ length: 20 }, (_, i) => `l${i + 1}`).join('\n');
-    expect(around(text, 9, 2)).toBe('   8 | l8\n   9 | l9\n› 10 | l10\n  11 | l11\n  12 | l12');
-    expect(around('a\nb', 0, 3)).toBe('› 1 | a\n  2 | b');
+  it('asks for a fix with the problem and its place, quoting a message of many lines', () => {
+    const prompt = fixPrompt('site', 'src/a.ts', p({ line: 1, character: 6, message: "Type 'string' is not assignable\nto type 'number'.", source: 'ts', code: 2322 }));
+    expect(prompt).toBe([
+      'Fix this error in src/a.ts of the Code project "site", line 2, column 7 (ts 2322):',
+      '',
+      "> Type 'string' is not assignable\n> to type 'number'.",
+      '',
+      'Change only what the fix needs, and say in a line what was wrong.',
+    ].join('\n'));
+    expect(fixPrompt('site', 'a.py', p({ severity: 'warning' }))).toContain('Fix this warning in a.py');
   });
 
-  it('asks for a fix with the problem, its place and code, fenced past any backticks in it', () => {
-    const text = 'const a = `x`\nconst b: number = "two"\n';
-    const prompt = fixPrompt('site', 'src/a.ts', text, p({ line: 1, character: 6, message: "Type 'string' is not assignable\nto type 'number'.", source: 'ts', code: 2322 }));
-    expect(prompt).toContain('Fix this error in src/a.ts of the Code project "site", line 2, column 7 (ts 2322):');
-    expect(prompt).toContain("> Type 'string' is not assignable\n> to type 'number'.");
-    expect(prompt).toContain('The TypeScript around it');
-    expect(prompt).toContain('```\n  1 | const a = `x`\n› 2 | const b: number = "two"\n  3 | \n```');
-  });
-
-  it('asks for a review of the diff, saying when it was cut, and never to change files', () => {
-    const prompt = reviewPrompt('site', 'main', 'diff --git a/a b/a\n-x\n+y\n', true);
+  it('asks for a review with the diff attached, saying when it was cut, and never to change files', () => {
+    const { prompt, item } = reviewRequest('site', 'main', 'diff --git a/a b/a\n-x\n+y\n', true);
     expect(prompt).toContain('Review my changes in the Code project "site" on the branch main');
-    expect(prompt).toContain('```diff\ndiff --git a/a b/a\n-x\n+y\n```');
     expect(prompt).toContain('The diff was cut for length');
     expect(prompt).toContain('Do not change any files.');
-    expect(reviewPrompt('site', '', 'd', false)).not.toContain('cut for length');
+    expect(item).toEqual({ kind: 'file', title: 'Changes since the last commit', source: 'site (git diff)', text: 'diff --git a/a b/a\n-x\n+y\n' });
+    expect(reviewRequest('site', '', 'd', false).prompt).not.toContain('cut for length');
   });
 
   it('finds the problem at the caret, else the worst on its line', () => {

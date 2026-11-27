@@ -15,8 +15,8 @@ import { useLanguage, type LanguageState } from './code-lsp';
 import { pagePath, pickedLine, sourcePath, useCodePreview, type PreviewState } from './code-preview';
 import { useSideFile, type SideFile } from './code-split';
 import { testArgs, testKey, type TestMark } from './code-run';
-import { fixPrompt, reviewPrompt } from './code-mobius';
-import type { CodeProblem } from '@mobius/shared';
+import { fixPrompt, reviewRequest } from './code-mobius';
+import type { CodeProblem, ContextItem } from '@mobius/shared';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
@@ -25,7 +25,7 @@ import { CodeText, type BarMode } from './CodeText';
 import { afterPaint } from './ui/frame';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
-export function CodeSidebar({ code, pin, changed, starts, onStart, onReview }: { code: CodeState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void; /** Sends Review with Mobius (answered, nothing changed). */ onReview?: (prompt: string) => void }) {
+export function CodeSidebar({ code, pin, changed, starts, onStart, onReview }: { code: CodeState; pin?: ReactNode; changed?: ReadonlySet<string>; starts?: readonly Start[]; onStart?: (prompt: string) => void; /** Sends Review with Mobius (answered, nothing changed). */ onReview?: (prompt: string, item: ContextItem) => void }) {
   const [naming, setNaming] = useState<'project' | 'file' | null>(null);
   const [name, setName] = useState('');
   useEffect(() => onCommand('new-project', () => { setNaming('project'); setName(''); }), []);
@@ -155,7 +155,7 @@ function GitLetter({ mark }: { mark: GitMark }) {
 const SHOWN_CHANGES = 6;
 
 /** The project's branch and what changed since its last commit, with Commit and Push. Mobius asks before either. */
-function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: string) => void }) {
+function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: string, item: ContextItem) => void }) {
   const [writing, setWriting] = useState(false);
   const [reading, setReading] = useState(false);
   const [message, setMessage] = useState('');
@@ -179,7 +179,8 @@ function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: strin
     setReading(false);
     if (!got || !('repo' in got) || !got.repo) { code.setMessage('What changed could not be read.'); return; }
     if (!got.diff.trim()) { code.setMessage('Nothing has changed since the last commit.'); return; }
-    onReview(reviewPrompt(project, branch, got.diff, got.truncated));
+    const { prompt, item } = reviewRequest(project, branch, got.diff, got.truncated);
+    onReview(prompt, item);
   };
   const status = `${changes.length === 0 ? 'Nothing to commit' : changes.length === 1 ? '1 change' : `${changes.length} changes`}${ahead ? ` · ${ahead} to push` : ''}`;
   return (
@@ -187,7 +188,6 @@ function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: strin
       <div className="side-head">
         <h3 className="side-title">Changes</h3>
         <div className="side-actions">
-          {onReview && <Button kind="quiet" disabled={changes.length === 0 || reading} title="Mobius reads what changed since the last commit and says what it would fix; it changes nothing" onClick={() => void review()}>Review</Button>}
           <Button kind="quiet" disabled={changes.length === 0 || writing} onClick={() => setWriting(true)}>Commit…</Button>
           <Button kind="quiet" disabled={busy} onClick={() => { setBusy(true); void code.push().finally(() => setBusy(false)); }}>Push</Button>
         </div>
@@ -221,6 +221,11 @@ function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: strin
             <li><button type="button" className="list-row code-git-more" onClick={() => setShowAll((all) => !all)}>{showAll ? 'Show fewer' : `${marks.length - SHOWN_CHANGES} more`}</button></li>
           )}
         </ul>
+      )}
+      {onReview && shown.length > 0 && (
+        <button type="button" className="list-row code-git-review" disabled={reading} title="Mobius reads what changed since the last commit and says what it would fix. It changes nothing." onClick={() => void review()}>
+          <span className="code-git-name">{reading ? 'Reading the changes…' : 'Review with Mobius'}</span>
+        </button>
       )}
     </section>
   );
@@ -565,16 +570,8 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   useEffect(() => { setSideBar(null); }, [side.path]);
   const [showProblems, setShowProblems] = useState(0);
   const [showTests, setShowTests] = useState(0);
-  /** Fix with Mobius, for a problem in a file: its text as typed when it is open in a pane, else as saved. */
-  const fixFor = (path: string, problem: CodeProblem) => {
-    const project = code.project;
-    if (!onAsk || !project) return;
-    const typed = code.open?.path === path ? code.draft : side.state?.open?.path === path ? side.state.draft : null;
-    if (typed !== null) { onAsk(fixPrompt(project, path, typed, problem)); return; }
-    void window.mobius.code?.read(project, path).catch(() => null).then((got) => {
-      onAsk(fixPrompt(project, path, got && 'text' in got && typeof got.text === 'string' ? got.text : '', problem));
-    });
-  };
+  /** Fix with Mobius, for a problem in a file (the open one travels with the message; Mobius reads others itself). */
+  const fixFor = (path: string, problem: CodeProblem) => { if (onAsk && code.project) onAsk(fixPrompt(code.project, path, problem)); };
   const fixIn = (state: CodeState | null) => (onAsk && !busy && state?.open ? (p: CodeProblem) => fixFor(state.open!.path, p) : undefined);
   /** Run buttons beside a pane's tests: the file saved first, then the project's test command narrowed to that test. */
   const runnerFor = (state: CodeState) => {
@@ -810,7 +807,7 @@ function ProblemsPanel({ lsp, onFix }: { lsp: LanguageState; onFix?: (path: stri
                   <span>{p.message}</span>
                   <span className="code-problem-where">{p.source ? `${p.source} · ` : ''}Ln {p.line + 1}, Col {p.character + 1}</span>
                 </button>
-                {onFix && <button type="button" className="code-problem-fix" aria-label={`Fix with Mobius: ${p.message}`} title="Fix with Mobius" onClick={() => onFix(path, p)}>Fix</button>}
+                {onFix && <button type="button" className="code-problem-fix" aria-label={`Fix with Mobius, line ${p.line + 1}`} title={`Fix with Mobius: ${p.message}`} onClick={() => onFix(path, p)}>Fix</button>}
               </li>
             ))}
           </ul>
