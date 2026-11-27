@@ -873,6 +873,7 @@ export function createTauriBridge(): MobiusBridge {
       move: (id, direction) => call('bots', 'move', [{ id, direction }], () => refused),
       remove: (id) => call('bots', 'remove', [id], () => refused),
       onChange: (listener) => on<BotsState>('mobius:bots-changed', listener, () => call('bots', 'get', [], () => ({ bots: [MAIN] }))),
+      onStarted: (listener) => on<{ conversation: string; title: string; bot: string }>('mobius:agent-started', listener),
     },
     context: { page: () => call('context', 'page', [], () => refused), file: () => call('context', 'file', [], () => refused), selection: () => call('context', 'selection', [], () => refused) },
     preferences: {

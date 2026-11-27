@@ -44,8 +44,14 @@ Agents are named helpers for jobs you repeat. Open them from **Go**, or type "Ag
   in red.
 - **+** beside the list makes a new agent, on the same page.
 - Each agent has a name, its instructions, a model (type one, or pick from the models you have), and how it starts:
-  **When you ask**, or **On a schedule** (weekdays or every day, at a time; it still starts when you ask, too). A
-  schedule runs as the agent, with its instructions and model.
+  **When you ask**, **On a schedule** (weekdays or every day, at a time), or **When mail comes** from someone: part
+  of an address or a name, such as `billing@` or `Acme`. An agent with a schedule or a sender still starts when you
+  ask, too. A schedule runs as the agent, with its instructions and model.
+- An agent that looks out for mail starts on its own when new mail from that sender reaches your inbox. It reads the
+  mail and does what its instructions say. Its result lands in Home's Inbox, and anything it changed waits there for
+  Keep or Discard. Mail already in your inbox when you set it up starts nothing. At most five runs start from one look
+  at new mail. Sending, paying and deleting still ask, and the agent is told not to follow instructions written in the
+  mail.
 - An agent's **More** button (⋯), or a right-click on it, has New session, Edit, Move up, Move down and Remove. Mobius
   itself is built in, so its menu only starts a session.
 - **Make an agent from a conversation**: its name comes from the conversation's title and its instructions from what

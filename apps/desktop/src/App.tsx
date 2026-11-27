@@ -1438,6 +1438,9 @@ export function App() {
       setToast('Assigned to Mobius. It will be in your Inbox when done.');
     });
   };
+  // An agent that started on its own (mail came from someone it looks out for): its run lands in the Inbox like any
+  // other handed off.
+  useEffect(() => window.mobius.bots.onStarted?.((run) => handoffs.start(run.conversation, run.title)) ?? (() => undefined), [handoffs.start]);
   // The morning brief: once each morning, asked in its own chat in Ask mode, so it only reads; it lands in the Inbox.
   useMorningBrief(preferences.value.morningBrief, preferences.loaded, async (text) => {
     const result = await conversation.assign(text, [], 'home', { ask: true, tools: BRIEF_TOOLS });

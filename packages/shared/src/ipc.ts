@@ -1495,6 +1495,8 @@ export interface MobiusBridge {
     /** Removes the bot and every conversation it had. */
     remove(id: string): Promise<BotResult<{ removedSessions: number }>>;
     onChange(listener: (state: BotsState) => void): () => void;
+    /** An agent started on its own (mail came from someone it looks out for): its chat, so the run lands in the Inbox. */
+    onStarted?(listener: (run: { conversation: string; title: string; bot: string }) => void): () => void;
   };
   context: {
     /** The page that is showing, as something to attach. */
