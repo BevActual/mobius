@@ -867,6 +867,10 @@ export function App() {
     const book = docs.notebooks.find((n) => n.name === RESEARCH_FOLDER)?.name ?? (await docs.createNotebook(RESEARCH_FOLDER));
     const path = book ? await docs.createPage(book, title, startingPage(question)) : null;
     if (!path) { setToast('Mobius could not make the report’s document.'); return; }
+    // Mobius beside the report: its approvals (searches, pages to read) are where they can be answered.
+    if (!shows('agent')) setChatOpen(true);
+    // One report per question: the next message goes back to Agent (Research is chosen again for another).
+    setChatMode('agent');
     void conversation.send(researchPrompt(question, 'thorough', `docs/${path}`, 'doc'), items, Object.keys(options).length > 0 ? options : undefined);
   };
   const sendAsked = (text: string, items: ContextItem[], options?: SendOptions) => {
@@ -1727,7 +1731,12 @@ export function App() {
     // Everything found in your apps: what Mobius already holds, then what each app's own source finds.
     find: (query: string) => findInSources(query, launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? (r.target.app === 'calendar' ? 'calendar' : 'agent'), label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))),
     commands: allCommands,
-    openApp: (id: AppId) => { opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions'); openApp(id); },
+    openApp: (id: AppId) => {
+      opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions');
+      // Research is a mode now: "Research" opens its reports, in Docs' Research folder (earlier ones are still found by name).
+      if (id === 'research') { openApp('docs'); const latest = docs.notebooks.find((n) => n.name === RESEARCH_FOLDER)?.pages.slice().sort((a, b) => b.modified - a.modified)[0]; if (latest) void docs.open(latest.path, latest.title); return; }
+      openApp(id);
+    },
     activateTab: (id: string) => { openApp('browser'); window.mobius.browser.activate(id); },
     newTab,
     openRecent: (item: { app: AppId; ref: string; label: string }) => { opener.current = null; closeSettings(); const target = targetOfRef(item.ref); if (target) openTarget(target, item.label); else openApp(item.app); },

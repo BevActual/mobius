@@ -48,8 +48,9 @@ test('a question becomes a report with its sources, written by Mobius from the w
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model', MOBIUS_WEB_SEARCH_URL: `${fixture.origin}/search/` } });
   const shell = mobius.shell;
   await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  // The Research page's own question form (kept until Research mode has proved itself) opens from New research.
   await shell.keyboard.press('Control+k');
-  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Research');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('New research');
   await shell.keyboard.press('Enter');
 
   const page = shell.getByRole('region', { name: 'Research' });
@@ -132,4 +133,11 @@ test('Research mode, from anywhere, turns the question into a Doc that Mobius fi
   // A Doc links each fact to its page: no Research-only citation marks.
   expect(asked).not.toContain('trust:web');
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('## Sources');
+  // One report per question: the mode goes back to Agent.
+  await expect(shell.getByRole('button', { name: 'Mode: Agent' })).toBeVisible();
+  // Ctrl+K "Research" opens the reports, in Docs' Research folder.
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Research');
+  await shell.keyboard.press('Enter');
+  await expect(shell.locator('.doc-editor').getByRole('textbox', { name: 'Document text' })).toContainText('Casa Amora is the closest fit');
 });

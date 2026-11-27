@@ -578,7 +578,15 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
         const tinted = (event.target as HTMLElement | null)?.closest<HTMLElement>('.note-commented');
         if (tinted?.dataset.quote) toThread.current(tinted.dataset.quote);
         const a = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href]');
-        const page = a && pathNow.current ? pageOfLink(a.getAttribute('href') ?? '', pathNow.current) : null;
+        const href = a?.getAttribute('href') ?? '';
+        // A web link (a research report's sources, say) opens in the Browser with Ctrl+click (Cmd on a Mac), as in Google
+        // Docs and Word; a plain click only places the caret, so the text stays easy to edit.
+        if (/^https?:\/\//i.test(href) && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          void window.mobius.browser.open(href);
+          return true;
+        }
+        const page = a && pathNow.current ? pageOfLink(href, pathNow.current) : null;
         if (!page) return false;
         event.preventDefault();
         openPage.current(page);
