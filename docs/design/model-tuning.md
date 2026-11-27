@@ -179,9 +179,29 @@ on the GPU today, so it is a later option, not the first.
 - **Windows.** PyTorch and bitsandbytes both publish Windows builds with CUDA. It needs checking on Andrew's PC as
   the first step.
 
-**Proving it first.** The coordinator is asking Andrew whether a one-off trial with existing tools is acceptable, to
-see whether an adapter beats 64/76 before Mobius's own trainer is built. Without that trial, the first round of
-`mobius-train` is the trial.
+**No trials until Mobius's own tools match.** Andrew (27 November): "look at solved maths and just adapt them for
+mobius itself and improve upon things", then "wait on trials until mobius own tools are comparable if not better". So
+nothing is trained on his PC with outside tools. The first trial is `mobius-train`'s own first round.
+
+**Adapting the maths in Rust.** LoRA is published maths: freeze the model, learn two small matrices per layer whose
+product is added to the weights. Mobius's core is Rust, so the trainer could be Rust too, on a tensor library rather
+than hand-written GPU code.
+- **Candle** (Hugging Face, MIT or Apache-2.0) runs CUDA, reads safetensors and GGUF, and has autograd and
+  optimisers (AdamW). It is used for inference far more than training, so LoRA training on a 4B model would mostly be
+  Mobius's own code on top: loading the base model, adding LoRA layers, and running the loop.
+- **Burn** (MIT or Apache-2.0) is built for training, with autodiff and CUDA backends. It loads fewer ready-made
+  language models.
+- **Python libraries** (PyTorch BSD-3; Transformers, PEFT and TRL Apache-2.0) are the proven route, at the cost of a
+  large runtime download.
+
+**Honest size, Rust route:**
+- **The trainer.** Load a 4B base model in 16-bit (about 8 GB, tight on a 12 GB card) or 4-bit; LoRA layers;
+  gradient checkpointing; AdamW; checkpoints; export to the GGUF LoRA format `llama-server` loads.
+- **Effort.** Several rounds, and the riskiest work in the plan: memory use and speed on the 4080 are unknown until
+  tried.
+- **Smallest first step.** Train the mail-sort adapter with Mobius's own trainer on made-up mail, and beat 64/76 on
+  the same test.
+- **Python route.** Two or three rounds to the same first step, with a download of several GB.
 
 ## Decisions for Andrew
 
@@ -189,8 +209,12 @@ see whether an adapter beats 64/76 before Mobius's own trainer is built. Without
    It is local only and costs nothing. Recommended: yes.
 2. **Prefer Unsloth Dynamic files in the local model picker?** The experiment showed no gain at 4B, so not for now.
 3. **Heretic and weight editing stay out.** Recommended: agree.
-4. **Mobius's own trainer** (see above): build `mobius-train` on PyTorch, PEFT and TRL as an optional download?
-   Recommended: yes, starting with mail sort, after (or as) the proof trial.
+4. **How Mobius's own trainer is built** (see above).
+   - **Rust on Candle:** in the core's own language, no Python, but more work and more risk.
+   - **Python libraries:** proven, but a large download.
+
+   Recommended: start in Rust on Candle with the smallest step (the mail-sort adapter beating 64/76). Fall back to
+   Python only if Candle can't train it on the 4080.
 
 ## Sources (read 27 November 2026)
 
