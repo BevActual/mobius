@@ -272,6 +272,7 @@
 .code-page .ed-hover-problem[data-severity="warning"] .ed-hover-mark, .code-page .code-status-warn { background: var(--c-amber); }
 .code-page .ed-hover-problem[data-severity="info"] .ed-hover-mark, .code-page .ed-hover-problem[data-severity="hint"] .ed-hover-mark { background: var(--c-blue); }
 .code-page .ed-hover-source { color: var(--muted); }
+.code-page .ed-hover-actions { display: flex; gap: var(--sp-2); padding-top: var(--sp-1); }
 .code-page .ed-complete { display: flex; align-items: flex-start; overflow: hidden; }
 .code-page .ed-complete ul { list-style: none; margin: 0; padding: var(--sp-1); width: 320px; max-height: calc(10 * 24px); overflow: auto; }
 .code-page .ed-complete li { display: flex; align-items: center; gap: var(--sp-2); height: 24px; padding: 0 var(--sp-2); border-radius: var(--radius-control); font-family: var(--font-mono); white-space: nowrap; }
@@ -296,6 +297,10 @@
 .code-panel .code-problem[data-severity="warning"] .ed-hover-mark { background: var(--c-amber); }
 .code-panel .code-problem[data-severity="info"] .ed-hover-mark, .code-panel .code-problem[data-severity="hint"] .ed-hover-mark { background: var(--c-blue); }
 .code-panel .code-problem-where { margin-left: auto; color: var(--muted); white-space: nowrap; font-size: var(--fs-xs); }
+.code-panel.code-problems li { position: relative; }
+.code-panel.code-problems li:has(.code-problem-fix) .code-problem { padding-right: calc(var(--sp-3) + 44px); }
+.code-panel .code-problem-fix { position: absolute; right: var(--sp-2); top: 50%; transform: translateY(-50%); padding: 1px var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-small); background: var(--raised); color: var(--ink); font: inherit; font-size: var(--fs-xs); cursor: pointer; opacity: 0; transition: opacity var(--dur-fast); }
+.code-panel.code-problems li:hover .code-problem-fix, .code-panel .code-problem-fix:focus-visible { opacity: 1; }
 .code-panel.code-problems-empty { margin: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
 
 /* Change marks against the last commit, in the gutter's left edge, and the look at what was there. */

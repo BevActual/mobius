@@ -742,3 +742,56 @@ test('a Run button beside each test runs just that test with the person\'s comma
   // The command kept is still the person's own.
   expect(JSON.parse(fs.readFileSync(path.join(userData, 'code-tests.json'), 'utf8'))).toEqual({ 'offsite-planner': 'npm test' });
 });
+
+test('Mobius fixes a problem from its hover or Ctrl+., and reviews what changed since the last commit', async () => {
+  const bin = path.join(project, 'node_modules', '.bin');
+  fs.mkdirSync(bin, { recursive: true });
+  const fake = path.resolve(import.meta.dirname, 'fixtures', 'fake-language-server.js');
+  fs.writeFileSync(path.join(bin, 'typescript-language-server'), `#!/bin/sh\nexec "${process.execPath}" "${fake}" "$@"\n`, { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'typescript-language-server.cmd'), `@"${process.execPath}" "${fake}" %*\r\n`);
+  fs.writeFileSync(path.join(project, '.gitignore'), 'node_modules/\n');
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: project, encoding: 'utf8' }).trim();
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 'test@example.com');
+  git('config', 'user.name', 'Test');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'Start');
+  await start([says(['Fixed it.']), says(['Fixed again.']), says(['One finding.'])]);
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await expect(editor).toHaveValue(BUDGET);
+  const status = shell().locator('footer.code-status');
+  await expect(status.getByRole('button', { name: 'Format on save' })).toBeVisible({ timeout: 15_000 });
+  const asked = (n: number) => JSON.stringify(model!.requests[n] ?? {});
+  const log = shell().getByRole('log', { name: 'Conversation' });
+
+  // Ctrl+. on a line with a problem sends it to Mobius with the code around it.
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('// TODO tidy');
+  await expect(shell().locator('.ed-problem')).toHaveCount(1);
+  await shell().keyboard.press('Control+.');
+  await expect(log.locator('.msg.assistant')).toHaveText('Fixed it.');
+  expect(asked(0)).toContain('Fix this error in src/budget.js of the Code project \\"offsite-planner\\", line 7, column 4 (fake)');
+  expect(asked(0)).toContain('> Finish this TODO');
+  expect(asked(0)).toContain('› 7 | // TODO tidy');
+
+  // The problem's hover has Fix with Mobius too.
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.press('F8');
+  const hover = shell().locator('.ed-hover');
+  await hover.getByRole('button', { name: 'Fix with Mobius' }).click();
+  await expect(log.locator('.msg.assistant').last()).toHaveText('Fixed again.');
+  expect(asked(1)).toContain('Fix this error in src/budget.js');
+
+  // Review reads what changed since the last commit (typed text counts once saved) and asks for findings, not edits.
+  await editor.focus();
+  await shell().keyboard.press('Control+s');
+  const bar = shell().getByRole('region', { name: 'Changes' });
+  await expect(bar.getByRole('status')).toHaveText('1 change');
+  await bar.getByRole('button', { name: 'Review' }).click();
+  await expect(log.locator('.msg.assistant').last()).toHaveText('One finding.');
+  expect(asked(2)).toContain('Review my changes in the Code project \\"offsite-planner\\" on the branch main');
+  expect(asked(2)).toContain('+// TODO tidy');
+  expect(asked(2)).toContain('Do not change any files.');
+  expect(fs.readFileSync(path.join(project, 'src', 'budget.js'), 'utf8')).toBe(`${BUDGET}// TODO tidy`);
+});

@@ -256,6 +256,10 @@ A code editor for projects in your workspace.
   One saves the file, runs your test command narrowed to that test, and turns green or red with how it went. Your
   chosen command stays as it is; a runner Code does not know runs the whole command.
 - **Split** (Ctrl+\\) puts a second editor beside the first, on the same file or another one; F6 moves between them.
+- **Fix with Mobius**: a problem's hover, its row in Problems, or Ctrl+. on its line sends it to Mobius with the
+  lines around it, to fix as a change you keep or discard.
+- **Review** (in Changes) sends what changed since the last commit to Mobius, which answers with findings by file
+  and line and changes nothing.
 - **Review Mobius's change** as removed and added lines, keeping or putting back each one.
 - **Debug** mode (in the composer's Mode menu while you are in Code) has Mobius reproduce the bug first, then propose
   the fix.
