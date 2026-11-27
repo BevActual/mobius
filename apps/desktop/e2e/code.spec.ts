@@ -271,3 +271,59 @@ test('Outline, on the right, lists what the open file defines and goes to its li
   await outline.getByRole('button', { name: /splitTotal/ }).click();
   await expect(shell().getByText('Ln 2, Col 1')).toBeVisible();
 });
+
+test('the editor has many cursors, moves lines, places the cursor with the pointer and stays quick in a long file', async () => {
+  const long = Array.from({ length: 20_000 }, (_, i) => `const line${i} = ${i} // a comment`).join('\n');
+  fs.writeFileSync(path.join(project, 'src', 'long.js'), `${long}\n`);
+  await start();
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await expect(editor).toHaveValue(BUDGET);
+  await editor.focus();
+
+  // Ctrl+D picks the word under the cursor, then its next two uses (wrapping round to the top); typing changes all three at once, and one undo puts them back.
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.press('ArrowDown');
+  await shell().keyboard.press('ArrowDown');
+  await shell().keyboard.press('ArrowDown');
+  await shell().keyboard.press('End');
+  await shell().keyboard.press('Control+ArrowLeft');
+  for (let i = 0; i < 3; i += 1) await shell().keyboard.press('Control+d');
+  await expect(shell().getByText('3 cursors', { exact: false })).toBeVisible();
+  await shell().keyboard.type('guests');
+  await expect(editor).toHaveValue(BUDGET.replaceAll('people', 'guests'));
+  await shell().keyboard.press('Control+z');
+  await expect(editor).toHaveValue(BUDGET);
+  await shell().keyboard.press('Escape');
+  await expect(shell().getByText('cursors', { exact: false })).toHaveCount(0);
+
+  // Alt+Up moves the line with the cursor above the one before it; Shift+Alt+Down copies it.
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.press('ArrowDown');
+  await shell().keyboard.press('Alt+ArrowUp');
+  const lines = BUDGET.split('\n');
+  await expect(editor).toHaveValue([lines[1], lines[0], ...lines.slice(2)].join('\n'));
+  await shell().keyboard.press('Control+z');
+  await shell().keyboard.press('Shift+Alt+ArrowDown');
+  await expect(editor).toHaveValue([lines[0], lines[1], lines[1], ...lines.slice(2)].join('\n'));
+  await shell().keyboard.press('Control+z');
+  await expect(editor).toHaveValue(BUDGET);
+
+  // A click puts the cursor where it lands.
+  await shell().locator('.ed-line').nth(2).click({ position: { x: 4, y: 10 } });
+  await expect(shell().getByText('Ln 3, Col 1')).toBeVisible();
+
+  // A 20,000-line file draws only the lines in view, and typing at its end shows at once.
+  await shell().keyboard.press('Control+p');
+  await shell().getByRole('combobox', { name: 'File to open' }).fill('long.js');
+  await shell().keyboard.press('Enter');
+  const big = shell().getByRole('textbox', { name: 'Contents of src/long.js' });
+  await expect(big).toHaveValue(`${long}\n`);
+  expect(await shell().locator('.ed-line').count()).toBeLessThan(200);
+  await big.focus();
+  await shell().keyboard.press('Control+End');
+  const started = Date.now();
+  await shell().keyboard.type('done');
+  await expect(big).toHaveValue(`${long}\ndone`);
+  expect(Date.now() - started).toBeLessThan(3_000);
+  await expect(shell().getByText('Ln 20001, Col 5')).toBeVisible();
+});

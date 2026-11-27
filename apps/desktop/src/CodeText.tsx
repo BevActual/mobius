@@ -1,0 +1,469 @@
+import { type MutableRefObject, type MouseEvent as ReactMouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { IS_MAC, findAll, indentLines, langName, newLine, toggleComment, typePair } from './code-edit';
+import { colourLines, type Lang } from './code-view';
+import {
+  History, addCursorV, addNextMatch, colAt, copyLines, cursor, deleteBy, deleteLines, docOf, editEach, end, home, insertText, lineEnd, lineOf, lineStarts,
+  moveH, moveLines, moveV, normalize, selFrom, selTo, selectAll, selectLine, single, visualCol, wordAt, type DocState, type Step,
+} from './code-doc';
+import type { CodeState } from './useCode';
+
+const LINE = 20;
+const PAD_TOP = 8;
+const PAD_LEFT = 8;
+const PAD_BOTTOM = 40;
+/** Lines drawn past each edge of the view, so a quick scroll never shows a gap. */
+const OVERSCAN = 30;
+const TAB = 2;
+
+/** Find in the file (Ctrl+F) or go to a line (Ctrl+G), in a bar above the text. */
+export function EditorBar({ mode, text, onClose, onFind, onLine }: { mode: 'find' | 'line'; text: string; onClose: () => void; onFind: (query: string, matchCase: boolean, at: number) => void; onLine: (line: number) => void }) {
+  const [query, setQuery] = useState('');
+  const [matchCase, setMatchCase] = useState(false);
+  const [at, setAt] = useState(0);
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => { field.current?.focus(); field.current?.select(); }, [mode]);
+  const count = mode === 'find' ? findAll(text, query, matchCase).length : 0;
+  useEffect(() => { if (mode === 'find') onFind(query, matchCase, count === 0 ? 0 : Math.min(at, count - 1)); }, [query, matchCase, at, count, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const lines = useMemo(() => lineStarts(text).length, [text]);
+  if (mode === 'line') {
+    return (
+      <form className="code-bar" role="search" aria-label="Go to line" onSubmit={(e) => { e.preventDefault(); const n = Number.parseInt(query, 10); if (n > 0) onLine(Math.min(n, lines)); }}>
+        <input ref={field} aria-label="Line number" inputMode="numeric" placeholder={`Line, 1 to ${lines}`} value={query} onChange={(e) => setQuery(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }} />
+        <button type="submit" className="btn" title="Go (Enter)">Go</button>
+        <button type="button" className="strip-btn" aria-label="Close" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+      </form>
+    );
+  }
+  const step = (by: number) => { if (count > 0) setAt((i) => (i + by + count) % count); };
+  return (
+    <div className="code-bar" role="search" aria-label="Find in file">
+      <input ref={field} aria-label="Find in file" placeholder="Find in file" value={query} spellCheck={false} onChange={(e) => { setQuery(e.target.value); setAt(0); }} onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
+        else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      }} />
+      <span className="code-bar-count" aria-live="polite">{query ? (count === 0 ? 'No matches' : `${Math.min(at, count - 1) + 1} of ${count}`) : ''}</span>
+      <button type="button" className="code-bar-case" aria-pressed={matchCase} title="Match case" onClick={() => setMatchCase((m) => !m)}>Aa</button>
+      <button type="button" className="strip-btn" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={count === 0} onClick={() => step(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Next match" title="Next match (Enter)" disabled={count === 0} onClick={() => step(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg></button>
+      <button type="button" className="strip-btn" aria-label="Close find" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
+    </div>
+  );
+}
+
+/** The span where two texts differ, for input the editor did not make itself (a word chosen in an input method, a fill). */
+function diffSpan(before: string, after: string): { from: number; to: number; insert: string } | null {
+  if (before === after) return null;
+  let a = 0;
+  while (a < before.length && a < after.length && before[a] === after[a]) a += 1;
+  let b = 0;
+  while (b < before.length - a && b < after.length - a && before[before.length - 1 - b] === after[after.length - 1 - b]) b += 1;
+  return { from: a, to: before.length - b, insert: after.slice(a, after.length - b) };
+}
+
+/**
+ * The Code editor: it draws its own text, cursors and selections, so it can have many cursors at once and stays quick
+ * in long files (only the lines in view are drawn). Keys go to a hidden text field that holds the whole text, so
+ * input methods, screen readers and the clipboard work as in any text field; every change is made by the editor
+ * itself, at every cursor, and kept for its own undo. Keys follow VS Code: Ctrl+D adds the next match, Alt+click
+ * and Ctrl+Alt+Up or Down add cursors, Alt+Up or Down move lines, Shift+Alt+Up or Down copy them, Ctrl+Shift+K
+ * deletes them, Ctrl+L selects a line, Esc goes back to one cursor.
+ */
+export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; lang: Lang; bar: 'find' | 'line' | null; setBar: (bar: 'find' | 'line' | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null> }) {
+  const path = code.open?.path ?? '';
+  const doc = useRef<DocState>(docOf(code.draft));
+  const history = useRef(new History());
+  const goals = useRef<number[] | null>(null);
+  const shownPath = useRef(path);
+  const [, setVersion] = useState(0);
+  const redraw = () => setVersion((v) => v + 1);
+  // Another file, or the text changed outside the editor (Revert, a change kept from Mobius): start from it.
+  if (shownPath.current !== path) {
+    shownPath.current = path;
+    doc.current = docOf(code.draft);
+    history.current.clear();
+  } else if (doc.current.text !== code.draft) {
+    const n = code.draft.length;
+    const was = doc.current;
+    const sels = normalize(was.sels.map((s) => ({ anchor: Math.min(s.anchor, n), head: Math.min(s.head, n) })), was.primary);
+    doc.current = { text: code.draft, sels: sels.sels, primary: sels.primary };
+    history.current.seal();
+  }
+  const state = doc.current;
+  const text = state.text;
+
+  const scroller = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const measure = useRef<HTMLSpanElement>(null);
+  const composing = useRef(false);
+  const [view, setView] = useState({ top: 0, left: 0, height: 600, width: 800 });
+  const [cw, setCw] = useState(8);
+  const [focused, setFocused] = useState(false);
+  const [found, setFound] = useState<{ marks: [number, number][]; at: number }>({ marks: [], at: 0 });
+  useEffect(() => { setFound({ marks: [], at: 0 }); }, [path]);
+
+  const lines = useMemo(() => text.split('\n'), [text]);
+  const starts = useMemo(() => lineStarts(text), [text]);
+  const widest = useMemo(() => lines.reduce((m, l) => Math.max(m, l.includes('\t') ? visualCol(l, l.length, TAB) : l.length), 0), [lines]);
+
+  // The width of one character, measured in the editor's own font, and the size of the view.
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const m = measure.current;
+    if (!el || !m) return;
+    const size = () => {
+      const w = m.getBoundingClientRect().width / 20;
+      if (w > 0) setCw(w);
+      setView((v) => ({ ...v, height: el.clientHeight, width: el.clientWidth }));
+    };
+    size();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(size);
+    ro.observe(el);
+    ro.observe(m);
+    return () => ro.disconnect();
+  }, []);
+
+  const first = Math.max(0, Math.floor((view.top - PAD_TOP) / LINE) - OVERSCAN);
+  const last = Math.min(lines.length - 1, Math.ceil((view.top + view.height) / LINE) + OVERSCAN);
+  const tokens = useMemo(() => colourLines(lines.slice(0, last + 1), lang), [lines, last, lang]);
+
+  const primary = state.sels[state.primary] ?? state.sels[0]!;
+  const caretLine = lineOf(starts, primary.head);
+  const caretCol = primary.head - starts[caretLine]!;
+  const xOf = (line: number, col: number) => PAD_LEFT + visualCol(lines[line] ?? '', col, TAB) * cw;
+
+  // The hidden field holds the whole text with the primary selection, for input methods and screen readers.
+  useLayoutEffect(() => {
+    const el = input.current;
+    if (!el || composing.current) return;
+    if (el.value !== text) el.value = text;
+    const s = primary;
+    if (el.selectionStart !== selFrom(s) || el.selectionEnd !== selTo(s)) el.setSelectionRange(selFrom(s), selTo(s), s.head < s.anchor ? 'backward' : 'forward');
+  });
+
+  /** Scrolls so the primary cursor is in view, with a little room around it; `middle` puts its line a third of the way down. */
+  const reveal = (middle = false) => {
+    const el = scroller.current;
+    if (!el) return;
+    const s = doc.current.sels[doc.current.primary]!;
+    const st = lineStarts(doc.current.text);
+    const line = lineOf(st, s.head);
+    const top = PAD_TOP + line * LINE;
+    if (middle) { if (top < el.scrollTop + LINE || top > el.scrollTop + el.clientHeight - 3 * LINE) el.scrollTop = Math.max(0, top - el.clientHeight / 3); }
+    else if (top < el.scrollTop) el.scrollTop = top - PAD_TOP;
+    else if (top + LINE > el.scrollTop + el.clientHeight) el.scrollTop = top + LINE - el.clientHeight + PAD_TOP;
+    const lineText = doc.current.text.slice(st[line], lineEnd(doc.current.text, st, line));
+    const x = PAD_LEFT + visualCol(lineText, s.head - st[line]!, TAB) * cw;
+    if (x < el.scrollLeft + PAD_LEFT) el.scrollLeft = Math.max(0, x - 4 * cw);
+    else if (x > el.scrollLeft + el.clientWidth - 4 * cw) el.scrollLeft = x - el.clientWidth + 4 * cw;
+  };
+
+  /** Makes a change: kept for undo, written to the file's draft, the cursor kept in view. */
+  const apply = (step: Step | null, kind: string) => {
+    if (!step || step.changes.length === 0) return;
+    history.current.record(doc.current, step, kind);
+    doc.current = step.state;
+    goals.current = null;
+    code.setDraft(step.state.text);
+    redraw();
+    requestAnimationFrame(() => reveal());
+  };
+  /** Moves the cursors (no change to the text). */
+  const place = (next: DocState, keepGoals = false) => {
+    history.current.seal();
+    if (!keepGoals) goals.current = null;
+    doc.current = next;
+    redraw();
+    requestAnimationFrame(() => reveal());
+  };
+  const putBack = (next: DocState | null) => {
+    if (!next) return;
+    doc.current = next;
+    goals.current = null;
+    code.setDraft(next.text);
+    redraw();
+    requestAnimationFrame(() => reveal());
+  };
+
+  const typed = (ch: string) => {
+    const s = doc.current;
+    if (ch.length === 1) apply(editEach(s, (sel, t) => typePair(t, selFrom(sel), selTo(sel), ch) ?? { from: selFrom(sel), to: selTo(sel), insert: ch, select: [selFrom(sel) + 1, selFrom(sel) + 1] }), 'type');
+    else apply(insertText(s, ch), 'type');
+  };
+
+  const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (composing.current || e.nativeEvent.isComposing) return;
+    const mod = IS_MAC ? e.metaKey : e.ctrlKey;
+    const wordMod = IS_MAC ? e.altKey : e.ctrlKey;
+    const key = e.key;
+    const lower = key.toLowerCase();
+    const s = doc.current;
+    const handled = () => { e.preventDefault(); e.stopPropagation(); };
+    if (mod && !e.altKey && lower === 's') { handled(); void code.save(); return; }
+    if (mod && !e.altKey && !e.shiftKey && lower === 'f') { handled(); setBar('find'); return; }
+    if (mod && !e.altKey && !e.shiftKey && lower === 'g') { handled(); setBar('line'); return; }
+    if (mod && !e.altKey && ((lower === 'z' && e.shiftKey) || (lower === 'y' && !IS_MAC))) { handled(); putBack(history.current.redo(s)); return; }
+    if (mod && !e.altKey && lower === 'z') { handled(); putBack(history.current.undo(s)); return; }
+    if (mod && !e.altKey && !e.shiftKey && lower === 'a') { handled(); place(selectAll(s)); return; }
+    if (mod && !e.altKey && !e.shiftKey && lower === 'd') { handled(); place(addNextMatch(s)); return; }
+    if (mod && !e.altKey && !e.shiftKey && lower === 'l') { handled(); place(selectLine(s)); return; }
+    if (mod && e.shiftKey && !e.altKey && lower === 'k') { handled(); apply(deleteLines(s), 'lines'); return; }
+    if (mod && !e.altKey && (key === '/' || e.code === 'Slash')) { handled(); apply(editEach(s, (sel, t) => toggleComment(t, selFrom(sel), selTo(sel), lang)), 'comment'); return; }
+    if (mod && !e.altKey && (key === ']' || key === '[')) { handled(); apply(editEach(s, (sel, t) => indentLines(t, selFrom(sel), selTo(sel), key === '[')), 'indent'); return; }
+    if (key === 'Escape' && s.sels.length > 1) { handled(); place(single(s)); return; }
+    if (key === 'Tab' && !mod && !e.altKey) {
+      handled();
+      if (e.shiftKey || s.sels.some((x) => x.anchor !== x.head)) apply(editEach(s, (sel, t) => indentLines(t, selFrom(sel), selTo(sel), e.shiftKey)), 'indent');
+      else apply(insertText(s, ' '.repeat(TAB)), 'type');
+      return;
+    }
+    if (key === 'Enter' && !mod && !e.altKey) { handled(); apply(editEach(s, (sel, t) => newLine(t, selFrom(sel), selTo(sel))), 'enter'); return; }
+    if (key === 'Backspace' || key === 'Delete') {
+      handled();
+      // ⌘⌫ on a Mac deletes back to the start of the line.
+      if (IS_MAC && e.metaKey && key === 'Backspace') {
+        apply(editEach(s, (sel, t) => {
+          if (sel.anchor !== sel.head) return { from: selFrom(sel), to: selTo(sel), insert: '', select: [selFrom(sel), selFrom(sel)] };
+          const ls = t.lastIndexOf('\n', sel.head - 1) + 1;
+          return ls === sel.head ? null : { from: ls, to: sel.head, insert: '', select: [ls, ls] };
+        }), 'delete');
+        return;
+      }
+      apply(deleteBy(s, key === 'Backspace' ? -1 : 1, wordMod), 'delete');
+      return;
+    }
+    const vertical = key === 'ArrowUp' || key === 'ArrowDown';
+    const by: 1 | -1 = key === 'ArrowUp' || key === 'ArrowLeft' || key === 'PageUp' ? -1 : 1;
+    if (vertical && e.altKey && !mod && e.shiftKey) { handled(); apply(copyLines(s, by), 'lines'); return; }
+    if (vertical && e.altKey && !mod) { handled(); apply(moveLines(s, by), 'lines'); return; }
+    if (vertical && ((IS_MAC && e.altKey && e.metaKey) || (!IS_MAC && e.ctrlKey && e.altKey))) { handled(); place(addCursorV(s, by, TAB)); return; }
+    if (vertical && IS_MAC && e.metaKey) { handled(); place(by < 0 ? { ...s, sels: [e.shiftKey ? { anchor: primary.anchor, head: 0 } : cursor(0)], primary: 0 } : { ...s, sels: [e.shiftKey ? { anchor: primary.anchor, head: s.text.length } : cursor(s.text.length)], primary: 0 }); return; }
+    if (vertical && !mod) {
+      handled();
+      const moved = moveV(s, by, e.shiftKey, goals.current ?? s.sels.map(() => null) as (number | null)[], TAB);
+      place(moved.state, true);
+      goals.current = moved.goals;
+      return;
+    }
+    if (key === 'PageUp' || key === 'PageDown') {
+      handled();
+      const page = Math.max(1, Math.floor((scroller.current?.clientHeight ?? 400) / LINE) - 1);
+      const moved = moveV(s, by * page, e.shiftKey, goals.current ?? s.sels.map(() => null) as (number | null)[], TAB);
+      if (scroller.current) scroller.current.scrollTop += by * page * LINE;
+      place(moved.state, true);
+      goals.current = moved.goals;
+      return;
+    }
+    if ((key === 'ArrowLeft' || key === 'ArrowRight') && IS_MAC && e.metaKey) { handled(); place(key === 'ArrowLeft' ? home(s, e.shiftKey) : end(s, e.shiftKey)); return; }
+    if (key === 'ArrowLeft' || key === 'ArrowRight') { handled(); place(moveH(s, by, e.shiftKey, wordMod)); return; }
+    if ((key === 'Home' || key === 'End') && mod) { handled(); const at = key === 'Home' ? 0 : s.text.length; place({ ...s, sels: [e.shiftKey ? { anchor: primary.anchor, head: at } : cursor(at)], primary: 0 }); return; }
+    if (key === 'Home') { handled(); place(home(s, e.shiftKey)); return; }
+    if (key === 'End') { handled(); place(end(s, e.shiftKey)); return; }
+    // Everything else (letters, numbers, symbols) arrives as input below.
+  };
+
+  // Typed characters arrive as input; the editor puts them in itself, at every cursor. Words from an input method,
+  // dictation or a fill land in the field first and are read back from it.
+  useEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    const before = (e: InputEvent) => {
+      if (e.isComposing || composing.current) return;
+      if (e.inputType === 'insertText' && e.data) { e.preventDefault(); typed(e.data); }
+      else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') { e.preventDefault(); apply(editEach(doc.current, (sel, t) => newLine(t, selFrom(sel), selTo(sel))), 'enter'); }
+      else if (e.inputType === 'historyUndo') { e.preventDefault(); putBack(history.current.undo(doc.current)); }
+      else if (e.inputType === 'historyRedo') { e.preventDefault(); putBack(history.current.redo(doc.current)); }
+    };
+    const readBack = () => {
+      if (composing.current) return;
+      const span = diffSpan(doc.current.text, el.value);
+      if (!span) return;
+      const at = span.from + span.insert.length;
+      apply({ state: { text: el.value, sels: [cursor(at)], primary: 0 }, changes: [span] }, 'type');
+    };
+    const start = () => { composing.current = true; };
+    const done = () => { composing.current = false; readBack(); };
+    const paste = (e: ClipboardEvent) => {
+      const t = e.clipboardData?.getData('text/plain');
+      if (t === undefined) return;
+      e.preventDefault();
+      apply(insertText(doc.current, t), 'paste');
+    };
+    const copy = (e: ClipboardEvent, cut: boolean) => {
+      const s = doc.current;
+      const empty = s.sels.every((x) => x.anchor === x.head);
+      const st = lineStarts(s.text);
+      // Nothing selected copies the whole line, as in VS Code.
+      const parts = s.sels.map((x) => (empty ? `${s.text.slice(st[lineOf(st, x.head)], lineEnd(s.text, st, lineOf(st, x.head)))}\n` : s.text.slice(selFrom(x), selTo(x))));
+      e.clipboardData?.setData('text/plain', empty ? parts.join('') : parts.join('\n'));
+      e.preventDefault();
+      if (cut) apply(empty ? deleteLines(s) : deleteBy(s, -1, false, false), 'cut');
+    };
+    const onCopy = (e: ClipboardEvent) => copy(e, false);
+    const onCut = (e: ClipboardEvent) => copy(e, true);
+    el.addEventListener('beforeinput', before);
+    el.addEventListener('input', readBack);
+    el.addEventListener('compositionstart', start);
+    el.addEventListener('compositionend', done);
+    el.addEventListener('paste', paste);
+    el.addEventListener('copy', onCopy);
+    el.addEventListener('cut', onCut);
+    return () => {
+      el.removeEventListener('beforeinput', before);
+      el.removeEventListener('input', readBack);
+      el.removeEventListener('compositionstart', start);
+      el.removeEventListener('compositionend', done);
+      el.removeEventListener('paste', paste);
+      el.removeEventListener('copy', onCopy);
+      el.removeEventListener('cut', onCut);
+    };
+  });
+
+  // —— The pointer ——
+  const posAt = (clientX: number, clientY: number): number => {
+    const el = content.current;
+    if (!el) return 0;
+    const r = el.getBoundingClientRect();
+    const st = lineStarts(doc.current.text);
+    const line = Math.max(0, Math.min(st.length - 1, Math.floor((clientY - r.top - PAD_TOP) / LINE)));
+    const lineText = doc.current.text.slice(st[line], lineEnd(doc.current.text, st, line));
+    return st[line]! + colAt(lineText, (clientX - r.left - PAD_LEFT) / cw, TAB);
+  };
+  const onMouseDown = (e: ReactMouseEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    input.current?.focus({ preventScroll: true });
+    const at = posAt(e.clientX, e.clientY);
+    const s = doc.current;
+    const t = s.text;
+    let anchorSpan: [number, number] = [at, at];
+    if (e.detail === 2) anchorSpan = wordAt(t, at);
+    else if (e.detail >= 3) { const st = lineStarts(t); const l = lineOf(st, at); anchorSpan = [st[l]!, st[l + 1] ?? t.length]; }
+    const adding = e.altKey && !e.shiftKey;
+    const base = adding ? s.sels : [];
+    const startAnchor = e.shiftKey && !adding ? primary.anchor : anchorSpan[0];
+    const set = (head: number) => {
+      const fwd = head >= anchorSpan[0];
+      const sel = e.shiftKey && !adding ? { anchor: startAnchor, head } : fwd ? { anchor: anchorSpan[0], head: Math.max(head, anchorSpan[1]) } : { anchor: anchorSpan[1], head };
+      const n = normalize([...base, sel], base.length);
+      place({ ...doc.current, sels: n.sels, primary: n.primary });
+    };
+    set(e.detail >= 2 ? anchorSpan[1] : at);
+    const move = (m: MouseEvent) => set(posAt(m.clientX, m.clientY));
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  // —— Find and Go to line ——
+  const onFind = (query: string, matchCase: boolean, at: number) => {
+    const marks = findAll(doc.current.text, query, matchCase);
+    setFound({ marks, at });
+    const hit = marks[at];
+    if (hit) { doc.current = { ...doc.current, sels: [{ anchor: hit[0], head: hit[1] }], primary: 0 }; redraw(); requestAnimationFrame(() => reveal(true)); }
+  };
+  const closeBar = () => {
+    setBar(null);
+    setFound({ marks: [], at: 0 });
+    requestAnimationFrame(() => input.current?.focus({ preventScroll: true }));
+  };
+  const goLine = (line: number) => {
+    const st = lineStarts(doc.current.text);
+    const at = st[Math.max(0, Math.min(line - 1, st.length - 1))]!;
+    setBar(null);
+    history.current.seal();
+    doc.current = { ...doc.current, sels: [cursor(at)], primary: 0 };
+    redraw();
+    input.current?.focus({ preventScroll: true });
+    requestAnimationFrame(() => reveal(true));
+  };
+  if (jump) jump.current = goLine;
+
+  // —— Drawing ——
+  const visible: React.ReactNode[] = [];
+  const selRects: React.ReactNode[] = [];
+  const cursors: React.ReactNode[] = [];
+  const multi = state.sels.length > 1;
+  for (let i = first; i <= last; i += 1) {
+    const toks = tokens[i] ?? [];
+    visible.push(
+      <div key={i} className="ed-line" style={{ top: PAD_TOP + i * LINE }} data-current={(i === caretLine && primary.anchor === primary.head && !multi) || undefined}>
+        {toks.map((t, k) => <span key={k} className={`tok-${t.k}`}>{t.t}</span>)}
+      </div>,
+    );
+  }
+  state.sels.forEach((s, n) => {
+    const a = selFrom(s);
+    const b = selTo(s);
+    if (a !== b) {
+      const la = Math.max(lineOf(starts, a), first);
+      const lb = Math.min(lineOf(starts, b), last);
+      for (let l = la; l <= lb; l += 1) {
+        const ls = starts[l]!;
+        const le = lineEnd(text, starts, l);
+        const x1 = xOf(l, Math.max(a, ls) - ls);
+        const past = b > le;
+        const x2 = xOf(l, Math.min(b, le) - ls) + (past ? cw / 2 : 0);
+        if (x2 > x1) selRects.push(<div key={`${n}-${l}`} className="ed-sel" style={{ top: PAD_TOP + l * LINE, left: x1, width: x2 - x1 }} />);
+      }
+    }
+    const hl = lineOf(starts, s.head);
+    if (hl >= first && hl <= last) cursors.push(<div key={`c${n}`} className="ed-cursor" style={{ top: PAD_TOP + hl * LINE, left: xOf(hl, s.head - starts[hl]!) }} />);
+  });
+  const marks = found.marks.slice(0, 5000).map(([a, b], i) => {
+    const l = lineOf(starts, a);
+    if (l < first || l > last) return null;
+    const x1 = xOf(l, a - starts[l]!);
+    return <span key={a} className="code-found" data-current={i === found.at || undefined} style={{ top: PAD_TOP + l * LINE, left: x1, width: Math.max(cw / 2, xOf(l, Math.min(b, lineEnd(text, starts, l)) - starts[l]!) - x1) }} />;
+  });
+  const gutterWidth = `${String(lines.length).length + 3}ch`;
+  const height = PAD_TOP + lines.length * LINE + PAD_BOTTOM;
+  const width = PAD_LEFT + widest * cw + 6 * cw;
+  const picked = state.sels.reduce((n, s) => n + selTo(s) - selFrom(s), 0);
+
+  return (
+    <div className="code-editor">
+      {bar && <EditorBar key={bar} mode={bar} text={text} onClose={closeBar} onFind={onFind} onLine={goLine} />}
+      <div className="ed" data-focused={focused || undefined}>
+        <div className="ed-gutter" aria-hidden="true" style={{ width: gutterWidth }}>
+          <div style={{ height, transform: `translateY(${-view.top}px)` }}>
+            {Array.from({ length: last - first + 1 }, (_, k) => first + k).map((i) => (
+              <span key={i} style={{ top: PAD_TOP + i * LINE }} data-current={i === caretLine || undefined}>{i + 1}</span>
+            ))}
+          </div>
+        </div>
+        <div className="ed-scroll" ref={scroller} onScroll={(e) => { const t = e.currentTarget; setView((v) => ({ ...v, top: t.scrollTop, left: t.scrollLeft })); }}>
+          <div className="ed-content" ref={content} style={{ height, width }} onMouseDown={onMouseDown}>
+            <span className="ed-measure" ref={measure} aria-hidden="true">{'M'.repeat(20)}</span>
+            {marks}
+            {selRects}
+            {visible}
+            {focused && cursors}
+            <textarea
+              ref={input}
+              className="ed-input"
+              style={{ top: PAD_TOP + caretLine * LINE, left: xOf(caretLine, caretCol) }}
+              aria-label={`Contents of ${path || 'the file'}`}
+              aria-multiline="true"
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              autoComplete="off"
+              wrap="off"
+              defaultValue={text}
+              onKeyDown={onKey}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+            />
+          </div>
+        </div>
+      </div>
+      <footer className="code-status" aria-label="Where the cursor is">
+        <span>Ln {caretLine + 1}, Col {caretCol + 1}{picked > 0 ? ` (${picked} selected)` : ''}{multi ? ` · ${state.sels.length} cursors` : ''}</span>
+        <span>{langName(path)}</span>
+        <span>Spaces: {TAB}</span>
+      </footer>
+    </div>
+  );
+}
