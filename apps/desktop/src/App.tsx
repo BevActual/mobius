@@ -685,7 +685,8 @@ export function App() {
   useEffect(() => window.mobius.tray?.onQuitting(() => { void saveAll().finally(() => void window.mobius.tray?.savedForQuit().catch(() => undefined)); }), []);
   const activity = activityOf(conversation.state);
   const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
-  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone);
+  const marksReading = useRef(false);
+  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone, marksReading);
   // Tasks, Calendar and Sheets draw the running turn's changes as each call lands; the other apps when the turn ends.
   // Notes and Docs (marked): a folder Files syncs with a drive shows the sync glyph after its name.
   const syncedIn = (app: string) => (folder: string) => {
@@ -1352,7 +1353,7 @@ export function App() {
   // Chats live on items: opening a note, document, sheet or list shows its own chat; elsewhere, the general one. Not
   // while the Agent page is on screen (alone or in split view), where the person picks the chat. Not
   // while the open chat's changes wait for Keep: going to look at them must not take them away.
-  useItemChats(hereOf(surface), app !== 'agent' && other !== 'agent' && !settingsOpen, { id: conversation.state.conversation, empty: conversation.state.items.length === 0, busy: conversation.state.busy, waiting: turnMarks.files.length > 0 }, conversation.select);
+  useItemChats(hereOf(surface), app !== 'agent' && other !== 'agent' && !settingsOpen, { id: conversation.state.conversation, empty: conversation.state.items.length === 0, busy: conversation.state.busy, waiting: turnMarks.files.length > 0 || marksReading.current }, conversation.select);
   // Ask from anywhere: Ctrl+Shift+J with something chosen in the open app asks about it there, in a card by it.
   const [askHere, setAskHere] = useState<{ picked: Picked; back: Element | null; range: Range | null; chat: string } | null>(null);
   // The card asks in the item's own chat (so opening the item later shows it), unless that chat is busy right now.
