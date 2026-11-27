@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { choose, interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
+import { choose, goToPlace, interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -525,4 +525,45 @@ test('Accounts lists one row per account, opens its own page, and Add Account of
   await add.getByRole('button', { name: 'Other Account…' }).click();
   await add.getByRole('button', { name: 'CardDAV contacts' }).click();
   await expect(shell().locator('.toolbar-sub')).toHaveText('Contacts');
+});
+
+test('the morning brief: Write one now asks in Ask mode, and it lands in the Inbox written, with Play and Done', async () => {
+  await start([says(['## Today\n\n- Two tasks due, one overdue\n- Dentist at 15:00'])]);
+  // The test window often does not have the focus, so a finished request says so in a notice, and the window coming to
+  // the front just after opens that request's chat (the person most likely came for it). Here the Inbox is the point.
+  await shell().evaluate(() => window.mobius.preferences.set({ notifyFinished: false }));
+  await openSettings();
+  await go('Schedules', 'Check-ins');
+  const brief = page().getByRole('switch', { name: 'Morning brief' });
+  // The tests start with it off, so nothing is asked on its own.
+  await expect(brief).not.toBeChecked();
+  await page().getByRole('button', { name: 'Write one now' }).click();
+  await expect(page().getByRole('status').filter({ hasText: 'It will be in your Inbox' })).toBeVisible();
+  // It only reads, and only in the apps it looks at.
+  await expect.poll(() => model!.requests.length).toBe(1);
+  const request = model!.requests[0]!;
+  expect(JSON.stringify(request.messages)).toContain('Give me my morning brief for');
+  const tools = ((request.tools ?? []) as Array<{ function?: { name?: string }; name?: string }>).map((t) => t.function?.name ?? t.name ?? '');
+  expect(tools.length).toBeGreaterThan(0);
+  // Beside Mobius's own (its to-do list, asking you), only those apps' tools, and none that change them.
+  const apps = tools.filter((t) => !['todo-write', 'ask-person'].includes(t));
+  expect(apps.length).toBeGreaterThan(0);
+  expect(apps.every((t) => /^(tasks|calendar|mail)-/.test(t))).toBe(true);
+  expect(apps.some((t) => /add|delete|send|draft|move/.test(t))).toBe(false);
+
+  await shell().keyboard.press('Escape');
+  await expect(page()).toHaveCount(0);
+  await goToPlace(shell(), 'Home');
+  const desk = shell().getByRole('region', { name: 'Desk' });
+  await expect(desk).toBeVisible();
+  // It is listed once its chat is no longer working and what it wrote is read back (each a read of the core, which
+  // takes most of a second on a busy Windows runner).
+  const inbox = desk.getByRole('group', { name: 'Inbox' });
+  await expect(inbox.getByRole('button', { name: 'Open Morning brief' })).toBeVisible({ timeout: 15_000 });
+  await expect(inbox.getByRole('list', { name: 'Morning brief, as written' }).getByRole('listitem')).toHaveText(['Today', 'Two tasks due, one overdue', 'Dentist at 15:00']);
+  // Nothing speaks until Play; with no voice chosen, it says so and how to set one up.
+  await inbox.getByRole('button', { name: 'Play Morning brief' }).click();
+  await expect(inbox.getByRole('alert')).toBeVisible();
+  await inbox.getByRole('button', { name: 'Done with Morning brief' }).click();
+  await expect(inbox.getByRole('button', { name: 'Open Morning brief' })).toHaveCount(0);
 });
