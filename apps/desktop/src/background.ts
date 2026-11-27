@@ -6,7 +6,7 @@ import { KEPT_EVENT, fileKept, keepTurn, keptTurns, reviewable, turnId } from '.
  * Work handed to Mobius "in the background" (docs/design/mobius-agent.md): the panel steps aside while it runs, and
  * what it did lands as one row in Home's Inbox, with Keep all and Open, rather than the person watching it work.
  */
-export interface BackgroundRun { conversation: string; ask: string; at: number; /** Stopped before it finished. */ stopped?: boolean; /** The morning brief (brief.ts) or an app's check-in (checkins.ts): its row shows what it wrote. */ kind?: 'brief' | 'check-in'; /** A check-in's app. */ app?: string }
+export interface BackgroundRun { conversation: string; ask: string; at: number; /** Stopped before it finished. */ stopped?: boolean; /** The morning brief (brief.ts) or an app's check-in (checkins.ts): its row shows what it wrote. */ kind?: 'brief' | 'check-in'; /** A check-in's app. */ app?: string; /** What was handed off (assign.ts `item`), so the same item is not started twice while two items that share a name are not confused. */ item?: string }
 /** A run that has finished: what it changed and still waits for Keep (none for an answer that changed nothing). */
 export interface BackgroundDone extends BackgroundRun { files: string[]; turn: string | null; /** Its last turn failed. */ failed?: boolean; /** A brief's answer, as written. */ text?: string }
 
@@ -16,7 +16,7 @@ const MAX = 20;
 export function readRuns(): BackgroundRun[] {
   try {
     const v: unknown = JSON.parse(window.localStorage.getItem(KEY) ?? '[]');
-    return Array.isArray(v) ? v.filter((r): r is BackgroundRun => typeof r === 'object' && r !== null && typeof r.conversation === 'string' && typeof r.ask === 'string' && typeof r.at === 'number').map((r) => ({ conversation: r.conversation, ask: r.ask, at: r.at, ...(r.stopped === true ? { stopped: true } : {}), ...(r.kind === 'brief' || r.kind === 'check-in' ? { kind: r.kind } : {}), ...(typeof r.app === 'string' ? { app: r.app } : {}) })) : [];
+    return Array.isArray(v) ? v.filter((r): r is BackgroundRun => typeof r === 'object' && r !== null && typeof r.conversation === 'string' && typeof r.ask === 'string' && typeof r.at === 'number').map((r) => ({ conversation: r.conversation, ask: r.ask, at: r.at, ...(r.stopped === true ? { stopped: true } : {}), ...(r.kind === 'brief' || r.kind === 'check-in' ? { kind: r.kind } : {}), ...(typeof r.app === 'string' ? { app: r.app } : {}), ...(typeof r.item === 'string' ? { item: r.item } : {}) })) : [];
   } catch { return []; }
 }
 function writeRuns(runs: readonly BackgroundRun[]): void {
@@ -32,9 +32,11 @@ export const stopRun = (runs: readonly BackgroundRun[], conversation: string): B
 export const dropRun = (runs: readonly BackgroundRun[], conversation: string): BackgroundRun[] => runs.filter((r) => r.conversation !== conversation);
 
 /** "Changed 2 files" for the Inbox row, or what an answer without changes says; a stopped or failed run says so. */
-export function doneText(files: readonly string[], end: { stopped?: boolean; failed?: boolean } = {}): string {
+export function doneText(files: readonly string[], end: { stopped?: boolean; failed?: boolean } = {}, by?: string): string {
   const n = files.filter(reviewable).length;
-  const how = end.stopped ? 'Stopped before it finished' : end.failed ? 'Did not finish: something went wrong' : 'Finished in the background';
+  // One of the person's own agents did it: the row says which ("Handy finished in the background").
+  const said = end.stopped ? 'Stopped before it finished' : end.failed ? 'Did not finish: something went wrong' : 'Finished in the background';
+  const how = by ? `${by} ${said.charAt(0).toLowerCase()}${said.slice(1)}` : said;
   return n === 0 ? how : `${how} · ${n === 1 ? '1 change' : `${n} changes`} to keep`;
 }
 
@@ -53,7 +55,7 @@ export function useBackgroundRuns(conversations: readonly ConversationInfo[]) {
   const [runs, setRuns] = useState<BackgroundRun[]>(readRuns);
   const [done, setDone] = useState<BackgroundDone[]>([]);
   const put = useCallback((next: BackgroundRun[]) => { writeRuns(next); setRuns(next); }, []);
-  const start = useCallback((conversation: string, ask: string, kind?: 'brief' | 'check-in', app?: string) => put(addRun(readRuns(), { conversation, ask, at: Date.now(), ...(kind ? { kind } : {}), ...(app ? { app } : {}) })), [put]);
+  const start = useCallback((conversation: string, ask: string, kind?: 'brief' | 'check-in', app?: string, item?: string) => put(addRun(readRuns(), { conversation, ask, at: Date.now(), ...(kind ? { kind } : {}), ...(app ? { app } : {}), ...(item ? { item } : {}) })), [put]);
   const drop = useCallback((conversation: string) => put(dropRun(readRuns(), conversation)), [put]);
   // A run stopped before it finished, from wherever Stop was pressed.
   useEffect(() => window.mobius.agent.onNotification((n) => {
