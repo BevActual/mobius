@@ -1431,6 +1431,9 @@ export function App() {
       ),
     } satisfies PanelSpec;
   }), [openPieces]);
+  // A conversation open in Mail on screen is not shown again in its piece beside it.
+  const mailOnScreen = app === 'mail' || (split && panes.includes('mail'));
+  const shownPieces = useMemo(() => (mailOnScreen && mail.open ? piecePanels.filter((p) => p.id !== piecePanelId({ kind: 'mail.thread', item: mail.open!.id })) : piecePanels), [piecePanels, mailOnScreen, mail.open]);
   const settingsPanels = useMemo<readonly PanelSpec[]>(() => [
     // Settings' Sections panel: always there, as in System Settings. Hidden, it left only the page that was open and no
     // way to another.
@@ -2489,7 +2492,7 @@ export function App() {
                 {/* The apps show the current conversation's changes as they land; their Keep waits for its turn to end. */}
                 <PanelsListed on={!split || focused === index}>
                   {/* Pieces sit at the window's right: in split view, in the right pane only, so each shows once. */}
-                  <ShellPanelsContext.Provider value={!split || index === 1 ? piecePanels : NO_PANELS}>
+                  <ShellPanelsContext.Provider value={!split || index === 1 ? shownPieces : NO_PANELS}>
                     <TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider>
                   </ShellPanelsContext.Provider>
                 </PanelsListed>

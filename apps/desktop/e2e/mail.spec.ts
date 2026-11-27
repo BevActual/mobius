@@ -338,6 +338,7 @@ test('a conversation shown beside stays as a piece in other apps, and a reply is
   await expect(piece.getByRole('region', { name: 'Your draft reply' })).toHaveCount(1);
   await piece.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(compose.getByRole('textbox', { name: 'Message' })).toHaveValue(/^Hi Rui, eight of us\./);
+  await expect(compose.getByRole('textbox', { name: 'Message' })).toBeFocused();
   await compose.getByRole('textbox', { name: 'Message' }).fill('Hi Rui, eight of us. Thanks!');
   await compose.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(compose).toHaveCount(0);
@@ -347,4 +348,10 @@ test('a conversation shown beside stays as a piece in other apps, and a reply is
   // Open in Mail opens the conversation there.
   await piece.getByRole('button', { name: 'Open in Mail' }).click();
   await expect(page().getByRole('article', { name: 'Terrace + lunch for the 13th' })).toContainText('hold the terrace for eight');
+  // While Mail shows it, the piece steps aside, so the conversation is not on screen twice; it is back in other apps.
+  await expect(piece).toHaveCount(0);
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  await expect(piece).toBeVisible();
 });

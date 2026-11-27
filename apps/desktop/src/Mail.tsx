@@ -285,10 +285,10 @@ function DraftEditor({ mail, draft, inline = false }: { mail: MailState; draft: 
   const body = useRef<HTMLTextAreaElement>(null);
   const toPeople = useAddressSuggestions(d.to);
   const ccPeople = useAddressSuggestions(d.cc);
+  // Ready to type as it opens, a new reply or a draft opened again with Edit: at the top of the message, or at To.
   useEffect(() => {
-    if (draft.id) return;
     if (draft.to) { body.current?.focus({ preventScroll: true }); body.current?.setSelectionRange(0, 0); } else to.current?.focus({ preventScroll: true });
-  }, [draft]);
+  }, [draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // The id the draft was saved under, at once: Close right after a field lets go saves over it, not beside it.
   const savedAs = useRef<{ id: string; account: string } | null>(null);
   const keep = async (next: MailDraft) => {
