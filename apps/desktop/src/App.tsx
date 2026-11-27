@@ -40,7 +40,7 @@ import { saveAll, saveTyped } from './saveBeforeQuit';
 import { NotesSidebar } from './NotesSidebar';
 import { TasksGlance, TasksListPiece, TasksPage, TasksSidebar } from './Tasks';
 import { CalendarDayPiece } from './Calendar';
-import { PIECE_APP, pieceName, piecePanelId, putAway, showPiece, usePieces, type OpenPiece } from './pieces';
+import { PIECE_APP, pieceKey, pieceName, piecePanelId, putAway, putAwayMobius, showPiece, usePieces, workOpenIn, workToShow, type MobiusWork, type OpenPiece } from './pieces';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
 import { setLanguage } from './i18n';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
@@ -1398,7 +1398,7 @@ export function App() {
   };
   const pieceBody = (p: OpenPiece): ReactNode => (p.kind === 'tasks.list' ? <TasksListPiece tasks={tasks} list={p.item} />
     : p.kind === 'calendar.day' ? <CalendarDayPiece calendar={calendar} day={p.item} onDay={(day) => showPiece('calendar.day', day, p.by)} onOpen={(date, event) => openCalendarAt(date, event)} />
-    : p.kind === 'mail.thread' ? <MailThreadPiece mail={mail} id={p.item} /> : null);
+    : p.kind === 'mail.thread' ? <MailThreadPiece mail={mail} id={p.item} onGone={() => putAway(p.kind, p.item)} /> : null);
   const pieceBodyRef = useRef(pieceBody);
   pieceBodyRef.current = pieceBody;
   const openPieceInApp = (p: OpenPiece) => {
@@ -1425,7 +1425,7 @@ export function App() {
       actions: <button type="button" title={`Open ${name} in ${from}`} onClick={() => openPieceRef.current(p)}>Open in {from}</button>,
       // Using a piece Mobius brought makes it the person's: it stays when Mobius's work is done.
       render: () => (
-        <div className="piece-body" onPointerDownCapture={() => { if (p.by === 'mobius') showPiece(p.kind, p.item, 'you', p.title); }}>
+        <div className="piece-body" onPointerDownCapture={(e) => { if (p.by === 'mobius' && !(e.target instanceof Element && e.target.closest('.review-btn'))) showPiece(p.kind, p.item, 'you', p.title); }}>
           {pieceBodyRef.current(p)}
         </div>
       ),
@@ -1433,7 +1433,77 @@ export function App() {
   }), [openPieces]);
   // A conversation open in Mail on screen is not shown again in its piece beside it.
   const mailOnScreen = app === 'mail' || (split && panes.includes('mail'));
-  const shownPieces = useMemo(() => (mailOnScreen && mail.open ? piecePanels.filter((p) => p.id !== piecePanelId({ kind: 'mail.thread', item: mail.open!.id })) : piecePanels), [piecePanels, mailOnScreen, mail.open]);
+  // Nor is the list open in Tasks on screen.
+  const tasksOnScreen = app === 'tasks' || (split && panes.includes('tasks'));
+  const shownPieces = useMemo(() => {
+    const same = new Set<string>();
+    if (mailOnScreen && mail.open) same.add(piecePanelId({ kind: 'mail.thread', item: mail.open.id }));
+    if (tasksOnScreen && tasks.view.kind === 'list') same.add(piecePanelId({ kind: 'tasks.list', item: tasks.view.name }));
+    return same.size === 0 ? piecePanels : piecePanels.filter((p) => !same.has(p.id));
+  }, [piecePanels, mailOnScreen, mail.open, tasksOnScreen, tasks.view]);
+  // Mobius brings up the piece it works in (docs/design/pieces.md, round 3): the first list, day or conversation a turn
+  // changes comes beside the work, once a turn, unless its app is on screen. The pill says so first. A piece Mobius
+  // brought goes when its work is kept or discarded, unless the person used it; Esc puts Mobius's pieces away.
+  const mobiusWork = useMemo<MobiusWork>(() => ({
+    lists: liveMarks.lists,
+    days: new Map(calendar.suggestions.map((s) => [s.id, s.start.slice(0, 10)])),
+    drafts: new Map(mail.drafts.filter((d) => d.by === 'mobius' && d.replyTo).map((d) => [d.id, { replyTo: d.replyTo!, title: d.subject }])),
+  }), [liveMarks.lists, calendar.suggestions, mail.drafts]);
+  const workNow = useRef(mobiusWork);
+  workNow.current = mobiusWork;
+  const turnWork = useRef<{ before: MobiusWork; brought: boolean } | null>(null);
+  const broughtPieces = useRef(new Set<string>());
+  const [bringing, setBringing] = useState<string | null>(null);
+  const turnBusy = conversation.state.busy;
+  useEffect(() => { if (turnBusy) turnWork.current = { before: workNow.current, brought: false }; }, [turnBusy, conversation.state.conversation]);
+  const onScreenRef = useRef<(a: AppId) => boolean>(() => false);
+  onScreenRef.current = (a) => app === a || (split && panes.includes(a));
+  useEffect(() => {
+    const turn = turnWork.current;
+    if (!turn || turn.brought) return;
+    const next = workToShow(turn.before, mobiusWork);
+    if (!next) return;
+    turn.brought = true;
+    const from = PIECE_APP[next.kind];
+    if (onScreenRef.current(from.app)) return;
+    if (!openPieces.some((p) => pieceKey(p) === pieceKey(next) && p.by === 'you')) broughtPieces.current.add(pieceKey(next));
+    showPiece(next.kind, next.item, 'mobius', next.title);
+    setBringing(`Showing ${pieceName(next)}, from ${from.name}`);
+  }, [mobiusWork]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!bringing) return undefined;
+    const t = setTimeout(() => setBringing(null), 4000);
+    return () => clearTimeout(t);
+  }, [bringing]);
+  useEffect(() => {
+    if (turnBusy || broughtPieces.current.size === 0) return undefined;
+    // A moment's grace: the turn's marks settle as it ends.
+    const t = setTimeout(() => {
+      putAwayMobius((p) => broughtPieces.current.has(pieceKey(p)) && !workOpenIn(p, workNow.current));
+      for (const key of [...broughtPieces.current]) if (!openPiecesRef.current.some((p) => pieceKey(p) === key && p.by === 'mobius')) broughtPieces.current.delete(key);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [turnBusy, mobiusWork]);
+  // A piece whose thing is gone (a list deleted, a message removed) puts itself away rather than say so.
+  useEffect(() => {
+    // Not while a turn runs, nor for a list Mobius is making: the lists catch up a moment later.
+    if (!tasks.available || !tasks.loaded || turnBusy) return;
+    for (const p of openPieces) {
+      if (p.kind === 'tasks.list' && !liveMarks.lists.has(p.item) && !tasks.lists.some((l) => l.name === p.item)) putAway(p.kind, p.item);
+    }
+  }, [openPieces, tasks.available, tasks.loaded, tasks.lists, turnBusy, liveMarks.lists]);
+  const openPiecesRef = useRef(openPieces);
+  openPiecesRef.current = openPieces;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+      const at = e.target instanceof Element ? e.target : null;
+      if (at?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"], [role="listbox"]')) return;
+      putAwayMobius();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const settingsPanels = useMemo<readonly PanelSpec[]>(() => [
     // Settings' Sections panel: always there, as in System Settings. Hidden, it left only the page that was open and no
     // way to another.
@@ -2447,7 +2517,7 @@ export function App() {
             : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
           {nativeMenus ? menuBar(appMenu) : appMenu && <MenuBar menus={[{ id: 'more', label: 'More', items: entryItems(appMenu.entries, 'more') }]} compact label="More" onOpenChange={setMenuOpen} />}
           {/* Mobius at work with its panel closed: what it is doing, with Stop; a press shows it. */}
-          {hasRight && !rightOpen && activity && <WorkingPill activity={activity} onOpen={() => { openRight(); setFocusToken((n) => n + 1); }} onStop={conversation.stop} onPause={conversation.takeOver} onResume={() => handBack()} />}
+          {hasRight && !rightOpen && activity && <WorkingPill activity={bringing ? { ...activity, label: bringing } : activity} onOpen={() => { openRight(); setFocusToken((n) => n + 1); }} onStop={conversation.stop} onPause={conversation.takeOver} onResume={() => handBack()} />}
           {hasRight && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
         </>,
       }}

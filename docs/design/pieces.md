@@ -198,8 +198,15 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
 - **Mail thread:** Show beside on a message (its row's menu, or the open message's ⋯). The conversation with Reply in
   place; Send works there as in Mail.
 
-Not yet: Mobius bringing pieces up as it works (round 3), Ctrl+K › Show here (round 4), a piece remembered by
-project.
+- **Mobius brings them up** (round 3): the first list, day or conversation a turn changes (a list it edits, a day it
+  suggests an event on, a message it drafts a reply to) comes beside the work, once a turn, unless its app is already
+  on screen. The working pill says "Showing …, from …" for a few seconds. The piece goes when its change is kept or
+  discarded (Keep all, the app's Keep, Add or No thanks, the suggested reply's Discard), unless the person clicked
+  into it, which makes it theirs. Esc away from a field puts Mobius's pieces away. The Mail piece shows Mobius's
+  suggested reply with Discard and Keep, as Mail does.
+
+Not yet: a `show` tool for Mobius to bring a piece without changing anything, Ctrl+K › Show here (round 4), a piece
+remembered by project.
 
 ## First rounds
 

@@ -98,3 +98,37 @@ export function renamePieceItem(kind: PieceKind, from: string, to: string): void
   if (!pieces.some((o) => o.kind === kind && o.item === from)) return;
   set(pieces.map((o) => (o.kind === kind && o.item === from ? { ...o, item: to } : o)));
 }
+
+/**
+ * What Mobius is working on that has a piece: the lists it changed, the days it suggested events on, the conversations
+ * it drafted replies in. Each is keyed by the thing that marks it (a list's name, a suggestion's or draft's id).
+ */
+export interface MobiusWork {
+  lists: ReadonlySet<string>;
+  /** Suggestion id to its day (YYYY-MM-DD). */
+  days: ReadonlyMap<string, string>;
+  /** Mobius's draft id to the message it answers, with that message's subject. */
+  drafts: ReadonlyMap<string, { replyTo: string; title: string }>;
+}
+export const NO_WORK: MobiusWork = { lists: new Set(), days: new Map(), drafts: new Map() };
+
+/** What a turn's work brings up: the first thing in it that was not there when the turn started. */
+export function workToShow(before: MobiusWork, now: MobiusWork): { kind: PieceKind; item: string; title?: string } | null {
+  for (const list of now.lists) if (!before.lists.has(list)) return { kind: 'tasks.list', item: list };
+  for (const [id, day] of now.days) if (!before.days.has(id)) return { kind: 'calendar.day', item: day };
+  for (const [id, d] of now.drafts) if (!before.drafts.has(id)) return { kind: 'mail.thread', item: d.replyTo, ...(d.title ? { title: d.title } : {}) };
+  return null;
+}
+
+/** Whether a piece still shows work of Mobius's waiting for Keep or Discard (an added suggestion or a sent draft is done). */
+export function workOpenIn(p: { kind: PieceKind; item: string }, now: MobiusWork): boolean {
+  if (p.kind === 'tasks.list') return now.lists.has(p.item);
+  if (p.kind === 'calendar.day') return [...now.days.values()].includes(p.item);
+  return [...now.drafts.values()].some((d) => d.replyTo === p.item);
+}
+
+/** The Mobius pieces (not yet the person's) go: Esc, or its work is done. */
+export function putAwayMobius(only?: (p: OpenPiece) => boolean): void {
+  const next = pieces.filter((o) => o.by !== 'mobius' || (only !== undefined && !only(o)));
+  if (next.length !== pieces.length) set(next);
+}

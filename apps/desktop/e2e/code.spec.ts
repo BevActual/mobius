@@ -672,6 +672,8 @@ test('the editor splits: the same file shows in both, another file opens beside 
   const side = shell().getByRole('region', { name: 'Second editor: src/budget.js' });
   await expect(side).toBeVisible();
   await expect(main).toHaveCount(2);
+  // The second editor takes the keyboard once it has opened (a frame after its file is read).
+  await expect(side.getByRole('textbox', { name: 'Contents of src/budget.js' })).toBeFocused();
   // The same file: typing in the second shows in the first.
   await shell().keyboard.press('Control+End');
   await shell().keyboard.type('// both');
