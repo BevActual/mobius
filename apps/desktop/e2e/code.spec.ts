@@ -376,3 +376,45 @@ test('find and replace changes one match or all of them, by whole word or patter
   await shell().keyboard.press('End');
   await expect(shell().locator('.ed-bracket')).toHaveCount(2);
 });
+
+test('regions fold from the gutter or the keys, the scope stays at the top while scrolling, and Ctrl+Shift+O goes to a symbol', async () => {
+  const body = Array.from({ length: 80 }, (_, i) => `  const step${i} = ${i}`).join('\n');
+  fs.writeFileSync(path.join(project, 'src', 'plan.js'), `function first() {\n${body}\n}\n\nfunction second() {\n  return 2\n}\n`);
+  await start();
+  await shell().keyboard.press('Control+p');
+  await shell().getByRole('combobox', { name: 'File to open' }).fill('plan.js');
+  await shell().keyboard.press('Enter');
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/plan.js' });
+  await expect(editor).toHaveValue(/^function first/);
+
+  // The gutter's fold button hides the body; the line after it is drawn right below.
+  await shell().getByRole('button', { name: 'Fold lines 2 to 81' }).dispatchEvent('mousedown');
+  await expect(shell().locator('.ed-fold-more')).toHaveCount(1);
+  await expect(shell().locator('.ed-line').nth(1)).toHaveText('}');
+  // Its ⋯ opens it again.
+  await shell().locator('.ed-fold-more').dispatchEvent('mousedown');
+  await expect(shell().locator('.ed-fold-more')).toHaveCount(0);
+
+  // Ctrl+Shift+[ folds the region the cursor is in and leaves the cursor on its first line; Down skips the folded lines.
+  await editor.focus();
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.press('ArrowDown');
+  await shell().keyboard.press('Control+Shift+BracketLeft');
+  await expect(shell().getByText('Ln 1, Col 19')).toBeVisible();
+  await shell().keyboard.press('ArrowDown');
+  await expect(shell().getByText('Ln 82, Col 1')).toBeVisible();
+  await shell().keyboard.press('ArrowUp');
+  await shell().keyboard.press('Control+Shift+BracketRight');
+  await expect(shell().locator('.ed-fold-more')).toHaveCount(0);
+
+  // Scrolled into the body, its function's first line stays at the top.
+  await shell().locator('.ed-scroll').evaluate((el) => { el.scrollTop = 600; el.dispatchEvent(new Event('scroll')); });
+  await expect(shell().locator('.ed-sticky-line')).toHaveText(['function first() {']);
+
+  // Go to a symbol.
+  await editor.focus();
+  await shell().keyboard.press('Control+Shift+o');
+  await shell().getByRole('combobox', { name: 'Symbol to go to' }).fill('second');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByText('Ln 84, Col 1')).toBeVisible();
+});

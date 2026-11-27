@@ -130,3 +130,29 @@ describe('brackets and replacing', () => {
     expect(h.undo(step.state)!.text).toBe('a b a');
   });
 });
+
+describe('folding', () => {
+  const src = ['function a() {', '  if (x) {', '    y()', '', '  }', '  z()', '}', 'done'];
+  it('finds regions by indentation, keeping the closing line in view', async () => {
+    const { foldRegions } = await import('./code-doc');
+    const r = foldRegions(src);
+    expect([...r.entries()]).toEqual([[1, 2], [0, 5]]);
+  });
+
+  it('hides the lines of folded regions and says which fold hides a line', async () => {
+    const { foldRegions, visibleRows, foldsHiding } = await import('./code-doc');
+    const r = foldRegions(src);
+    const v = visibleRows(src.length, r, new Set([1]));
+    expect(v.rows).toEqual([0, 1, 3, 4, 5, 6, 7]);
+    expect(v.rowOf[2]).toBe(-1);
+    expect(v.rowOf[4]).toBe(3);
+    expect(foldsHiding(2, r, new Set([1]))).toEqual([1]);
+    expect(visibleRows(src.length, r, new Set([0, 1])).rows).toEqual([0, 6, 7]);
+  });
+
+  it('lists the scopes above the top of the view for sticky scroll', async () => {
+    const { foldRegions, stickyScopes } = await import('./code-doc');
+    expect(stickyScopes(2, foldRegions(src))).toEqual([0, 1]);
+    expect(stickyScopes(7, foldRegions(src))).toEqual([]);
+  });
+});

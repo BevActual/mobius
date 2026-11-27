@@ -1,8 +1,8 @@
 import { type MutableRefObject, type MouseEvent as ReactMouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { IS_MAC, findAll, findPattern, indentLines, langName, newLine, replacement, toggleComment, typePair, type FindOptions } from './code-edit';
-import { colourLines, type Lang } from './code-view';
+import { IS_MAC, fileScore, findAll, findPattern, indentLines, langName, newLine, replacement, toggleComment, typePair, type FindOptions } from './code-edit';
+import { codeOutline, colourLines, type Lang } from './code-view';
 import {
-  History, addCursorV, addNextMatch, matchBracket, replaceSpans, colAt, copyLines, cursor, deleteBy, deleteLines, docOf, editEach, end, home, insertText, lineEnd, lineOf, lineStarts,
+  History, addCursorV, addNextMatch, foldRegions, foldsHiding, mapPos, matchBracket, replaceSpans, stickyScopes, visibleRows, colAt, copyLines, cursor, deleteBy, deleteLines, docOf, editEach, end, home, insertText, lineEnd, lineOf, lineStarts,
   moveH, moveLines, moveV, normalize, selFrom, selTo, selectAll, selectLine, single, visualCol, wordAt, type DocState, type Step,
 } from './code-doc';
 import type { CodeState } from './useCode';
@@ -94,6 +94,48 @@ export function EditorBar({ mode, text, onClose, onFind, onLine, onReplace, onRe
   );
 }
 
+/** Go to a symbol in the file (Ctrl+Shift+O): what the file defines, narrowed as you type; Enter goes to it. */
+function SymbolPicker({ text, lang, onGo, onClose }: { text: string; lang: Lang; onGo: (line: number) => void; onClose: () => void }) {
+  const [query, setQuery] = useState('');
+  const [lit, setLit] = useState(0);
+  const all = useMemo(() => codeOutline(text, lang), [text, lang]);
+  const found = useMemo(() => (query ? all.map((e) => ({ e, score: fileScore(query, e.name) })).filter((r): r is { e: typeof all[number]; score: number } => r.score !== null).sort((a, b) => b.score - a.score).map((r) => r.e) : all).slice(0, 200), [all, query]);
+  const choose = (i: number) => { const e = found[i]; if (e) onGo(e.line); onClose(); };
+  return (
+    <div className="code-quick-wrap" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="code-quick" role="dialog" aria-label="Go to a symbol">
+        <input
+          autoFocus
+          aria-label="Symbol to go to"
+          placeholder="Go to a function, class or heading"
+          value={query}
+          spellCheck={false}
+          role="combobox"
+          aria-expanded
+          aria-controls="code-symbol-list"
+          aria-activedescendant={found[lit] ? `code-symbol-${lit}` : undefined}
+          onChange={(e) => { setQuery(e.target.value); setLit(0); }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setLit((i) => Math.min(found.length - 1, i + 1)); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); setLit((i) => Math.max(0, i - 1)); }
+            else if (e.key === 'Enter') { e.preventDefault(); choose(lit); }
+            else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+          }}
+        />
+        <ul id="code-symbol-list" role="listbox" aria-label="Symbols">
+          {found.map((e, i) => (
+            <li key={`${e.line}-${e.name}`} id={`code-symbol-${i}`} role="option" aria-selected={i === lit} onMouseEnter={() => setLit(i)} onMouseDown={(ev) => ev.preventDefault()} onClick={() => choose(i)} style={{ paddingLeft: `calc(var(--sp-3) + ${e.depth * 12}px)` }}>
+              <span className="code-quick-name">{e.name}</span>
+              <span className="code-quick-where">{e.kind} · line {e.line}</span>
+            </li>
+          ))}
+          {found.length === 0 && <li className="code-quick-none" role="presentation">{all.length === 0 ? 'This file defines nothing Mobius can list.' : `Nothing matches “${query}”.`}</li>}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 /** The span where two texts differ, for input the editor did not make itself (a word chosen in an input method, a fill). */
 function diffSpan(before: string, after: string): { from: number; to: number; insert: string } | null {
   if (before === after) return null;
@@ -118,6 +160,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
   const history = useRef(new History());
   const goals = useRef<number[] | null>(null);
   const shownPath = useRef(path);
+  const folds = useRef<Set<number>>(new Set());
   const [, setVersion] = useState(0);
   const redraw = () => setVersion((v) => v + 1);
   // Another file, or the text changed outside the editor (Revert, a change kept from Mobius): start from it.
@@ -125,6 +168,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     shownPath.current = path;
     doc.current = docOf(code.draft);
     history.current.clear();
+    folds.current = new Set();
   } else if (doc.current.text !== code.draft) {
     const n = code.draft.length;
     const was = doc.current;
@@ -148,6 +192,64 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
 
   const lines = useMemo(() => text.split('\n'), [text]);
   const starts = useMemo(() => lineStarts(text), [text]);
+  // Folding: closed regions kept as the places their first lines start, so they move with changes above them.
+  const [foldsVersion, setFoldsVersion] = useState(0);
+  const [symbols, setSymbols] = useState(false);
+  const regions = useMemo(() => foldRegions(lines, TAB), [lines]);
+  const foldedLines = useMemo(() => {
+    const out = new Set<number>();
+    for (const p of folds.current) {
+      if (p > text.length) continue;
+      const l = lineOf(starts, p);
+      if (starts[l] === p && regions.has(l)) out.add(l);
+    }
+    return out;
+  }, [starts, regions, foldsVersion, text.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { rows, rowOf } = useMemo(() => visibleRows(lines.length, regions, foldedLines), [lines.length, regions, foldedLines]);
+  const geo = useRef({ rows, rowOf, regions, foldedLines, starts });
+  geo.current = { rows, rowOf, regions, foldedLines, starts };
+  const yOf = (line: number) => PAD_TOP + Math.max(0, rowOf[line] ?? line) * LINE;
+  const shown = (line: number) => (rowOf[line] ?? -1) >= 0;
+  const setFolds = (next: Set<number>) => { folds.current = next; setFoldsVersion((v) => v + 1); };
+  /** Opens the folds that hide `line`, so a cursor sent there is seen. */
+  const openAround = (line: number) => {
+    const g = geo.current;
+    const hiding = foldsHiding(line, g.regions, g.foldedLines);
+    if (hiding.length === 0) return;
+    const next = new Set(folds.current);
+    for (const l of hiding) next.delete(g.starts[l]!);
+    setFolds(next);
+  };
+  /** Ctrl+Shift+[ closes the innermost open region around a line, Ctrl+Shift+] opens the innermost closed one. */
+  const foldAt = (line: number, close: boolean) => {
+    const g = geo.current;
+    const around = [...g.regions].filter(([a, b]) => a <= line && line <= b).sort((x, y) => y[0] - x[0]);
+    const pick = close ? around.find(([a]) => !g.foldedLines.has(a)) : around.find(([a]) => g.foldedLines.has(a));
+    if (!pick) return;
+    const next = new Set(folds.current);
+    if (close) next.add(g.starts[pick[0]]!); else next.delete(g.starts[pick[0]]!);
+    setFolds(next);
+    // A cursor inside a region just closed goes to the end of its first line, as in VS Code.
+    if (close) {
+      const st = g.starts;
+      const moved = doc.current.sels.map((s) => {
+        const l = lineOf(st, s.head);
+        return l > pick[0] && l <= pick[1] ? cursor(lineEnd(doc.current.text, st, pick[0])) : s;
+      });
+      const n = normalize(moved, doc.current.primary);
+      doc.current = { ...doc.current, sels: n.sels, primary: n.primary };
+      redraw();
+    }
+  };
+  const stepLine = (line: number, by: number): number => {
+    const g = geo.current;
+    let l = line;
+    while (l > 0 && (g.rowOf[l] ?? 0) < 0) l -= 1;
+    const t = (g.rowOf[l] ?? 0) + by;
+    if (t < 0) return -1;
+    if (t >= g.rows.length) return g.rowOf.length;
+    return g.rows[t]!;
+  };
   const widest = useMemo(() => lines.reduce((m, l) => Math.max(m, l.includes('\t') ? visualCol(l, l.length, TAB) : l.length), 0), [lines]);
 
   // The width of one character, measured in the editor's own font, and the size of the view.
@@ -168,8 +270,10 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     return () => ro.disconnect();
   }, []);
 
-  const first = Math.max(0, Math.floor((view.top - PAD_TOP) / LINE) - OVERSCAN);
-  const last = Math.min(lines.length - 1, Math.ceil((view.top + view.height) / LINE) + OVERSCAN);
+  const firstRow = Math.max(0, Math.floor((view.top - PAD_TOP) / LINE) - OVERSCAN);
+  const lastRow = Math.max(0, Math.min(rows.length - 1, Math.ceil((view.top + view.height) / LINE) + OVERSCAN));
+  const first = rows[firstRow] ?? 0;
+  const last = rows[lastRow] ?? 0;
   const tokens = useMemo(() => colourLines(lines.slice(0, last + 1), lang), [lines, last, lang]);
 
   const primary = state.sels[state.primary] ?? state.sels[0]!;
@@ -193,7 +297,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     const s = doc.current.sels[doc.current.primary]!;
     const st = lineStarts(doc.current.text);
     const line = lineOf(st, s.head);
-    const top = PAD_TOP + line * LINE;
+    const top = PAD_TOP + Math.max(0, geo.current.rowOf[line] ?? line) * LINE;
     if (middle) { if (top < el.scrollTop + LINE || top > el.scrollTop + el.clientHeight - 3 * LINE) el.scrollTop = Math.max(0, top - el.clientHeight / 3); }
     else if (top < el.scrollTop) el.scrollTop = top - PAD_TOP;
     else if (top + LINE > el.scrollTop + el.clientHeight) el.scrollTop = top + LINE - el.clientHeight + PAD_TOP;
@@ -207,7 +311,9 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
   const apply = (step: Step | null, kind: string) => {
     if (!step || step.changes.length === 0) return;
     history.current.record(doc.current, step, kind);
+    if (folds.current.size > 0) folds.current = new Set([...folds.current].map((p) => mapPos(p, step.changes, false)));
     doc.current = step.state;
+    openAround(lineOf(lineStarts(step.state.text), step.state.sels[step.state.primary]!.head));
     goals.current = null;
     code.setDraft(step.state.text);
     redraw();
@@ -218,6 +324,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     history.current.seal();
     if (!keepGoals) goals.current = null;
     doc.current = next;
+    openAround(lineOf(geo.current.starts, next.sels[next.primary]!.head));
     redraw();
     requestAnimationFrame(() => reveal());
   };
@@ -248,6 +355,8 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     if (mod && !e.altKey && !e.shiftKey && lower === 'f') { handled(); setBar('find'); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'g') { handled(); setBar('line'); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'h') { handled(); setBar('replace'); return; }
+    if (mod && e.shiftKey && !e.altKey && lower === 'o') { handled(); setSymbols(true); return; }
+    if (mod && e.shiftKey && !e.altKey && (e.code === 'BracketLeft' || e.code === 'BracketRight')) { handled(); foldAt(lineOf(geo.current.starts, primary.head), e.code === 'BracketLeft'); return; }
     if (mod && !e.altKey && ((lower === 'z' && e.shiftKey) || (lower === 'y' && !IS_MAC))) { handled(); putBack(history.current.redo(s)); return; }
     if (mod && !e.altKey && lower === 'z') { handled(); putBack(history.current.undo(s)); return; }
     if (mod && !e.altKey && !e.shiftKey && lower === 'a') { handled(); place(selectAll(s)); return; }
@@ -286,7 +395,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     if (vertical && IS_MAC && e.metaKey) { handled(); place(by < 0 ? { ...s, sels: [e.shiftKey ? { anchor: primary.anchor, head: 0 } : cursor(0)], primary: 0 } : { ...s, sels: [e.shiftKey ? { anchor: primary.anchor, head: s.text.length } : cursor(s.text.length)], primary: 0 }); return; }
     if (vertical && !mod) {
       handled();
-      const moved = moveV(s, by, e.shiftKey, goals.current ?? s.sels.map(() => null) as (number | null)[], TAB);
+      const moved = moveV(s, by, e.shiftKey, goals.current ?? s.sels.map(() => null) as (number | null)[], TAB, stepLine);
       place(moved.state, true);
       goals.current = moved.goals;
       return;
@@ -294,7 +403,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     if (key === 'PageUp' || key === 'PageDown') {
       handled();
       const page = Math.max(1, Math.floor((scroller.current?.clientHeight ?? 400) / LINE) - 1);
-      const moved = moveV(s, by * page, e.shiftKey, goals.current ?? s.sels.map(() => null) as (number | null)[], TAB);
+      const moved = moveV(s, by * page, e.shiftKey, goals.current ?? s.sels.map(() => null) as (number | null)[], TAB, stepLine);
       if (scroller.current) scroller.current.scrollTop += by * page * LINE;
       place(moved.state, true);
       goals.current = moved.goals;
@@ -371,13 +480,17 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     if (!el) return 0;
     const r = el.getBoundingClientRect();
     const st = lineStarts(doc.current.text);
-    const line = Math.max(0, Math.min(st.length - 1, Math.floor((clientY - r.top - PAD_TOP) / LINE)));
+    const g = geo.current;
+    const row = Math.max(0, Math.min(g.rows.length - 1, Math.floor((clientY - r.top - PAD_TOP) / LINE)));
+    const line = Math.min(st.length - 1, g.rows[row] ?? 0);
     const lineText = doc.current.text.slice(st[line], lineEnd(doc.current.text, st, line));
     return st[line]! + colAt(lineText, (clientX - r.left - PAD_LEFT) / cw, TAB);
   };
   const onMouseDown = (e: ReactMouseEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
+    const more = (e.target as HTMLElement).closest<HTMLElement>('.ed-fold-more');
+    if (more) { foldAt(Number(more.dataset.line), false); return; }
     input.current?.focus({ preventScroll: true });
     const at = posAt(e.clientX, e.clientY);
     const s = doc.current;
@@ -448,6 +561,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     setBar(null);
     history.current.seal();
     doc.current = { ...doc.current, sels: [cursor(at)], primary: 0 };
+    openAround(lineOf(st, at));
     redraw();
     input.current?.focus({ preventScroll: true });
     requestAnimationFrame(() => reveal(true));
@@ -455,15 +569,22 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
   if (jump) jump.current = goLine;
 
   // —— Drawing ——
+  // The lines in view, top to bottom (folded lines left out).
+  const inView: number[] = rows.slice(firstRow, lastRow + 1);
   const visible: React.ReactNode[] = [];
   const selRects: React.ReactNode[] = [];
   const cursors: React.ReactNode[] = [];
   const multi = state.sels.length > 1;
-  for (let i = first; i <= last; i += 1) {
-    const toks = tokens[i] ?? [];
+  const lineDiv = (i: number) => (
+    <>
+      {(tokens[i] ?? []).map((t, k) => <span key={k} className={`tok-${t.k}`}>{t.t}</span>)}
+      {foldedLines.has(i) && <span className="ed-fold-more" data-line={i} title="Folded lines: click to open (Ctrl+Shift+])">⋯</span>}
+    </>
+  );
+  for (const i of inView) {
     visible.push(
-      <div key={i} className="ed-line" style={{ top: PAD_TOP + i * LINE }} data-current={(i === caretLine && primary.anchor === primary.head && !multi) || undefined}>
-        {toks.map((t, k) => <span key={k} className={`tok-${t.k}`}>{t.t}</span>)}
+      <div key={i} className="ed-line" style={{ top: yOf(i) }} data-current={(i === caretLine && primary.anchor === primary.head && !multi) || undefined}>
+        {lineDiv(i)}
       </div>,
     );
   }
@@ -474,22 +595,23 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
       const la = Math.max(lineOf(starts, a), first);
       const lb = Math.min(lineOf(starts, b), last);
       for (let l = la; l <= lb; l += 1) {
+        if (!shown(l)) continue;
         const ls = starts[l]!;
         const le = lineEnd(text, starts, l);
         const x1 = xOf(l, Math.max(a, ls) - ls);
         const past = b > le;
         const x2 = xOf(l, Math.min(b, le) - ls) + (past ? cw / 2 : 0);
-        if (x2 > x1) selRects.push(<div key={`${n}-${l}`} className="ed-sel" style={{ top: PAD_TOP + l * LINE, left: x1, width: x2 - x1 }} />);
+        if (x2 > x1) selRects.push(<div key={`${n}-${l}`} className="ed-sel" style={{ top: yOf(l), left: x1, width: x2 - x1 }} />);
       }
     }
     const hl = lineOf(starts, s.head);
-    if (hl >= first && hl <= last) cursors.push(<div key={`c${n}`} className="ed-cursor" style={{ top: PAD_TOP + hl * LINE, left: xOf(hl, s.head - starts[hl]!) }} />);
+    if (hl >= first && hl <= last && shown(hl)) cursors.push(<div key={`c${n}`} className="ed-cursor" style={{ top: yOf(hl), left: xOf(hl, s.head - starts[hl]!) }} />);
   });
   const marks = found.marks.slice(0, 5000).map(([a, b], i) => {
     const l = lineOf(starts, a);
-    if (l < first || l > last) return null;
+    if (l < first || l > last || !shown(l)) return null;
     const x1 = xOf(l, a - starts[l]!);
-    return <span key={a} className="code-found" data-current={i === found.at || undefined} style={{ top: PAD_TOP + l * LINE, left: x1, width: Math.max(cw / 2, xOf(l, Math.min(b, lineEnd(text, starts, l)) - starts[l]!) - x1) }} />;
+    return <span key={a} className="code-found" data-current={i === found.at || undefined} style={{ top: yOf(l), left: x1, width: Math.max(cw / 2, xOf(l, Math.min(b, lineEnd(text, starts, l)) - starts[l]!) - x1) }} />;
   });
   // The bracket at the cursor and its partner, boxed; and, with nothing selected, the other uses of the word under the cursor.
   const boxes: React.ReactNode[] = [];
@@ -497,7 +619,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
     const pair = matchBracket(text, primary.head);
     for (const p of pair ?? []) {
       const l = lineOf(starts, p);
-      if (l >= first && l <= last) boxes.push(<span key={`b${p}`} className="ed-bracket" style={{ top: PAD_TOP + l * LINE, left: xOf(l, p - starts[l]!), width: cw }} />);
+      if (l >= first && l <= last && shown(l)) boxes.push(<span key={`b${p}`} className="ed-bracket" style={{ top: yOf(l), left: xOf(l, p - starts[l]!), width: cw }} />);
     }
     const [wa, wb] = wordAt(text, primary.head);
     const word = text.slice(wa, wb);
@@ -506,7 +628,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
       const to = lineEnd(text, starts, last);
       for (const [a, b] of findAll(text.slice(from, to), word, { matchCase: true, word: true }, 400)) {
         const l = lineOf(starts, from + a);
-        boxes.push(<span key={`w${from + a}`} className="ed-same-word" data-here={from + a === wa || undefined} style={{ top: PAD_TOP + l * LINE, left: xOf(l, from + a - starts[l]!), width: (b - a) * cw }} />);
+        if (shown(l)) boxes.push(<span key={`w${from + a}`} className="ed-same-word" data-here={from + a === wa || undefined} style={{ top: yOf(l), left: xOf(l, from + a - starts[l]!), width: (b - a) * cw }} />);
       }
     }
   }
@@ -518,8 +640,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
       if (t.trim() === '') return -1;
       return Math.floor(visualCol(t, /^[ \t]*/.exec(t)![0].length, TAB) / TAB);
     };
-    const depths: number[] = [];
-    for (let l = first; l <= last; l += 1) depths.push(depth(l));
+    const depths = inView.map(depth);
     for (let k = 0; k < depths.length; k += 1) {
       if (depths[k] !== -1) continue;
       let up = k - 1;
@@ -529,26 +650,54 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
       depths[k] = Math.min(up >= 0 ? depths[up]! : 0, down < depths.length ? depths[down]! : 0);
     }
     depths.forEach((d, k) => {
-      for (let g = 1; g < d; g += 1) guides.push(<span key={`g${first + k}-${g}`} className="ed-guide" style={{ top: PAD_TOP + (first + k) * LINE, left: PAD_LEFT + g * TAB * cw }} />);
+      for (let g = 1; g < d; g += 1) guides.push(<span key={`g${inView[k]}-${g}`} className="ed-guide" style={{ top: yOf(inView[k]!), left: PAD_LEFT + g * TAB * cw }} />);
     });
   }
-  const gutterWidth = `${String(lines.length).length + 3}ch`;
-  const height = PAD_TOP + lines.length * LINE + PAD_BOTTOM;
+  // Sticky scroll: the lines that open the scopes the top of the view is in stay at the top, as in VS Code.
+  const topRow = Math.max(0, Math.floor((view.top - PAD_TOP) / LINE));
+  let sticky = view.top > PAD_TOP ? stickyScopes(rows[topRow] ?? 0, regions) : [];
+  if (sticky.length > 0) sticky = stickyScopes(rows[Math.min(rows.length - 1, topRow + sticky.length)] ?? 0, regions);
+  const gutterWidth = `${String(lines.length).length + 4}ch`;
+  const height = PAD_TOP + rows.length * LINE + PAD_BOTTOM;
   const width = PAD_LEFT + widest * cw + 6 * cw;
   const picked = state.sels.reduce((n, s) => n + selTo(s) - selFrom(s), 0);
 
   return (
     <div className="code-editor">
       {bar && <EditorBar key={bar} mode={bar} text={text} onClose={closeBar} onFind={onFind} onLine={goLine} onReplace={onReplace} onReplaceAll={onReplaceAll} onSelectAll={onSelectAll} />}
+      {symbols && <SymbolPicker text={text} lang={lang} onGo={goLine} onClose={() => { setSymbols(false); requestAnimationFrame(() => input.current?.focus({ preventScroll: true })); }} />}
       <div className="ed" data-focused={focused || undefined}>
-        <div className="ed-gutter" aria-hidden="true" style={{ width: gutterWidth }}>
+        <div className="ed-gutter" style={{ width: gutterWidth }}>
           <div style={{ height, transform: `translateY(${-view.top}px)` }}>
-            {Array.from({ length: last - first + 1 }, (_, k) => first + k).map((i) => (
-              <span key={i} style={{ top: PAD_TOP + i * LINE }} data-current={i === caretLine || undefined}>{i + 1}</span>
+            {inView.map((i) => (
+              <span key={i} className="ed-n" style={{ top: yOf(i) }} data-current={i === caretLine || undefined}>
+                <span aria-hidden="true">{i + 1}</span>
+                {regions.has(i) && (
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    className="ed-fold"
+                    data-folded={foldedLines.has(i) || undefined}
+                    aria-label={foldedLines.has(i) ? `Open lines ${i + 2} to ${(regions.get(i) ?? i) + 1}` : `Fold lines ${i + 2} to ${(regions.get(i) ?? i) + 1}`}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); foldAt(i, !foldedLines.has(i)); }}
+                  >
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d={foldedLines.has(i) ? 'm8 6 4 4-4 4' : 'm6 8 4 4 4-4'} /></svg>
+                  </button>
+                )}
+              </span>
             ))}
           </div>
         </div>
         <div className="ed-scroll" ref={scroller} onScroll={(e) => { const t = e.currentTarget; setView((v) => ({ ...v, top: t.scrollTop, left: t.scrollLeft })); }}>
+          {sticky.length > 0 && (
+            <div className="ed-sticky" style={{ width: view.width }} aria-hidden="true">
+              {sticky.map((l, k) => (
+                <div key={l} className="ed-sticky-line" style={{ top: k * LINE }} onMouseDown={(e) => { e.preventDefault(); goLine(l + 1); }}>
+                  {(tokens[l] ?? []).map((t, n) => <span key={n} className={`tok-${t.k}`}>{t.t}</span>)}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="ed-content" ref={content} style={{ height, width }} onMouseDown={onMouseDown}>
             <span className="ed-measure" ref={measure} aria-hidden="true">{'M'.repeat(20)}</span>
             {guides}
@@ -560,7 +709,7 @@ export function CodeText({ code, lang, bar, setBar, jump }: { code: CodeState; l
             <textarea
               ref={input}
               className="ed-input"
-              style={{ top: PAD_TOP + caretLine * LINE, left: xOf(caretLine, caretCol) }}
+              style={{ top: yOf(caretLine), left: xOf(caretLine, caretCol) }}
               aria-label={`Contents of ${path || 'the file'}`}
               aria-multiline="true"
               spellCheck={false}
