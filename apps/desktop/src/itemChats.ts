@@ -36,7 +36,8 @@ const bound = (chats: ItemChats, id: string) => chats.general === id || Object.v
 
 /**
  * Which chat to show for where the person is now, and what to remember: the item's own chat (a new one if it has none;
- * the open chat itself when that is empty and not yet anyone's), or the general one away from any item.
+ * the open chat itself when that is empty and not yet anyone's), or away from any item the open chat, which becomes the
+ * general one, unless it is an item's (then the general one).
  */
 export function chatForPlace(chats: ItemChats, here: { key: string; label: string } | null, open: { id: string; empty: boolean }, fresh: () => string): { id: string; chats: ItemChats } {
   const reuse = open.empty && !bound(chats, open.id);
@@ -46,10 +47,11 @@ export function chatForPlace(chats: ItemChats, here: { key: string; label: strin
     const id = reuse ? open.id : fresh();
     return { id, chats: { ...chats, items: { ...chats.items, [here.key]: { id, label: here.label } } } };
   }
-  if (chats.general) return { id: chats.general, chats };
-  // The first time away from any item: the open chat, unless it is an item's, becomes the general one.
-  const id = Object.values(chats.items).some((c) => c.id === open.id) ? fresh() : open.id;
-  return { id, chats: { ...chats, general: id } };
+  // Away from any item: the open chat stays, unless it is an item's, and becomes the general one (a chat the person
+  // started or picked, or the one restored at start, is not swapped for an older one); from an item's chat, the general one.
+  const onItem = Object.values(chats.items).some((c) => c.id === open.id);
+  if (onItem) return chats.general ? { id: chats.general, chats } : (() => { const id = fresh(); return { id, chats: { ...chats, general: id } }; })();
+  return { id: open.id, chats: chats.general === open.id ? chats : { ...chats, general: open.id } };
 }
 
 /** The item's own chat, made (and remembered) if it has none: for asking about it from elsewhere (the Ask card). */

@@ -17,7 +17,7 @@ describe('chats that live on items', () => {
     const general: ItemChats = { items: {}, general: 'g' };
     expect(chatForPlace(general, trip, { id: 'g', empty: true }, fresh).id).not.toBe('g');
   });
-  it('away from any item, the general chat: the open one the first time, unless it is an item’s', () => {
+  it('away from any item, the general chat: the open one, unless it is an item’s', () => {
     const once = chatForPlace({ items: {} }, null, { id: 'c0', empty: false }, fresh);
     expect(once).toEqual({ id: 'c0', chats: { items: {}, general: 'c0' } });
     const onItem: ItemChats = { items: { [trip.key]: { id: 't', label: 'Trip' } } };
@@ -25,6 +25,10 @@ describe('chats that live on items', () => {
     expect(away.id).not.toBe('t');
     expect(away.chats.general).toBe(away.id);
     expect(chatForPlace(away.chats, null, { id: 't', empty: false }, fresh).id).toBe(away.id);
+  });
+  it('away from any item, a chat the person started or picked stays open and becomes the general one', () => {
+    const next = chatForPlace({ items: {}, general: 'old' }, null, { id: 'new', empty: false }, fresh);
+    expect(next).toEqual({ id: 'new', chats: { items: {}, general: 'new' } });
   });
   it('a renamed item keeps its chat under its new name', () => {
     const chats: ItemChats = { items: { [trip.key]: { id: 't', label: 'Trip' } } };
