@@ -95,12 +95,8 @@ export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pi
             </form>
           </li>
         )}
-        {photos.albums.length === 0 && !naming && (
-          <li className="side-empty notes-empty">
-            <p>Albums are folders of pictures in your workspace. Edits are kept beside each picture, never in it.</p>
-            <button type="button" className="btn primary" onClick={() => setNaming(true)}>New album</button>
-          </li>
-        )}
+        {/* One New album on screen, the page's: the list only says it is empty, as every other app's list does. */}
+        {photos.albums.length === 0 && !naming && <li className="side-empty">No albums yet.</li>}
         {shownAlbums.map((a) => (
           <li key={a.name} {...dropOn(a.name)} data-drop={over === a.name || undefined}>
             {renaming === a.name ? (
