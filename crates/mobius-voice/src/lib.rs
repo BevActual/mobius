@@ -343,7 +343,7 @@ mod tests {
         let out = std::env::temp_dir().join("mobius-voice-speak-test.wav");
         let out = out.to_string_lossy();
         let mut listener = Listener::new(4);
-        let seconds = listener.speak("Plant the tulips before the frost, on the 12th of May.", &files, 3, None, &out).unwrap_or_default();
+        let seconds = listener.speak("Today, plant the tulips before the frost, on the 12th of May.", &files, 3, None, &out).unwrap_or_default();
         assert!(seconds > 1.5, "{seconds}");
         // Whisper takes 16 kHz; Kokoro writes 24 kHz, so it is resampled for the check.
         let wave = Wave::read(&out);
@@ -354,8 +354,9 @@ mod tests {
         let whisper = WhisperFiles { encoder: at("tiny.en-encoder.int8.onnx"), decoder: at("tiny.en-decoder.int8.onnx"), tokens: at("tiny.en-tokens.txt") };
         let (_, segments) = listener.transcribe(&wav16.to_string_lossy(), &whisper, &at("silero_vad.onnx"), None).unwrap_or_default();
         let words: String = segments.iter().map(|s| s.text.to_lowercase()).collect::<Vec<_>>().join(" ");
-        for w in ["plant", "tulips", "frost", "may"] {
-            assert!(words.contains(w), "{w} missing from {words}");
+        // Whisper tiny can split a word it hears ("two lips"), so each word may be heard one of a few ways.
+        for heard in [&["plant", "plants"][..], &["tulips", "two lips", "tulip"], &["frost"], &["may"]] {
+            assert!(heard.iter().any(|w| words.contains(w)), "{} missing from {words}", heard[0]);
         }
     }
 
