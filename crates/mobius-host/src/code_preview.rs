@@ -474,6 +474,22 @@ const PREVIEW_SCRIPT: &str = r#"(() => {
     else if (m.data === 'pick') { picking = true; document.documentElement.style.cursor = 'crosshair'; }
     else if (m.data === 'stopPick') stop();
   };
+  // When the preview stops (Code stopped it, or opened another project), the page says so rather than looking live.
+  let heard = false;
+  events.onopen = () => { heard = true; };
+  events.onerror = () => {
+    if (!heard) return;
+    fetch('/__mobius/preview.js', { method: 'HEAD', cache: 'no-store' }).then(() => {}, () => {
+      events.close();
+      if (document.getElementById('__mobius-stopped')) return;
+      const note = document.createElement('div');
+      note.id = '__mobius-stopped';
+      note.setAttribute('role', 'status');
+      note.textContent = 'This preview has stopped. Open Preview in Code to see the page again.';
+      note.style.cssText = 'all:initial;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:2147483647;padding:8px 14px;border-radius:999px;background:#1f1f22;color:#f4f4f5;font:13px/1.4 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.25)';
+      document.documentElement.appendChild(note);
+    });
+  };
   addEventListener('DOMContentLoaded', () => report({ kind: 'loaded', path: here(location.href), title: document.title }));
 })();"#;
 
