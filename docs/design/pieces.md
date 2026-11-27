@@ -40,7 +40,7 @@ you're working".
   - A catalogue of built components that the agent chooses between.
   - A vocabulary of cards, lists and forms that the agent fills in.
   - Free-form HTML in a sandbox.
-  
+
   The advice is to start with the catalogue, because it keeps the product's design and safety. Chat-plus-canvas
   products (ChatGPT canvas, Claude artifacts) put the agent's work in one panel beside the chat. The newer pattern is
   "chatless": the agent's work shows inside the app's own interface.
@@ -52,6 +52,15 @@ you're working".
 
 Mobius is already the chatless kind: Mobius works in the apps, and its changes are dashed in place. Pieces extend that
 so its work can be seen beside whatever you have open, without switching apps.
+
+Sources:
+- https://support.microsoft.com/en-us/loop/get-to-know-loop-components
+- https://learn.microsoft.com/en-ie/MicrosoftTeams/platform/m365-apps/design-loop-components
+- https://www.notion.com/releases/2022-07-20
+- https://www.copilotkit.ai/generative-ui
+- https://dev.to/obetomuniz/who-owns-the-surface-22n9
+- https://developer.apple.com/design/human-interface-guidelines/motion
+- https://learn.microsoft.com/en-us/windows/apps/design/motion/directionality-and-gravity
 
 ## What the shell has already
 
@@ -81,20 +90,64 @@ So the parts exist. What is new is a piece as a kind of thing, and one place bes
   - **half** (the right half of split view);
   - **card** (in the Mobius panel's Result slot).
 
-### Where pieces go: the Beside column
+### Pieces are panels
 
-- A column between the open app and the Mobius panel holds up to two pieces, stacked.
-- It is the window's, not an app's, so it stays as you switch apps. It's a dock like the others: Ctrl Shift B shows or
-  hides it, and you can drag it wider. On a narrow window it gives way before the app does (`fitDocks`).
-- Splitting a piece out with **Open in Mail** sends it into the app itself.
-- This changes the layout rule in memory ("each app owns its own panels; Mobius panel docked right, just Mobius"),
-  so it is a decision for Andrew. The other choice, putting pieces in the right half of split view, needs nothing new,
-  but it gives each piece half the window and allows only one.
+Andrew (27 November): pieces are like the panels the Panels button in the top bar shows and hides. So a piece is not a
+new mechanism. It is a panel the shell owns, in the same system as every other panel ([guide.md](guide.md), Panels):
+
+- **The Panels menu lists open pieces** under their own heading ("Pieces"), beside the app's panels and Mobius. Each
+  can be shown or hidden there, and Reset layout puts them back.
+- **They sit in the docks that already exist.** A piece opens in the right dock beside the app's own right panels.
+  The Mobius panel stays as it is.
+- **They are the shell's, like Mobius, so they stay as you switch apps.** A piece you brought up for a thread is still
+  there when you go to Calendar. Where you last moved it is remembered.
+- **Narrow windows:** docks already give way before the app does (`fitDocks`), and pieces follow that.
+
+**What panels can do today** (checked in the code, `ui/PanelLayout.tsx`, 27 November; all of it was in 0.1.26):
+
+| | App panels | Mobius panel |
+|---|---|---|
+| Show and hide (Panels menu, View menu, keys, Hide) | Yes | Yes |
+| Resize, by dragging the dock's edge (double-click resets, arrow keys by 16px) | Yes, per dock, remembered per app | Yes |
+| Move to another dock | **No.** Each panel's dock is fixed by its app | No |
+| Pop out into its own window | **No** | Yes |
+| Tabs when two panels share a dock | Yes (`PanelTabs`) | No |
+
+guide.md's Panels section says panels can be moved and popped out. That is the design, not what is built, and the
+guide is corrected in this change. The dock edge is easy to miss: it is a thin line with no handle, which is probably
+why resizing felt missing.
+
+So pieces start with **round 0: panels that do what the guide says.** Every pane follows the same rules, Mobius and
+pieces included:
+- **Move:** drag a panel by its header to another dock, with the target dock outlined as you drag. A panel's menu
+  also has **Move to left, right or bottom**.
+- **Pop out:** **Pop out** puts a panel in a window of its own, as the Mobius panel already does. Closing that window
+  puts it back.
+- **Resize** stays as it is, with a visible grip on hover.
+- **Remembered** per app, where each panel is, with Reset layout to undo.
+- **Panels adapt to where they are** (Andrew, 27 November: "how panels change when resized, popped out, moved
+  around so it's actually useful"). A panel lays itself out by the space it has, not by which dock it was made for.
+  Each one declares a minimum width and height, and below that minimum the dock won't shrink it.
+  - **Narrow** (a side dock at its smallest): essentials only. One line per row, secondary details hidden, tools
+    folded into the panel's ⋯ menu.
+  - **Wide** (a wide side dock, or a popped-out window): more columns, previews beside the list, and tools out in
+    the open.
+  - **Short and wide** (the bottom dock): rows become a horizontal strip or columns, rather than a tall list squeezed
+    flat.
+  - **Popped out:** the window's room is used fully, it is resizable like any window, and the panel follows the same
+    rules there.
+  - Nothing is cut off at any size: text wraps or ends in an ellipsis with the full text on hover, and nothing
+    scrolls sideways.
+  - This is built once in `PanelLayout`: each panel is told its size class through container queries and a
+    `usePanelSize()` hook. Each app's panels are then checked at each size.
+
+The shell's panels (Mobius, then pieces) already sit in the same menu as the app's (`ShellPanel` beside
+`PanelsOfApp`), so pieces join that list once round 0 is done.
 
 ### How Mobius uses pieces
 
 - **Brought up as it works.** When a turn first acts on something that has a piece (it reads a thread, changes a
-  list, books into a day), the piece for that thing comes into the Beside column. The working pill first says
+  list, books into a day), the piece for that thing opens as a panel in the right dock. The working pill first says
   "Showing the Acme thread".
   - Reads that only look something up don't bring a piece. Only what Mobius is about to change does.
   - At most one piece per turn is brought, and it stays put for the rest of the turn.
@@ -107,7 +160,7 @@ So the parts exist. What is new is a piece as a kind of thing, and one place bes
 
 ### How you use pieces
 
-- Ctrl+K: a result's **Show here** (Alt+Enter) puts it in the Beside column instead of opening its app.
+- Ctrl+K: a result's **Show here** (Alt+Enter) opens it as a piece instead of opening its app.
 - Item menus: **Show beside**, next to Assign to Mobius.
 - **Projects:** a project remembers the pieces beside it (its task list and its calendar, say) and brings them back
   when you open it.
@@ -130,9 +183,12 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
    none, `--dur-fast`).
 7. **Reduce Motion:** slides become a short fade.
 
-## First round
+## First rounds
 
-1. **The Beside column** in the shell: the dock, its key, `fitDocks` giving way, and the motion.
+0. **Panels, done properly** (above), in this order: visible resize grips; moving between docks; panels that adapt
+   to their size and place; then pop out. Every app's panels are checked at each size.
+1. **Pieces as shell panels** (then judge how they feel before adding more): listed in the Panels menu, placed in the right dock, movable and remembered, with
+   the dock motion.
 2. **Three pieces:**
    - **Mail thread:** the thread, with reply in place.
    - **Calendar day:** today or another day, with its events and the dashed proposal.
@@ -149,10 +205,8 @@ Mobius panel's Result slot.
 
 ## Decisions for Andrew
 
-1. **Where do pieces go?**
-   - **A Beside column** between the app and Mobius (recommended): up to two pieces, stays across apps. This changes
-     the "each app owns its panels" layout rule.
-   - **The right half of split view:** no new layout rule, but only one piece, at half the window.
+1. **Where pieces go:** settled by Andrew's note that they are like panels. They are panels in the existing docks,
+   shown and hidden from the Panels menu.
 2. **Does Mobius bring pieces up on its own?** Recommended: yes, only for what it is about to change, one per turn,
    announced first, put away when done. Off is a setting.
 3. **Apps stay as homes, not modes.** Recommended: yes. Pieces give the Jarvis feel without taking away each app's
