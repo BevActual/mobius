@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { isVoiceUrl, type DeviceVoiceStatus, type ListenModel, type ListenWith, type PreferencesSettings, type SpeakWith } from '@mobius/shared';
+import { KOKORO_VOICES, isVoiceUrl, type DeviceModel, type DeviceVoiceStatus, type ListenModel, type ListenWith, type PreferencesSettings, type SpeakWith } from '@mobius/shared';
 import { deviceText, localStatusText, megabytes } from './voice-status';
 import { settingPath } from './manifest';
 import { Row } from './primitives';
@@ -14,6 +14,7 @@ const LISTEN: ReadonlyArray<{ id: ListenWith; label: string }> = [
   { id: 'off', label: 'Off' },
 ];
 const SPEAK: ReadonlyArray<{ id: SpeakWith; label: string }> = [
+  { id: 'device', label: 'This computer (free)' },
   { id: 'local', label: 'Speech server on this computer' },
   { id: 'elevenlabs', label: 'ElevenLabs' },
   { id: 'off', label: 'Off' },
@@ -34,14 +35,19 @@ const MODELS: ReadonlyArray<{ id: ListenModel; label: string }> = [
   { id: 'small.en', label: 'More accurate' },
 ];
 
-/** Listening on this computer: set up (a one-time download), its progress, and Remove. */
-function DeviceListening({ model }: { model: ListenModel }) {
+/** Kokoro's voice for a saved name: the name itself when it is one of Kokoro's, otherwise Heart, the default. */
+export const kokoroVoice = (saved: string): string => (KOKORO_VOICES.some((v) => v.id === saved) ? saved : 'af_heart');
+
+/** A model on this computer (Whisper to listen, Kokoro to speak): set up (a one-time download), its progress, and Remove. */
+function DeviceModelSetup({ model, name }: { model: DeviceModel; name: string }) {
   const [status, setStatus] = useState<DeviceVoiceStatus | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    void window.mobius.voice?.deviceStatus?.(model).then((r) => { if (live && r && 'state' in r) setStatus(r); }).catch(() => undefined);
-    const stop = window.mobius.voice?.onDevice?.((next) => { if (next.model === model) setStatus(next); });
+    const fetch = () => void window.mobius.voice?.deviceStatus?.(model).then((r) => { if (live && r && 'state' in r) setStatus(r); }).catch(() => undefined);
+    fetch();
+    // Another model set up or removed can bring or take the program, which changes what this one would download.
+    const stop = window.mobius.voice?.onDevice?.((next) => { if (next.model === model) setStatus(next); else if (next.state === 'ready' || next.state === 'absent') fetch(); });
     return () => { live = false; stop?.(); };
   }, [model]);
   if (!status) return null;
@@ -52,15 +58,15 @@ function DeviceListening({ model }: { model: ListenModel }) {
   const setUp = async () => { setProblem(null); answer(await window.mobius.voice?.deviceSetup?.(model).catch(() => null)); };
   const remove = async () => {
     setProblem(null);
-    const r = await window.mobius.voice?.deviceRemove?.().catch(() => null);
+    const r = await window.mobius.voice?.deviceRemove?.(model).catch(() => null);
     if (r?.ok) setStatus({ ...status, state: 'absent' });
     else answer(r);
   };
   const failed = status.state === 'failed';
   return (
     <div className="inline-form device-voice">
-      {status.state === 'downloading' && <progress max={status.total || 1} value={status.done ?? 0} aria-label="Downloading Whisper" />}
-      <p className={failed ? 'field-error' : 'srow-text'} role={failed ? 'alert' : 'status'} data-testid="voice-device">{deviceText(status)}</p>
+      {status.state === 'downloading' && <progress max={status.total || 1} value={status.done ?? 0} aria-label={`Downloading ${name}`} />}
+      <p className={failed ? 'field-error' : 'srow-text'} role={failed ? 'alert' : 'status'} data-testid={model === 'kokoro' ? 'voice-device-speak' : 'voice-device'}>{deviceText(status)}</p>
       {problem && <p className="field-error" role="alert">{problem}</p>}
       {status.available && (status.state === 'absent' || failed) && (
         <button type="button" className="btn" onClick={() => void setUp()}>{failed ? 'Try again' : `Set up (${megabytes(status.bytes)})`}</button>
@@ -134,16 +140,17 @@ export function VoiceModelRows({ subpage, highlight, settings, preferences, onPr
   const path = (row: string) => settingPath('model', subpage, row);
   const cannot = preferences.listenWith === 'chat' ? chatCannotListen(settings?.baseUrl ?? '') : null;
   const listening = preferences.listenWith === 'off' ? null : preferences.listenWith === 'elevenlabs' ? 'ElevenLabs Scribe' : preferences.listenWith === 'device' ? `Whisper ${preferences.listenModel}, on this computer` : preferences.dictationModel;
-  const speaking = preferences.speakWith === 'off' ? null : preferences.speakWith === 'elevenlabs' ? 'ElevenLabs' : `${preferences.speakModel}${preferences.speakVoice ? `, ${preferences.speakVoice}` : ''}`;
+  const kokoro = KOKORO_VOICES.find((v) => v.id === kokoroVoice(preferences.speakVoice))?.label ?? '';
+  const speaking = preferences.speakWith === 'off' ? null : preferences.speakWith === 'elevenlabs' ? 'ElevenLabs' : preferences.speakWith === 'device' ? `Kokoro, ${kokoro}, on this computer` : `${preferences.speakModel}${preferences.speakVoice ? `, ${preferences.speakVoice}` : ''}`;
   return (
     <>
-      <Row path={path('listen')} title="Listen" description="Turns your speech into text when you dictate. Its server, model and fallback are in Voice." highlight={highlight === 'listen'}>
-        <PopUp label="Listen with" value={preferences.listenWith} options={LISTEN} onChange={(listenWith) => void onPreferences({ listenWith })} />
+      <Row path={path('listen')} title="Listen" description="Turns your speech into text when you dictate and in meetings. Its server, model and fallback are under Listening." highlight={highlight === 'listen'}>
+        <PopUp label="Listen runs on" value={preferences.listenWith} options={LISTEN} onChange={(listenWith) => void onPreferences({ listenWith })} />
         {listening && <p className="srow-text">Model: {listening}</p>}
         {cannot && <p className="srow-note" role="note">{cannot} Choose This computer or ElevenLabs.</p>}
       </Row>
-      <Row path={path('speak')} title="Speak" description="Reads replies aloud. Its server, voice and fallback are in Voice." highlight={highlight === 'speak'}>
-        <PopUp label="Speak with" value={preferences.speakWith} options={SPEAK} onChange={(speakWith) => void onPreferences({ speakWith })} />
+      <Row path={path('speak')} title="Speak" description="Reads replies and pages aloud when you press Listen. Its voice and fallback are under Speaking." highlight={highlight === 'speak'}>
+        <PopUp label="Speak runs on" value={preferences.speakWith} options={SPEAK} onChange={(speakWith) => void onPreferences({ speakWith })} />
         {speaking && <p className="srow-text">Voice: {speaking}</p>}
       </Row>
     </>
@@ -152,22 +159,33 @@ export function VoiceModelRows({ subpage, highlight, settings, preferences, onPr
 
 /** Who listens when you dictate, and who speaks answers aloud: each with its own service and a fallback. */
 export function VoiceSection({ subpage, highlight, settings, preferences, onPreferences }: SectionProps) {
-  const path = (row: string) => settingPath('voice', subpage, row);
+  const path = (row: string) => settingPath('model', subpage, row);
   const set = (change: Partial<PreferencesSettings>) => void onPreferences(change);
   const urlProblem = 'Use an address starting with http:// or https://, with no spaces.';
   if (subpage === 'speaking') {
     const local = preferences.speakWith === 'local' || preferences.speakFallback === 'local';
+    const device = preferences.speakWith === 'device' || preferences.speakFallback === 'device';
+    const served = [preferences.speakWith, preferences.speakFallback].some((w) => w === 'local' || w === 'elevenlabs');
     return (
       <>
-        <Row path={path('speak-with')} title="Speak with" description="Text to speech: a speech server on this computer, ElevenLabs, or off." highlight={highlight === 'speak-with'}>
+        <Row path={path('speak-with')} title="Speak with" description="Text to speech: Kokoro on this computer for free, a speech server you run, ElevenLabs, or off." highlight={highlight === 'speak-with'}>
           <PopUp label="Speak with" value={preferences.speakWith} options={SPEAK} onChange={(speakWith) => set({ speakWith })} />
           {(preferences.speakWith === 'elevenlabs' || preferences.speakFallback === 'elevenlabs') && <p className="srow-text">ElevenLabs needs its key, added in Gateways.</p>}
         </Row>
-        <Row path={path('speak-model')} title="Voice model" description="The model asked for when speaking." highlight={highlight === 'speak-model'}>
-          <TextField label="Voice model" value={preferences.speakModel} valid={(v) => v.length >= 1 && v.length <= 200 && !/\n/.test(v)} problem="Use a model name of 1 to 200 characters." onSave={(speakModel) => set({ speakModel })} />
-        </Row>
-        <Row path={path('speak-voice')} title="Voice" description="The voice to speak with. Empty uses the server's own." highlight={highlight === 'speak-voice'}>
-          <TextField label="Voice" value={preferences.speakVoice} valid={(v) => v.length <= 100 && !/\n/.test(v)} problem="Up to 100 characters." placeholder="The server's own" onSave={(speakVoice) => set({ speakVoice })} />
+        {device && (
+          <Row path={path('speak-device')} title="Kokoro on this computer" description="Free and private: a one-time download, then nothing read aloud leaves this computer." highlight={highlight === 'speak-device'}>
+            <DeviceModelSetup model="kokoro" name="Kokoro" />
+          </Row>
+        )}
+        {served && (
+          <Row path={path('speak-model')} title="Voice model" description="The model asked for when speaking." highlight={highlight === 'speak-model'}>
+            <TextField label="Voice model" value={preferences.speakModel} valid={(v) => v.length >= 1 && v.length <= 200 && !/\n/.test(v)} problem="Use a model name of 1 to 200 characters." onSave={(speakModel) => set({ speakModel })} />
+          </Row>
+        )}
+        <Row path={path('speak-voice')} title="Voice" description={preferences.speakWith === 'device' ? "One of Kokoro's voices on this computer." : "The voice to speak with. Empty uses the server's own."} highlight={highlight === 'speak-voice'}>
+          {preferences.speakWith === 'device'
+            ? <PopUp label="Voice" value={kokoroVoice(preferences.speakVoice)} options={KOKORO_VOICES} onChange={(speakVoice) => set({ speakVoice })} />
+            : <TextField label="Voice" value={preferences.speakVoice} valid={(v) => v.length <= 100 && !/\n/.test(v)} problem="Up to 100 characters." placeholder="The server's own" onSave={(speakVoice) => set({ speakVoice })} />}
         </Row>
         {local && (
           <Row path={path('speak-url')} title="Speech server on this computer" description="Its address, in OpenAI's audio format, as Kokoro serves it." highlight={highlight === 'speak-url'}>
@@ -178,7 +196,7 @@ export function VoiceSection({ subpage, highlight, settings, preferences, onPref
         <Row path={path('speak-fallback')} title="If that cannot speak" description="What to try next." highlight={highlight === 'speak-fallback'}>
           <PopUp label="If that cannot speak" value={preferences.speakFallback} options={SPEAK} onChange={(speakFallback) => set({ speakFallback })} />
         </Row>
-        <Row path={path('read-aloud')} title="Read replies aloud" description="Each new reply is read as it arrives. Esc, or a new message, stops it. Every reply also has Speak." highlight={highlight === 'read-aloud'}>
+        <Row path={path('read-aloud')} title="Read replies aloud" description="Each new reply is read as it arrives. Esc, or a new message, stops it. Off, nothing is read until you press Read aloud or Listen." highlight={highlight === 'read-aloud'}>
           <Toggle label="Read replies aloud" checked={preferences.readAloud} onChange={(readAloud) => set({ readAloud })} />
         </Row>
         <Row path={path('speak-test')} title="Try speaking" description="Ask the chosen server whether it answers." highlight={highlight === 'speak-test'}>
@@ -200,7 +218,7 @@ export function VoiceSection({ subpage, highlight, settings, preferences, onPref
       </Row>
       {device && (
         <Row path={path('listen-device')} title="Whisper on this computer" description="Free and private: a one-time download, then nothing you say leaves this computer." highlight={highlight === 'listen-device'}>
-          <DeviceListening model={preferences.listenModel} />
+          <DeviceModelSetup model={preferences.listenModel} name="Whisper" />
         </Row>
       )}
       {device && (

@@ -1,7 +1,8 @@
 # Voice
 
-You can talk to Mobius instead of typing, and have its replies read aloud. Both are set up in **Settings › Voice**, and
-each has its own service and a fallback if that service cannot answer.
+You can talk to Mobius instead of typing, and have replies and pages read aloud. Both are set up in **Settings ›
+Models**: **Capabilities** has a Listen and a Speak row saying where each runs, and **Listening** and **Speaking** below
+it hold their options. Each has its own service and a fallback if that service cannot answer.
 
 ## Dictating
 
@@ -19,14 +20,23 @@ meeting with the same service and writes it into the page ([Notes](../apps/write
 
 ## Replies read aloud
 
-**Speak with** chooses who reads replies:
+**Speak with** chooses who reads aloud:
 
+- **This computer (free)**: Kokoro, downloaded once (about 155 MB) with **Set up**, then nothing read aloud leaves this
+  computer. Pick one of its voices, American or British, under **Voice**. New installs start here; nothing is read
+  until you press Listen or Read aloud.
 - **A speech server on this computer** in OpenAI's audio format, such as [Kokoro](https://github.com/hexgrad/kokoro).
 - **ElevenLabs**.
 - **Off**.
 
-Pick a **Voice model** and a **Voice** (empty uses the server's own), and a fallback under **If that cannot speak**.
-Turn on **Read replies aloud** to hear each new reply as it arrives. Esc or a new message stops it.
+For a server, pick a **Voice model** and a **Voice** (empty uses the server's own), and a fallback under **If that
+cannot speak**. Turn on **Read replies aloud** to hear each new reply as it arrives. Esc or a new message stops it.
+
+## Listen
+
+**Listen** (the speaker in the toolbar) reads what is open aloud: a note, a document, a message in Mail, an article in
+Reader. A long page is read in parts, so the first is heard in a moment. Press it again, or Esc, to stop. If nothing is
+set up to speak, it says so, with **Set up speaking**.
 
 ## Your keys and your sound
 

@@ -643,6 +643,9 @@ export function Launcher({
         disabled: !app.available,
         run: () => onOpenApp(app.id),
       })),
+      // A command whose name starts with what was typed comes before pages and items that only mention it, so typing
+      // "Save page to Read later" and Enter runs it, not the article saved there.
+      ...commands.filter((command) => q.length >= 4 && command.label.toLowerCase().startsWith(q)).slice(0, 4).map<LauncherItem>((command) => ({ id: `cmd-${command.id}`, kind: 'command', label: command.label, detail: command.detail, run: command.run })),
       // The computer's own apps, then its commands: below Mobius's apps, so "notes" still opens Notes.
       ...(system ? [
         ...findSystemApps(system.apps, typed).filter((a) => !APPS.some((m) => m.name.toLowerCase() === a.name.toLowerCase())).map<LauncherItem>((a) => ({ id: `sys-app-${a.id}`, kind: 'system', label: a.name, detail: 'App', run: () => system.open(a.id) })),
@@ -658,7 +661,7 @@ export function Launcher({
         run: () => onActivateTab(tab.id),
       })),
       ...(commands.length > 0
-        ? commands.filter((command) => has(`${command.label} ${command.detail ?? ''}`)).slice(0, 12).map<LauncherItem>((command) => ({ id: `cmd-${command.id}`, kind: 'command', label: command.label, detail: command.detail, run: command.run }))
+        ? commands.filter((command) => has(`${command.label} ${command.detail ?? ''}`) && !(q.length >= 4 && command.label.toLowerCase().startsWith(q))).slice(0, 12).map<LauncherItem>((command) => ({ id: `cmd-${command.id}`, kind: 'command', label: command.label, detail: command.detail, run: command.run }))
         : [{ id: 'new-tab', label: 'New tab', detail: 'Ctrl+T' }]
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),

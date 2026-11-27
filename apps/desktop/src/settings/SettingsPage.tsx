@@ -41,13 +41,13 @@ interface Place { section: SectionId; subpage: string; detail?: string }
 const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   connections: ({ subpage, onGo, onOpenApp, detail, onOpen }) => <ConnectionsList card={subpage === 'plans' || subpage === 'connectors' ? subpage : 'accounts'} onGo={onGo ?? (() => {})} detail={detail ?? null} onOpen={onOpen ?? (() => {})} {...(onOpenApp ? { onOpenApp } : {})} />,
   general: GeneralSection,
-  voice: VoiceSection,
   memory: MemorySection,
   privacy: PrivacySection,
   extensions: ExtensionsSettings,
   appearance: AppearanceSection,
   // Models by task: chat, second and quick models, then who listens and who speaks.
-  model: (props) => <><ModelSection {...props} />{props.subpage !== 'local' && <VoiceModelRows {...props} />}</>,
+  // Voice folded into Models (docs/design/voice-and-capabilities.md): Listening and Speaking are its pages.
+  model: (props) => (props.subpage === 'listening' || props.subpage === 'speaking' ? <VoiceSection {...props} /> : <><ModelSection {...props} />{props.subpage !== 'local' && <VoiceModelRows {...props} />}</>),
   providers: ProvidersSection,
   safety: SafetySection,
   schedules: SchedulesSection,

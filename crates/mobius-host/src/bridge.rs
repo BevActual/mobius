@@ -365,7 +365,7 @@ pub struct Bridge {
     music: crate::music::Music,
     /// The local Mobius space's homeserver, fetched and started the first time the space opens.
     homeserver: Arc<crate::homeserver::Homeserver>,
-    /// Listening on this computer with Whisper, downloaded the first time it is set up in Settings, Voice.
+    /// Listening on this computer with Whisper, downloaded the first time it is set up in Settings, Models.
     device_voice: Arc<crate::voice_local::DeviceVoice>,
     /// A meeting heard from the microphone, in parts the window has written down.
     meetings: crate::meeting::Meetings,
@@ -633,12 +633,7 @@ impl Bridge {
         // A new install listens on this computer for free once that is set up (where there's a build of it for this
         // computer), and until then with the chat model's server, as before. One already in use keeps what it had.
         if fresh {
-            let mut start = json!({ "installedApps": preferences::DEFAULT_APPS });
-            if crate::voice_local::available() {
-                start["listenWith"] = json!("device");
-                start["listenFallback"] = json!("chat");
-            }
-            lock(&bridge.preferences).set(&start);
+            lock(&bridge.preferences).set(&first_preferences(crate::voice_local::available()));
         }
         let _ = bridge.restore_quick();
         // Once the local space's server answers, the person's account and the space are made (the first time) or brought
@@ -930,15 +925,15 @@ impl Bridge {
                 }
                 Err(error) => json!({ "ok": false, "error": error }),
             }),
-            // Settings, Voice: try the server chosen for listening or speaking, as it is set now.
+            // Settings, Models: try the server chosen for listening or speaking, as it is set now.
             ("voice", "test") => Ok(self.voice_test(arg(0).as_str().unwrap_or(""))),
-            // Settings, Voice, This computer: whether a speech server answers at the saved address. Nothing is installed.
+            // Settings, Models, This computer: whether a speech server answers at the saved address. Nothing is installed.
             ("voice", "local") => Ok(self.voice_local(arg(0).as_str().unwrap_or(""))),
-            // Settings, Voice, This computer (free): the program and the chosen model, downloaded and checked against
+            // Settings, Models, This computer (free): the program and the chosen model, downloaded and checked against
             // their pinned SHA-256s. Remove takes them all off again.
             ("voice", "deviceStatus") => Ok(self.device_voice.status(&self.listen_model(arg(0).as_str()))),
             ("voice", "deviceSetup") => Ok(self.device_voice.setup(&self.listen_model(arg(0).as_str()))),
-            ("voice", "deviceRemove") => Ok(self.device_voice.remove(&self.listen_model(None))),
+            ("voice", "deviceRemove") => Ok(self.device_voice.remove(&self.listen_model(arg(0).as_str()))),
             // Notes, Record a meeting: the microphone heard here, in parts. Each part is written down with whoever is
             // chosen for listening when the window asks, and its file deleted then.
             ("meeting", "available") => Ok(self.meetings.available()),
@@ -2818,13 +2813,13 @@ impl Bridge {
 
     /// Settings > Providers. A key goes in and is never given back; it is only ever sent to its provider's address.
     /// Turn a recording into words with the service chosen for listening, then its fallback. Nothing chosen says so,
-    /// with `setup` so the window can point to Settings, Voice.
+    /// with `setup` so the window can point to Settings, Models.
     fn listen(&self, bytes: &[u8], mime: &str) -> Value {
         let prefs = lock(&self.preferences).get();
         let s = |k: &str| prefs[k].as_str().unwrap_or("").to_owned();
         let (first, fallback, url, model) = (s("listenWith"), s("listenFallback"), s("listenUrl"), s("dictationModel"));
         let model = if model.is_empty() { "whisper-1".to_owned() } else { model };
-        let mut last = json!({ "ok": false, "error": "Listening is off. Choose who listens in Settings, Voice.", "setup": true });
+        let mut last = json!({ "ok": false, "error": "Listening is off. Choose who listens in Settings, Models.", "setup": true });
         let mut device_unset = None;
         for with in crate::voice::order(&first, &fallback) {
             let got = match with {
@@ -2872,9 +2867,10 @@ impl Bridge {
         let prefs = lock(&self.preferences).get();
         let s = |k: &str| prefs[k].as_str().unwrap_or("").to_owned();
         let (first, fallback, url, model, voice) = (s("speakWith"), s("speakFallback"), s("speakUrl"), s("speakModel"), s("speakVoice"));
-        let mut last = json!({ "ok": false, "error": "Speaking is off. Choose who speaks in Settings, Voice.", "setup": true });
+        let mut last = json!({ "ok": false, "error": "Speaking is off. Choose who speaks in Settings, Models.", "setup": true });
         for with in crate::voice::order(&first, &fallback) {
             let got = match with {
+                "device" => self.device_voice.speak(&text, &voice, 1.0),
                 "local" => crate::voice::speak_local(&url, &model, &voice, &text),
                 "elevenlabs" => match (self.providers.key("elevenlabs"), self.providers.address("elevenlabs")) {
                     (Some(key), Some(base)) => crate::voice::speak_elevenlabs(&base, &key, &model, &voice, &text),
@@ -2936,6 +2932,9 @@ impl Bridge {
                 }
                 let listed = self.agent.models();
                 if listed["ok"] == true { json!({ "ok": true, "message": "The chat model's server answers. Listening uses its speech model." }) } else { failed("The chat model's server did not answer.") }
+            }
+            "device" if job == "speak" => {
+                if self.device_voice.ready(crate::voice_local::SPEAK_MODEL) { json!({ "ok": true, "message": "Speaking on this computer is set up." }) } else { failed("Speaking on this computer isn't set up yet.") }
             }
             "device" => {
                 let model = self.listen_model(None);
@@ -3167,7 +3166,7 @@ impl Bridge {
                 let (Some(id), Some(model)) = (text(0), text(1)) else { return failed("Choose a provider and a model.") };
                 let Some(provider) = crate::providers::find(id) else { return failed("That provider is not known.") };
                 if provider.voice_only {
-                    return failed(format!("{} is for voice only: choose it in Settings, Voice.", provider.name));
+                    return failed(format!("{} is for voice only: choose it in Settings, Models.", provider.name));
                 }
                 let key = p.key(id);
                 if provider.needs_key && key.is_none() {
@@ -5380,4 +5379,18 @@ enum TabChange {
     TakeOver,
     HandBack,
     End,
+}
+
+/// What a new install starts with: its apps, and listening and speaking on this computer where there's a build of the
+/// voice program for it (`on_device`).
+#[must_use]
+pub fn first_preferences(on_device: bool) -> Value {
+    let mut start = json!({ "installedApps": preferences::DEFAULT_APPS });
+    if on_device {
+        start["listenWith"] = json!("device");
+        start["listenFallback"] = json!("chat");
+        // Speaking on this computer too: nothing is read aloud until the person presses Listen (readAloud stays off).
+        start["speakWith"] = json!("device");
+    }
+    start
 }

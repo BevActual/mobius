@@ -1,6 +1,8 @@
 # Voice, audio and capabilities: ElevenLabs-style features on your own computer
 
-Status: proposal (2026-11-26). What gets built, and in what order, is Andrew's call. Replaces the cloud-first ideas in
+Status: round 1 built (2026-11-27, PR #944): Kokoro read aloud on this computer, Listen in Notes, Docs, Mail and
+Reader, and Models › Capabilities with Voice folded in as its Listening and Speaking pages. Kitten waits: its phonemes
+are espeak's, and espeak-ng is GPL-3.0. Andrew agreed to the round on 2026-11-26. Replaces the cloud-first ideas in
 [elevenlabs-ideas.md](../reference/elevenlabs-ideas.md); builds on [voice-plan.md](../reference/voice-plan.md).
 
 ## The short version

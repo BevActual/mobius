@@ -43,3 +43,58 @@ export const isSpeaking = (s: Speech, id: string): boolean => (s.state === 'spea
 export function readAloudNow(readAloud: boolean, wasBusy: boolean, busy: boolean, lastReply: { id: string; text: string } | null, alreadyRead: string | null): boolean {
   return readAloud && wasBusy && !busy && lastReply !== null && lastReply.text.trim() !== '' && lastReply.id !== alreadyRead;
 }
+
+/** Markdown as it is heard: no heading marks, list bullets, emphasis, link addresses, code blocks or picture tags. */
+export function spokenText(markdown: string): string {
+  return markdown
+    .replace(/^```[\s\S]*?^```/gm, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/^[ \t]{0,3}#{1,6}[ \t]+(.*)$/gm, '$1.')
+    .replace(/^[ \t]*(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?/gm, '')
+    .replace(/^[ \t]*>[ \t]?/gm, '')
+    .replace(/(\*\*|__|\*|_|~~|`)(?=\S)([^\n]*?\S)\1/g, '$2')
+    .replace(/^[ \t]*(?:---+|\*\*\*+)[ \t]*$/gm, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/^ +| +$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    // "Dr. Chen" is read "Doctor Chen", without the stop of a sentence's end.
+    .replace(/\b(Dr|Mr|Mrs|Ms|Prof|St|Mt|Jr|vs)\.(?=\s)/g, (_, t: string) => TITLES[t]!)
+    .trim();
+}
+
+const TITLES: Record<string, string> = { Dr: 'Doctor', Mr: 'Mister', Mrs: 'Missus', Ms: 'Miz', Prof: 'Professor', St: 'Saint', Mt: 'Mount', Jr: 'Junior', vs: 'versus' };
+
+/**
+ * A long text in parts to read one after another, so the first is heard soon: whole paragraphs, or sentences of a long
+ * one, each at most `most` characters, the first at most `first` and each next at most a quarter longer (a sentence longer than that is cut at a space).
+ */
+export function speechParts(text: string, most = 500, first = most): string[] {
+  const parts: string[] = [];
+  let now = '';
+  const add = (piece: string) => {
+    const p = piece.trim();
+    if (!p) return;
+    // The first part can be shorter, so the first sound is heard sooner; each next one is at most a quarter longer than
+    // the one before, so it is made (a little faster than it plays) while the one before is still heard.
+    const max = Math.min(most, Math.round(first * 1.25 ** parts.length));
+    if (now && now.length + 1 + p.length > max) { parts.push(now); now = ''; }
+    if (p.length <= max) { now = now ? `${now} ${p}` : p; return; }
+    let rest = p;
+    while (rest.length > max) {
+      const cut = rest.lastIndexOf(' ', max);
+      const at = cut > max / 2 ? cut : max;
+      parts.push(rest.slice(0, at).trim());
+      rest = rest.slice(at).trim();
+    }
+    now = rest;
+  };
+  for (const paragraph of text.split(/\n\s*\n/)) {
+    for (const sentence of paragraph.replace(/\s*\n\s*/g, ' ').split(/(?<!\b(?:Dr|Mr|Mrs|Ms|Prof|St|Mt|Jr|vs)\.)(?<=[.!?…])\s+/)) add(sentence);
+    // A paragraph (a list item, a heading) ends with a pause even when it has no full stop.
+    if (now && !/[.!?…:;]$/.test(now)) now += '.';
+  }
+  if (now) parts.push(now);
+  return parts.filter((p) => /\p{L}|\d/u.test(p));
+}

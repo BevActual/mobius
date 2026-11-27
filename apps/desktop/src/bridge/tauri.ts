@@ -356,7 +356,7 @@ export function createTauriBridge(): MobiusBridge {
       speak: (text) => call('voice', 'speak', [text], () => ({ ok: false as const, error: 'Voice is not available here.' })),
       deviceStatus: (model) => call('voice', 'deviceStatus', model ? [model] : [], () => ({ ok: false as const, error: 'Voice is not available here.' })),
       deviceSetup: (model) => call('voice', 'deviceSetup', model ? [model] : [], () => ({ ok: false as const, error: 'Voice is not available here.' })),
-      deviceRemove: () => call('voice', 'deviceRemove', [], () => ({ ok: false as const, error: 'Voice is not available here.' })),
+      deviceRemove: (model) => call('voice', 'deviceRemove', model ? [model] : [], () => ({ ok: false as const, error: 'Voice is not available here.' })),
       onDevice: (listener) => on<DeviceVoiceStatus>('mobius:voice-device', listener),
     },
     meeting: {

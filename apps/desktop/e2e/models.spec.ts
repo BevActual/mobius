@@ -265,13 +265,14 @@ test('a model can start again by itself when Mobius opens', async () => {
   }
 });
 
-test('Models has a row for each job: chat, quick, listen and speak, and voice choices are the same as in Voice', async () => {
+test('Capabilities has a row for each job: chat, quick, listen and speak, and Speaking below follows the same choice', async () => {
   await start();
   await openSettings(shell());
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   for (const title of ['Chat model', 'Quick model', 'Listen', 'Speak']) await expect(page().getByRole('heading', { name: title, exact: true }).or(page().getByText(title, { exact: true })).first()).toBeVisible();
-  await choose(page(), 'Speak with', 'ElevenLabs');
+  await choose(page(), 'Speak runs on', 'ElevenLabs');
   await expect(page().getByText('Voice: ElevenLabs')).toBeVisible();
+  await expect(page().getByRole('combobox', { name: 'Speak with' })).toHaveText('ElevenLabs');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).speakWith).toBe('elevenlabs');
 });
 

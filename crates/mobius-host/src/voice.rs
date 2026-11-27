@@ -1,4 +1,4 @@
-//! Voice: listening (speech to text) and speaking (text to speech) with the services chosen in Settings, Voice. The
+//! Voice: listening (speech to text) and speaking (text to speech) with the services chosen in Settings, Models. The
 //! chat model's own server listens through `AgentService::transcribe`; this module talks to a speech server on this
 //! computer in OpenAI's audio format (faster-whisper, Kokoro) and to ElevenLabs. Keys never leave the host: the window
 //! sends sound or words and gets words or sound back.

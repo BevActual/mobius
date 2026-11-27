@@ -2,7 +2,7 @@ import { assignToMobius, mailAssignment } from './assign';
 import { openWebLink } from './web-link';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AppMenu, AppSidebar, Button, EmptyState, IconButton, KeyHintBar, Menu, PointMenu, SidebarRow, SidebarSearch, SidebarSection, TOOL_ICONS, ToolbarControls, ToolGroup, UndoToast, type EmptyKind } from './ui';
+import { AppMenu, AppSidebar, Button, EmptyState, IconButton, KeyHintBar, ListenButton, Menu, PointMenu, SidebarRow, SidebarSearch, SidebarSection, TOOL_ICONS, ToolbarControls, ToolGroup, UndoToast, type EmptyKind } from './ui';
 import { useAddressSuggestions, useMeetingsWith } from './ContactPanel';
 import { isNotesFailure, type MailCategory, type MailContent, type MailDraft, type MailFollowUp, type MailMessage } from '@mobius/shared';
 import { backAt, IMPORTANT, type MailBox, type MailState, type MailView } from './useMail';
@@ -426,6 +426,9 @@ function MessageTools({ mail, content, onLater }: { mail: MailState; content: Ma
         <IconButton label="Reply" keys="R" icon={TOOL_ICONS.reply} onClick={() => mail.reply(content)} />
         <IconButton label="Reply All" keys="Shift+R" icon={TOOL_ICONS.replyAll} onClick={() => mail.reply(content, true)} />
         <IconButton label="Forward" keys="F" icon={TOOL_ICONS.forward} onClick={() => mail.forward(content)} />
+      </ToolGroup>
+      <ToolGroup label="Listen">
+        <ListenButton id={`mail:${content.id}`} className="ui-icon-button" text={() => `${content.subject || ''}.\n\n${content.text}`} />
       </ToolGroup>
       <ToolGroup label="Triage">
         {archived ? <IconButton label="Move to Inbox" icon={TOOL_ICONS.done} onClick={() => void mail.archive(content.id, false)} /> : <IconButton label="Done" keys="E" icon={TOOL_ICONS.done} onClick={() => void outOfList(content.id, () => mail.archive(content.id))} />}

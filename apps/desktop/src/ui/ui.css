@@ -194,3 +194,7 @@
 .ui-dock[data-moving][data-dock="right"] > .ui-panel { flex-shrink: 0; width: var(--dock-full); align-self: flex-start; }
 .ui-dock[data-moving][data-dock="bottom"] > .ui-panel { flex: none; height: var(--dock-full); align-self: flex-start; }
 .ui-dock[data-moving] > .ui-dock-edge { display: none; }
+
+/* Listen (ui/Listen.tsx): why it couldn't read, beside the button, with the way to set speaking up. */
+.listen-problem { display: inline-flex; align-items: center; gap: var(--sp-1); max-width: 32ch; font-size: var(--fs-xs); color: var(--danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.listen-problem .link-btn { font-size: inherit; }

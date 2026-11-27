@@ -441,7 +441,7 @@ export interface ChatPanelProps {
   onHide?: () => void;
   /** Little Mobius: the chat in a small window of its own. */
   onPopOut?: () => void;
-  /** Settings, Voice: where listening and speaking are chosen. */
+  /** Settings, Models: where listening and speaking are chosen. */
   onOpenVoice?: () => void;
   /** What the message box suggests asking in the app beside it ("Ask about your mail"). */
   hint?: string;
@@ -649,7 +649,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const [chatsToken, setChatsToken] = useState(0);
   const preferences = usePreferences();
   const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
-  // Reading replies aloud: a Speak button on each, and, when chosen in Settings, Voice, each new reply by itself.
+  // Reading replies aloud: a Speak button on each, and, when chosen in Settings, Models, each new reply by itself.
   const { speech, speak, stop: stopSpeaking, dismiss: dismissSpeech } = useSpeech();
   // Messages written while Mobius works: kept above the box and sent in order as each turn ends. Stop keeps them, paused.
   const [queue, setQueue] = useState<MessageQueue>(EMPTY_QUEUE);

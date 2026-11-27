@@ -1,5 +1,5 @@
 //! Listening on this computer, for free: `mobius-voice` (crates/mobius-voice) with Whisper and Silero VAD. Neither the
-//! program nor the models are in the installer. When the person sets it up in Settings, Voice, Mobius downloads the
+//! program nor the models are in the installer. When the person sets it up in Settings, Models, Mobius downloads the
 //! program for this computer and the models from its own `voice-0.1.0` prerelease (`.github/workflows/voice.yml`),
 //! checks each file against the SHA-256 pinned below (never against anything fetched), and keeps them in Mobius's
 //! folder. The program runs only while it's used: it is started on the first recording and stopped after a few idle
@@ -18,11 +18,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// Where the files are published: a prerelease that is never Latest.
-const RELEASE: &str = "https://github.com/BevActual/mobius/releases/download/voice-0.1.0/";
+const RELEASE: &str = "https://github.com/BevActual/mobius/releases/download/voice-0.2.0/";
 /// The program for each computer and its SHA-256, from the workflow's run.
-const PROGRAMS: &[(&str, &str, &str)] = &[];
+const PROGRAMS: &[(&str, &str, &str)] = &[
+    ("windows-x86_64", "mobius-voice-0.2.0-x86_64-pc-windows-msvc.gz", "d999999cad917604cf76b9af1c406504c8f193ecdc370710d5e5fac3051cda01"),
+    ("macos-aarch64", "mobius-voice-0.2.0-aarch64-apple-darwin.gz", "9a887df3824e60ea52005b905e9f33c7523b6a596efc500aedc5b6cac454e2c8"),
+];
 /// The name it is kept under: a new version is a new file, so an old build is never run by mistake.
-const PROGRAM: &str = "mobius-voice-0.1.0";
+const PROGRAM: &str = "mobius-voice-0.2.0";
 /// A file of a model: its name in the release, its size and its SHA-256 (the same bytes as sherpa-onnx's asr-models).
 struct File {
     name: &'static str,
@@ -45,6 +48,25 @@ const WHISPER: &[(&str, File, File, File)] = &[
         File { name: "whisper-small.en-tokens.txt", size: 835_554, sha: "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930" },
     ),
 ];
+/// Speaking: Kokoro-82M v1.0 int8 and misaki's American and British word lists (all Apache-2.0), the same bytes as
+/// sherpa-onnx's kokoro-int8-multi-lang-v1_0.
+pub const SPEAK_MODEL: &str = "kokoro";
+const KOKORO: [File; 5] = [
+    File { name: "kokoro-model.int8.onnx", size: 114_202_993, sha: "75635ea3b85a32d00094dcdd61a258aba87c160f7c264c304a7b3ae9d734195e" },
+    File { name: "kokoro-voices.bin", size: 28_200_960, sha: "1c5a5b983d3d50d8586d437a51f3faa2da7919ce76a013c081e65671a3447c29" },
+    File { name: "kokoro-tokens.txt", size: 687, sha: "6ebb6bb288f20f3ae8d004d3c2ca27697da27c037d75e81a60e2a6a663f95425" },
+    File { name: "kokoro-lexicon-us-en.txt", size: 5_956_885, sha: "7daaab53a181be9885b853a8582bf1838186317e5dadacbcef9c426d6fa0da14" },
+    File { name: "kokoro-lexicon-gb-en.txt", size: 6_366_635, sha: "c4cbb37316f62210dff52718a7afcaae24f50c032cc75ab47ae67b831d1049e7" },
+];
+/// The English voices offered: Kokoro's name (as a Kokoro server takes it too), its number in the model, and whether
+/// it speaks British English (read with the British word list).
+pub const VOICES: &[(&str, i32, bool)] = &[
+    ("af_heart", 3, false), ("af_bella", 2, false), ("af_nicole", 6, false), ("am_michael", 16, false), ("am_fenrir", 14, false),
+    ("bf_emma", 21, true), ("bf_isabella", 22, true), ("bm_george", 26, true), ("bm_fable", 25, true),
+];
+/// The voice when none is chosen.
+pub const DEFAULT_VOICE: &str = "af_heart";
+
 /// The model chosen when none is: quick enough for dictation on most computers.
 pub const DEFAULT_MODEL: &str = "base.en";
 /// The program is stopped once it has had nothing to do for this long.
@@ -74,10 +96,21 @@ fn whisper(model: &str) -> Option<&'static (&'static str, File, File, File)> {
     WHISPER.iter().find(|(m, ..)| *m == model)
 }
 
+/// Every file a model needs: a Whisper model with the speech detector, or Kokoro. None for a name Mobius doesn't know.
+fn files(model: &str) -> Vec<&'static File> {
+    if model == SPEAK_MODEL {
+        return KOKORO.iter().collect();
+    }
+    whisper(model).map_or_else(Vec::new, |(_, e, d, t)| vec![&VAD, e, d, t])
+}
+
+/// About what the packed program takes to download (it is counted before its size is known).
+const PROGRAM_BYTES: u64 = 15 * 1024 * 1024;
+
 /// What a model takes on disk, with the speech detector; the program comes on top.
 #[must_use]
 pub fn model_bytes(model: &str) -> u64 {
-    whisper(model).map_or(0, |(_, e, d, t)| e.size + d.size + t.size + VAD.size)
+    files(model).iter().map(|f| f.size).sum::<u64>()
 }
 
 /// What listening on this computer is doing.
@@ -158,15 +191,20 @@ impl DeviceVoice {
     /// Whether the program and this model are all here. Sizes are checked, not hashes: each was checked on arrival.
     #[must_use]
     pub fn ready(&self, model: &str) -> bool {
-        let Some((_, e, d, t)) = whisper(model) else { return false };
-        self.program_path().is_file() && [&VAD, e, d, t].iter().all(|f| std::fs::metadata(self.file_path(f)).is_ok_and(|m| m.len() == f.size))
+        let needed = files(model);
+        !needed.is_empty() && self.program_path().is_file() && needed.iter().all(|f| std::fs::metadata(self.file_path(f)).is_ok_and(|m| m.len() == f.size))
     }
 
     /// What it's doing for this model.
     pub fn status(&self, model: &str) -> Value {
         let (busy_model, state) = lock(&self.state).clone();
         let state = if busy_model == model && !matches!(state, State::Absent) && !(matches!(state, State::Ready) && !self.ready(model)) { state } else if self.ready(model) { State::Ready } else { State::Absent };
-        state.to_json(model)
+        let mut v = state.to_json(model);
+        // The size offered to set it up is what will be downloaded: the program too, when it isn't here yet.
+        if !self.program_path().is_file() {
+            v["bytes"] = json!(model_bytes(model) + PROGRAM_BYTES);
+        }
+        v
     }
 
     fn set(&self, model: &str, state: State) {
@@ -177,8 +215,8 @@ impl DeviceVoice {
     /// Downloads the program and the model, on a thread of its own; the window follows `mobius:voice-device`. Asked
     /// again while on its way, it does nothing; after a failure it tries again.
     pub fn setup(self: &Arc<Self>, model: &str) -> Value {
-        if whisper(model).is_none() {
-            return failed("That is not a model Mobius can listen with.");
+        if files(model).is_empty() {
+            return failed("That is not a model Mobius can listen or speak with.");
         }
         if self.ready(model) {
             self.set(model, State::Ready);
@@ -209,10 +247,13 @@ impl DeviceVoice {
         let Some((program, program_sha)) = self.program.clone() else {
             return Err(Failure("Listening on this computer isn't available on this computer yet.".into(), false));
         };
-        let Some((_, e, d, t)) = whisper(model) else { return Err(Failure("That is not a model Mobius can listen with.".into(), false)) };
-        let files: Vec<&File> = [&VAD, e, d, t].into_iter().filter(|f| !std::fs::metadata(self.file_path(f)).is_ok_and(|m| m.len() == f.size)).collect();
+        let needed = files(model);
+        if needed.is_empty() {
+            return Err(Failure("That is not a model Mobius can listen or speak with.".into(), false));
+        }
+        let files: Vec<&File> = needed.into_iter().filter(|f| !std::fs::metadata(self.file_path(f)).is_ok_and(|m| m.len() == f.size)).collect();
         let program_here = self.program_path().is_file();
-        let total: u64 = files.iter().map(|f| f.size).sum::<u64>() + if program_here { 0 } else { 15 * 1024 * 1024 };
+        let total: u64 = files.iter().map(|f| f.size).sum::<u64>() + if program_here { 0 } else { PROGRAM_BYTES };
         let mut done = 0u64;
         std::fs::create_dir_all(self.dir.join("models")).map_err(|e| Failure(format!("Mobius could not make its folder for listening: {e}"), false))?;
         self.set(model, State::Downloading { done, total });
@@ -285,7 +326,8 @@ impl DeviceVoice {
         Ok(())
     }
 
-    /// Takes the program and every model off this computer.
+    /// Takes a model off this computer (listening's Whisper models and their speech detector go together), and the
+    /// program too once no model is left.
     pub fn remove(&self, model: &str) -> Value {
         if self.busy.load(Ordering::Acquire) {
             return failed("Wait for the download to finish first.");
@@ -296,13 +338,16 @@ impl DeviceVoice {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(e),
         };
-        let mut result = gone(&self.program_path());
-        for (_, e, d, t) in WHISPER {
-            for f in [e, d, t] {
-                result = result.and(gone(&self.file_path(f)));
-            }
+        let mut result = Ok(());
+        let listening: Vec<&File> = WHISPER.iter().flat_map(|(_, e, d, t)| [e, d, t]).chain([&VAD]).collect();
+        let taken: Vec<&File> = if model == SPEAK_MODEL { KOKORO.iter().collect() } else { listening };
+        for f in taken {
+            result = result.and(gone(&self.file_path(f)));
         }
-        result = result.and(gone(&self.file_path(&VAD)));
+        let any_left = WHISPER.iter().any(|(m, ..)| self.ready(m)) || self.ready(SPEAK_MODEL);
+        if !any_left {
+            result = result.and(gone(&self.program_path()));
+        }
         match result {
             Ok(()) => {
                 self.set(model, State::Absent);
@@ -412,7 +457,7 @@ impl DeviceVoice {
             return failed("Listening on this computer isn't available on this computer yet.");
         }
         if !self.ready(model) {
-            return json!({ "ok": false, "error": "Listening on this computer isn't set up yet. Set it up in Settings, Voice.", "setup": true });
+            return json!({ "ok": false, "error": "Listening on this computer isn't set up yet. Set it up in Settings, Models.", "setup": true });
         }
         if !is_listening_wav(wav) {
             return json!({ "ok": false, "error": "Listening on this computer takes a 16 kHz recording.", "wav": true });
@@ -434,6 +479,38 @@ impl DeviceVoice {
             Ok(v) if v["ok"] == true => words(&v),
             Ok(v) => failed(v["error"].as_str().unwrap_or("Listening on this computer failed.")),
             Err(message) => failed(message),
+        }
+    }
+}
+
+impl DeviceVoice {
+    /// Reads `text` aloud with Kokoro in `voice` (one of `VOICES`; the default otherwise), as a WAV data: URL.
+    pub fn speak(&self, text: &str, voice: &str, speed: f32) -> Value {
+        if self.program.is_none() {
+            return failed("Speaking on this computer isn't available on this computer yet.");
+        }
+        if !self.ready(SPEAK_MODEL) {
+            return json!({ "ok": false, "error": "Speaking on this computer isn't set up yet. Set it up in Settings, Models.", "setup": true });
+        }
+        let (_, sid, british) = VOICES.iter().find(|(n, ..)| *n == voice).or_else(|| VOICES.iter().find(|(n, ..)| *n == DEFAULT_VOICE)).copied().unwrap_or(("af_heart", 3, false));
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let out = self.dir.join(format!("spoken-{id}.wav"));
+        let path = |p: PathBuf| p.to_string_lossy().into_owned();
+        let [model, voices, tokens, us, gb] = &KOKORO;
+        let request = json!({
+            "id": id, "op": "speak", "text": text, "voice": sid, "speed": speed, "out": path(out.clone()),
+            "kokoro": { "model": path(self.file_path(model)), "voices": path(self.file_path(voices)), "tokens": path(self.file_path(tokens)), "lexicon": path(self.file_path(if british { gb } else { us })) },
+        });
+        let answer = self.ask(&request);
+        let sound = std::fs::read(&out);
+        let _ = std::fs::remove_file(&out);
+        match (answer, sound) {
+            (Ok(v), Ok(bytes)) if v["ok"] == true && !bytes.is_empty() => {
+                use base64::Engine as _;
+                json!({ "ok": true, "audio": format!("data:audio/wav;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)) })
+            }
+            (Ok(v), _) => failed(v["error"].as_str().unwrap_or("Speaking on this computer failed.")),
+            (Err(message), _) => failed(message),
         }
     }
 }
@@ -525,6 +602,12 @@ mod tests {
         assert!(whisper(DEFAULT_MODEL).is_some());
         assert!(model_bytes("base.en") > 150_000_000 && model_bytes("base.en") < 170_000_000);
         assert_eq!(model_bytes("large"), 0);
+        for f in &KOKORO {
+            assert_eq!(f.sha.len(), 64, "{}", f.name);
+            assert!(f.name.starts_with("kokoro-") && f.size > 0 && f.size < MAX_BYTES);
+        }
+        assert!(model_bytes(SPEAK_MODEL) > 150_000_000 && model_bytes(SPEAK_MODEL) < 160_000_000);
+        assert!(VOICES.iter().any(|(n, ..)| *n == DEFAULT_VOICE));
     }
 
     /// Serves each request from `files` by its path, or 404.
@@ -634,6 +717,53 @@ mod tests {
         let voice = DeviceVoice::serving(dir.path().to_path_buf(), quiet(), "http://127.0.0.1:9/".into(), None);
         let got = voice.transcribe(&wav(16_000, 1), "base.en");
         assert_eq!((got["ok"].clone(), got["setup"].clone()), (json!(false), Value::Null), "{got}");
+    }
+
+    #[test]
+    fn speaking_before_set_up_points_to_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let voice = DeviceVoice::serving(dir.path().to_path_buf(), quiet(), "http://127.0.0.1:9/".into(), Some(("prog.gz".into(), "0".repeat(64))));
+        let got = voice.speak("Hello", "af_heart", 1.0);
+        assert_eq!((got["ok"].clone(), got["setup"].clone()), (json!(false), json!(true)), "{got}");
+        assert_eq!(voice.status(SPEAK_MODEL)["state"], "absent");
+        let none = DeviceVoice::serving(dir.path().to_path_buf(), quiet(), "http://127.0.0.1:9/".into(), None);
+        assert_eq!(none.speak("Hello", "af_heart", 1.0)["setup"], Value::Null);
+    }
+
+    /// Reads a sentence aloud with the real program and Kokoro: `MOBIUS_VOICE_PROGRAM` is a built mobius-voice and
+    /// `MOBIUS_KOKORO` sherpa-onnx's kokoro-int8-multi-lang-v1_0 folder.
+    #[test]
+    #[ignore = "needs the program and the Kokoro files"]
+    fn speaks_with_the_real_program() {
+        let (Some(program), Some(kokoro)) = (std::env::var_os("MOBIUS_VOICE_PROGRAM"), std::env::var_os("MOBIUS_KOKORO")) else { return };
+        let dir = tempfile::tempdir().unwrap();
+        let voice = DeviceVoice::serving(dir.path().to_path_buf(), quiet(), "http://127.0.0.1:9/".into(), Some(("prog.gz".into(), "0".repeat(64))));
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::copy(program, voice.program_path()).unwrap();
+        for f in &KOKORO {
+            std::fs::copy(std::path::Path::new(&kokoro).join(f.name.trim_start_matches("kokoro-")), voice.file_path(f)).unwrap();
+        }
+        assert!(voice.ready(SPEAK_MODEL));
+        let got = voice.speak("Mobius reads your notes aloud, on this computer.", "bf_emma", 1.0);
+        assert_eq!(got["ok"], true, "{got}");
+        assert!(got["audio"].as_str().unwrap().starts_with("data:audio/wav;base64,UklGR"));
+        assert!(std::fs::read_dir(dir.path()).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().starts_with("spoken-")));
+    }
+
+    #[test]
+    fn removing_the_voice_keeps_listening_and_the_program() {
+        let dir = tempfile::tempdir().unwrap();
+        let voice = DeviceVoice::new(dir.path().to_path_buf(), quiet());
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(voice.program_path(), b"x").unwrap();
+        let (_, e, d, t) = whisper("base.en").unwrap();
+        for f in [&VAD, e, d, t] {
+            std::fs::File::create(voice.file_path(f)).unwrap().set_len(f.size).unwrap();
+        }
+        std::fs::write(voice.file_path(&KOKORO[0]), b"x").unwrap();
+        assert_eq!(voice.remove(SPEAK_MODEL)["ok"], true);
+        assert!(!voice.file_path(&KOKORO[0]).exists());
+        assert!(voice.ready("base.en") && voice.program_path().exists());
     }
 
     #[test]

@@ -1474,7 +1474,7 @@ fn listening_on_this_computer_before_it_is_set_up_points_to_settings_and_says_wh
     assert_eq!(heard["ok"], false, "{heard}");
     let error = heard["error"].as_str().unwrap();
     if status["available"] == true {
-        assert!(error.contains("Settings, Voice") && heard["setup"] == true, "{heard}");
+        assert!(error.contains("Settings, Models") && heard["setup"] == true, "{heard}");
     } else {
         assert!(error.contains("isn't available on this computer"), "{heard}");
     }
@@ -2214,4 +2214,23 @@ fn plan_my_day_is_made_in_one_call_from_the_start_it_was_worked_out_at() {
     assert!(list.as_str().unwrap().contains("\"time\":\"09:00\""), "{list}");
     let again: serde_json::Value = serde_json::from_str(tool("tasks.schedule_day", json!({ "start": "09:00" })).unwrap().as_str().unwrap()).unwrap();
     assert_eq!(again["made"], 0, "{again}");
+}
+
+/// A new install listens and speaks on this computer where the voice program has a build for it, and the preferences
+/// keep what it starts with; elsewhere speaking stays off until chosen.
+#[test]
+fn a_new_install_listens_and_speaks_on_this_computer_where_it_can() {
+    let dir = std::env::temp_dir().join(format!("mobius-first-prefs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut prefs = mobius_store::preferences::open(dir.join("preferences.json"));
+    prefs.set(&mobius_host::bridge::first_preferences(true));
+    let kept = prefs.get();
+    assert_eq!(kept["speakWith"], "device");
+    assert_eq!(kept["listenWith"], "device");
+    assert_eq!(kept["listenFallback"], "chat");
+    assert_eq!(kept["readAloud"], false, "nothing is read aloud until asked");
+    let elsewhere = mobius_host::bridge::first_preferences(false);
+    assert!(elsewhere.get("speakWith").is_none() && elsewhere.get("listenWith").is_none());
+    let _ = std::fs::remove_dir_all(&dir);
 }

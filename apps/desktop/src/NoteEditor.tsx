@@ -5,7 +5,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Menu, PanelTab, ToolbarControls, UndoToast, useInspector } from './ui';
+import { ListenButton, Menu, PanelTab, ToolbarControls, UndoToast, useInspector } from './ui';
 import { publishOutline, toHeading } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
 import { settleGone, settleIn, settleKept } from './settle';
@@ -973,6 +973,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
             </button>
           )}
           {window.mobius.notes?.attach && <input ref={picker} type="file" multiple hidden aria-label="Choose files to add" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; void addFiles(files); }} />}
+          <ListenButton id={`note:${path ?? ''}`} text={() => notes.text} />
           <Menu label="Share" align="end" entries={[
             { label: 'Copy', run: () => void share('formatted') },
             { label: 'Copy as Markdown', run: () => void share('markdown') },

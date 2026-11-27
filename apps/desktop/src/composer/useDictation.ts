@@ -13,7 +13,7 @@ export function useDictation(onText: (text: string) => void, maxSeconds = MAX_RE
   const [state, setState] = useState<DictationState>('idle');
   const [seconds, setSeconds] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
-  // The problem is that nothing is set up to listen: Settings, Voice is where to fix it.
+  // The problem is that nothing is set up to listen: Settings, Models is where to fix it.
   const [setup, setSetup] = useState(false);
   // How loud the microphone is, from 0 to 1, while listening.
   const [level, setLevel] = useState(0);
