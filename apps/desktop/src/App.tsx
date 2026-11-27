@@ -91,7 +91,7 @@ import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
 import { eventsOn, isoDay, rangeLabel as calendarRange } from './calendar-view';
 import { Desk } from './Desk';
-import { useBackgroundRuns } from './background';
+import { readRuns, useBackgroundRuns } from './background';
 import { BRIEF_TITLE, BRIEF_TOOLS, useMorningBrief } from './brief';
 import { checkInTitle, useCheckIns } from './checkins';
 import { ASSIGN_EVENT, setAssignAgents, type Assignment } from './assign';
@@ -1428,6 +1428,8 @@ export function App() {
   }, []);
   // Assign to Mobius, from an item's own menu in any app: the work runs in a chat of its own, in the background, and
   // lands in Home's Inbox; the open chat and the panel stay as they are.
+  /** Jobs whose Save as Ability was pressed and whose Ability run is not listed yet. */
+  const savingAbility = useRef(new Set<string>());
   const assignNow = useRef<(a: Assignment) => void>(() => undefined);
   assignNow.current = (a: Assignment) => {
     // Assigned again while Mobius is still on it: said, not started twice (two runs, two Inbox rows).
@@ -2139,17 +2141,23 @@ export function App() {
                   items: handoffs.done,
                   by: (run) => { const on = botOfConversation(run.conversation, botIds); return on === MAIN_BOT_ID ? undefined : bots.bots.find((b) => b.id === on)?.name; },
                   onOpen: (run) => { handoffs.drop(run.conversation); conversation.select(run.conversation); openRight(); setFocusToken((n) => n + 1); },
-                  onKeep: handoffs.keep,
+                  // Keeping an Ability's run is what saves its job: from then on, that job offers it no more.
+                  onKeep: (run) => { if (run.item?.startsWith(ABILITY_ITEM)) markSaved(run.item.slice(ABILITY_ITEM.length)); handoffs.keep(run); },
                   // Save as Ability: Mobius writes it from the job's own steps, in a chat of its own; the new Ability
                   // lands in the Inbox to Keep, like any change.
                   onSaveAbility: (run) => void (async () => {
-                    // Marked before anything is awaited: a second press, or a press after the Ability was kept, starts nothing.
-                    if (!markSaved(run.conversation)) return;
-                    const job = jobSteps(await window.mobius.agent.history(run.conversation).catch(() => []));
-                    const result = await conversation.assign(abilityAsk(run.ask, job), [], 'skills', { tools: ['skills', 'files'] });
-                    if ('error' in result) { markSaved(run.conversation, true); setToast(`Mobius could not save it: ${result.error}`); return; }
-                    handoffs.start(result.id, `Ability from ${run.ask}`, undefined, undefined, `${ABILITY_ITEM}${run.conversation}`);
-                    setToast('Mobius is writing it as an Ability. It will be in your Inbox to keep.');
+                    // Held before anything is awaited, so a second press starts nothing; once its run is listed, that
+                    // run hides the offer until it fails, is stopped, or is kept.
+                    const listed = readRuns().some((x) => x.item === `${ABILITY_ITEM}${run.conversation}` && !x.stopped && conversation.list.find((c) => c.id === x.conversation)?.activity !== 'failed');
+                    if (savingAbility.current.has(run.conversation) || listed) return;
+                    savingAbility.current.add(run.conversation);
+                    try {
+                      const job = jobSteps(await window.mobius.agent.history(run.conversation).catch(() => []));
+                      const result = await conversation.assign(abilityAsk(run.ask, job), [], 'skills', { tools: ['skills', 'files'] });
+                      if ('error' in result) { setToast(`Mobius could not save it: ${result.error}`); return; }
+                      handoffs.start(result.id, `Ability from ${run.ask}`, undefined, undefined, `${ABILITY_ITEM}${run.conversation}`);
+                      setToast('Mobius is writing it as an Ability. It will be in your Inbox to keep.');
+                    } finally { savingAbility.current.delete(run.conversation); }
                   })(),
                   onDone: (run) => handoffs.drop(run.conversation),
                 }}

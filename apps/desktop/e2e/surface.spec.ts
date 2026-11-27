@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
 import { startMailServers } from './mail-fixture';
-import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { callsTool, refuses, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -314,6 +314,23 @@ test('a job that took several steps offers Save as Ability in the Inbox, which w
   await expect(inbox.getByRole('button', { name: 'Save Fix the tap as an Ability' })).toHaveCount(0);
   expect(model!.requests.filter((r) => JSON.stringify(r).includes('as an Ability')).length).toBeLessThanOrEqual(3);
   expect(model!.requests.length).toBe(7);
+});
+
+test('an Ability that could not be written leaves its job offering Save as Ability again', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Home.md'), '# Home\n\n- [ ] Clean the gutters\n');
+  await start([callsTool('tasks-list'), callsTool('notes-search', { query: 'gutters' }), callsTool('files-list', { path: 'notes' }), says(['Book a cleaner.']), refuses(400, 'The model is not available.')]);
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'propose' }));
+  await openApp('Tasks');
+  await shell().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Home/ }).click();
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Clean the gutters', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Assign to Mobius' }).click();
+  await openApp('Agent');
+  const inbox = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Inbox' });
+  await inbox.getByRole('button', { name: 'Save Clean the gutters as an Ability' }).click({ timeout: 15_000 });
+  await expect(inbox.getByRole('button', { name: 'Open Ability from Clean the gutters: Did not finish: something went wrong' })).toBeVisible({ timeout: 15_000 });
+  // It saved nothing, so the job can be saved again.
+  await expect(inbox.getByRole('button', { name: 'Save Clean the gutters as an Ability' })).toBeVisible();
 });
 
 test('Assign to Mobius on a note, from its row in Notebooks, asks about that note and lands in the Inbox', async () => {

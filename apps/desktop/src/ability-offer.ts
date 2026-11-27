@@ -14,15 +14,14 @@ export const ABILITY_ITEM = 'ability:';
 
 const SAVED_KEY = 'mobius.abilities-saved';
 const SAVED_MAX = 200;
-/** The jobs (by chat) already saved as an Ability, or being saved: their rows offer it no more, even once the new
- * Ability has been kept and its own row has gone. */
+/** The jobs (by chat) whose Ability was kept: their rows offer it no more, even once the Ability's own row has gone. */
 export function savedJobs(): string[] {
   try {
     const v: unknown = JSON.parse(window.localStorage.getItem(SAVED_KEY) ?? '[]');
     return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
   } catch { return []; }
 }
-/** Marks a job as saved, at once (so a second press does nothing); false when it already was. `undo` clears it again. */
+/** Marks a job as saved; false when it already was. `undo` clears it again. */
 export function markSaved(conversation: string, undo = false): boolean {
   const all = savedJobs();
   if (!undo && all.includes(conversation)) return false;

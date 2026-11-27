@@ -82,7 +82,10 @@ export function useBackgroundRuns(conversations: readonly ConversationInfo[]) {
       const failed = conversations.find((x) => x.id === r.conversation)?.activity === 'failed';
       const text = r.kind ? await answerOf(r.conversation) : undefined;
       // Not one that writes an Ability, nor one already being saved as one.
-      const saving = r.item?.startsWith(ABILITY_ITEM) || savedJobs().includes(r.conversation);
+      // Saved once its Ability was kept; being saved while its Ability run is on or waits for Keep. A run that failed
+      // or was stopped saved nothing, so the job offers it again.
+      const writing = (x: BackgroundRun) => x.item === `${ABILITY_ITEM}${r.conversation}` && !x.stopped && conversations.find((c) => c.id === x.conversation)?.activity !== 'failed';
+      const saving = r.item?.startsWith(ABILITY_ITEM) || savedJobs().includes(r.conversation) || readRuns().some(writing);
       const steps = r.kind || failed || r.stopped || saving ? 0 : jobSteps(await window.mobius.agent.history(r.conversation).catch(() => [])).steps.length;
       return { ...r, files, turn, ...(failed ? { failed } : {}), ...(text ? { text } : {}), ...(steps ? { steps } : {}) };
     }));
