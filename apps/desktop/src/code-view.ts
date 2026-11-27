@@ -1,6 +1,6 @@
 /** Pure helpers for the Code app: what a file's language is, colouring a line, and lines changed between two texts. */
 
-export type Lang = 'ts' | 'rust' | 'py' | 'go' | 'json' | 'css' | 'html' | 'md' | 'sh' | 'plain';
+export type Lang = 'ts' | 'rust' | 'py' | 'go' | 'c' | 'json' | 'css' | 'html' | 'md' | 'sh' | 'plain';
 
 export function langOf(path: string): Lang {
   const ext = /\.([a-z0-9]+)$/i.exec(path)?.[1]?.toLowerCase() ?? '';
@@ -8,6 +8,7 @@ export function langOf(path: string): Lang {
   if (ext === 'rs') return 'rust';
   if (ext === 'py') return 'py';
   if (ext === 'go') return 'go';
+  if (['c', 'h', 'cc', 'cpp', 'cxx', 'hpp', 'hh', 'java', 'cs', 'kt', 'kts', 'swift', 'dart', 'scala', 'php'].includes(ext)) return 'c';
   if (['json', 'jsonc'].includes(ext)) return 'json';
   if (['css', 'scss'].includes(ext)) return 'css';
   if (['html', 'htm', 'svg', 'xml'].includes(ext)) return 'html';
@@ -25,6 +26,7 @@ const KEYWORDS: Record<Lang, string[]> = {
   rust: ['fn', 'let', 'mut', 'pub', 'use', 'mod', 'struct', 'enum', 'impl', 'trait', 'for', 'in', 'if', 'else', 'match', 'return', 'while', 'loop', 'break', 'continue', 'const', 'static', 'self', 'Self', 'crate', 'super', 'true', 'false', 'as', 'where', 'async', 'await', 'move', 'ref', 'dyn'],
   py: ['def', 'class', 'import', 'from', 'as', 'return', 'if', 'elif', 'else', 'for', 'while', 'in', 'not', 'and', 'or', 'is', 'None', 'True', 'False', 'with', 'try', 'except', 'finally', 'raise', 'lambda', 'yield', 'pass', 'break', 'continue', 'async', 'await', 'self'],
   go: ['package', 'import', 'func', 'return', 'if', 'else', 'for', 'range', 'var', 'const', 'type', 'struct', 'interface', 'map', 'chan', 'go', 'defer', 'switch', 'case', 'default', 'break', 'continue', 'nil', 'true', 'false'],
+  c: ['auto', 'break', 'case', 'catch', 'class', 'const', 'continue', 'default', 'delete', 'do', 'else', 'enum', 'extends', 'extern', 'false', 'final', 'finally', 'for', 'fun', 'func', 'goto', 'if', 'implements', 'import', 'include', 'define', 'inline', 'interface', 'internal', 'let', 'namespace', 'new', 'null', 'nullptr', 'override', 'package', 'private', 'protected', 'public', 'return', 'sizeof', 'static', 'struct', 'super', 'switch', 'template', 'this', 'throw', 'throws', 'true', 'try', 'typedef', 'typename', 'union', 'using', 'val', 'var', 'virtual', 'void', 'volatile', 'when', 'while', 'async', 'await', 'guard', 'self', 'nil', 'echo', 'function'],
   json: ['true', 'false', 'null'],
   css: [],
   html: [],
@@ -32,38 +34,71 @@ const KEYWORDS: Record<Lang, string[]> = {
   sh: ['if', 'then', 'else', 'fi', 'for', 'do', 'done', 'case', 'esac', 'export', 'true', 'false'],
   plain: [],
 };
-const TYPES = new Set(['string', 'number', 'boolean', 'any', 'unknown', 'never', 'Array', 'Promise', 'Record', 'i32', 'i64', 'u8', 'u32', 'u64', 'usize', 'f64', 'bool', 'str', 'String', 'Vec', 'Option', 'Result', 'int', 'float', 'list', 'dict']);
-const LINE_COMMENT: Record<Lang, string | null> = { ts: '//', rust: '//', go: '//', py: '#', sh: '#', json: null, css: null, html: null, md: null, plain: null };
+const TYPES = new Set(['char', 'double', 'long', 'short', 'unsigned', 'signed', 'size_t', 'Int', 'Double', 'Bool', 'Integer', 'Object', 'List', 'Map', 'string', 'number', 'boolean', 'any', 'unknown', 'never', 'Array', 'Promise', 'Record', 'i32', 'i64', 'u8', 'u32', 'u64', 'usize', 'f64', 'bool', 'str', 'String', 'Vec', 'Option', 'Result', 'int', 'float', 'list', 'dict']);
+const LINE_COMMENT: Record<Lang, string | null> = { ts: '//', rust: '//', go: '//', c: '//', py: '#', sh: '#', json: null, css: null, html: null, md: null, plain: null };
+
+/**
+ * What is still open at the end of a line and carries on into the next: a block comment (named by its closer),
+ * or a string that spans lines (a template string's backquote, Go's raw string, Python's triple quotes). Null when
+ * nothing is.
+ */
+export type Open = '*/' | '-->' | '`' | '"""' | "'''" | null;
+
+const BLOCK_COMMENT: Partial<Record<Lang, [string, '*/' | '-->']>> = { ts: ['/*', '*/'], rust: ['/*', '*/'], go: ['/*', '*/'], c: ['/*', '*/'], css: ['/*', '*/'], html: ['<!--', '-->'] };
+/** Strings that may run over several lines, by language. */
+const LONG_STRINGS: Partial<Record<Lang, ('`' | '"""' | "'''")[]>> = { ts: ['`'], go: ['`'], py: ['"""', "'''"] };
 
 /**
  * Colours one line, the way an editor would at a glance: keywords, types, called names, strings, numbers and
- * comments. A comment or string that runs over several lines is coloured only on its first line; that is enough to
- * read by and keeps each line on its own.
+ * comments. `open` is what the line before left open, so a comment or string that runs over several lines is coloured
+ * all the way through; the answer says what this line leaves open in turn.
  */
-export function highlight(line: string, lang: Lang): Token[] {
-  if (lang === 'plain' || lang === 'md') return [{ t: line, k: lang === 'md' && /^\s*#/.test(line) ? 'kw' : 'plain' }];
+export function colourLine(line: string, lang: Lang, open: Open = null): { tokens: Token[]; open: Open } {
+  if (lang === 'plain' || lang === 'md') return { tokens: [{ t: line, k: lang === 'md' && /^\s*#/.test(line) ? 'kw' : 'plain' }], open: null };
   const out: Token[] = [];
   const push = (t: string, k: TokenKind) => {
+    if (t === '') return;
     const last = out[out.length - 1];
     if (last && last.k === k) last.t += t; else out.push({ t, k });
   };
+  let i = 0;
+  // Carried on from the line before: colour up to where it closes, or the whole line.
+  if (open) {
+    const kind: TokenKind = open === '*/' || open === '-->' ? 'com' : 'str';
+    const end = open === '`' ? closingQuote(line, 0, '`') : line.indexOf(open);
+    if (end < 0) { push(line, kind); return { tokens: out, open }; }
+    const stop = open === '`' ? end + 1 : end + open.length;
+    push(line.slice(0, stop), kind);
+    i = stop;
+  }
   const keywords = new Set(KEYWORDS[lang]);
   const comment = LINE_COMMENT[lang];
-  let i = 0;
+  const block = BLOCK_COMMENT[lang];
+  const long = LONG_STRINGS[lang] ?? [];
   while (i < line.length) {
     const rest = line.slice(i);
     if (comment && rest.startsWith(comment)) { push(rest, 'com'); break; }
-    if ((lang === 'ts' || lang === 'rust' || lang === 'go' || lang === 'css') && rest.startsWith('/*')) {
-      const end = rest.indexOf('*/', 2);
-      const t = end < 0 ? rest : rest.slice(0, end + 2);
+    if (block && rest.startsWith(block[0])) {
+      const end = rest.indexOf(block[1], block[0].length);
+      if (end < 0) { push(rest, 'com'); return { tokens: out, open: block[1] }; }
+      const t = rest.slice(0, end + block[1].length);
       push(t, 'com'); i += t.length; continue;
     }
-    if (lang === 'html' && rest.startsWith('<!--')) { const end = rest.indexOf('-->'); const t = end < 0 ? rest : rest.slice(0, end + 3); push(t, 'com'); i += t.length; continue; }
+    const triple = long.find((q) => q.length === 3 && rest.startsWith(q));
+    if (triple) {
+      const end = rest.indexOf(triple, 3);
+      if (end < 0) { push(rest, 'str'); return { tokens: out, open: triple }; }
+      const t = rest.slice(0, end + 3);
+      push(t, 'str'); i += t.length; continue;
+    }
     const c = line[i]!;
     if (c === '"' || c === "'" || c === '`') {
-      let j = i + 1;
-      while (j < line.length && line[j] !== c) j += line[j] === '\\' ? 2 : 1;
-      const t = line.slice(i, Math.min(j + 1, line.length));
+      const j = c === '`' ? closingQuote(line, i + 1, '`') : closingQuote(line, i + 1, c);
+      if (j < 0) {
+        push(rest, 'str');
+        return { tokens: out, open: c === '`' && long.includes('`') ? '`' : null };
+      }
+      const t = line.slice(i, j + 1);
       push(t, 'str'); i += t.length; continue;
     }
     const num = /^(?:0x[0-9a-f_]+|\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?)/i.exec(rest);
@@ -76,6 +111,39 @@ export function highlight(line: string, lang: Lang): Token[] {
       push(w, k); i += w.length; continue;
     }
     push(c, 'plain'); i += 1;
+  }
+  return { tokens: out, open: null };
+}
+
+/** Where the quote `q` closes on the line, from `from`, stepping over escapes; -1 when it does not. */
+function closingQuote(line: string, from: number, q: string): number {
+  for (let j = from; j < line.length; j += line[j] === '\\' ? 2 : 1) if (line[j] === q) return j;
+  return -1;
+}
+
+/** One line coloured on its own, as if nothing were left open before it. */
+export function highlight(line: string, lang: Lang): Token[] {
+  return colourLine(line, lang, null).tokens;
+}
+
+/** Lines already coloured, by language, what was open before and their text, so typing recolours only what changed. */
+const coloured = new Map<string, { tokens: Token[]; open: Open }>();
+const COLOURED_MAX = 50_000;
+
+/**
+ * Every line of a text coloured, each knowing what the lines before it left open. Lines seen before come from a
+ * store, so a key press in a long file only colours the line it changed (and any after it whose start changed).
+ */
+export function colourLines(lines: readonly string[], lang: Lang): Token[][] {
+  if (coloured.size > COLOURED_MAX) coloured.clear();
+  const out: Token[][] = [];
+  let open: Open = null;
+  for (const line of lines) {
+    const key = `${lang}\u0001${open ?? ''}\u0001${line}`;
+    let got = coloured.get(key);
+    if (!got) { got = colourLine(line, lang, open); coloured.set(key, got); }
+    out.push(got.tokens);
+    open = got.open;
   }
   return out;
 }

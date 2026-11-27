@@ -15,6 +15,7 @@ import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
 import './code.css';
+import { CodeText } from './CodeText';
 import { afterPaint } from './ui/frame';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
@@ -239,172 +240,6 @@ function Suggestion({ rows, lang, endsWithNewline, onWrite, onKeepAll, onDiscard
         <span>{groups.length === 1 ? 'One change from Mobius' : `${groups.length} changes from Mobius`}{conversation && <WhyThis conversation={conversation} />}</span>
         <ReviewActions onKeep={onKeepAll} onDiscard={onDiscardAll} discardTitle={`Discard (${IS_MAC ? '⌘⌫' : 'Ctrl+Backspace'})`} keepTitle={`Keep (${IS_MAC ? '⌘⏎' : 'Ctrl+Enter'})`} />
       </div>
-    </div>
-  );
-}
-
-/** Puts an edit in as typing would, so Ctrl+Z takes it back; falls back to setting the text where that is not offered. */
-function put(el: HTMLTextAreaElement, edit: Edit, setDraft: (text: string) => void) {
-  el.focus();
-  let typed = true;
-  if (edit.from !== edit.to || edit.insert !== '') {
-    el.setSelectionRange(edit.from, edit.to);
-    typed = edit.insert === '' ? document.execCommand('delete') : document.execCommand('insertText', false, edit.insert);
-    if (!typed) setDraft(`${el.value.slice(0, edit.from)}${edit.insert}${el.value.slice(edit.to)}`);
-  }
-  // Typed edits change the field at once, so the cursor is placed now, before the next key; a set text waits for React.
-  if (typed) el.setSelectionRange(edit.select[0], edit.select[1]);
-  else afterPaint(() => el.setSelectionRange(edit.select[0], edit.select[1]));
-}
-
-const LINE = 20;
-const PAD_TOP = 8;
-/** Scrolls the text area so a line sits a third of the way down, as Go to line and Find do. */
-function reveal(el: HTMLTextAreaElement, line: number) {
-  const top = PAD_TOP + (line - 1) * LINE;
-  if (top < el.scrollTop + LINE || top > el.scrollTop + el.clientHeight - 3 * LINE) el.scrollTop = Math.max(0, top - el.clientHeight / 3);
-}
-
-/** Find in the file (Ctrl+F) or go to a line (Ctrl+G), in a bar above the text. */
-function EditorBar({ mode, text, onClose, onFind, onLine }: { mode: 'find' | 'line'; text: string; onClose: () => void; onFind: (query: string, matchCase: boolean, at: number) => void; onLine: (line: number) => void }) {
-  const [query, setQuery] = useState('');
-  const [matchCase, setMatchCase] = useState(false);
-  const [at, setAt] = useState(0);
-  const field = useRef<HTMLInputElement>(null);
-  useEffect(() => { field.current?.focus(); field.current?.select(); }, [mode]);
-  const count = mode === 'find' ? findAll(text, query, matchCase).length : 0;
-  useEffect(() => { if (mode === 'find') onFind(query, matchCase, count === 0 ? 0 : Math.min(at, count - 1)); }, [query, matchCase, at, count, mode]); // eslint-disable-line react-hooks/exhaustive-deps
-  const lines = text.split('\n').length;
-  if (mode === 'line') {
-    return (
-      <form className="code-bar" role="search" aria-label="Go to line" onSubmit={(e) => { e.preventDefault(); const n = Number.parseInt(query, 10); if (n > 0) onLine(Math.min(n, lines)); }}>
-        <input ref={field} aria-label="Line number" inputMode="numeric" placeholder={`Line, 1 to ${lines}`} value={query} onChange={(e) => setQuery(e.target.value.replace(/\D/g, ''))} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }} />
-        <button type="submit" className="btn" title="Go (Enter)">Go</button>
-        <button type="button" className="strip-btn" aria-label="Close" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
-      </form>
-    );
-  }
-  const step = (by: number) => { if (count > 0) setAt((i) => (i + by + count) % count); };
-  return (
-    <div className="code-bar" role="search" aria-label="Find in file">
-      <input ref={field} aria-label="Find in file" placeholder="Find in file" value={query} spellCheck={false} onChange={(e) => { setQuery(e.target.value); setAt(0); }} onKeyDown={(e) => {
-        if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
-        else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
-      }} />
-      <span className="code-bar-count" aria-live="polite">{query ? (count === 0 ? 'No matches' : `${Math.min(at, count - 1) + 1} of ${count}`) : ''}</span>
-      <button type="button" className="code-bar-case" aria-pressed={matchCase} title="Match case" onClick={() => setMatchCase((m) => !m)}>Aa</button>
-      <button type="button" className="strip-btn" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={count === 0} onClick={() => step(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 12 5-5 5 5" /></svg></button>
-      <button type="button" className="strip-btn" aria-label="Next match" title="Next match (Enter)" disabled={count === 0} onClick={() => step(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg></button>
-      <button type="button" className="strip-btn" aria-label="Close find" title="Close (Esc)" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg></button>
-    </div>
-  );
-}
-
-/**
- * A plain text area with the coloured lines drawn under it, so it types like any text field and reads like code. As
- * Xcode's editor: the line with the cursor is lit, brackets and quotes close themselves, Tab and Shift+Tab indent the
- * lines picked, Ctrl+/ comments them, Ctrl+F finds and Ctrl+G goes to a line. Every change goes in as typing, so
- * Ctrl+Z takes it back.
- */
-function Editor({ code, lang, bar, setBar, jump }: { code: CodeState; lang: Lang; bar: 'find' | 'line' | null; setBar: (bar: 'find' | 'line' | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null> }) {
-  const area = useRef<HTMLTextAreaElement>(null);
-  const under = useRef<HTMLDivElement>(null);
-  const gutter = useRef<HTMLDivElement>(null);
-  const lines = useMemo(() => code.draft.split('\n'), [code.draft]);
-  const [caret, setCaret] = useState<[number, number]>([0, 0]);
-  const [found, setFound] = useState<{ marks: [number, number][]; at: number }>({ marks: [], at: 0 });
-  const path = code.open?.path ?? '';
-  useEffect(() => { setCaret([0, 0]); setFound({ marks: [], at: 0 }); }, [path]);
-  const track = () => { const el = area.current; if (el) setCaret([el.selectionStart, el.selectionEnd]); };
-  const here = cursorAt(code.draft, caret[1]);
-  const picked = Math.abs(caret[1] - caret[0]);
-
-  const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    const el = e.currentTarget;
-    const mod = e.metaKey || e.ctrlKey;
-    const { selectionStart: s, selectionEnd: end } = el;
-    const text = el.value;
-    let edit: Edit | null = null;
-    if (mod && !e.altKey && e.key.toLowerCase() === 's') { e.preventDefault(); void code.save(); return; }
-    if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); setBar('find'); return; }
-    if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'g') { e.preventDefault(); setBar('line'); return; }
-    if (mod && !e.altKey && (e.key === '/' || e.code === 'Slash')) { e.preventDefault(); edit = toggleComment(text, s, end, lang); }
-    else if (mod && !e.altKey && (e.key === ']' || e.key === '[')) { e.preventDefault(); edit = indentLines(text, s, end, e.key === '['); }
-    else if (e.key === 'Tab' && !mod && !e.altKey) {
-      e.preventDefault();
-      edit = e.shiftKey || s !== end ? indentLines(text, s, end, e.shiftKey) : { from: s, to: s, insert: '  ', select: [s + 2, s + 2] };
-    } else if (e.key === 'Enter' && !mod && !e.shiftKey && !e.altKey) { e.preventDefault(); edit = newLine(text, s, end); }
-    else if (e.key === 'Backspace' && !mod && !e.altKey) { edit = deletePair(text, s, end); if (edit) e.preventDefault(); }
-    else if (e.key.length === 1 && !mod && !e.altKey) { edit = typePair(text, s, end, e.key); if (edit) e.preventDefault(); }
-    if (edit) put(el, edit, code.setDraft);
-  };
-  const onFind = useCallback((query: string, matchCase: boolean, at: number) => {
-    const marks = findAll(code.draft, query, matchCase);
-    setFound({ marks, at });
-    const el = area.current;
-    const hit = marks[at];
-    if (el && hit) { el.setSelectionRange(hit[0], hit[1]); reveal(el, cursorAt(code.draft, hit[0]).line); sync(el); }
-  }, [code.draft]); // eslint-disable-line react-hooks/exhaustive-deps
-  const closeBar = () => {
-    setBar(null);
-    setFound({ marks: [], at: 0 });
-    afterPaint(() => { area.current?.focus(); track(); });
-  };
-  const goLine = (line: number) => {
-    const el = area.current;
-    if (!el) return;
-    const at = lineStart(code.draft, line);
-    setBar(null);
-    el.focus();
-    el.setSelectionRange(at, at);
-    reveal(el, line);
-    sync(el);
-    track();
-  };
-  if (jump) jump.current = goLine;
-  const sync = (t: HTMLTextAreaElement) => {
-    if (under.current) { under.current.scrollTop = t.scrollTop; under.current.scrollLeft = t.scrollLeft; }
-    if (gutter.current) gutter.current.scrollTop = t.scrollTop;
-  };
-  // Find's marks, drawn in the layer under the text, one box per match on its line (the font is fixed-width).
-  const marks = found.marks.slice(0, 2000).map(([a, b], i) => {
-    const p = cursorAt(code.draft, a);
-    return <span key={a} className="code-found" data-current={i === found.at || undefined} style={{ top: PAD_TOP + (p.line - 1) * LINE, left: `calc(4px + ${p.col - 1}ch)`, width: `${b - a}ch` }} />;
-  });
-
-  return (
-    <div className="code-editor">
-      {bar && <EditorBar key={bar} mode={bar} text={code.draft} onClose={closeBar} onFind={onFind} onLine={goLine} />}
-      <div className="code-edit">
-        <div className="code-gutter" ref={gutter} aria-hidden="true">
-          {lines.map((_, i) => <span key={i} data-current={i + 1 === here.line || undefined}>{i + 1}</span>)}
-        </div>
-        <div className="code-stack">
-          <div className="code-under" ref={under} aria-hidden="true">
-            {marks}
-            {lines.map((l, i) => <div key={i} className="code-under-line" data-current={(i + 1 === here.line && picked === 0) || undefined}><Line text={l} lang={lang} /></div>)}
-          </div>
-          <textarea
-            ref={area}
-            className="code-area"
-            aria-label={`Contents of ${code.open?.path ?? 'the file'}`}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
-            wrap="off"
-            value={code.draft}
-            onChange={(e) => { code.setDraft(e.target.value); track(); }}
-            onKeyDown={onKey}
-            onSelect={track}
-            onScroll={(e) => sync(e.currentTarget)}
-          />
-        </div>
-      </div>
-      <footer className="code-status" aria-label="Where the cursor is">
-        <span>Ln {here.line}, Col {here.col}{picked > 0 ? ` (${picked} selected)` : ''}</span>
-        <span>{langName(path)}</span>
-        <span>Spaces: 2</span>
-      </footer>
     </div>
   );
 }
@@ -739,7 +574,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal }: { code: 
             ) : showSuggestion && rows ? (
               <Suggestion rows={rows} lang={lang} endsWithNewline={code.open.text.endsWith('\n')} onWrite={(t) => void code.write(t)} onKeepAll={() => void keepAll()} onDiscardAll={() => void discardAll()} {...(review ? { conversation: review.conversation } : {})} />
             ) : (
-              <Editor code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} />
+              <CodeText code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} />
             )}
           </>
         ) : (
