@@ -503,3 +503,47 @@ function composeLater(currentBefore: string, first: Entry, later: readonly Chang
   while (b < original.length - a && b < after.length - a && original[original.length - 1 - b] === after[after.length - 1 - b]) b += 1;
   return [{ from: a, to: original.length - b, insert: after.slice(a, after.length - b) }];
 }
+
+// —— Brackets ——
+
+const OPENERS: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
+const CLOSERS: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
+/** How far a bracket's partner is looked for, so a key press in a huge file stays quick. */
+const BRACKET_REACH = 20_000;
+
+/**
+ * The bracket next to a cursor and its partner, as VS Code boxes them: the one just after the cursor first, else the
+ * one just before. Brackets of the same kind in between are counted; null when there is none or no partner in reach.
+ */
+export function matchBracket(text: string, at: number): [number, number] | null {
+  for (const p of [at, at - 1]) {
+    const ch = text[p];
+    if (ch === undefined) continue;
+    const close = OPENERS[ch];
+    const open = CLOSERS[ch];
+    if (close === undefined && open === undefined) continue;
+    const dir = close !== undefined ? 1 : -1;
+    const same = ch;
+    const other = close ?? open!;
+    let depth = 0;
+    for (let i = p + dir, n = 0; i >= 0 && i < text.length && n < BRACKET_REACH; i += dir, n += 1) {
+      const c = text[i];
+      if (c === same) depth += 1;
+      else if (c === other) {
+        if (depth === 0) return dir > 0 ? [p, i] : [i, p];
+        depth -= 1;
+      }
+    }
+    return null;
+  }
+  return null;
+}
+
+/** Every match (start, end) with the same changes made as one step: `insert` for each, cursors left after them. */
+export function replaceSpans(state: DocState, spans: readonly [number, number][], inserts: readonly string[]): Step {
+  const changes = spans.map(([from, to], i) => ({ from, to, insert: inserts[i] ?? '' }));
+  const text = applyChanges(state.text, changes);
+  const p = state.sels[state.primary]!;
+  const sels = [{ anchor: mapPos(p.anchor, changes), head: mapPos(p.head, changes) }];
+  return { state: { text, sels, primary: 0 }, changes };
+}

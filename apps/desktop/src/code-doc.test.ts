@@ -108,3 +108,25 @@ describe('code-doc', () => {
     expect(selectLine(at('ab\ncd', 1)).sels).toEqual([{ anchor: 0, head: 3 }]);
   });
 });
+
+describe('brackets and replacing', () => {
+  it('finds a bracket’s partner on either side of the cursor', async () => {
+    const { matchBracket } = await import('./code-doc');
+    const t = 'f(a[1], (b))';
+    expect(matchBracket(t, 1)).toEqual([1, 11]);
+    expect(matchBracket(t, 12)).toEqual([1, 11]);
+    expect(matchBracket(t, 3)).toEqual([3, 5]);
+    expect(matchBracket('(()', 0)).toBeNull();
+    expect(matchBracket('abc', 1)).toBeNull();
+  });
+
+  it('replaces every match as one step that undo takes back', async () => {
+    const { replaceSpans } = await import('./code-doc');
+    const h = new History();
+    const s = docOf('a b a', 0);
+    const step = replaceSpans(s, [[0, 1], [4, 5]], ['x', 'x']);
+    h.record(s, step, 'replace');
+    expect(step.state.text).toBe('x b x');
+    expect(h.undo(step.state)!.text).toBe('a b a');
+  });
+});

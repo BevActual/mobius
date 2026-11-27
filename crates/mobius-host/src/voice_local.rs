@@ -18,14 +18,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// Where the files are published: a prerelease that is never Latest.
-const RELEASE: &str = "https://github.com/BevActual/mobius/releases/download/voice-0.3.0/";
+const RELEASE: &str = "https://github.com/BevActual/mobius/releases/download/voice-0.3.1/";
 /// The program for each computer and its SHA-256, from the workflow's run.
 const PROGRAMS: &[(&str, &str, &str)] = &[
-    ("windows-x86_64", "mobius-voice-0.3.0-x86_64-pc-windows-msvc.gz", "ddbf2aef1eb84edfd08855c565ccb45ba03c373e66766ba1909808858aeb9203"),
-    ("macos-aarch64", "mobius-voice-0.3.0-aarch64-apple-darwin.gz", "e6b77c9dacfceced1a26fa4b53973c0fa73d1060cc32b275c2d2ed5e9500d538"),
+    ("windows-x86_64", "mobius-voice-0.3.1-x86_64-pc-windows-msvc.gz", "8aec0a6015db380781be2363bf61c5bcf234e5c889d6f493592c6e9e57543188"),
+    ("macos-aarch64", "mobius-voice-0.3.1-aarch64-apple-darwin.gz", "675aa6e9f29d45ccf00777d0719f51e2aac6568f4e697580a8fe73db5d73fff3"),
 ];
 /// The name it is kept under: a new version is a new file, so an old build is never run by mistake.
-const PROGRAM: &str = "mobius-voice-0.3.0";
+const PROGRAM: &str = "mobius-voice-0.3.1";
 /// A file of a model: its name in the release, its size and its SHA-256 (the same bytes as sherpa-onnx's asr-models).
 struct File {
     name: &'static str,
