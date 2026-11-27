@@ -328,6 +328,70 @@ test('the editor has many cursors, moves lines, places the cursor with the point
   await expect(shell().getByText('Ln 20001, Col 5')).toBeVisible();
 });
 
+const servePreview = async (): Promise<string> => {
+  fs.writeFileSync(path.join(project, 'index.html'), '<title>Offsite</title><h1>Offsite planner</h1>');
+  await start();
+  return shell().evaluate(async () => {
+    const got = await window.mobius.code!.preview!('offsite-planner');
+    if (!('url' in got)) throw new Error(got.message);
+    return got.url;
+  });
+};
+const openBeside = (url: string) => shell().evaluate((u) => window.dispatchEvent(new CustomEvent('mobius:open-beside', { detail: { app: 'browser', url: u } })), url);
+
+test('a project\'s page is served on this computer only, and the Browser opens beside Code', async () => {
+  const url = await servePreview();
+  expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+  // The served page is the project's own file; nothing outside the folder, and no other name for this computer.
+  expect(await (await fetch(url)).text()).toContain('Offsite planner');
+  expect((await fetch(`${url}%2e%2e/code-tests.json`)).status).toBe(404);
+  // Code asks the shell for the Browser beside it: Code stays where it is, the Browser takes the other pane.
+  await openBeside(url);
+  await expect(shell().getByRole('region', { name: 'Left pane: Code' })).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'Right pane: Browser' })).toBeVisible();
+  // Asked again, nothing moves.
+  await openBeside(url);
+  await expect(shell().getByRole('region', { name: 'Left pane: Code' })).toBeVisible();
+  await shell().evaluate(() => window.mobius.code!.stopPreview!('offsite-planner'));
+  await expect.poll(() => fetch(url).then(() => 'up', () => 'down')).toBe('down');
+});
+
+test('the preview\'s page tells Code its errors and the element the person picks', async () => {
+  fs.writeFileSync(path.join(project, 'app.js'), 'document.title = "Ready";\nmissingThing();\n');
+  const url = await servePreview();
+  fs.writeFileSync(path.join(project, 'index.html'), '<title>Offsite</title><h1 class="hero">Offsite planner</h1><script src="app.js"></script>');
+  await shell().evaluate(() => {
+    const seen: unknown[] = [];
+    (window as unknown as { previewReports: unknown[] }).previewReports = seen;
+    window.mobius.code!.onPreview!((r) => seen.push(r));
+  });
+  const reports = () => shell().evaluate(() => (window as unknown as { previewReports: Array<Record<string, unknown>> }).previewReports);
+  // The page itself, as any browser shows it.
+  const page = await shell().context().newPage();
+  await page.goto(url);
+  await expect.poll(async () => (await reports()).find((r) => r.kind === 'error')).toMatchObject({ project: 'offsite-planner', kind: 'error', source: '/app.js', line: 2 });
+  expect(String((await reports()).find((r) => r.kind === 'error')!.message)).toContain('missingThing');
+  // Code asks for a pick; the person clicks the heading in the page.
+  await expect.poll(() => shell().evaluate(async () => { const got = await window.mobius.code!.previewSay!('offsite-planner', 'pick'); return 'pages' in got ? got.pages : -1; })).toBe(1);
+  await page.locator('h1').click();
+  await expect.poll(async () => (await reports()).find((r) => r.kind === 'pick')).toMatchObject({ kind: 'pick', selector: 'h1.hero', tag: 'h1', text: 'Offsite planner', path: '/' });
+  // Reload on save: the page loads again.
+  const loads = async () => (await reports()).filter((r) => r.kind === 'loaded').length;
+  const before = await loads();
+  await shell().evaluate(() => window.mobius.code!.previewSay!('offsite-planner', 'reload'));
+  await expect.poll(loads).toBeGreaterThan(before);
+  await page.close();
+});
+
+test('the preview page opens as a tab in the Browser beside Code, once', { tag: '@shell', annotation: { type: 'needs the shell', description: 'the browser\'s pages are the shell\'s' } }, async () => {
+  const url = await servePreview();
+  await openBeside(url);
+  const right = shell().getByRole('region', { name: 'Right pane: Browser' });
+  await expect(right.locator('.tab-title')).toHaveText(['Fixture home', 'Offsite']);
+  await openBeside(url);
+  await expect(right.locator('.tab-title')).toHaveText(['Fixture home', 'Offsite']);
+});
+
 test('find and replace changes one match or all of them, by whole word or pattern, and select all makes them cursors', async () => {
   await start();
   const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });

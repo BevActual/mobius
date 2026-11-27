@@ -380,6 +380,8 @@ pub struct Bridge {
     languages: crate::code_lsp::Languages,
     /// The test command of each Code project, which only the person sets.
     code_tests: crate::code_tests::TestCommands,
+    /// Code's preview servers: a project's folder on this computer only (code_preview.rs).
+    code_previews: crate::code_preview::Previews,
     tasks: mobius_workspace::tasks::Tasks,
     contacts: mobius_workspace::contacts::Contacts,
     calendar: mobius_workspace::calendar::Calendar,
@@ -608,6 +610,7 @@ impl Bridge {
             processes: crate::code_processes::Processes::default(),
             languages: crate::code_lsp::Languages::new(Arc::clone(&emit)),
             code_tests: crate::code_tests::TestCommands::new(data_dir.join("code-tests.json")),
+            code_previews: crate::code_preview::Previews::default(),
             tasks: {
                 // A CalDAV account's task lists show in Tasks beside the person's own.
                 let tasks = mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
@@ -3713,6 +3716,18 @@ impl Bridge {
             "setTestCommand" => match (text(0), text(1)) {
                 (Some(p), Some(c)) => code.project_dir(p).and_then(|_| self.code_tests.set(p, c)).map(|()| json!({ "ok": true })),
                 _ => Err("a project and a command are needed".to_owned()),
+            },
+            // The project's folder served on this computer, for its preview in the Browser beside Code.
+            // Its pages report their errors and the element the person picks as `mobius:code-preview`.
+            "preview" => text(0).ok_or_else(need).and_then(|p| {
+                let emit = self.emit.clone();
+                code.project_dir(p).and_then(|dir| self.code_previews.serve(p, &dir, Arc::new(move |report| emit("mobius:code-preview", report))))
+            }).map(|url| json!({ "url": url })),
+            "stopPreview" => text(0).ok_or_else(need).map(|p| { self.code_previews.stop(p); json!({ "ok": true }) }),
+            // Tells the preview's open pages to reload, or to let the person pick an element (or stop).
+            "previewSay" => match (text(0), text(1).and_then(crate::code_preview::Say::parse)) {
+                (Some(p), Some(what)) => self.code_previews.say(p, what).map(|pages| json!({ "ok": true, "pages": pages })).ok_or_else(|| "the preview is not running".to_owned()),
+                _ => Err("a project and reload, pick or stopPick are needed".to_owned()),
             },
             "git" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p)).map(|dir| crate::code_git::status(&dir)),
             "commit" => match (text(0), text(1)) {

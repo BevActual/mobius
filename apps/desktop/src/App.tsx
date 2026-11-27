@@ -108,6 +108,7 @@ import { APP_ICONS, type OwnApp } from './Rail';
 import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
+import { BESIDE_EVENT, besideUrlOk, type Beside } from './beside';
 import { pressIs } from './ui/PanelLayout';
 import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
 import { alertDue, alertSaid } from './calendar-alerts';
@@ -1029,6 +1030,24 @@ export function App() {
     };
     window.addEventListener(WEB_LINK_EVENT, on);
     return () => window.removeEventListener(WEB_LINK_EVENT, on);
+  }, []);
+  // Open beside (beside.ts): an app shows the Browser in the other pane at a page (Code's preview), keeping the keyboard.
+  useEffect(() => {
+    const on = (event: Event) => {
+      const what = (event as CustomEvent<Beside>).detail;
+      if (what?.app !== 'browser' || !besideUrlOk(what.url)) return;
+      const { panes: [a, b], focused: f } = panesNow.current;
+      const here = f === 1 && b !== null ? b : a;
+      if (here !== 'browser') {
+        splitByMobius.current = false;
+        saveByMobius(false);
+        setPanes(f === 1 && b !== null ? ['browser', b] : [a, 'browser']);
+      }
+      const tab = tabsNow.current.find((t) => sameUrl(t.url, what.url));
+      if (tab) window.mobius.browser.activate(tab.id); else void window.mobius.browser.open(what.url);
+    };
+    window.addEventListener(BESIDE_EVENT, on);
+    return () => window.removeEventListener(BESIDE_EVENT, on);
   }, []);
   /** Open something found in Search in the app it belongs to. */
   /** A file Mobius changed, opened in its app (from Review). */

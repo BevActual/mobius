@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { ClipboardEntry, DeviceVoiceStatus, LauncherAnswer, MeetingEvent, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo, WindowState } from '@mobius/shared';
+import type { ClipboardEntry, CodePreviewReport, DeviceVoiceStatus, LauncherAnswer, MeetingEvent, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo, WindowState } from '@mobius/shared';
 import { parseLauncherAnswer } from '@mobius/shared';
 import { toListeningWav } from './wav';
 import {
@@ -496,6 +496,10 @@ export function createTauriBridge(): MobiusBridge {
       save: (project, path, text, base) => call('code', 'save', [project, path, text, base], () => ({ ok: false as const, message: 'Code is not available.' })),
       createFile: (project, path) => call('code', 'createFile', [project, path], () => ({ ok: false as const, message: 'Code is not available.' })),
       removeFile: (project, path) => call('code', 'removeFile', [project, path], () => ({ ok: false as const, message: 'Code is not available.' })),
+      preview: (project) => call('code', 'preview', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
+      stopPreview: (project) => call('code', 'stopPreview', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
+      previewSay: (project, what) => call('code', 'previewSay', [project, what], () => ({ ok: false as const, message: 'Code is not available.' })),
+      onPreview: (listener) => on<CodePreviewReport>('mobius:code-preview', listener),
       testCommand: (project) => call('code', 'testCommand', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
       setTestCommand: (project, command) => call('code', 'setTestCommand', [project, command], () => ({ ok: false as const, message: 'Code is not available.' })),
       runTests: (project) => call('code', 'runTests', [project], () => ({ ok: false as const, message: 'Code is not available.' })),
