@@ -398,6 +398,29 @@ test('the preview page opens as a tab in the Browser beside Code, once', { tag: 
   await expect.poll(titles).toEqual(['Fixture home', 'Offsite']);
 });
 
+test('the preview shows at a phone\'s width or dark from Screen, and back as it was', { tag: '@shell', annotation: { type: 'needs the shell', description: 'the browser\'s tabs are the shell\'s' } }, async () => {
+  fs.writeFileSync(path.join(project, 'index.html'), '<title>Offsite</title>\n<h1>Offsite planner</h1>\n');
+  await start();
+  const code = shell().getByRole('region', { name: 'Code' });
+  await code.getByRole('button', { name: 'Preview' }).click();
+  await expect(shell().getByRole('region', { name: 'Right pane: Browser' })).toBeVisible();
+  // Screen: the preview shows at a phone's width, dark, and back to full width with the page's own colours.
+  await code.getByRole('button', { name: 'Screen' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Phone · 390' }).click();
+  await expect(code.getByRole('button', { name: 'Phone' })).toHaveAttribute('aria-pressed', 'true');
+  await code.getByRole('button', { name: 'Phone' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Dark' }).click();
+  await expect(code.getByRole('button', { name: 'Phone · Dark' })).toBeVisible();
+  const emulation = () => shell().evaluate(async () => (await window.mobius.browser!.getState()).tabs.map((t) => t.emulation ?? null).filter(Boolean));
+  await expect.poll(emulation).toEqual([{ width: 390, colorScheme: 'dark' }]);
+  await code.getByRole('button', { name: 'Phone · Dark' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Full width' }).click();
+  await code.getByRole('button', { name: 'Dark' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: "The page's own colours" }).click();
+  await expect(code.getByRole('button', { name: 'Screen' })).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(emulation).toEqual([]);
+});
+
 test('find and replace changes one match or all of them, by whole word or pattern, and select all makes them cursors', async () => {
   await start();
   const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });

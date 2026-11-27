@@ -24,3 +24,13 @@ describe('Code preview', () => {
     expect(pickedLine(html, { selector: 'div', html: '<div>made by a script</div>', text: 'made by a script' })).toBe(-1);
   });
 });
+
+describe('the preview’s tab', () => {
+  it('is the first tab on the preview’s server', async () => {
+    const { previewTab } = await import('./code-preview');
+    const tabs = [{ id: 'a', url: 'https://example.com/' }, { id: 'b', url: 'http://127.0.0.1:5123/about.html' }, { id: 'c', url: 'not a url' }];
+    expect(previewTab(tabs, 'http://127.0.0.1:5123/')).toBe('b');
+    expect(previewTab(tabs, 'http://127.0.0.1:9999/')).toBeNull();
+    expect(previewTab(tabs, null)).toBeNull();
+  });
+});
