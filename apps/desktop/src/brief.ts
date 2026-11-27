@@ -28,9 +28,6 @@ export function lastBriefDay(): string | null {
 export function markBriefDay(day: string): void {
   try { window.localStorage.setItem(KEY, day); } catch { /* Not remembered: at worst a second brief. */ }
 }
-function clearBriefDay(): void {
-  try { window.localStorage.removeItem(KEY); } catch { /* Nothing to forget. */ }
-}
 
 /** Whether today's brief is still to be asked. */
 export function briefDue(now: Date, last: string | null, on: boolean): boolean {
@@ -76,12 +73,14 @@ export function useMorningBrief(on: boolean, loaded: boolean, ask: (text: string
     const look = () => {
       const now = new Date();
       const last = lastBriefDay();
+      // The very first start: Mobius has only just been set up, so the first brief is the next morning's.
+      if (last === null) { markBriefDay(dayOf(now)); return; }
       if (asking || !briefDue(now, last, true)) return;
       asking = true;
       markBriefDay(dayOf(now));
       void send.current(briefAsk(now)).then((went) => {
         asking = false;
-        if (!went) { if (last) markBriefDay(last); else clearBriefDay(); }
+        if (!went) markBriefDay(last);
       });
     };
     look();

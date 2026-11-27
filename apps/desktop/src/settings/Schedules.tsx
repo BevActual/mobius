@@ -58,7 +58,7 @@ export function SchedulesSection(props: SectionProps) {
 
 /** Mobius's own check-ins: the morning brief, written into Home's Inbox. */
 function CheckIns({ subpage, highlight, preferences, onPreferences }: SectionProps) {
-  const description = 'Each morning, Mobius writes what the day holds in your Inbox in Home: tasks due, events and mail waiting. It only reads to do it. Play reads it aloud.';
+  const description = 'Each morning after 5, Mobius writes what the day holds in your Inbox in Home: tasks due, events and mail waiting. It only reads to do it. Play reads it aloud.';
   const [asked, setAsked] = useState(false);
   return (
     <Row path={settingPath('schedules', subpage, 'morning-brief')} title="Morning brief" description={description} highlight={highlight === 'morning-brief'}>

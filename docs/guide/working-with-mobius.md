@@ -171,7 +171,7 @@ Mobius. A page cannot tell Mobius to do something on your behalf.
 
 ## Morning brief
 
-Each morning, the first time Mobius is open from 5 o'clock, it writes a brief of the day into your **Inbox** in Home:
+Each morning, the first time Mobius is open from 5 o'clock (from the day after you first start it), it writes a brief of the day into your **Inbox** in Home:
 tasks due today or overdue, today's events and mail waiting for you, a few short lines. It only reads to write it, so it
 changes nothing. **Play** reads it aloud with the voice chosen in Settings › Models › Speaking (nothing is read until you
 press it), **Open** shows it as a chat you can carry on, and **Done** clears it. Turn it off, or have one written now, in

@@ -22,9 +22,10 @@ export function readRuns(): BackgroundRun[] {
 function writeRuns(runs: readonly BackgroundRun[]): void {
   try { window.localStorage.setItem(KEY, JSON.stringify(runs.slice(-MAX))); } catch { /* Not remembered. */ }
 }
-/** One run per conversation: a second background ask in the same chat replaces the first. */
+/** One run per conversation: a second background ask in the same chat replaces the first. A new morning brief
+ * replaces the one before it, so the Inbox holds one. */
 export function addRun(runs: readonly BackgroundRun[], run: BackgroundRun): BackgroundRun[] {
-  return [...runs.filter((r) => r.conversation !== run.conversation), run].slice(-MAX);
+  return [...runs.filter((r) => r.conversation !== run.conversation && !(run.kind === 'brief' && r.kind === 'brief')), run].slice(-MAX);
 }
 /** Stop pressed (anywhere: its row, the pill, the panel): the run is marked, so the Inbox does not say it finished. */
 export const stopRun = (runs: readonly BackgroundRun[], conversation: string): BackgroundRun[] => runs.map((r) => (r.conversation === conversation ? { ...r, stopped: true } : r));
