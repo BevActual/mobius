@@ -98,6 +98,16 @@
 .code-page .ed-fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .code-page .ed-gutter:hover .ed-fold, .code-page .ed-fold[data-folded] { opacity: 1; }
 .code-page .ed-fold:hover { color: var(--ink); background: var(--sel); }
+/* Run buttons beside tests (code-run.ts): a play mark, then how the last run of that test went. */
+.code-page .ed-run { position: absolute; left: var(--sp-1); top: 2px; width: 16px; height: 16px; padding: 0; border: 0; border-radius: var(--radius-small); background: none; color: var(--c-green); cursor: pointer; }
+.code-page .ed-run svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.code-page .ed-run:not([data-result]) svg path { fill: currentColor; }
+.code-page .ed-run[data-result="failed"] { color: var(--c-coral); }
+.code-page .ed-run[data-result="running"] { color: var(--c-blue); animation: ed-run-pulse var(--dur-loop) var(--ease) infinite alternate; }
+.code-page .ed-run:hover:not(:disabled) { background: var(--sel); }
+.code-page .ed-run:disabled { cursor: default; }
+@keyframes ed-run-pulse { from { opacity: 0.4; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .code-page .ed-run[data-result="running"] { animation: none; } }
 .code-page .ed-fold-more { display: inline-block; margin-left: 1ch; padding: 0 0.6ch; line-height: calc(var(--code-line) - 6px); border-radius: var(--radius-small); background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--muted); cursor: pointer; }
 .code-page .ed-fold-more:hover { background: color-mix(in srgb, var(--ink) 16%, transparent); color: var(--ink); }
 /* Sticky scroll: the lines that open the scopes above the view, held at its top, with their numbers in the gutter. */

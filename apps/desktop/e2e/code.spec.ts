@@ -704,3 +704,47 @@ test('the editor splits: the same file shows in both, another file opens beside 
   await shell().keyboard.press('Control+Backslash');
   await expect(shell().getByRole('region', { name: 'Second editor: src/budget.js' })).toBeVisible();
 });
+
+test('a Run button beside each test runs just that test with the person\'s command, saving first, and shows how it went', async () => {
+  fs.writeFileSync(path.join(project, 'tests', 'sum.test.js'), "import { describe, it } from 'node:test'\ndescribe('sums', () => {\n  it('adds', () => {})\n  it('fails', () => {})\n})\n");
+  // The project's test script says what it was asked to run, and fails when that is the failing test.
+  fs.writeFileSync(path.join(project, 'tests', 'run.js'), "const a = process.argv.slice(2)\nconsole.log('ran ' + a.join(' '))\nprocess.exit(a.includes('fails') ? 1 : 0)\n");
+  fs.writeFileSync(path.join(project, 'package.json'), '{ "type": "module", "scripts": { "test": "node tests/run.js" } }\n');
+  await start();
+  await shell().keyboard.press('Control+p');
+  await shell().getByRole('combobox', { name: 'File to open' }).fill('sum.test');
+  await shell().keyboard.press('Enter');
+  const editor = shell().getByRole('textbox', { name: 'Contents of tests/sum.test.js' });
+  await expect(editor).toBeVisible();
+  const code = shell().getByRole('region', { name: 'Code' });
+  // With no command chosen, a Run button says so and shows Tests, where the command is chosen.
+  await expect(code.getByRole('button', { name: 'Run “adds” (choose a test command first)' })).toBeVisible();
+  await expect(code.getByRole('button', { name: /^Run the tests in “sums”/ })).toBeVisible();
+  await tests().getByRole('button', { name: 'Choose command' }).click();
+  await tests().getByRole('textbox', { name: 'Test command' }).fill('npm test');
+  await tests().getByRole('button', { name: 'Save' }).click();
+
+  // Something typed is saved before the test runs, since the test reads the file on disk.
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('// more');
+  await code.getByRole('button', { name: 'Run “adds”', exact: true }).click();
+  await expect(tests().getByRole('status')).toContainText('Passed');
+  await expect(tests().getByLabel('Test output')).toContainText('ran tests/sum.test.js -t adds');
+  await expect(tests().locator('.code-tests-command')).toHaveText('npm test "--" "tests/sum.test.js" "-t" "adds"');
+  expect(fs.readFileSync(path.join(project, 'tests', 'sum.test.js'), 'utf8')).toContain('// more');
+  await expect(code.getByRole('button', { name: 'Passed. Run “adds” again' })).toBeVisible();
+
+  await code.getByRole('button', { name: 'Run “fails”', exact: true }).click();
+  await expect(tests().getByRole('status')).toContainText('Failed');
+  // Why it failed shows beside the test too: the run's last line here, as the script prints no ✕.
+  await expect(code.getByRole('button', { name: 'Failed: ran tests/sum.test.js -t fails. Run “fails” again' })).toBeVisible();
+  await expect(code.getByRole('button', { name: 'Passed. Run “adds” again' })).toBeVisible();
+  // The command kept is still the person's own, backslashes and all.
+  expect(JSON.parse(fs.readFileSync(path.join(userData, 'code-tests.json'), 'utf8'))).toEqual({ 'offsite-planner': 'npm test' });
+  await tests().getByRole('button', { name: 'Change' }).click();
+  await tests().getByRole('textbox', { name: 'Test command' }).fill('node ..\\tests\\run.js');
+  await tests().getByRole('button', { name: 'Save' }).click();
+  await expect(tests().locator('.code-tests-command')).toHaveText('node ..\\tests\\run.js');
+  expect(JSON.parse(fs.readFileSync(path.join(userData, 'code-tests.json'), 'utf8'))).toEqual({ 'offsite-planner': 'node ..\\tests\\run.js' });
+});
