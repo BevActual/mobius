@@ -242,6 +242,16 @@ A code editor for projects in your workspace.
 - **The editor** types like a text field and reads like code, as in Xcode: the current line is lit, brackets and quotes
   close themselves, Tab and Shift+Tab indent, Ctrl+/ comments lines, Ctrl+F finds and Ctrl+G goes to a line. Every
   change can be undone with Ctrl+Z.
+- **Many cursors and big files**: Ctrl+D adds the next match, Alt+click and Ctrl+Alt+Up/Down add cursors, Alt+Up/Down
+  move lines. Regions fold from the gutter or Ctrl+Shift+[ and ], the scope you are in stays at the top while you
+  scroll, and Ctrl+Shift+O goes to anything the file defines. Ctrl+H finds and replaces, by whole word or pattern.
+- **Language smarts** come from a language server already on your computer, or in the project's own
+  `node_modules/.bin`: typescript-language-server (it needs TypeScript 5 in the project, `npm i -D typescript@5
+  typescript-language-server`), rust-analyzer, pyright, gopls, clangd, and the vscode CSS, HTML and JSON servers.
+  Nothing is downloaded. Problems are underlined and listed in the **Problems** panel (F8 goes to the next), completions
+  show as you type or with Ctrl+Space, resting the pointer on a word shows what it is, F12 or Ctrl+click goes to its
+  definition, F2 renames it everywhere, and Shift+Alt+F formats (**Format on save** is a switch in the status line). A
+  server that is missing or would not start says so in the status line, with Retry.
 - **Review Mobius's change** as removed and added lines, keeping or putting back each one.
 - **Debug** mode (in the composer's Mode menu while you are in Code) has Mobius reproduce the bug first, then propose
   the fix.

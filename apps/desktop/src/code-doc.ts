@@ -231,7 +231,7 @@ export function moveH(state: DocState, dir: 1 | -1, extend: boolean, word: boole
  * Up or down `by` lines, keeping to the column each cursor was aiming for (`goals`, in screen columns) even across
  * shorter lines; past the first or last line goes to its start or end.
  */
-export function moveV(state: DocState, by: number, extend: boolean, goals: readonly (number | null)[], tab = 2): { state: DocState; goals: number[] } {
+export function moveV(state: DocState, by: number, extend: boolean, goals: readonly (number | null)[], tab = 2, /** The line `by` lines on from another, skipping folded ones; plain counting when not given. */ stepLine?: (line: number, by: number) => number): { state: DocState; goals: number[] } {
   const { text } = state;
   const starts = lineStarts(text);
   const kept: number[] = [];
@@ -240,7 +240,7 @@ export function moveV(state: DocState, by: number, extend: boolean, goals: reado
     const lineText = text.slice(starts[line], lineEnd(text, starts, line));
     const goal = goals[i] ?? visualCol(lineText, s.head - starts[line]!, tab);
     kept.push(goal);
-    const target = line + by;
+    const target = stepLine ? stepLine(line, by) : line + by;
     let head: number;
     if (target < 0) head = 0;
     else if (target >= starts.length) head = text.length;
@@ -546,4 +546,61 @@ export function replaceSpans(state: DocState, spans: readonly [number, number][]
   const p = state.sels[state.primary]!;
   const sels = [{ anchor: mapPos(p.anchor, changes), head: mapPos(p.head, changes) }];
   return { state: { text, sels, primary: 0 }, changes };
+}
+
+// —— Folding ——
+
+/**
+ * The regions that can be folded, by indentation as VS Code does for most languages: a line followed by more
+ * indented lines starts one, ending at the last of them (blank lines at its end left out), so a closing bracket on a
+ * line of its own stays in view. As start line → end line, both from 0.
+ */
+export function foldRegions(lines: readonly string[], tab = 2): Map<number, number> {
+  const out = new Map<number, number>();
+  const stack: { line: number; indent: number }[] = [];
+  let lastText = -1;
+  const close = (indent: number) => {
+    while (stack.length > 0 && stack[stack.length - 1]!.indent >= indent) {
+      const s = stack.pop()!;
+      if (lastText > s.line) out.set(s.line, lastText);
+    }
+  };
+  lines.forEach((l, i) => {
+    if (l.trim() === '') return;
+    const indent = visualCol(l, /^[ \t]*/.exec(l)![0].length, tab);
+    close(indent);
+    stack.push({ line: i, indent });
+    lastText = i;
+  });
+  close(-1);
+  return out;
+}
+
+/** Which lines are shown, in order, with `folded` (start lines) closed; and each line's row on screen, -1 when hidden. */
+export function visibleRows(count: number, regions: ReadonlyMap<number, number>, folded: ReadonlySet<number>): { rows: number[]; rowOf: Int32Array } {
+  const rows: number[] = [];
+  const rowOf = new Int32Array(count).fill(-1);
+  for (let i = 0; i < count; i += 1) {
+    rowOf[i] = rows.length;
+    rows.push(i);
+    const end = folded.has(i) ? regions.get(i) : undefined;
+    if (end !== undefined) i = end;
+  }
+  return { rows, rowOf };
+}
+
+/** The folded regions (start lines) that hide `line`, so a cursor sent there can open them. */
+export function foldsHiding(line: number, regions: ReadonlyMap<number, number>, folded: ReadonlySet<number>): number[] {
+  return [...folded].filter((s) => s < line && (regions.get(s) ?? -1) >= line);
+}
+
+/**
+ * The scopes the top of the view is inside, outermost first, as sticky scroll shows them: each region that starts
+ * above `top` and runs past it. At most `max`, keeping the innermost.
+ */
+export function stickyScopes(top: number, regions: ReadonlyMap<number, number>, max = 5): number[] {
+  const out: number[] = [];
+  for (const [start, end] of regions) if (start < top && end >= top) out.push(start);
+  out.sort((a, b) => a - b);
+  return out.slice(-max);
 }

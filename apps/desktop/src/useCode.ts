@@ -155,15 +155,17 @@ export function useCode(active = true) {
     return () => { offChanged?.(); offTests?.(); offConsole?.(); };
   }, [active, api]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const save = useCallback(async () => {
+  /** Saves what was typed, or `text` when given (a formatted copy of it, set as the draft at the same time). */
+  const save = useCallback(async (text?: string) => {
     const now = live.current;
     if (!api || !now.project || !now.open || now.open.text === null) return false;
-    const done = await api.save(now.project, now.open.path, now.draft, now.open.modified);
+    const draft = text ?? now.draft;
+    const done = await api.save(now.project, now.open.path, draft, now.open.modified);
     if (isNotesFailure(done)) {
       setMessage(done.conflict ? 'This file changed since you opened it. Copy what you typed, then open it again.' : done.message);
       return false;
     }
-    setOpen({ ...now.open, text: now.draft, modified: done.modified });
+    setOpen({ ...now.open, text: draft, modified: done.modified });
     setMessage('');
     return true;
   }, [api]);

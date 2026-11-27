@@ -376,3 +376,144 @@ test('find and replace changes one match or all of them, by whole word or patter
   await shell().keyboard.press('End');
   await expect(shell().locator('.ed-bracket')).toHaveCount(2);
 });
+
+test('regions fold from the gutter or the keys, the scope stays at the top while scrolling, and Ctrl+Shift+O goes to a symbol', async () => {
+  const body = Array.from({ length: 80 }, (_, i) => `  const step${i} = ${i}`).join('\n');
+  fs.writeFileSync(path.join(project, 'src', 'plan.js'), `function first() {\n${body}\n}\n\nfunction second() {\n  return 2\n}\n`);
+  await start();
+  await shell().keyboard.press('Control+p');
+  await shell().getByRole('combobox', { name: 'File to open' }).fill('plan.js');
+  await shell().keyboard.press('Enter');
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/plan.js' });
+  await expect(editor).toHaveValue(/^function first/);
+
+  // The gutter's fold button hides the body; the line after it is drawn right below.
+  await shell().getByRole('button', { name: 'Fold lines 2 to 81' }).dispatchEvent('mousedown');
+  await expect(shell().locator('.ed-fold-more')).toHaveCount(1);
+  await expect(shell().locator('.ed-line').nth(1)).toHaveText('}');
+  // Its ⋯ opens it again.
+  await shell().locator('.ed-fold-more').dispatchEvent('mousedown');
+  await expect(shell().locator('.ed-fold-more')).toHaveCount(0);
+
+  // Ctrl+Shift+[ folds the region the cursor is in and leaves the cursor on its first line; Down skips the folded lines.
+  await editor.focus();
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.press('ArrowDown');
+  await shell().keyboard.press('Control+Shift+BracketLeft');
+  await expect(shell().getByText('Ln 1, Col 19')).toBeVisible();
+  await shell().keyboard.press('ArrowDown');
+  await expect(shell().getByText('Ln 82, Col 1')).toBeVisible();
+  await shell().keyboard.press('ArrowUp');
+  await shell().keyboard.press('Control+Shift+BracketRight');
+  await expect(shell().locator('.ed-fold-more')).toHaveCount(0);
+
+  // Scrolled into the body, its function's first line stays at the top.
+  await shell().locator('.ed-scroll').evaluate((el) => { el.scrollTop = 600; el.dispatchEvent(new Event('scroll')); });
+  await expect(shell().locator('.ed-sticky-line')).toHaveText(['function first() {']);
+
+  // Go to a symbol.
+  await editor.focus();
+  await shell().keyboard.press('Control+Shift+o');
+  await shell().getByRole('combobox', { name: 'Symbol to go to' }).fill('second');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByText('Ln 84, Col 1')).toBeVisible();
+});
+
+test('a change made outside the editor, such as Revert, is one more step for undo, so undo never mixes up the text', async () => {
+  await start();
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await expect(editor).toHaveValue(BUDGET);
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('const a = 1');
+  await shell().getByRole('button', { name: 'Revert' }).click();
+  await expect(editor).toHaveValue(BUDGET);
+  await editor.focus();
+  await shell().keyboard.press('Control+z');
+  await expect(editor).toHaveValue(`${BUDGET}const a = 1`);
+  await shell().keyboard.press('Control+z');
+  await expect(editor).toHaveValue(BUDGET);
+});
+
+test('a language server on the computer brings problems, completions, hover, go to definition, rename and format on save', async () => {
+  // The project brings its own server (a stand-in that answers from the text), as a project's node_modules can.
+  const bin = path.join(project, 'node_modules', '.bin');
+  fs.mkdirSync(bin, { recursive: true });
+  const fake = path.resolve(import.meta.dirname, 'fixtures', 'fake-language-server.js');
+  fs.writeFileSync(path.join(bin, 'typescript-language-server'), `#!/bin/sh\nexec "${process.execPath}" "${fake}" "$@"\n`, { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'typescript-language-server.cmd'), `@"${process.execPath}" "${fake}" %*\r\n`);
+  await start();
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  const status = shell().getByRole('contentinfo', { name: 'Where the cursor is' }).or(shell().locator('footer.code-status'));
+  await expect(editor).toHaveValue(BUDGET);
+  await expect(status.getByRole('button', { name: 'Format on save' })).toBeVisible({ timeout: 15_000 });
+  await expect(status.getByRole('button', { name: 'Problems: 0 errors, 0 warnings' })).toBeVisible();
+
+  // Completions come as you type after a dot; Enter puts one in, its first stop where the cursor lands.
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('cents.');
+  const list = shell().getByRole('listbox', { name: 'Completions' });
+  await expect(list.getByRole('option', { name: /toFixed/ })).toHaveAttribute('aria-selected', 'true');
+  await shell().keyboard.press('ArrowDown');
+  await expect(list.getByRole('option', { name: /toString/ })).toHaveAttribute('aria-selected', 'true');
+  await shell().keyboard.press('ArrowUp');
+  await shell().keyboard.press('Enter');
+  await expect(list).toBeHidden();
+  let text = `${BUDGET}cents.toFixed(digits)`;
+  await expect(editor).toHaveValue(text);
+  await expect(status).toContainText('Ln 7, Col 15');
+
+  // A problem is underlined, counted, listed in Problems, and F8 shows its message where it is.
+  await shell().keyboard.press('End');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('// TODO tidy');
+  text += '\n// TODO tidy';
+  await expect(editor).toHaveValue(text);
+  await expect(shell().locator('.ed-problem')).toHaveCount(1);
+  await status.getByRole('button', { name: 'Problems: 1 errors, 0 warnings' }).click();
+  await shell().getByRole('button', { name: /Finish this TODO/ }).click();
+  await expect(status).toContainText('Ln 8, Col 4');
+  await editor.focus();
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.press('F8');
+  await expect(status).toContainText('Ln 8, Col 4');
+  await expect(shell().getByRole('status').filter({ hasText: 'Finish this TODO' })).toBeVisible();
+
+  // Resting the pointer on a word shows what the server says of it.
+  // A place in the text, as the pointer finds it: the line's box and the width of one character.
+  const at = async (line: number, word: string) => {
+    const box = (await shell().locator('.ed-line').nth(line).boundingBox())!;
+    const cw = await shell().locator('.ed-measure').evaluate((el) => el.getBoundingClientRect().width / 20);
+    const col = text.split('\n')[line]!.indexOf(word) + 1;
+    return { x: box.x + 8 + col * cw, y: box.y + box.height / 2 };
+  };
+  const cents = await at(3, 'cents');
+  await shell().mouse.move(cents.x, cents.y);
+  await expect(shell().locator('.ed-hover')).toContainText('const cents: number');
+
+  // F12 goes to where a word is first defined.
+  const people = await at(3, 'people');
+  await shell().mouse.click(people.x, people.y);
+  await shell().keyboard.press('F12');
+  await expect(status).toContainText(`Ln 2, Col ${BUDGET.split('\n')[1]!.indexOf('people') + 1}`);
+
+  // F2 renames it everywhere.
+  await shell().keyboard.press('F2');
+  const name = shell().getByRole('textbox', { name: 'New name' });
+  await expect(name).toHaveValue('people');
+  await name.fill('guests');
+  await name.press('Enter');
+  text = text.replaceAll('people', 'guests');
+  await expect(editor).toHaveValue(text);
+
+  // Format on save: trailing spaces typed at the end are gone from what is saved.
+  await status.getByRole('button', { name: 'Format on save' }).click();
+  await expect(status.getByRole('button', { name: 'Format on save' })).toHaveAttribute('aria-pressed', 'true');
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('   ');
+  await shell().keyboard.press('Control+s');
+  await expect.poll(budget).toBe(text);
+  await expect(editor).toHaveValue(text);
+});
