@@ -48,14 +48,14 @@ test('Files shows the workspace as a drive, folder by folder, and a file opens i
   await openFiles();
   const page = shell().getByRole('region', { name: 'Files', exact: true });
   // As in Finder: a click selects, a double-click opens.
-  const notes = page.getByRole('row', { name: 'notes', exact: true });
+  const notes = page.getByRole('row', { name: 'Notes', exact: true });
   await notes.click();
   await expect(notes).toHaveAttribute('aria-selected', 'true');
   await expect(notes).toContainText('Notes folder');
   await notes.dblclick();
   await expect(title()).toHaveText('Notes');
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
-  await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › notes › Work');
+  await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › Notes › Work');
   // Back and Forward, in the toolbar, walk the folders visited; the sidebar lists the workspace's folders.
   await tools().getByRole('button', { name: 'Back' }).click();
   await expect(title()).toHaveText('Notes');
@@ -85,7 +85,7 @@ test('the keyboard stays on the list going into and out of folders, and Ctrl+F s
   await start();
   await openFiles();
   const page = shell().getByRole('region', { name: 'Files', exact: true });
-  await page.getByRole('row', { name: 'notes', exact: true }).click();
+  await page.getByRole('row', { name: 'Notes', exact: true }).click();
   await shell().keyboard.press('Enter');
   await expect(title()).toHaveText('Notes');
   // In the folder, the keyboard is on its first row at once: Down moves to the next.
@@ -95,7 +95,7 @@ test('the keyboard stays on the list going into and out of folders, and Ctrl+F s
   await expect(page.getByRole('row').nth(2)).toBeFocused();
   // Back out, it is on the folder just left.
   await shell().keyboard.press('Backspace');
-  await expect(page.getByRole('row', { name: 'notes', exact: true })).toBeFocused();
+  await expect(page.getByRole('row', { name: 'Notes', exact: true })).toBeFocused();
   await shell().keyboard.press('Control+f');
   await expect(shell().getByRole('searchbox', { name: 'Search this folder' })).toBeFocused();
 });
@@ -170,7 +170,7 @@ test('a file Mobius makes in the open folder shows dashed as the call lands, bef
   ]);
   await openFiles();
   const page = shell().getByRole('region', { name: 'Files', exact: true });
-  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Notes', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   await expect(page.getByRole('row', { name: /^Plan\.md/ })).toBeVisible();
   await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
@@ -188,7 +188,7 @@ test('a new folder is named in place, a file renamed with F2, and Delete moves i
   await start();
   await openFiles();
   const page = shell().getByRole('region', { name: 'Files', exact: true });
-  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Notes', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   await tools().getByRole('button', { name: 'New folder' }).click();
   const naming = page.getByRole('textbox', { name: 'New name for New folder' });
@@ -219,7 +219,7 @@ test('a new folder is named in place, a file renamed with F2, and Delete moves i
   // An app's own folder cannot be renamed or thrown away from Files.
   await tools().getByRole('button', { name: 'Back' }).click();
   await tools().getByRole('button', { name: 'Back' }).click();
-  await page.getByRole('row', { name: 'notes', exact: true }).click({ button: 'right' });
+  await page.getByRole('row', { name: 'Notes', exact: true }).click({ button: 'right' });
   const menu = shell().getByRole('menu', { name: 'notes' });
   await expect(menu.getByRole('menuitem', { name: 'Open' })).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: /Rename|Move to Trash/ })).toHaveCount(0);
@@ -229,7 +229,7 @@ test('a file dragged onto a folder moves into it with Undo, and Cut and Paste mo
   await start();
   await openFiles();
   const page = shell().getByRole('region', { name: 'Files', exact: true });
-  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Notes', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   await tools().getByRole('button', { name: 'New folder' }).click();
   const naming = page.getByRole('textbox', { name: 'New name for New folder' });
@@ -273,7 +273,7 @@ test('several files are picked with Ctrl, Shift and Ctrl+A; Duplicate, Copy and 
   await start();
   await openFiles();
   const page = shell().getByRole('region', { name: 'Files', exact: true });
-  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Notes', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   const row = (name: string) => page.getByRole('row', { name, exact: true });
   const picked = page.locator('[role=row][aria-selected="true"]');
@@ -310,10 +310,10 @@ test('several files are picked with Ctrl, Shift and Ctrl+A; Duplicate, Copy and 
   await row('Notes.md').click({ modifiers: ['Control'] });
   await row('Notes.md').press('Control+c');
   await row('Archive').dblclick();
-  await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › notes › Work › Archive');
+  await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › Notes › Work › Archive');
   // Alt+Up goes up a folder and back down, as in Explorer.
   await shell().keyboard.press('Alt+ArrowUp');
-  await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › notes › Work');
+  await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › Notes › Work');
   await row('Archive').dblclick();
   await page.getByRole('grid', { name: 'Files in this folder' }).or(page.getByText('This folder is empty')).first().waitFor();
   await shell().keyboard.press('Control+v');
@@ -338,7 +338,7 @@ test('the Trash lists what was trashed and where it was, puts it back there, and
   await start();
   await openFiles();
   const page = shell().getByRole('region', { name: 'Files', exact: true });
-  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Notes', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
   await plan.click();
@@ -358,7 +358,7 @@ test('the Trash lists what was trashed and where it was, puts it back there, and
 
   // Gone for good only after saying so: Cancel keeps it, Delete empties the Trash.
   await side.getByRole('button', { name: 'Workspace' }).click();
-  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Notes', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Plan.md', exact: true }).click();
   await page.getByRole('row', { name: 'Plan.md', exact: true }).press('Delete');
@@ -462,7 +462,7 @@ test('a drive on the person\'s own server: added from its address, browsed, and 
     await expect(shell().getByText('“Budget.csv” has changed on Home cloud since it was copied, so it was not replaced.')).toBeVisible();
     expect(dav.files.get('Shared/Budget.csv')?.body.toString()).toBe('Item,Cost\nVenue,925\n');
 
-    await files.getByRole('row', { name: 'notes', exact: true }).dblclick();
+    await files.getByRole('row', { name: 'Notes', exact: true }).dblclick();
     await files.getByRole('row', { name: 'Work', exact: true }).dblclick();
     const driveRow = side.getByRole('button', { name: 'Home cloud', exact: true });
     dataTransfer = await shell().evaluateHandle(() => new DataTransfer());
@@ -539,7 +539,7 @@ test('Files pairs a folder with a drive, says how its sync stands, pauses, signs
     // Sync is off until the person pairs a folder: right-click it, Sync with a Drive…, Start syncing.
     await side.getByRole('button', { name: 'Workspace', exact: true }).click();
     const files = shell().getByRole('region', { name: 'Files', exact: true });
-    await files.getByRole('row', { name: 'notes', exact: true }).click({ button: 'right' });
+    await files.getByRole('row', { name: 'Notes', exact: true }).click({ button: 'right' });
     await shell().getByRole('menuitem', { name: 'Sync with a Drive…' }).click();
     const dialog = shell().getByRole('dialog', { name: 'Sync Notes with a drive' });
     await expect(dialog.getByRole('textbox', { name: 'Folder on the drive' })).toHaveValue('Notes');
@@ -549,7 +549,7 @@ test('Files pairs a folder with a drive, says how its sync stands, pauses, signs
 
     // The synced folder wears the glyph, and its page says how it stands in the line under the title.
     await expect(side.getByRole('img', { name: /^Synced with Cloud/ })).toBeVisible();
-    await files.getByRole('row', { name: 'notes', exact: true }).dblclick();
+    await files.getByRole('row', { name: 'Notes', exact: true }).dblclick();
     const line = shell().locator('.sync-sub');
     await expect(line).toContainText('Up to date', { timeout: 20_000 });
     await tools().getByRole('button', { name: 'Pause syncing' }).click();
@@ -573,7 +573,7 @@ test('Files pairs a folder with a drive, says how its sync stands, pauses, signs
 
     // Stop syncing asks first, and changes no files on either side.
     await side.getByRole('button', { name: 'Workspace', exact: true }).click();
-    await files.getByRole('row', { name: 'notes', exact: true }).click({ button: 'right' });
+    await files.getByRole('row', { name: 'Notes', exact: true }).click({ button: 'right' });
     await shell().getByRole('menuitem', { name: 'Stop Syncing…' }).click();
     await shell().getByRole('alertdialog').getByRole('button', { name: 'Stop syncing' }).click();
     await expect(side.getByRole('img', { name: /^Synced with Cloud/ })).toHaveCount(0);

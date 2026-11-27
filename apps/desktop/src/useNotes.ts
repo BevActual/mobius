@@ -18,7 +18,7 @@ export interface OpenPage { path: string; title: string; base: number | null }
  */
 /** The kinds that open their newest item when nothing was open before. */
 // Music (marked, Music's own): a song opens on arrival too, never "No song open".
-const OPENS_NEWEST: ReadonlySet<NotesKind> = new Set(['docs', 'slides', 'songs']);
+const OPENS_NEWEST: ReadonlySet<NotesKind> = new Set(['notes', 'docs', 'slides', 'songs']);
 /** The most recently changed page, if any. */
 export function newestPage<T extends { modified: number }>(pages: readonly T[]): T | undefined {
   return pages.reduce<T | undefined>((best, pg) => (!best || pg.modified > best.modified ? pg : best), undefined);
@@ -314,7 +314,8 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     // Nothing is read until the app is first opened (Abilities: apps load when they are used).
     if (!active) return undefined;
     // The first list opens the page that was open last, if it is still there and nothing else was opened meanwhile.
-    // Docs and Slides open the newest one when none was open, so a first visit never lands on an empty window.
+    // Notes, Docs and Slides open the newest one when none was open, so a first visit never lands on an empty window
+    // (as Apple Notes and Bear open on the latest note).
     void readTrash();
     void refresh().then((list) => {
       const last = remembered();

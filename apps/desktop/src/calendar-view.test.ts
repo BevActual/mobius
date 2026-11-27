@@ -239,7 +239,7 @@ describe('the Glance in the Mobius panel', () => {
   });
   it('says plainly when nothing else is on today, without counting zero', () => {
     expect(calendarGlance(events, day('2026-11-14T19:30'))).toEqual([
-      { label: 'Next', value: 'Nothing else today' },
+      { label: 'Next', value: 'Nothing else' },
       { label: 'Free time', value: null },
     ]);
   });

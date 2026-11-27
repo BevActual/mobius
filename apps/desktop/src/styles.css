@@ -2655,7 +2655,8 @@ body { font-variant-numeric: tabular-nums; }
 .glance-facts { min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: var(--sp-3); margin: 0; }
 .glance-fact { min-width: 0; }
 .glance-label { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.glance-value { margin: 2px 0 0; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* A value wraps to a second line rather than being cut off mid-word in a narrow panel. */
+.glance-value { margin: 2px 0 0; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .glance-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 20px; }
 .glance-title { margin: 0; font-size: var(--fs-xs); font-weight: var(--fw-regular, 400); color: var(--muted); }
 .glance-action { margin: -6px -6px -6px auto; }

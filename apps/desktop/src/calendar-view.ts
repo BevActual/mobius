@@ -187,8 +187,8 @@ export function calendarGlance(events: readonly CalendarEvent[], now: Date): { l
     }
     free = shortLength((end - at - busy) / 60000);
   }
-  // Nothing left: one plain fact, not a zero in a box.
-  if (timed.length === 0) return [{ label: 'Next', value: 'Nothing else today' }, { label: 'Free time', value: free }];
+  // Nothing left: one plain fact, not a zero in a box. The card is "Rest of today", so it doesn't say today again.
+  if (timed.length === 0) return [{ label: 'Next', value: 'Nothing else' }, { label: 'Free time', value: free }];
   return [
     { label: 'Still to come', value: String(timed.length) },
     { label: 'Next', value: next ? clock(next.e.start) : 'Nothing' },
