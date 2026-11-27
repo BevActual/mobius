@@ -238,6 +238,77 @@ How Mobius compares:
   - **Running without the window.** Hermes runs on a server. Mobius's plan already says the core should keep running
     without the window, and later on a machine the person owns. Hermes shows people want that.
 
+### Hermes feature by feature
+
+Read on 27 November 2026 from [its docs index](https://hermes-agent.nousresearch.com/docs/llms.txt) and the pages it
+links, then checked against this repo.
+
+**Mobius has these already, and in places does more:**
+
+| Hermes | Mobius |
+|---|---|
+| Checkpoints and /rollback (opt-in, git) | A checkpoint before every write, Undo for each step, and Keep or Discard in place |
+| Approval modes, plus a blocklist that holds even in YOLO | Four permissions, floors that always ask, and Always allow |
+| Fallback providers | A second model when the first can't answer (`mobius-agent/src/fallback.rs`) |
+| MCP client and MCP server | Both. Mobius's server already lets Hermes or Claude Code use its tools (`mobius-mcp/src/server.rs`) |
+| Session search (SQLite full-text) | Past-chat search |
+| SKILL.md skills | Abilities in the same open format |
+| Cron with delivery | Schedules, the morning brief and check-ins, each landing in the Inbox |
+| Voice: speech to text, text to speech | Dictation, hold to talk, and Kokoro read aloud on this computer |
+| A desktop app showing chat and files | A whole workspace of apps |
+
+**Gaps worth taking, in order:**
+
+1. **It learns as it goes.** After a turn, Hermes reviews what happened and may save a memory or a skill. A setting
+   holds those as pending until approved, and /journey shows what it has learned.
+   ([memory](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory),
+   [skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills))
+   - Mobius has `memory.remember`, but nothing that looks back after a job.
+   - Take: "Save this as an Ability" (already agreed), and "Remember this?" as Inbox rows that wait for Keep.
+   - Show what was learned as a list in Knowledge's How I work page.
+2. **Starting on events.** Hermes runs on webhooks. This is already agreed for mail and tasks; a local webhook (a
+   URL only this computer can call) can come later.
+3. **Project rules for code.** Hermes reads AGENTS.md, CLAUDE.md and .cursorrules from the project it works in, and
+   scans them for injected instructions first.
+   ([context files](https://hermes-agent.nousresearch.com/docs/user-guide/features/context-files))
+   - Mobius's Code app reads none of them.
+   - This is small, and makes Mobius useful on any repository out of the box.
+4. **Bringing Abilities in.** Hermes installs skills from GitHub repositories and hubs, scans each one, and imports
+   from Claude Code, Codex and others.
+   - Take: "Add from a repository" in the Store, scanned and shown before it is kept.
+   - Take: an import of Abilities from `~/.claude/skills` and `~/.hermes/skills`, all on this computer.
+5. **Specialists working in parallel.** Hermes's `delegate_task` runs up to ten child agents, each with its own tools
+   and a depth limit. ([delegation](https://hermes-agent.nousresearch.com/docs/user-guide/features/delegation))
+   - Mobius has none yet.
+   - This is the agent plan's fourth direction: the steps of a big job handed to the Agents, each shown as its own
+     row.
+6. **Memory that stays small.** Hermes caps its memory files and makes the agent merge entries once they are full.
+   It also scans each entry for injected instructions.
+   - Mobius's `memory.md` has no cap and no scan.
+   - Take both, quietly.
+
+**Gaps to skip, or leave for later:**
+
+- More than 20 chat platforms, Kanban boards for agents, batch trajectories for training, credential pools, and
+  per-profile homes. These are aimed at running one agent for many people or for research. Mobius is solo, and its
+  Agents, Projects and Tasks already cover those jobs.
+- Home Assistant, password vaults and image services such as FAL: each one is an MCP server away, through the Store,
+  not built in.
+- A wake word ("Hey Hermes"): a microphone that is always listening goes against hold to talk. This is Andrew's call
+  if he wants one.
+- Editors driving the agent (ACP), and an OpenAI-compatible API server: Mobius's MCP server already serves other
+  tools. Later, if asked.
+
+**One decision for Andrew:** reaching Mobius from his phone. Hermes's main way in is chat from a phone. For Mobius
+that means its Matrix space has to be reachable from outside this computer, and the core has to run while the window
+is closed. Three ways to do it:
+
+- a machine he owns, kept on;
+- a relay he runs;
+- a hosted relay, which costs money.
+
+The recommendation is to wait until the core runs without the window, then use a machine he owns.
+
 ## Decisions for Andrew
 
 Andrew answered on 27 November 2026 ("Will go with your recommendations"):
