@@ -139,14 +139,58 @@ on the RTX 4080).
   groups, which is exactly what an adapter trained on Mobius's rules should fix.
 - **The 14B model gained two groups but lost six on "asks me", and was slower.** Size alone doesn't fix it.
 
+## Mobius's own trainer (Andrew, 27 November 2026)
+
+Andrew: "if you need unsloth to do something mobius will be built to have it instead". So Mobius doesn't depend on
+Unsloth. Training is a capability of its own, built the way the voice program is: an optional download, off by
+default, that Mobius drives itself.
+
+**What it is.** `mobius-train`, a separate program with its own release and pinned hashes, as `mobius-voice` has.
+Settings > Models offers it ("Teach your local model Mobius's ways"). Mobius runs the whole loop:
+1. It writes training examples for a task from Mobius's own rules, made-up content only.
+2. It trains a LoRA adapter on the local model.
+3. It scores the adapter with the same tests (`live_local_models` for mail sort, and a tool-use test).
+4. It keeps the adapter only if it beats the model without it. The adapter then loads with `llama-server --lora`
+   for that task.
+
+**What it stands on.** Unsloth itself is a set of speed-ups on top of open training libraries. Mobius can use those
+libraries directly. Each licence still needs checking before use.
+
+| Piece | Licence | Role |
+|---|---|---|
+| PyTorch | BSD-3 | The training engine, with CUDA on Nvidia cards |
+| Hugging Face Transformers, PEFT, TRL | Apache-2.0 | Loading the model, LoRA, supervised and preference training |
+| bitsandbytes | MIT | 4-bit loading, so a 4B model trains in a few GB |
+| llama.cpp `convert_lora_to_gguf.py` | MIT | Turning the adapter into the GGUF file `llama-server` loads |
+
+A Rust trainer (Candle or Burn, both permissively licensed) would avoid Python. It would be much more work and slower
+on the GPU today, so it is a later option, not the first.
+
+**Honest cost:**
+- **Download.** The PyTorch-and-CUDA runtime is several GB, the largest optional part of Mobius. It is fetched only
+  when the person turns training on, like the voice program.
+- **Speed.** Without Unsloth's custom kernels, training is slower and needs more graphics memory. Unsloth claims about
+  2x the speed and much less memory. For a 4B model on a few hundred examples that is likely minutes rather than
+  seconds, which is fine.
+- **Work.**
+  - One round to package the program and the Settings switch.
+  - One round for the loop: examples, training, scoring, keep or drop.
+  - One round per task taught: mail sort first, then tool use.
+- **Windows.** PyTorch and bitsandbytes both publish Windows builds with CUDA. It needs checking on Andrew's PC as
+  the first step.
+
+**Proving it first.** The coordinator is asking Andrew whether a one-off trial with existing tools is acceptable, to
+see whether an adapter beats 64/76 before Mobius's own trainer is built. Without that trial, the first round of
+`mobius-train` is the trial.
+
 ## Decisions for Andrew
 
 1. **Run the first experiment on your PC?** A real-model run, which the project otherwise avoids while building.
    It is local only and costs nothing. Recommended: yes.
 2. **Prefer Unsloth Dynamic files in the local model picker?** The experiment showed no gain at 4B, so not for now.
 3. **Heretic and weight editing stay out.** Recommended: agree.
-4. **Adapters and steering:** decided after the experiment. Training needs Python and Unsloth installed on your PC,
-   which would be its own yes.
+4. **Mobius's own trainer** (see above): build `mobius-train` on PyTorch, PEFT and TRL as an optional download?
+   Recommended: yes, starting with mail sort, after (or as) the proof trial.
 
 ## Sources (read 27 November 2026)
 
