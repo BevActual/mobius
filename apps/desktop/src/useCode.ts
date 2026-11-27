@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNotesFailure, type CodeEntry, type CodeFile, type CodeGit, type CodeProcess, type CodeTestRun } from '@mobius/shared';
-import { parentsOf } from './code-view';
+import { parentsOf, testLineKind } from './code-view';
 
 const LAST_KEY = 'mobius.code.last';
 type Place = { project: string; path: string | null };
@@ -31,8 +31,10 @@ export interface CodeTests {
   ran: string | null;
   /** How each test run from the margin last went, by testKey (code-run.ts). */
   results: ReadonlyMap<string, TestResult>;
+  /** Why a test run from the margin failed: the first failing line its run printed. */
+  notes: ReadonlyMap<string, string>;
 }
-const NO_TESTS: CodeTests = { command: null, suggested: null, running: false, last: null, by: null, ran: null, results: new Map() };
+const NO_TESTS: CodeTests = { command: null, suggested: null, running: false, last: null, by: null, ran: null, results: new Map(), notes: new Map() };
 
 /** The Code app's state: projects, the open project's files, the open file as typed, and its tests. */
 export function useCode(active = true) {
@@ -86,7 +88,7 @@ export function useCode(active = true) {
 
   const loadTests = useCallback(async (name: string) => {
     const t = await api?.testCommand(name);
-    setTests((was) => (t && !isNotesFailure(t) ? { ...NO_TESTS, last: was.last, ran: was.ran, results: was.results, command: t.command, suggested: t.suggested } : NO_TESTS));
+    setTests((was) => (t && !isNotesFailure(t) ? { ...NO_TESTS, last: was.last, ran: null, results: was.results, notes: was.notes, command: t.command, suggested: t.suggested } : NO_TESTS));
   }, [api]);
 
   const openFile = useCallback(async (path: string, name = live.current.project) => {
@@ -242,10 +244,18 @@ export function useCode(active = true) {
       if (r) next.set(only.key, r); else next.delete(only.key);
       return next;
     };
-    setTests((was) => ({ ...was, running: true, by: 'person', results: mark('running')(was.results) }));
+    setTests((was) => ({ ...was, running: true, by: 'person', ran: only?.args ? `${was.command ?? ''}${only.args}` : null, results: mark('running')(was.results) }));
     const result = await api.runTests(now.project, only?.args ?? undefined);
     if (isNotesFailure(result)) { setMessage(result.message); setTests((was) => ({ ...was, running: false, results: mark(null)(was.results) })); return; }
-    setTests((was) => ({ ...was, running: false, last: result, ran: only?.args ? `${was.command ?? ''}${only.args}` : null, by: 'person', results: mark(result.passed ? 'passed' : 'failed')(was.results) }));
+    setTests((was) => {
+      const notes = new Map(was.notes);
+      if (only) {
+        const lines = result.output.split('\n').map((l) => l.trim()).filter(Boolean);
+        const why = lines.find((l) => testLineKind(l) === 'fail') ?? lines.at(-1);
+        if (!result.passed && why) notes.set(only.key, why.slice(0, 200)); else notes.delete(only.key);
+      }
+      return { ...was, running: false, last: result, by: 'person', results: mark(result.passed ? 'passed' : 'failed')(was.results), notes };
+    });
   }, [api]);
 
   const runCommand = useCallback(async (command: string) => {
