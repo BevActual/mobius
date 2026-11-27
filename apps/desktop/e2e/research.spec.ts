@@ -48,8 +48,9 @@ test('a question becomes a report with its sources, written by Mobius from the w
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model', MOBIUS_WEB_SEARCH_URL: `${fixture.origin}/search/` } });
   const shell = mobius.shell;
   await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  // The Research page's own question form (kept until Research mode has proved itself) opens from New research.
   await shell.keyboard.press('Control+k');
-  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Research');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('New research');
   await shell.keyboard.press('Enter');
 
   const page = shell.getByRole('region', { name: 'Research' });
@@ -96,4 +97,59 @@ test('a question becomes a report with its sources, written by Mobius from the w
   await report1.getByRole('button', { name: 'Discard' }).click();
   await expect(report1.getByRole('heading', { name: 'Porto' })).toBeHidden();
   await expect.poll(() => fs.readFileSync(file, 'utf8')).not.toContain('Porto');
+});
+
+test('Research mode, from anywhere, turns the question into a Doc that Mobius fills with a cited report', async () => {
+  const doc = 'docs/Research/Boutique hotels in Principe Real.md';
+  const written = `# Boutique hotels in Príncipe Real\n\nCasa Amora is the closest fit: [nine rooms](${fixture.origin}/casa-amora) and breakfast included.\n\n## Sources\n\n- [Casa Amora](${fixture.origin}/casa-amora) — rooms and breakfast\n`;
+  model = await startModel([
+    callsTool('web-search', { query: 'boutique hotel Principe Real' }),
+    callsTool('web-read', { url: `${fixture.origin}/casa-amora` }),
+    callsTool('files-write', { path: doc, content: written }),
+    says(['Casa Amora: nine rooms, breakfast included.']),
+  ]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model', MOBIUS_WEB_SEARCH_URL: `${fixture.origin}/search/` } });
+  const shell = mobius.shell;
+  const box = shell.getByRole('textbox', { name: 'Message Mobius' });
+  await expect(box).toBeEnabled({ timeout: 15_000 });
+  // From the Browser (which puts Mobius away and back as it was) to Home, with Mobius closed beside: the report still
+  // shows Mobius, so its approvals can be answered.
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Browser');
+  await shell.keyboard.press('Enter');
+  await expect(shell.locator('.app')).toHaveAttribute('data-app', 'browser');
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Home');
+  await shell.keyboard.press('Enter');
+  // Agent, Ask, Plan, then Research.
+  await box.click();
+  for (let i = 0; i < 3; i++) await box.press('Shift+Tab');
+  await expect(shell.getByRole('button', { name: 'Mode: Research' })).toBeVisible();
+  await box.fill('Boutique hotels in Principe Real?');
+  await box.press('Enter');
+
+  // Docs opens on the new report, which holds the question until Mobius writes it.
+  const file = path.join(userData, 'workspace', ...doc.split('/'));
+  await expect.poll(() => fs.existsSync(file) && fs.readFileSync(file, 'utf8')).toContain('> Boutique hotels in Principe Real?');
+  await expect(shell.locator('.doc-editor').getByRole('textbox', { name: 'Document text' })).toContainText('Boutique hotels in Principe Real');
+  // Mobius shows beside the report (it was the Home page a moment ago), with its approvals in view.
+  await expect(shell.locator('.doc-editor')).toBeVisible();
+  const log = shell.getByRole('log', { name: 'Conversation' });
+  await expect(log.getByRole('group', { name: 'Approval needed: web.search' })).toBeVisible();
+  await log.getByRole('group', { name: 'Approval needed: web.search' }).getByRole('button', { name: 'Allow once' }).click();
+  await log.getByRole('group', { name: 'Approval needed: web.read' }).getByRole('button', { name: 'Allow once' }).click();
+  await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log.locator('.msg.assistant')).toContainText('breakfast included');
+  const asked = (model.requests[0]!.messages as Array<{ role: string; content: string }>).filter((m) => m.role === 'user').map((m) => m.content).join('\n');
+  expect(asked).toContain(`replace the whole of ${doc}`);
+  // A Doc links each fact to its page: no Research-only citation marks.
+  expect(asked).not.toContain('trust:web');
+  await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('## Sources');
+  // One report per question: the mode goes back to Agent.
+  await expect(shell.getByRole('button', { name: 'Mode: Agent' })).toBeVisible();
+  // Ctrl+K "Research" opens the reports, in Docs' Research folder.
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Research');
+  await shell.keyboard.press('Enter');
+  await expect(shell.locator('.doc-editor').getByRole('textbox', { name: 'Document text' })).toContainText('Casa Amora is the closest fit');
 });

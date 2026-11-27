@@ -133,7 +133,7 @@ Mobius's own apps, always there.
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/mail-dark.png"><img src="docs/readme/apps/mail.png" alt="The Mail app in Mobius"></picture><br><b>Mail</b> · Your mail on this computer, sorted, with drafts in your tone.<br><sub>Get to inbox zero faster. Mobius writes drafts; it never sends, you press Send.</sub></td>
 </tr>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/research-dark.png"><img src="docs/readme/apps/research.png" alt="The Research app in Mobius"></picture><br><b>Research</b> · Ask a question; Mobius searches, reads and writes a report.<br><sub>Get a sourced answer to a real question; follow-ups add to the same report.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/research-dark.png"><img src="docs/readme/apps/research.png" alt="The Research app in Mobius"></picture><br><b>Research</b> · Now a Mobius mode: ask in Research mode and Mobius searches, reads and writes a cited Doc. Earlier reports still open from Ctrl+K.<br><sub>Get a sourced answer to a real question; follow-ups add to the same report.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/reader-dark.png"><img src="docs/readme/apps/reader.png" alt="The Reader app in Mobius"></picture><br><b>Reader</b> · The Browser's reader mode: pages kept in Read later, as clean readable text.<br><sub>Read without clutter, and ask Mobius about the article you're reading.</sub></td>
 </tr>
 <tr>

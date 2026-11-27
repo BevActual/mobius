@@ -56,8 +56,8 @@ import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
 import { PinnedView, ViewPage, newView, usePinnedView } from './Views';
 import type { TileTarget } from './views-data';
-import { ResearchPage, ResearchSidebar } from './Research';
-import { researchSteps } from './research-format';
+import { RESEARCH_FOLDER, ResearchPage, ResearchSidebar } from './Research';
+import { researchPrompt, researchSteps, startingPage, titleFor } from './research-format';
 import { ReaderPage, readerSub, saveToReader } from './Reader';
 import { parseArticle, READING_LIST } from './reader-format';
 import { DatabasePage, DatabaseSidebar, databasePlace, databaseSub } from './Database';
@@ -861,8 +861,26 @@ export function App() {
   if (waitingNow) lastWaiting.current = waitingNow;
   // What the message box sends. "In the background": the panel steps aside while Mobius works, and the result lands
   // in Home's Inbox, so the person carries on with their own work.
+  // Research mode: the question becomes a Doc in Docs' Research folder, opened beside Mobius, which fills it with a
+  // cited report from the web.
+  const startResearch = async (question: string, items: ContextItem[], options: SendOptions) => {
+    const title = titleFor(question);
+    openApp('docs');
+    const book = docs.notebooks.find((n) => n.name === RESEARCH_FOLDER)?.name ?? (await docs.createNotebook(RESEARCH_FOLDER));
+    const path = book ? await docs.createPage(book, title, startingPage(question)) : null;
+    if (!path) { setToast('Mobius could not make the report’s document.'); return; }
+    // Mobius beside the report: its approvals (searches, pages to read) are where they can be answered. Opened whatever
+    // was showing before, as Home (where the Agent page is Mobius) gives way to Docs, and not put back as it was when
+    // leaving the Browser (that would close it again on the way to Docs).
+    chatBeforeBrowser.current = null;
+    setChatOpen(true);
+    // One report per question: the next message goes back to Agent (Research is chosen again for another).
+    setChatMode('agent');
+    void conversation.send(researchPrompt(question, 'thorough', `docs/${path}`, 'doc'), items, Object.keys(options).length > 0 ? options : undefined);
+  };
   const sendAsked = (text: string, items: ContextItem[], options?: SendOptions) => {
-    const { background: away, ...rest } = options ?? {};
+    const { background: away, research: researching, ...rest } = options ?? {};
+    if (researching && text.trim()) { void startResearch(text.trim(), items, rest); return; }
     if (away) {
       handoffs.start(conversation.state.conversation, (text.trim().split('\n')[0] ?? '').slice(0, 80) || 'Background task');
       if (rightOpen && app !== 'agent') {
@@ -1737,7 +1755,12 @@ export function App() {
     // Everything found in your apps: what Mobius already holds, then what each app's own source finds.
     find: (query: string) => findInSources(query, launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? (r.target.app === 'calendar' ? 'calendar' : 'agent'), label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))),
     commands: allCommands,
-    openApp: (id: AppId) => { opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions'); openApp(id); },
+    openApp: (id: AppId) => {
+      opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions');
+      // Research is a mode now: "Research" opens its reports, in Docs' Research folder (earlier ones are still found by name).
+      if (id === 'research') { openApp('docs'); const latest = docs.notebooks.find((n) => n.name === RESEARCH_FOLDER)?.pages.slice().sort((a, b) => b.modified - a.modified)[0]; if (latest) void docs.open(latest.path, latest.title); return; }
+      openApp(id);
+    },
     activateTab: (id: string) => { openApp('browser'); window.mobius.browser.activate(id); },
     newTab,
     openRecent: (item: { app: AppId; ref: string; label: string }) => { opener.current = null; closeSettings(); const target = targetOfRef(item.ref); if (target) openTarget(target, item.label); else openApp(item.app); },

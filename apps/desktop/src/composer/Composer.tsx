@@ -36,7 +36,7 @@ const KIND_NOTE: Record<ModelGroup['kind'], string> = { subscription: 'Plan', pr
 type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: ModelCatalog };
 
 /** How a message is sent: its mode, model and what goes with it. `background` hands it off: the result lands in Home's Inbox. */
-export interface SendOptions { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[]; effort?: 'none' | 'low' | 'medium' | 'high'; background?: boolean }
+export interface SendOptions { plan?: boolean; ask?: boolean; /** Research mode: the message is a question for a cited report, written into a new Doc. */ research?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[]; effort?: 'none' | 'low' | 'medium' | 'high'; background?: boolean }
 
 export interface ComposerProps {
   /** Offer "Send in the background" (Alt+Enter): beside an app, not in the Agent app where the chat is the work. */

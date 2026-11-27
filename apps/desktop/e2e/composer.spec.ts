@@ -285,13 +285,15 @@ test('permission and mode are changed from the message box, and the permission m
   await menu('Permission').getByRole('menuitemradio', { name: /^Review changes/ }).click();
   await expect(permission).toContainText('Review changes');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('propose');
-  // Shift+Tab in the message box goes to the next mode: Agent, Ask, Plan.
+  // Shift+Tab in the message box goes to the next mode: Agent, Ask, Plan, Research.
   const mode = shell().getByRole('button', { name: /^Mode: / });
   await expect(mode).toContainText('Agent');
   await composer().press('Shift+Tab');
   await expect(mode).toContainText('Ask');
   await composer().press('Shift+Tab');
   await expect(mode).toContainText('Plan');
+  await composer().press('Shift+Tab');
+  await expect(mode).toContainText('Research');
   await composer().press('Shift+Tab');
   await expect(mode).toContainText('Agent');
 });
@@ -319,7 +321,7 @@ test('effort Off tells a model on this computer not to think', async () => {
   expect(model!.requests.at(-1)).not.toHaveProperty('reasoning_effort');
 });
 
-test('an app adds its own mode after the shared three, sent by name with the host\'s instructions, and only there', async () => {
+test('an app adds its own mode after the shared four, sent by name with the host\'s instructions, and only there', async () => {
   await start([says(['Three to reply to.']), says(['Done.'])]);
   const openApp = async (name: string) => {
     await shell().keyboard.press('Control+k');
@@ -330,7 +332,7 @@ test('an app adds its own mode after the shared three, sent by name with the hos
   const mode = shell().getByRole('button', { name: /^Mode: / });
   await mode.click();
   const modes = menu('Mode').getByRole('menuitemradio');
-  await expect(modes).toHaveText([/^Agent/, /^Ask/, /^Plan/, /^Triage/]);
+  await expect(modes).toHaveText([/^Agent/, /^Ask/, /^Plan/, /^Research/, /^Triage/]);
   await menu('Mode').getByRole('menuitemradio', { name: /^Triage/ }).click();
   await expect(mode).toContainText('Triage');
   await say('sort my inbox');

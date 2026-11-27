@@ -6,17 +6,19 @@ describe('Mode and Permission', () => {
     expect(sendOptionsOf('agent')).toEqual({});
     expect(sendOptionsOf('ask')).toEqual({ ask: true });
     expect(sendOptionsOf('plan')).toEqual({ plan: true });
+    // Research is the window's own: the question becomes a Doc, and the host is sent an ordinary turn.
+    expect(sendOptionsOf('research', 'calendar')).toEqual({ research: true });
   });
-  it('goes Agent, Ask, Plan, then Agent again', () => {
-    expect([nextChatMode('agent'), nextChatMode('ask'), nextChatMode('plan')]).toEqual(['ask', 'plan', 'agent']);
+  it('goes Agent, Ask, Plan, Research, then Agent again', () => {
+    expect([nextChatMode('agent'), nextChatMode('ask'), nextChatMode('plan'), nextChatMode('research')]).toEqual(['ask', 'plan', 'research', 'agent']);
   });
-  it('offers an app its own modes after the shared three, and only there', () => {
-    expect(modesFor('mail').map((m) => m.name)).toEqual(['Agent', 'Ask', 'Plan', 'Triage']);
+  it('offers an app its own modes after the shared four, and only there', () => {
+    expect(modesFor('mail').map((m) => m.name)).toEqual(['Agent', 'Ask', 'Plan', 'Research', 'Triage']);
     expect(modesFor('notes').map((m) => m.name).at(-1)).toBe('Review');
     expect(modesFor('database').map((m) => m.name).at(-1)).toBe('Analyse');
-    expect(modesFor('calendar')).toHaveLength(3);
-    expect(modesFor()).toHaveLength(3);
-    expect(nextChatMode('plan', 'mail')).toBe('triage');
+    expect(modesFor('calendar')).toHaveLength(4);
+    expect(modesFor()).toHaveLength(4);
+    expect(nextChatMode('research', 'mail')).toBe('triage');
     expect(nextChatMode('triage', 'mail')).toBe('agent');
     expect(sendOptionsOf('triage', 'mail')).toEqual({ mode: 'triage' });
     // Triage chosen in Mail counts as Agent in Calendar.

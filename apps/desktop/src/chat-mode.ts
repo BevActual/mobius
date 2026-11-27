@@ -6,7 +6,7 @@ import type { ApprovalModeChoice } from '@mobius/shared';
  * is how much runs without asking. Mode is kept on this computer; Permission is the approval mode in the preferences,
  * with Apply changes as Review changes whose turns are kept at once.
  */
-export type SharedMode = 'agent' | 'ask' | 'plan';
+export type SharedMode = 'agent' | 'ask' | 'plan' | 'research';
 /** An app's own mode: a preset whose instructions the host holds (crates/mobius-host/src/agent.rs, APP_MODES). */
 export type AppModeId = 'triage' | 'review' | 'analyse' | 'debug';
 export type ChatMode = SharedMode | AppModeId;
@@ -17,19 +17,21 @@ export const CHAT_MODES: readonly ChatModeInfo[] = [
   { id: 'agent', name: 'Agent', hint: 'Does the work, across apps if needed', keys: '1' },
   { id: 'ask', name: 'Ask', hint: 'Answers and explains, changes nothing', keys: '2' },
   { id: 'plan', name: 'Plan', hint: 'Writes a plan and waits for you', keys: '3' },
+  // Deep research (the Research app folded in): the question becomes a Doc that Mobius fills with a cited report.
+  { id: 'research', name: 'Research', hint: 'Searches the web and writes a cited Doc', keys: '4' },
 ];
 
-/** Each app's own modes, shown after the shared three and only while you are in that app. */
+/** Each app's own modes, shown after the shared four and only while you are in that app. */
 export const APP_MODES: readonly (ChatModeInfo & { id: AppModeId; apps: readonly string[] })[] = [
-  { id: 'triage', name: 'Triage', hint: 'Sorts the inbox and drafts the replies', keys: '4', apps: ['mail'] },
-  { id: 'review', name: 'Review', hint: 'Comments and suggests, never edits the text', keys: '4', apps: ['docs', 'notes'] },
-  { id: 'analyse', name: 'Analyse', hint: 'Answers with charts and tables, never changes a cell', keys: '4', apps: ['sheets', 'database'] },
-  { id: 'debug', name: 'Debug', hint: 'Reproduces the bug, then proposes the fix', keys: '4', apps: ['code'] },
+  { id: 'triage', name: 'Triage', hint: 'Sorts the inbox and drafts the replies', keys: '5', apps: ['mail'] },
+  { id: 'review', name: 'Review', hint: 'Comments and suggests, never edits the text', keys: '5', apps: ['docs', 'notes'] },
+  { id: 'analyse', name: 'Analyse', hint: 'Answers with charts and tables, never changes a cell', keys: '5', apps: ['sheets', 'database'] },
+  { id: 'debug', name: 'Debug', hint: 'Reproduces the bug, then proposes the fix', keys: '5', apps: ['code'] },
 ];
 
 const IDS: readonly string[] = [...CHAT_MODES, ...APP_MODES].map((m) => m.id);
 
-/** The modes on offer in an app: the shared three, then its own. */
+/** The modes on offer in an app: the shared four, then its own. */
 export const modesFor = (app?: string): readonly ChatModeInfo[] => [...CHAT_MODES, ...APP_MODES.filter((m) => app !== undefined && m.apps.includes(app))];
 
 /** The mode in force in an app: a mode of another app counts as Agent here (and comes back on returning there). */
@@ -89,9 +91,9 @@ export const nextChatMode = (mode: ChatMode, app?: string): ChatMode => {
 export const chatModeOf = (mode: ChatMode, app?: string): ChatModeInfo => modesFor(app).find((m) => m.id === modeIn(mode, app)) ?? CHAT_MODES[0]!;
 
 /** What a message is sent with in each mode. */
-export const sendOptionsOf = (mode: ChatMode, app?: string): { plan?: boolean; ask?: boolean; mode?: AppModeId } => {
+export const sendOptionsOf = (mode: ChatMode, app?: string): { plan?: boolean; ask?: boolean; research?: boolean; mode?: AppModeId } => {
   const now = modeIn(mode, app);
-  return now === 'plan' ? { plan: true } : now === 'ask' ? { ask: true } : now === 'agent' ? {} : { mode: now };
+  return now === 'plan' ? { plan: true } : now === 'ask' ? { ask: true } : now === 'research' ? { research: true } : now === 'agent' ? {} : { mode: now };
 };
 
 export type Permission = 'each' | 'review' | 'apply' | 'auto';

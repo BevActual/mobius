@@ -13,7 +13,7 @@ const OUT = path.resolve(process.cwd(), 'screens');
 const APPS: Array<[string, string]> = [
   ['Browser', 'browser'], ['Agent', 'agent'], ['Mail', 'mail'], ['Notes', 'notes'], ['Docs', 'docs'], ['Projects', 'projects'],
   ['Knowledge', 'wiki'], ['Sheets', 'sheets'], ['Slides', 'slides'], ['Tasks', 'tasks'], ['Database', 'database'], ['Calendar', 'calendar'],
-  ['Research', 'research'], ['Reader', 'reader'], ['Design', 'design'], ['Photo', 'photo'], ['Music', 'studio'],
+  ['Reader', 'reader'], ['Design', 'design'], ['Photo', 'photo'], ['Music', 'studio'],
   ['Video', 'video'], ['Code', 'code'], ['Terminal', 'terminal'], ['Canvas', 'canvas'], ['Files', 'files'], ['Views', 'views'],
 ];
 
