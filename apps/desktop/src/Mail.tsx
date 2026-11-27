@@ -928,16 +928,24 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
  * the latest, with Reply in place, drawn from the same parts as Mail's reader. The shell draws its header (the
  * subject, Open in Mail, Put away).
  */
-export function MailThreadPiece({ mail, id }: { mail: MailState; id: string }) {
+export function MailThreadPiece({ mail, id, onGone }: { mail: MailState; id: string; /** The message is no longer here: the piece goes. */ onGone?: () => void }) {
   const [content, setContent] = useState<MailContent | null | 'gone'>(null);
+  const gone = useRef(onGone);
+  gone.current = onGone;
   useEffect(() => {
     let live = true;
-    void window.mobius.mail?.read(id).then((got) => { if (live) setContent(!got || isNotesFailure(got) ? 'gone' : got); });
+    void window.mobius.mail?.read(id).then((got) => {
+      if (!live) return;
+      const missing = !got || isNotesFailure(got);
+      setContent(missing ? 'gone' : got);
+      if (missing) gone.current?.();
+    });
     return () => { live = false; };
   }, [id]);
   if (content === null) return <div className="mail-piece"><ListLoading /></div>;
   if (content === 'gone') return <p className="mail-piece-gone">This message is no longer here.</p>;
   const replying = mail.editing && mail.editing.replyTo === content.id ? mail.editing : null;
+  const suggestions = mail.drafts.filter((d) => d.by === 'mobius' && d.replyTo === content.id);
   const kept = mail.drafts.filter((d) => d.by === 'you' && d.replyTo === content.id);
   return (
     <article className="mail-piece mail-reader" aria-label={content.subject || 'Message'}>
@@ -950,9 +958,10 @@ export function MailThreadPiece({ mail, id }: { mail: MailState; id: string }) {
         </div>
       </header>
       <pre className="mail-text">{content.text}</pre>
+      {suggestions.map((d) => <Suggested key={d.id} mail={mail} draft={d} />)}
       {!replying && kept.map((d) => <KeptReply key={d.id} mail={mail} draft={d} />)}
       {replying ? <DraftEditor key={replying.id || 'reply'} mail={mail} draft={replying} inline />
-        : kept.length === 0 && <ReplyBox mail={mail} content={content} onDraftReply={undefined} />}
+        : suggestions.length === 0 && kept.length === 0 && <ReplyBox mail={mail} content={content} onDraftReply={undefined} />}
     </article>
   );
 }

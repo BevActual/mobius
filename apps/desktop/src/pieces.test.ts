@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PIECES, parsePieces, pieceKey, withPiece, type OpenPiece } from './pieces';
+import { MAX_PIECES, NO_WORK, parsePieces, pieceKey, withPiece, workOpenIn, workToShow, type MobiusWork, type OpenPiece } from './pieces';
 
 describe('pieces', () => {
   it('reads only well-formed pieces, once each', () => {
@@ -31,5 +31,24 @@ describe('pieces', () => {
   it('keeps one Calendar day piece, which follows the day it is stepped to', () => {
     const today: OpenPiece = { kind: 'calendar.day', item: 'today', by: 'you' };
     expect(withPiece([today], { kind: 'calendar.day', item: '2026-11-28', by: 'mobius' })).toEqual([{ kind: 'calendar.day', item: '2026-11-28', by: 'you' }]);
+  });
+});
+
+describe('Mobius bringing pieces', () => {
+  const work = (lists: string[] = [], days: [string, string][] = [], drafts: [string, string][] = []): MobiusWork => ({
+    lists: new Set(lists), days: new Map(days), drafts: new Map(drafts.map(([id, replyTo]) => [id, { replyTo, title: `Re ${replyTo}` }])),
+  });
+  it('brings the first new thing of a turn, and nothing for work that was there already', () => {
+    expect(workToShow(work(['Inbox']), work(['Inbox']))).toBeNull();
+    expect(workToShow(work(['Inbox']), work(['Inbox', 'Errands']))).toEqual({ kind: 'tasks.list', item: 'Errands' });
+    expect(workToShow(NO_WORK, work([], [['s1', '2026-11-28']]))).toEqual({ kind: 'calendar.day', item: '2026-11-28' });
+    expect(workToShow(NO_WORK, work([], [], [['d1', 'm1']]))).toEqual({ kind: 'mail.thread', item: 'm1', title: 'Re m1' });
+  });
+  it('knows when the piece\'s work is kept or discarded', () => {
+    const now = work(['Errands'], [['s1', '2026-11-28']], [['d1', 'm1']]);
+    expect(workOpenIn({ kind: 'tasks.list', item: 'Errands' }, now)).toBe(true);
+    expect(workOpenIn({ kind: 'tasks.list', item: 'Inbox' }, now)).toBe(false);
+    expect(workOpenIn({ kind: 'calendar.day', item: '2026-11-28' }, now)).toBe(true);
+    expect(workOpenIn({ kind: 'mail.thread', item: 'm2' }, now)).toBe(false);
   });
 });
