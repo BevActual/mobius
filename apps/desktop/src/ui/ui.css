@@ -136,10 +136,10 @@
 .ui-dock-edge::before, .ui-dock-edge::after { content: ''; position: absolute; pointer-events: none; border-radius: var(--radius-pill); transition: background var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease); }
 .ui-dock-edge::after { background: var(--line-strong); }
 .ui-dock-edge::before { background: var(--muted); opacity: 0; }
-.ui-dock[data-dock="left"] > .ui-dock-edge::after, .ui-dock[data-dock="right"] > .ui-dock-edge::after { top: 50%; left: 50%; width: 3px; height: 32px; margin: -16px 0 0 -1.5px; }
-.ui-dock[data-dock="bottom"] > .ui-dock-edge::after { top: 50%; left: 50%; width: 32px; height: 3px; margin: -1.5px 0 0 -16px; }
-.ui-dock[data-dock="left"] > .ui-dock-edge::before, .ui-dock[data-dock="right"] > .ui-dock-edge::before { top: var(--sp-2); bottom: var(--sp-2); left: 50%; width: 1px; margin-left: -0.5px; }
-.ui-dock[data-dock="bottom"] > .ui-dock-edge::before { left: var(--sp-2); right: var(--sp-2); top: 50%; height: 1px; margin-top: -0.5px; }
+.ui-dock[data-dock="left"] > .ui-dock-edge::after, .ui-dock[data-dock="right"] > .ui-dock-edge::after { top: 50%; left: 50%; width: calc(var(--hairline-w) * 3); height: var(--sp-8); margin: calc(var(--sp-8) / -2) 0 0 calc(var(--hairline-w) * -1.5); }
+.ui-dock[data-dock="bottom"] > .ui-dock-edge::after { top: 50%; left: 50%; width: var(--sp-8); height: calc(var(--hairline-w) * 3); margin: calc(var(--hairline-w) * -1.5) 0 0 calc(var(--sp-8) / -2); }
+.ui-dock[data-dock="left"] > .ui-dock-edge::before, .ui-dock[data-dock="right"] > .ui-dock-edge::before { top: var(--sp-2); bottom: var(--sp-2); left: 50%; width: var(--hairline-w); margin-left: calc(var(--hairline-w) / -2); }
+.ui-dock[data-dock="bottom"] > .ui-dock-edge::before { left: var(--sp-2); right: var(--sp-2); top: 50%; height: var(--hairline-w); margin-top: calc(var(--hairline-w) / -2); }
 /* A short wait before the line, so passing over the edge on the way somewhere else shows nothing. */
 .ui-dock-edge:hover::before { opacity: 0.5; transition-delay: 120ms; }
 .ui-dock-edge:hover::after, .ui-dock-edge:focus-visible::after, .ui-dock-edge[data-dragging]::after { background: var(--muted); transition-delay: 120ms; }
@@ -217,10 +217,10 @@
 .ui-panels[data-moving-panel] * { cursor: grabbing !important; }
 .ui-dock-targets { position: absolute; inset: 0; z-index: 40; pointer-events: none; animation: ui-dock-targets-in var(--dur-fast) var(--ease); }
 .ui-dock-target { position: absolute; border: var(--hairline-w) dashed var(--line-strong); border-radius: var(--radius-panel); background: transparent; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
-.ui-dock-target[data-dock="left"] { left: var(--sp-2); top: var(--sp-2); bottom: var(--sp-2); width: min(28%, 280px); }
-.ui-dock-target[data-dock="right"] { right: var(--sp-2); top: var(--sp-2); bottom: var(--sp-2); width: min(28%, 320px); }
-.ui-dock-target[data-dock="bottom"] { left: calc(min(28%, 280px) + var(--sp-4)); right: calc(min(28%, 320px) + var(--sp-4)); bottom: var(--sp-2); height: 30%; }
-.ui-dock-target[data-over] { border-style: solid; border-color: var(--muted); background: color-mix(in srgb, var(--ink) 7%, transparent); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 10%, transparent); }
+.ui-dock-target[data-dock="left"] { left: var(--sp-2); top: var(--sp-2); bottom: var(--sp-2); width: min(28%, calc(var(--sp-8) * 9)); }
+.ui-dock-target[data-dock="right"] { right: var(--sp-2); top: var(--sp-2); bottom: var(--sp-2); width: min(28%, calc(var(--sp-8) * 10)); }
+.ui-dock-target[data-dock="bottom"] { left: calc(min(28%, calc(var(--sp-8) * 9)) + var(--sp-4)); right: calc(min(28%, calc(var(--sp-8) * 10)) + var(--sp-4)); bottom: var(--sp-2); height: 30%; }
+.ui-dock-target[data-over] { border-style: solid; border-color: var(--muted); background: color-mix(in srgb, var(--ink) 7%, transparent); box-shadow: 0 var(--sp-2) var(--sp-6) color-mix(in srgb, var(--ink) 10%, transparent); }
 @keyframes ui-dock-targets-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ui-dock-targets { animation: none; } .ui-dock-target { transition: none; } }
 .ui-panel-head[data-movable] { user-select: none; -webkit-user-select: none; }
@@ -228,7 +228,7 @@
 .ui-panel[data-held] { opacity: 0.55; }
 /* A panel laid out by its room, not its dock (usePanelShape). In a short, wide place (the bottom dock), a list of places
    flows into columns rather than stretching its rows across the whole width. */
-.ui-panel[data-shape="strip"] :is(.ui-panel-body, .app-side-body) > .side { display: block; columns: 220px; column-gap: var(--sp-4); column-fill: auto; height: 100%; overflow: auto hidden; }
+.ui-panel[data-shape="strip"] :is(.ui-panel-body, .app-side-body) > .side { display: block; columns: calc(var(--sp-8) * 7); column-gap: var(--sp-4); column-fill: auto; height: 100%; overflow: auto hidden; }
 .ui-panel[data-shape="strip"] .ui-panel-body > .app-side { height: 100%; }
 .ui-panel[data-shape="strip"] :is(.side-search, .side-new, .side-head, .ui-side-section > .side-head) { break-inside: avoid; break-after: avoid; }
 .ui-panel[data-shape="strip"] .ui-side-list > li { break-inside: avoid; }
@@ -242,11 +242,11 @@
 .ui-panel[data-shape="strip"] .side :is(li, .side-head) { break-inside: avoid; }
 /* A popped-out panel floats over the page: moved by its header, sized from its corner, docked again from its menu or
    by dragging it to a dock. */
-.ui-float { position: absolute; z-index: 30; display: flex; min-width: 220px; min-height: 160px; border-radius: var(--radius-panel); background: var(--bg); box-shadow: 0 0 0 var(--hairline-w) var(--line), 0 12px 32px color-mix(in srgb, var(--ink) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ink) 8%, transparent); overflow: hidden; animation: ui-float-in var(--dur-med, 180ms) var(--ease); }
+.ui-float { position: absolute; z-index: 30; display: flex; min-width: calc(var(--sp-8) * 7); min-height: calc(var(--sp-8) * 5); border-radius: var(--radius-panel); background: var(--bg); box-shadow: 0 0 0 var(--hairline-w) var(--line), 0 var(--sp-3) var(--sp-8) color-mix(in srgb, var(--ink) 16%, transparent), 0 calc(var(--sp-1) / 2) calc(var(--sp-1) * 1.5) color-mix(in srgb, var(--ink) 8%, transparent); overflow: hidden; animation: ui-float-in var(--dur-med, 180ms) var(--ease); }
 .ui-float > .ui-panel { flex: 1; min-width: 0; min-height: 0; }
 .ui-float .ui-panel-head[data-movable] { cursor: grab; }
-.ui-float-size { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; touch-action: none; }
-.ui-float-size::after { content: ''; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-right: 1.5px solid var(--line-strong); border-bottom: 1.5px solid var(--line-strong); border-bottom-right-radius: 2px; }
+.ui-float-size { position: absolute; right: 0; bottom: 0; width: calc(var(--sp-3) + var(--sp-1) / 2); height: calc(var(--sp-3) + var(--sp-1) / 2); cursor: nwse-resize; touch-action: none; }
+.ui-float-size::after { content: ''; position: absolute; right: var(--sp-1); bottom: var(--sp-1); width: calc(var(--sp-1) * 1.5); height: calc(var(--sp-1) * 1.5); border-right: calc(var(--hairline-w) * 1.5) solid var(--line-strong); border-bottom: calc(var(--hairline-w) * 1.5) solid var(--line-strong); border-bottom-right-radius: calc(var(--hairline-w) * 2); }
 .ui-float-size:hover::after { border-color: var(--muted); }
-@keyframes ui-float-in { from { opacity: 0; transform: scale(0.97) translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes ui-float-in { from { opacity: 0; transform: scale(0.97) translateY(var(--sp-1)); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .ui-float { animation: none; } }
