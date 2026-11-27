@@ -226,7 +226,7 @@
    the delete confirm take the date's place on hover, so the row never changes height or shifts. */
 .notes-side[data-app="notes"] { --note-row: calc(var(--row-list) + var(--sp-4)); }
 .notes-side[data-app="notes"] .ui-side-row-trail { position: relative; }
-.dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row { height: var(--note-row); min-height: var(--note-row); padding-block: var(--sp-2); padding-right: calc(2 * var(--sp-8) + var(--sp-2)); line-height: var(--lh-tight); }
+.side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row { height: var(--note-row); min-height: var(--note-row); padding-block: var(--sp-2); padding-right: calc(2 * var(--sp-8) + var(--sp-2)); line-height: var(--lh-tight); }
 .notes-side[data-app="notes"] .ui-side-row-trail .ui-side-text { gap: var(--sp-1); }
 .notes-side[data-app="notes"] .note-side-when { position: absolute; top: var(--sp-2); right: var(--sp-2); line-height: calc(var(--fs-md) * var(--lh-tight)); pointer-events: none; color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .notes-side .ui-side-row-trail:hover > .note-delete, .notes-side .ui-side-row-trail > .note-delete:focus-visible { opacity: 1; }
