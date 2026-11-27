@@ -41,8 +41,27 @@ export interface PanelSpec {
   fixed?: boolean;
   /** The name screen readers hear, when it must differ from the header's. */
   label?: string;
-  /** The panel's body. Its own controls go here, never in the header. */
+  /** The least room it works in. A dock holding it keeps at least this size (within the dock's own range). */
+  min?: { width?: number; height?: number };
+  /** The panel's body. Its own controls go here, never in the header. Lay it out by `usePanelShape()`, not by its dock. */
   render: () => ReactNode;
+}
+
+/**
+ * The shape of the room a panel has, wherever it is: `narrow` (a thin column), `strip` (short and wide, as the bottom
+ * dock is) or `column` (the usual side panel). A panel lays itself out by this, so it stays useful when it is moved,
+ * resized or popped out (docs/design/pieces.md, round 0). Its section carries it too, as `data-shape`, for CSS.
+ */
+export type PanelShape = 'narrow' | 'column' | 'strip';
+export function panelShape(width: number, height: number): PanelShape {
+  if (width < 220) return 'narrow';
+  if (width >= 520 && height <= 380 && width >= height * 1.8) return 'strip';
+  return 'column';
+}
+const ShapeContext = createContext<PanelShape>('column');
+/** The shape of the panel this is drawn in (`column` outside a panel). */
+export function usePanelShape(): PanelShape {
+  return useContext(ShapeContext);
 }
 
 /** Each dock's size: the default, and the range a drag keeps to. The bottom dock is at most 70% of the content. */
@@ -254,10 +273,10 @@ export function PanelLayout({ app, panels: declared, away = false, children }: {
   // The lists on the left fold their sections, as every sidebar does (side-fold.ts).
   useSideFolds(leftDock, left.length > 0);
   const right = panels.filter((p) => p.dock === 'right' && isShown(p));
-  const leftSize = clampDock('left', saved.size.left ?? left.find((p) => p.size)?.size ?? DOCK_SIZE.left.initial);
+  const leftSize = atLeast('left', left, clampDock('left', saved.size.left ?? left.find((p) => p.size)?.size ?? DOCK_SIZE.left.initial));
   const bottom = panels.filter((p) => p.dock === 'bottom' && isShown(p));
-  const rightSize = clampDock('right', saved.size.right ?? right.find((p) => p.size)?.size ?? DOCK_SIZE.right.initial);
-  const bottomSize = clampDock('bottom', saved.size.bottom ?? bottom.find((p) => p.size)?.size ?? DOCK_SIZE.bottom.initial, mainHeight.current);
+  const rightSize = atLeast('right', right, clampDock('right', saved.size.right ?? right.find((p) => p.size)?.size ?? DOCK_SIZE.right.initial));
+  const bottomSize = atLeast('bottom', bottom, clampDock('bottom', saved.size.bottom ?? bottom.find((p) => p.size)?.size ?? DOCK_SIZE.bottom.initial, mainHeight.current), mainHeight.current);
   const resize = (dock: PanelDock, size: number | undefined) => update((was) => {
     const next = { ...was.size };
     if (size === undefined) delete next[dock]; else next[dock] = clampDock(dock, size, mainHeight.current);
@@ -316,6 +335,12 @@ export function PanelLayout({ app, panels: declared, away = false, children }: {
       )}
     </div>
   );
+}
+
+/** A dock's size, at least what its shown panels need (`min`), still within the dock's range. */
+export function atLeast(dock: PanelDock, shown: readonly PanelSpec[], size: number, room = Infinity): number {
+  const need = Math.max(0, ...shown.map((p) => (dock === 'bottom' ? p.min?.height : p.min?.width) ?? 0));
+  return need > size ? clampDock(dock, need, room) : size;
 }
 
 /** Panels in the docks the person moved them to (a fixed panel stays). */
@@ -394,6 +419,15 @@ function Panel({ place, onHide, onChoose, onMove, onDrag }: {
   const moveEntries: MenuEntry[] = movable ? DOCKS.filter((d) => d !== spec.dock).map((d) => ({ label: d === 'bottom' ? 'Move to the bottom' : `Move to the ${d}`, run: () => onMove(spec, d) })) : [];
   const drag = useRef<{ x: number; y: number; page: DOMRect; over: PanelDock | null; live: boolean } | null>(null);
   const [held, setHeld] = useState(false);
+  const section = useRef<HTMLElement>(null);
+  const [shape, setShape] = useState<PanelShape>(() => (spec.dock === 'bottom' ? 'strip' : 'column'));
+  useLayoutEffect(() => {
+    const node = section.current;
+    if (!node || typeof ResizeObserver === 'undefined') return undefined;
+    const seen = new ResizeObserver(() => setShape(panelShape(node.clientWidth, node.clientHeight)));
+    seen.observe(node);
+    return () => seen.disconnect();
+  }, []);
   const down = (e: ReactPointerEvent<HTMLElement>) => {
     if (!movable || e.button !== 0 || (e.target as Element).closest('button')) return;
     const page = e.currentTarget.closest('.ui-panels')?.getBoundingClientRect();
@@ -439,7 +473,7 @@ function Panel({ place, onHide, onChoose, onMove, onDrag }: {
   };
   const hideLabel = tabbed ? `Hide ${place.panels.map((p) => p.name).join(', ')}` : `Hide ${spec.name}`;
   return (
-    <section className="ui-panel" aria-label={spec.label ?? spec.name} data-panel={spec.id} {...(tabbed ? { 'data-tabbed': true } : {})} {...(held ? { 'data-held': true } : {})}>
+    <section ref={section} className="ui-panel" data-shape={shape} aria-label={spec.label ?? spec.name} data-panel={spec.id} {...(tabbed ? { 'data-tabbed': true } : {})} {...(held ? { 'data-held': true } : {})}>
       <header
         className="ui-panel-head"
         {...(movable ? { 'data-movable': true } : {})}
@@ -494,7 +528,7 @@ function Panel({ place, onHide, onChoose, onMove, onDrag }: {
           onClose={() => setMenu(null)}
         />
       )}
-      <div className="ui-panel-body" id={`panel-body-${spec.id}`} {...(tabbed ? { role: 'tabpanel', 'aria-labelledby': `panel-tab-${spec.id}` } : {})}>{spec.render()}</div>
+      <div className="ui-panel-body" id={`panel-body-${spec.id}`} {...(tabbed ? { role: 'tabpanel', 'aria-labelledby': `panel-tab-${spec.id}` } : {})}><ShapeContext.Provider value={shape}>{spec.render()}</ShapeContext.Provider></div>
     </section>
   );
 }

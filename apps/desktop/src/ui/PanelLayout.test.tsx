@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { DOCK_KEYS, DOCK_SIZE, PanelLayout, clampDock, dockAt, dockPlaces, parseLayout, placedPanels, pressIs, type PanelSpec } from './PanelLayout';
+import { DOCK_KEYS, DOCK_SIZE, PanelLayout, atLeast, clampDock, dockAt, panelShape, dockPlaces, parseLayout, placedPanels, pressIs, type PanelSpec } from './PanelLayout';
 
 const press = (key: string, over: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({ key, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...over });
 
@@ -131,6 +131,17 @@ describe('panels', () => {
     expect(dockAt(500, 700, page)).toBe('bottom');
     expect(dockAt(500, 300, page)).toBeNull();
     expect(dockAt(-5, 300, page)).toBeNull();
+  });
+
+  it('know the shape of a panel\'s room, and keep a dock wide enough for what its panels need', () => {
+    expect(panelShape(180, 600)).toBe('narrow');
+    expect(panelShape(300, 700)).toBe('column');
+    expect(panelShape(1000, 260)).toBe('strip');
+    expect(panelShape(600, 500)).toBe('column');
+    const wide: PanelSpec = { id: 'w', name: 'W', dock: 'left', min: { width: 300 }, render: () => null };
+    expect(atLeast('left', [wide], 248)).toBe(300);
+    expect(atLeast('left', [wide], 360)).toBe(360);
+    expect(atLeast('left', [{ ...wide, min: { width: 900 } }], 248)).toBe(DOCK_SIZE.left.max);
   });
 
   it('match keys with mod as Control (or Command on a Mac), and nothing extra held', () => {

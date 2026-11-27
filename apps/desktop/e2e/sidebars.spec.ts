@@ -224,4 +224,10 @@ test('a panel moves to another dock from its header\'s menu or by dragging its h
   await shell().getByRole('menuitem', { name: 'Move to the bottom' }).click();
   await expect(lists('bottom')).toBeVisible();
   expect(await shell().evaluate(() => JSON.parse(localStorage.getItem('mobius.layout.tasks') ?? '{}').dock)).toEqual({ list: 'bottom' });
+  // At the bottom it lays itself out for a short, wide place: its lists flow into columns, not rows the page's width.
+  await expect(lists('bottom')).toHaveAttribute('data-shape', 'strip');
+  const today = (await lists('bottom').getByRole('button', { name: 'Today', exact: true }).boundingBox())!;
+  const inbox = (await lists('bottom').getByRole('button', { name: /^Inbox/ }).boundingBox())!;
+  expect(inbox.x).toBeGreaterThan(today.x + today.width / 2);
+  expect(today.width).toBeLessThan(400);
 });
