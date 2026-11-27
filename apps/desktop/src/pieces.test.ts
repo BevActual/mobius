@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PIECES, NO_WORK, parsePieces, pieceKey, withPiece, workOpenIn, workToShow, type MobiusWork, type OpenPiece } from './pieces';
+import { MAX_PIECES, NO_WORK, pieceOfTarget, parsePieces, pieceKey, withPiece, workOpenIn, workToShow, type MobiusWork, type OpenPiece } from './pieces';
 
 describe('pieces', () => {
   it('reads only well-formed pieces, once each', () => {
@@ -50,5 +50,15 @@ describe('Mobius bringing pieces', () => {
     expect(workOpenIn({ kind: 'tasks.list', item: 'Inbox' }, now)).toBe(false);
     expect(workOpenIn({ kind: 'calendar.day', item: '2026-11-28' }, now)).toBe(true);
     expect(workOpenIn({ kind: 'mail.thread', item: 'm2' }, now)).toBe(false);
+  });
+});
+
+describe('Show here', () => {
+  it('knows which found things have a piece', () => {
+    expect(pieceOfTarget({ app: 'tasks', list: 'Errands' })).toEqual({ kind: 'tasks.list', item: 'Errands' });
+    expect(pieceOfTarget({ app: 'mail', id: 'm1' }, 'Re: Lunch')).toEqual({ kind: 'mail.thread', item: 'm1', title: 'Re: Lunch' });
+    expect(pieceOfTarget({ app: 'calendar', date: '2026-12-01' })).toEqual({ kind: 'calendar.day', item: '2026-12-01' });
+    expect(pieceOfTarget({ app: 'calendar' })).toEqual({ kind: 'calendar.day', item: 'today' });
+    expect(pieceOfTarget({ app: 'notes' })).toBeNull();
   });
 });
