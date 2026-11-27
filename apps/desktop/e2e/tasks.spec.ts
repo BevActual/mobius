@@ -422,3 +422,59 @@ test('a list shown beside stays as a piece in other apps: tick and add there, op
   await expect(piece).toHaveCount(0);
   expect(await shell().evaluate(() => localStorage.getItem('mobius.pieces'))).toBe('[]');
 });
+
+test('Mobius brings up the list it works in beside another app, and puts it away once its change is kept', async () => {
+  fs.mkdirSync(path.dirname(file('Errands')), { recursive: true });
+  fs.writeFileSync(file('Errands'), '# Errands\n\n- [ ] Post the parcel\n');
+  // The answer comes slowly, so the piece comes while the turn still runs.
+  await start([callsTool('tasks-add', { list: 'Errands', text: 'Buy stamps' }), says(['Added ', 'it to Errands.'], 3000)]);
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByRole('complementary', { name: 'Notebooks' })).toBeVisible();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Remind me to buy stamps');
+  await composer.press('Enter');
+  await shell().getByRole('button', { name: 'Allow once' }).click();
+  const piece = shell().locator('section[data-panel="piece:tasks.list:Errands"]');
+  await expect(piece.getByRole('checkbox', { name: 'Buy stamps' })).toBeVisible();
+  await expect(piece).toHaveAttribute('data-mobius', /.*/);
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added it to Errands.', { timeout: 15_000 });
+  // Still there while the change waits; Keep all takes it away.
+  await expect(piece).toBeVisible();
+  await shell().getByRole('region', { name: 'Changes from the last turn' }).getByRole('button', { name: /^Keep all changes/ }).click();
+  await expect(piece).toHaveCount(0);
+  expect(await shell().evaluate(() => localStorage.getItem('mobius.pieces'))).toBe('[]');
+});
+
+test('a piece Mobius brought stays once the person uses it, and Esc puts away only Mobius\'s', async () => {
+  fs.mkdirSync(path.dirname(file('Errands')), { recursive: true });
+  fs.writeFileSync(file('Errands'), '# Errands\n\n- [ ] Post the parcel\n');
+  await start([callsTool('tasks-add', { list: 'Errands', text: 'Buy stamps' }), says(['Added it to Errands.'])]);
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Remind me to buy stamps');
+  await composer.press('Enter');
+  await shell().getByRole('button', { name: 'Allow once' }).click();
+  const piece = shell().locator('section[data-panel="piece:tasks.list:Errands"]');
+  await expect(piece.getByRole('checkbox', { name: 'Buy stamps' })).toBeVisible();
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added it to Errands.');
+  // Esc away from any field puts Mobius's piece away.
+  await shell().locator('body').click({ position: { x: 2, y: 2 } }).catch(() => undefined);
+  await shell().evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await shell().keyboard.press('Escape');
+  await expect(piece).toHaveCount(0);
+  // Shown again by the person, it is theirs: Esc leaves it.
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Tasks');
+  await shell().keyboard.press('Enter');
+  await lists().getByRole('button', { name: /^Errands/ }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Show beside' }).click();
+  await expect(piece).toBeVisible();
+  await shell().evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await shell().keyboard.press('Escape');
+  await expect(piece).toBeVisible();
+  await expect(piece).not.toHaveAttribute('data-mobius', /.*/);
+});

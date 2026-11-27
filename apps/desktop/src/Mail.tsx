@@ -938,6 +938,7 @@ export function MailThreadPiece({ mail, id }: { mail: MailState; id: string }) {
   if (content === null) return <div className="mail-piece"><ListLoading /></div>;
   if (content === 'gone') return <p className="mail-piece-gone">This message is no longer here.</p>;
   const replying = mail.editing && mail.editing.replyTo === content.id ? mail.editing : null;
+  const suggestions = mail.drafts.filter((d) => d.by === 'mobius' && d.replyTo === content.id);
   const kept = mail.drafts.filter((d) => d.by === 'you' && d.replyTo === content.id);
   return (
     <article className="mail-piece mail-reader" aria-label={content.subject || 'Message'}>
@@ -950,9 +951,10 @@ export function MailThreadPiece({ mail, id }: { mail: MailState; id: string }) {
         </div>
       </header>
       <pre className="mail-text">{content.text}</pre>
+      {suggestions.map((d) => <Suggested key={d.id} mail={mail} draft={d} />)}
       {!replying && kept.map((d) => <KeptReply key={d.id} mail={mail} draft={d} />)}
       {replying ? <DraftEditor key={replying.id || 'reply'} mail={mail} draft={replying} inline />
-        : kept.length === 0 && <ReplyBox mail={mail} content={content} onDraftReply={undefined} />}
+        : suggestions.length === 0 && kept.length === 0 && <ReplyBox mail={mail} content={content} onDraftReply={undefined} />}
     </article>
   );
 }
