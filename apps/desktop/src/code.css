@@ -82,6 +82,17 @@
 @media (prefers-reduced-motion: reduce) { .code-page .ed-cursor { animation: none; } }
 /* The field that takes the keys sits at the cursor (so an input method's window opens there) and is never seen. */
 .code-page .ed-input { position: absolute; width: 1px; height: var(--code-line); margin: 0; padding: 0; border: 0; outline: 0; resize: none; overflow: hidden; opacity: 0; font: inherit; white-space: pre; caret-color: transparent; pointer-events: none; }
+.code-page .ed-bracket { position: absolute; height: var(--code-line); box-sizing: border-box; border: var(--hairline-w) solid color-mix(in srgb, var(--ink) 45%, transparent); border-radius: 2px; background: color-mix(in srgb, var(--ink) 6%, transparent); pointer-events: none; }
+.code-page .ed-same-word { position: absolute; height: var(--code-line); border-radius: 2px; background: color-mix(in srgb, var(--ink) 9%, transparent); pointer-events: none; }
+.code-page .ed-same-word[data-here] { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.code-page .ed-guide { position: absolute; width: 0; height: var(--code-line); border-left: var(--hairline-w) solid color-mix(in srgb, var(--ink) 10%, transparent); pointer-events: none; }
+/* Find and replace: the find row, and under it the replace row while it is shown. */
+.code-page .code-find { align-items: flex-start; padding-left: var(--sp-1); }
+.code-page .code-find-rows { display: flex; flex-direction: column; gap: var(--sp-1); }
+.code-page .code-find-row { display: flex; align-items: center; gap: var(--sp-1); }
+.code-page .code-find-row input { padding: 0 var(--sp-2); border-radius: var(--radius-control); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.code-page .code-find-row input[aria-invalid] { box-shadow: inset 0 0 0 var(--hairline-w) var(--c-coral); }
+.code-page .code-find-row .btn { padding: 0 var(--sp-2); }
 .code-page .code-found { position: absolute; height: var(--code-line); border-radius: var(--radius-small); background: color-mix(in srgb, var(--c-yellow) 40%, transparent); pointer-events: none; }
 .code-page .code-found[data-current] { background: color-mix(in srgb, var(--c-yellow) 80%, transparent); box-shadow: 0 0 0 var(--hairline-w) var(--c-amber); }
 .code-page .code-status { flex: none; display: flex; align-items: center; gap: var(--sp-4); height: var(--info-h); padding: 0 var(--sp-3); border-top: var(--hairline-w) solid var(--line); font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; overflow: hidden; }

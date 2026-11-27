@@ -15,7 +15,7 @@ import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
 import './code.css';
-import { CodeText } from './CodeText';
+import { CodeText, type BarMode } from './CodeText';
 import { afterPaint } from './ui/frame';
 
 /** Projects, and the open project's files as a tree, with the ones the agent changed in its last turn marked. */
@@ -468,7 +468,7 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
 /** The open file: as Mobius changed it (to keep or discard) or as you type it, and the project's tests below. */
 export function CodeEditor({ code, review, listPanels = [], terminal }: { code: CodeState; review?: { conversation: string; settled?: boolean } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[]; /** The workspace's terminal, Code's Terminal panel (the Terminal app folded in). */ terminal?: ReactNode }) {
   const file = code.open && code.project ? `code/${code.project}/${code.open.path}` : null;
-  const [bar, setBar] = useState<'find' | 'line' | null>(null);
+  const [bar, setBar] = useState<BarMode | null>(null);
   const [quick, setQuick] = useState(false);
   // Ctrl+P opens a file by name from anywhere in the app.
   useEffect(() => {

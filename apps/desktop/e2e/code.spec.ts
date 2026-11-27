@@ -327,3 +327,52 @@ test('the editor has many cursors, moves lines, places the cursor with the point
   expect(Date.now() - started).toBeLessThan(3_000);
   await expect(shell().getByText('Ln 20001, Col 5')).toBeVisible();
 });
+
+test('find and replace changes one match or all of them, by whole word or pattern, and select all makes them cursors', async () => {
+  await start();
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await expect(editor).toHaveValue(BUDGET);
+  await editor.focus();
+  await shell().keyboard.press('Control+h');
+  const bar = shell().getByRole('search', { name: 'Find in file' });
+  await bar.getByRole('textbox', { name: 'Find in file' }).fill('people');
+  await expect(bar).toContainText('1 of 3');
+  await bar.getByRole('textbox', { name: 'Replace with' }).fill('guests');
+  await bar.getByRole('button', { name: 'Replace', exact: true }).click();
+  await expect(editor).toHaveValue(BUDGET.replace('people', 'guests'));
+  await expect(bar).toContainText('1 of 2');
+  await bar.getByRole('button', { name: 'Replace all' }).click();
+  await expect(editor).toHaveValue(BUDGET.replaceAll('people', 'guests'));
+  // Replace all is one step for undo.
+  await editor.focus();
+  await shell().keyboard.press('Control+z');
+  await expect(editor).toHaveValue(BUDGET.replace('people', 'guests'));
+  await shell().keyboard.press('Control+z');
+  await expect(editor).toHaveValue(BUDGET);
+
+  // A regular expression, with its groups in the replacement.
+  await shell().keyboard.press('Control+h');
+  await bar.getByRole('button', { name: 'Regular expression' }).click();
+  await bar.getByRole('textbox', { name: 'Find in file' }).fill('(\\w+) \\* 100');
+  await expect(bar).toContainText('1 of 1');
+  await bar.getByRole('textbox', { name: 'Replace with' }).fill('100 * $1');
+  await bar.getByRole('button', { name: 'Replace all' }).click();
+  await expect(editor).toHaveValue(BUDGET.replace('total * 100', '100 * total'));
+  await bar.getByRole('textbox', { name: 'Find in file' }).fill('(');
+  await expect(bar).toContainText('Not a pattern');
+
+  // Alt+Enter selects every match as a cursor, so typing changes them all.
+  await bar.getByRole('button', { name: 'Regular expression' }).click();
+  await bar.getByRole('textbox', { name: 'Find in file' }).fill('each');
+  await shell().keyboard.press('Alt+Enter');
+  await expect(shell().getByText('2 cursors', { exact: false })).toBeVisible();
+  await shell().keyboard.type('share');
+  await expect(editor).toHaveValue(BUDGET.replace('total * 100', '100 * total').replaceAll('each', 'share'));
+
+  // The bracket at the cursor and its partner are boxed.
+  await shell().keyboard.press('Escape');
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.press('ArrowDown');
+  await shell().keyboard.press('End');
+  await expect(shell().locator('.ed-bracket')).toHaveCount(2);
+});
