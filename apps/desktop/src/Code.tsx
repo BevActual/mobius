@@ -13,6 +13,7 @@ import { RowMark } from './RowMark';
 import type { CodeState, CodeTests } from './useCode';
 import { useLanguage, type LanguageState } from './code-lsp';
 import { pagePath, pickedLine, sourcePath, useCodePreview, type PreviewState } from './code-preview';
+import { useSideFile, type SideFile } from './code-split';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
@@ -475,12 +476,22 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   // Ctrl+P opens a file by name from anywhere in the app.
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'p' && code.project) { e.preventDefault(); setQuick(true); }
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'p' && code.project) {
+        e.preventDefault();
+        // In the second editor, Ctrl+P opens a file there.
+        if ((document.activeElement as HTMLElement | null)?.closest('.code-pane-side')) setSideQuick(true); else setQuick(true);
+      }
+      // Ctrl+\ splits the editor: the open file beside itself, or the split closed when there is one.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === '\\' || e.code === 'Backslash') && code.open) {
+        e.preventDefault();
+        splitRef.current();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [code.project]);
+  }, [code.project, code.open]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setBar(null); }, [code.open?.path]);
+  const splitRef = useRef<() => void>(() => {});
   // A command Mobius runs shows where it can be seen: the Console panel opens for it.
   const assistantRuns = code.consoleRuns.filter((r) => r.by === 'assistant').length;
   const [kept, setKept] = useState(false);
@@ -523,18 +534,20 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   const jump = useRef<((line: number) => void) | null>(null);
   const lsp = useLanguage(code);
   const preview = useCodePreview(code);
-  // The open file as the last commit has it, for the editor's change marks (read again after each save and commit).
-  const [base, setBase] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    const api = window.mobius.code;
-    const project = code.project;
-    const path = code.open?.path;
-    if (!api || !project || !path || !code.git.repo) { setBase(undefined); return undefined; }
-    let on = true;
-    void api.gitBase(project, path).then((r) => { if (on) setBase('repo' in r && r.repo && r.text !== null ? r.text : undefined); }).catch(() => { if (on) setBase(undefined); });
-    return () => { on = false; };
-  }, [code.project, code.open?.path, code.git]); // eslint-disable-line react-hooks/exhaustive-deps
+  const base = useGitBase(code);
+  // The split: a second editor beside the first (Ctrl+\\), with its own find bar and language smarts.
+  const side = useSideFile(code);
+  const sideLsp = useLanguage(side.state && !side.shared ? side.state : NO_FILE(code));
+  const sideBase = useGitBase(side.state ?? NO_FILE(code));
+  const [sideBar, setSideBar] = useState<BarMode | null>(null);
+  const [sideQuick, setSideQuick] = useState(false);
+  useEffect(() => { setSideBar(null); }, [side.path]);
   const [showProblems, setShowProblems] = useState(0);
+  splitRef.current = () => {
+    if (side.path) { side.close(); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.code-pane-main .ed-input')?.focus({ preventScroll: true })); return; }
+    if (!code.open) return;
+    void side.open(code.open.path).then(() => requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.code-pane-side .ed-input')?.focus({ preventScroll: true })));
+  };
   useEffect(() => {
     if (!showSuggestion || running) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -565,7 +578,8 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   return (
     <PanelLayout app="code" panels={[...listPanels, ...(outlinePanel ? [outlinePanel] : []), ...bottomPanels]}>
     <section className="code-page" aria-label="Code">
-      <div className="code-main">
+      <div className="code-main" data-split={side.state ? '' : undefined}>
+       <div className="code-pane code-pane-main">
         {code.open ? (
           <>
             <FileTabs code={code} />
@@ -587,6 +601,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
                     {preview.url && <Button kind="quiet" pressed={preview.picking} title="Click an element on the page to go to its code" onClick={() => void preview.pick()}>Pick</Button>}
                   </>
                 )}
+                {code.open.text !== null && !side.state && <Button kind="quiet" title={`Split the editor: a second file beside this one (${keyLabel('\\')})`} onClick={() => splitRef.current()}>Split</Button>}
                 {code.dirty && <button type="button" className="btn" onClick={() => code.setDraft(code.open?.text ?? '')}>Revert</button>}
                 {code.open.text !== null && <Button kind={code.dirty ? 'primary' : 'quiet'} disabled={!code.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void lsp.save()}>Save</Button>}
               </span>
@@ -604,10 +619,69 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
         ) : (
           <NoFileOpen code={code} onQuick={() => setQuick(true)} />
         )}
+       </div>
+        {side.state && <SidePane side={side} lsp={side.shared ? lsp : sideLsp} base={side.shared ? base : sideBase} bar={sideBar} setBar={setSideBar} onQuick={() => setSideQuick(true)} onShowProblems={() => setShowProblems((n) => n + 1)} />}
       </div>
       {quick && <QuickOpen code={code} onClose={() => setQuick(false)} />}
+      {sideQuick && side.state && <QuickOpen code={{ ...side.state, openFile: (p: string) => side.open(p) }} onClose={() => { setSideQuick(false); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.code-pane-side .ed-input')?.focus({ preventScroll: true })); }} />}
     </section>
     </PanelLayout>
+  );
+}
+
+/** Code with no file open, for the second editor's hooks while it shows nothing of its own. */
+const NO_FILE = (code: CodeState): CodeState => ({ ...code, open: null });
+
+/** The open file as the last commit has it, for the editor's change marks (read again after each save and commit). */
+function useGitBase(code: CodeState): string | undefined {
+  const [base, setBase] = useState<string | undefined>(undefined);
+  const project = code.project;
+  const path = code.open?.path;
+  const repo = code.git.repo;
+  useEffect(() => {
+    const api = window.mobius.code;
+    if (!api || !project || !path || !repo) { setBase(undefined); return undefined; }
+    let on = true;
+    void api.gitBase(project, path).then((r) => { if (on) setBase('repo' in r && r.repo && r.text !== null ? r.text : undefined); }).catch(() => { if (on) setBase(undefined); });
+    return () => { on = false; };
+  }, [project, path, repo, code.git, code.open?.modified]); // eslint-disable-line react-hooks/exhaustive-deps
+  return base;
+}
+
+/** The second editor: its file's name, Open file…, Save and Close, then the file itself. */
+function SidePane({ side, lsp, base, bar, setBar, onQuick, onShowProblems }: { side: SideFile; lsp: LanguageState; base: string | undefined; bar: BarMode | null; setBar: (bar: BarMode | null) => void; onQuick: () => void; onShowProblems: () => void }) {
+  const state = side.state;
+  if (!state) return null;
+  const file = state.open;
+  const name = side.path?.split('/').pop() ?? '';
+  return (
+    <div className="code-pane code-pane-side" role="region" aria-label={`Second editor: ${side.path ?? ''}`}>
+      <div className="code-tabs" role="tablist" aria-label="File in the second editor">
+        <div className="code-tab" data-current title={side.path ?? ''}>
+          <button type="button" role="tab" aria-selected className="code-tab-main"><FileGlyph /><span className="code-tab-name">{name}</span></button>
+          <button type="button" className="code-tab-close" data-unsaved={state.dirty || undefined} aria-label="Close the second editor" title={`Close the split (${keyLabel('\\')})${state.dirty ? ': drops what was typed' : ''}`} onClick={side.close}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+          </button>
+        </div>
+      </div>
+      <header className="code-file-head">
+        <nav className="code-crumbs" aria-label="Where this file is">
+          {side.path!.split('/').slice(0, -1).map((part, i) => <Fragment key={i}><span>{part}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></Fragment>)}
+          <span className="code-path"><FileGlyph />{name}</span>
+        </nav>
+        {state.dirty && <span className="code-dirty" role="status">Not saved</span>}
+        <span className="code-head-actions">
+          <Button kind="quiet" title={`Open another file here (${keyLabel('P')} while this editor has the keyboard)`} onClick={onQuick}>Open…</Button>
+          {file?.text != null && <Button kind={state.dirty ? 'primary' : 'quiet'} disabled={!state.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void (side.shared ? state.save() : lsp.save())}>Save</Button>}
+        </span>
+      </header>
+      {side.message && <p className="tasks-message" role="alert">{side.message}</p>}
+      {file === null ? null : file.text === null ? (
+        <p className="note-empty">This file is {file.why ?? 'not shown'}.</p>
+      ) : (
+        <CodeText code={state} lang={langOf(file.path)} bar={bar} setBar={setBar} lsp={lsp} onShowProblems={onShowProblems} {...(base !== undefined ? { base } : {})} />
+      )}
+    </div>
   );
 }
 

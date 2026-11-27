@@ -662,3 +662,41 @@ test('Preview shows the page beside Code, saving reloads it, its error goes to i
   await expect(code.locator('footer.code-status')).toContainText('Ln 3, Col 3');
   await page.close();
 });
+
+test('the editor splits: the same file shows in both, another file opens beside with its own save, and Ctrl+\\ closes it', async () => {
+  await start();
+  const code = shell().getByRole('region', { name: 'Code' });
+  const main = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await expect(main).toHaveValue(BUDGET);
+  await code.getByRole('button', { name: 'Split' }).click();
+  const side = shell().getByRole('region', { name: 'Second editor: src/budget.js' });
+  await expect(side).toBeVisible();
+  await expect(main).toHaveCount(2);
+  // The same file: typing in the second shows in the first.
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('// both');
+  await expect(main.first()).toHaveValue(`${BUDGET}// both`);
+  await shell().keyboard.press('Control+z');
+  await expect(main.first()).toHaveValue(BUDGET);
+  // Ctrl+P in the second editor opens a file there; the first keeps its own.
+  await shell().keyboard.press('Control+p');
+  await shell().getByRole('combobox', { name: 'File to open' }).fill('budget.test');
+  await shell().keyboard.press('Enter');
+  const other = shell().getByRole('region', { name: 'Second editor: tests/budget.test.js' });
+  const otherText = other.getByRole('textbox', { name: 'Contents of tests/budget.test.js' });
+  await expect(otherText).toHaveValue(TEST);
+  await expect(main).toHaveCount(1);
+  await otherText.focus();
+  await shell().keyboard.press('Control+Home');
+  await shell().keyboard.type('// checked\n');
+  await expect(other.getByRole('status').filter({ hasText: 'Not saved' })).toBeVisible();
+  await expect(code.locator('.code-pane-main').getByText('Not saved')).toHaveCount(0);
+  await shell().keyboard.press('Control+s');
+  await expect.poll(() => fs.readFileSync(path.join(project, 'tests', 'budget.test.js'), 'utf8')).toBe(`// checked\n${TEST}`);
+  expect(budget()).toBe(BUDGET);
+  // Ctrl+\ closes the split, and opens it again on the file the first editor shows.
+  await shell().keyboard.press('Control+Backslash');
+  await expect(other).toBeHidden();
+  await shell().keyboard.press('Control+Backslash');
+  await expect(shell().getByRole('region', { name: 'Second editor: src/budget.js' })).toBeVisible();
+});
