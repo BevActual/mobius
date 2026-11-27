@@ -15,6 +15,7 @@ without asking. Both stay as you left them.
 | **Agent** (the default) | Does the work, across apps if needed. |
 | **Ask** | Answers and explains, and changes nothing. |
 | **Plan** | Writes a plan and waits for you before doing any of it. |
+| **Research** | Deep research: your question becomes a new Doc in Docs' Research folder, opened beside Mobius, which searches the web, reads the best pages and writes a report there with each fact linked to its page and a Sources list. |
 
 Shift+Tab in the message box steps through the modes.
 

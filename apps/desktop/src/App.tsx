@@ -55,8 +55,8 @@ import { CodeEditor, CodeGlance, CodeSidebar } from './Code';
 import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
 import { ViewPage, ViewsSidebar, newView } from './Views';
-import { ResearchPage, ResearchSidebar } from './Research';
-import { researchSteps } from './research-format';
+import { RESEARCH_FOLDER, ResearchPage, ResearchSidebar } from './Research';
+import { researchPrompt, researchSteps, startingPage, titleFor } from './research-format';
 import { ReaderPage, readerSub, saveToReader } from './Reader';
 import { parseArticle, READING_LIST } from './reader-format';
 import { DatabasePage, DatabaseSidebar, databasePlace, databaseSub } from './Database';
@@ -859,8 +859,19 @@ export function App() {
   if (waitingNow) lastWaiting.current = waitingNow;
   // What the message box sends. "In the background": the panel steps aside while Mobius works, and the result lands
   // in Home's Inbox, so the person carries on with their own work.
+  // Research mode: the question becomes a Doc in Docs' Research folder, opened beside Mobius, which fills it with a
+  // cited report from the web.
+  const startResearch = async (question: string, items: ContextItem[], options: SendOptions) => {
+    const title = titleFor(question);
+    openApp('docs');
+    const book = docs.notebooks.find((n) => n.name === RESEARCH_FOLDER)?.name ?? (await docs.createNotebook(RESEARCH_FOLDER));
+    const path = book ? await docs.createPage(book, title, startingPage(question)) : null;
+    if (!path) { setToast('Mobius could not make the report’s document.'); return; }
+    void conversation.send(researchPrompt(question, 'thorough', `docs/${path}`, 'doc'), items, Object.keys(options).length > 0 ? options : undefined);
+  };
   const sendAsked = (text: string, items: ContextItem[], options?: SendOptions) => {
-    const { background: away, ...rest } = options ?? {};
+    const { background: away, research: researching, ...rest } = options ?? {};
+    if (researching && text.trim()) { void startResearch(text.trim(), items, rest); return; }
     if (away) {
       handoffs.start(conversation.state.conversation, (text.trim().split('\n')[0] ?? '').slice(0, 80) || 'Background task');
       if (rightOpen && app !== 'agent') {

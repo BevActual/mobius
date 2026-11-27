@@ -97,3 +97,39 @@ test('a question becomes a report with its sources, written by Mobius from the w
   await expect(report1.getByRole('heading', { name: 'Porto' })).toBeHidden();
   await expect.poll(() => fs.readFileSync(file, 'utf8')).not.toContain('Porto');
 });
+
+test('Research mode, from anywhere, turns the question into a Doc that Mobius fills with a cited report', async () => {
+  const doc = 'docs/Research/Boutique hotels in Principe Real.md';
+  const written = `# Boutique hotels in Príncipe Real\n\nCasa Amora is the closest fit: [nine rooms](${fixture.origin}/casa-amora) and breakfast included.\n\n## Sources\n\n- [Casa Amora](${fixture.origin}/casa-amora) — rooms and breakfast\n`;
+  model = await startModel([
+    callsTool('web-search', { query: 'boutique hotel Principe Real' }),
+    callsTool('web-read', { url: `${fixture.origin}/casa-amora` }),
+    callsTool('files-write', { path: doc, content: written }),
+    says(['Casa Amora: nine rooms, breakfast included.']),
+  ]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model', MOBIUS_WEB_SEARCH_URL: `${fixture.origin}/search/` } });
+  const shell = mobius.shell;
+  const box = shell.getByRole('textbox', { name: 'Message Mobius' });
+  await expect(box).toBeEnabled({ timeout: 15_000 });
+  // Agent, Ask, Plan, then Research.
+  await box.click();
+  for (let i = 0; i < 3; i++) await box.press('Shift+Tab');
+  await expect(shell.getByRole('button', { name: 'Mode: Research' })).toBeVisible();
+  await box.fill('Boutique hotels in Principe Real?');
+  await box.press('Enter');
+
+  // Docs opens on the new report, which holds the question until Mobius writes it.
+  const file = path.join(userData, 'workspace', ...doc.split('/'));
+  await expect.poll(() => fs.existsSync(file) && fs.readFileSync(file, 'utf8')).toContain('> Boutique hotels in Principe Real?');
+  await expect(shell.locator('.doc-editor').getByRole('textbox', { name: 'Document text' })).toContainText('Boutique hotels in Principe Real');
+  const log = shell.getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: web.search' }).getByRole('button', { name: 'Allow once' }).click();
+  await log.getByRole('group', { name: 'Approval needed: web.read' }).getByRole('button', { name: 'Allow once' }).click();
+  await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log.locator('.msg.assistant')).toContainText('breakfast included');
+  const asked = (model.requests[0]!.messages as Array<{ role: string; content: string }>).filter((m) => m.role === 'user').map((m) => m.content).join('\n');
+  expect(asked).toContain(`replace the whole of ${doc}`);
+  // A Doc links each fact to its page: no Research-only citation marks.
+  expect(asked).not.toContain('trust:web');
+  await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('## Sources');
+});

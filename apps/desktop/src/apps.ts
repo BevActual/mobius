@@ -22,7 +22,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'tasks', name: 'Tasks', available: true, group: 'Write and plan' },
   { id: 'database', name: 'Database', available: true, group: 'Write and plan' },
   { id: 'calendar', name: 'Calendar', available: true, group: 'Write and plan' },
-  { id: 'research', name: 'Research', available: true, group: 'Browse and find' },
+  { id: 'research', name: 'Research', available: true, group: 'Browse and find', modeOf: 'docs', also: 'Deep research Reports Sources' },
   { id: 'reader', name: 'Reader', available: true, group: 'Browse and find', modeOf: 'browser', also: 'Read later Reading list Articles' },
   { id: 'design', name: 'Design', available: true, group: 'Create' },
   { id: 'photo', name: 'Photo', available: true, group: 'Create' },
