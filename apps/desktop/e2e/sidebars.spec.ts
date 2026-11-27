@@ -61,8 +61,12 @@ test('the tabs panel can be dragged wider, within limits, and the Browser keeps 
   const y = box.y + 200;
   await shell().mouse.move(x, y);
   await shell().mouse.down();
+  // The edge can be seen: a small grip at rest, and it says while it is held.
+  expect(await handle.evaluate((e) => getComputedStyle(e, '::after').height)).toBe('32px');
   await shell().mouse.move(x + 60, y, { steps: 6 });
+  await expect(handle).toHaveAttribute('data-dragging', 'true');
   await shell().mouse.up();
+  await expect(handle).not.toHaveAttribute('data-dragging');
   await expect(handle).toHaveAttribute('aria-valuenow', '308');
   await expect.poll(pageOnSlot).toBeLessThanOrEqual(2);
   await shell().mouse.move(x + 60, y);

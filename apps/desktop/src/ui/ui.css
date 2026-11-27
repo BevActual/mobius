@@ -131,7 +131,20 @@
 .ui-dock[data-dock="left"] > .ui-dock-edge { top: 0; bottom: 0; right: calc(-1 * var(--sp-1)); width: var(--sp-2); cursor: col-resize; }
 .ui-dock[data-dock="right"] > .ui-dock-edge { top: 0; bottom: 0; left: calc(-1 * var(--sp-1)); width: var(--sp-2); cursor: col-resize; }
 .ui-dock[data-dock="bottom"] > .ui-dock-edge { left: 0; right: 0; top: calc(-1 * var(--sp-1)); height: var(--sp-2); cursor: row-resize; }
-.ui-dock-edge:focus-visible { outline: var(--hairline-w) solid var(--ink); outline-offset: calc(-1 * var(--sp-1)); }
+.ui-dock-edge:focus-visible { outline: none; }
+/* The edge shows itself: a small grip at rest (as the split view's divider), a line along it on hover, focus or drag. */
+.ui-dock-edge::before, .ui-dock-edge::after { content: ''; position: absolute; pointer-events: none; border-radius: var(--radius-pill); transition: background var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease); }
+.ui-dock-edge::after { background: var(--line-strong); }
+.ui-dock-edge::before { background: var(--muted); opacity: 0; }
+.ui-dock[data-dock="left"] > .ui-dock-edge::after, .ui-dock[data-dock="right"] > .ui-dock-edge::after { top: 50%; left: 50%; width: 3px; height: 32px; margin: -16px 0 0 -1.5px; }
+.ui-dock[data-dock="bottom"] > .ui-dock-edge::after { top: 50%; left: 50%; width: 32px; height: 3px; margin: -1.5px 0 0 -16px; }
+.ui-dock[data-dock="left"] > .ui-dock-edge::before, .ui-dock[data-dock="right"] > .ui-dock-edge::before { top: var(--sp-2); bottom: var(--sp-2); left: 50%; width: 1px; margin-left: -0.5px; }
+.ui-dock[data-dock="bottom"] > .ui-dock-edge::before { left: var(--sp-2); right: var(--sp-2); top: 50%; height: 1px; margin-top: -0.5px; }
+/* A short wait before the line, so passing over the edge on the way somewhere else shows nothing. */
+.ui-dock-edge:hover::before { opacity: 0.5; transition-delay: 120ms; }
+.ui-dock-edge:hover::after, .ui-dock-edge:focus-visible::after, .ui-dock-edge[data-dragging]::after { background: var(--muted); transition-delay: 120ms; }
+.ui-dock-edge:focus-visible::before, .ui-dock-edge[data-dragging]::before { opacity: 0.8; transition-delay: 0ms; }
+.ui-dock-edge[data-dragging]::after { transition-delay: 0ms; }
 .ui-menu-tick { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Tooltip (Tooltip.tsx): a small ink label, the control's name and then its keys as caps. */

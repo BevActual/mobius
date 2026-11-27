@@ -390,11 +390,15 @@ function Panel({ place, onHide, onChoose }: { place: DockPlace; onHide: () => vo
 /** The edge between a dock and the content: drag to resize, double-click for the default size, arrows by 16px. */
 function DockEdge({ dock, size, onSize }: { dock: PanelDock; size: number; onSize: (size: number | undefined) => void }) {
   const drag = useRef<{ from: number; size: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
   const at = (e: { clientX: number; clientY: number }) => (dock === 'left' ? e.clientX : dock === 'right' ? -e.clientX : -e.clientY);
   const down = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { from: at(e), size };
+    setDragging(true);
   };
+  const end = () => { drag.current = null; setDragging(false); };
   const move = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (drag.current) onSize(drag.current.size + at(e) - drag.current.from);
   };
@@ -413,8 +417,10 @@ function DockEdge({ dock, size, onSize }: { dock: PanelDock; size: number; onSiz
       aria-valuenow={size}
       onPointerDown={down}
       onPointerMove={move}
-      onPointerUp={() => { drag.current = null; }}
-      onPointerCancel={() => { drag.current = null; }}
+      onPointerUp={end}
+      onPointerCancel={end}
+      onLostPointerCapture={end}
+      data-dragging={dragging || undefined}
       onDoubleClick={() => onSize(undefined)}
       onKeyDown={key}
     />
