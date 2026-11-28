@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sceneCount, type ArrangeClip, type Song, type Track } from './song-format';
-import { asSessionClip, consolidateToScene, copyToSession, moveSlot, placeInArrange } from './studio-moves';
+import { asSessionClip, consolidateToScene, copyToSession, hearJam, moveSlot, placeInArrange, startJam, writeJam } from './studio-moves';
 
 const track = (id: string, over: Partial<Track> = {}): Track => ({ id, name: id.toUpperCase(), instrument: 'bass', volume: 0.8, pan: 0, muted: false, solo: false, color: 'blue', clips: [], ...over });
 const song = (tracks: Track[], bars = 8): Song => ({ version: 2, tempo: 120, key: 'C major', bars, tracks });
@@ -74,5 +74,26 @@ describe('consolidateToScene', () => {
   });
   it('does nothing for an empty stretch', () => {
     expect(consolidateToScene(song([track('a')]), 4, 4, null)).toBeNull();
+  });
+});
+
+describe('recording a Session jam into Arrange', () => {
+  it('lays each launch on its track where it played, going round for as long as it played', () => {
+    const a = { name: 'A', bars: 1, notes: [note(0)] };
+    const b = { name: 'B', bars: 2, notes: [note(1)] };
+    const s = song([track('k', { slots: [a, b] }), track('d', { slots: [a] })], 4);
+    // Recording starts in bar 2 of the Session's clock, with k already going round A; it lands from Arrange's bar 3.
+    const jam = startJam(s, { k: { slot: 0, start: 0 } }, 5, 8);
+    hearJam(jam, s, { k: { slot: 0, start: 0 }, d: { slot: 0, start: 8 } }, 8.1);
+    hearJam(jam, s, { k: { slot: 1, start: 12 }, d: { slot: 0, start: 8 } }, 12.1);
+    hearJam(jam, s, { k: { slot: 1, start: 12 } }, 16.2);
+    expect(writeJam(s, jam, 22)).toBe(3);
+    expect(s.tracks[0]!.clips.map((c) => [c.start, c.length, c.name, c.loop?.end])).toEqual([[8, 8, 'A', 4], [16, 10, 'B', 8]]);
+    expect(s.tracks[1]!.clips.map((c) => [c.start, c.length, c.name])).toEqual([[12, 8, 'A']]);
+    expect(s.bars).toBe(7);
+  });
+  it('lays nothing when nothing played', () => {
+    const s = song([track('k')]);
+    expect(writeJam(s, startJam(s, {}, 0, 0), 8)).toBe(0);
   });
 });

@@ -10,7 +10,7 @@ import { AudioClipDetail } from './studio-audio-clip';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
 import { pressKey, soundInputs, chooseInput, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
-import { CLIP_DRAG, consolidateToScene, copyToSession, moveSlot, placeInArrange } from './studio-moves';
+import { CLIP_DRAG, consolidateToScene, copyToSession, hearJam, moveSlot, placeInArrange, startJam, writeJam, type Jam } from './studio-moves';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
 import type { LibraryItem } from './studio-library';
@@ -1103,7 +1103,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
 
   /** What the player goes round: the picked bars, the whole song, or nothing when Loop is off. */
   const cycleFor = useCallback((s: Song): Cycle | null => (loop ? (range ? cycleOf(range.a, range.b, s.bars) : { from: 0, to: s.bars * BEATS_PER_BAR }) : null), [loop, range]);
+  /** A Session jam being recorded into Arrange (Live 12, 7.5); `endJam` lays it there. */
+  const jam = useRef<Jam | null>(null);
+  const [jamming, setJamming] = useState(false);
+  const endJam = useRef<() => void>(() => {});
   const stop = useCallback(() => {
+    endJam.current();
     counting.current?.stop(); counting.current = null;
     finishAll.current?.();
     setRecording(false);
@@ -1133,6 +1138,28 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     setPlaying(true);
   }, [song, cycleFor, click]);
   const start = useCallback(() => (view === 'session' ? startSession() : startAt(Math.floor(beat))), [view, startSession, startAt, beat]);
+  // Where Arrange's playhead was last: a Session jam recorded into Arrange lands from its bar, as in Live.
+  const arrangeBeat = useRef(0);
+  useEffect(() => { if (view === 'arrange') arrangeBeat.current = beat; }, [view, beat]);
+  // Each launch, start over and stop while a jam records.
+  useEffect(() => { if (jam.current && song) hearJam(jam.current, song, sessionNow.playing, beat); }, [sessionNow]); // eslint-disable-line react-hooks/exhaustive-deps
+  endJam.current = () => {
+    const j = jam.current;
+    if (!j || !song) return;
+    jam.current = null;
+    setJamming(false);
+    const at = session.current?.beat() ?? beat;
+    hearJam(j, song, session.current?.playing() ?? {}, at);
+    change((s) => { writeJam(s, j, at); });
+  };
+  /** Arrangement Record in Session (F9): starts the Session's clock if need be, and lays what is launched into Arrange. */
+  const recordJam = () => {
+    if (jam.current) { endJam.current(); return; }
+    if (!song) return;
+    if (!session.current) startSession();
+    jam.current = startJam(song, session.current?.playing() ?? {}, session.current?.beat() ?? 0, Math.floor(arrangeBeat.current / BEATS_PER_BAR) * BEATS_PER_BAR);
+    setJamming(true);
+  };
   const seek = useCallback((to: number) => {
     setBeat(to);
     if (playing && song) { player.current?.stop(); heard.current = playedAs(song, cycleFor(song)); player.current = play(song, to, cycleFor(song), click); }
@@ -1843,7 +1870,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
     if (mod && e.shiftKey && !e.altKey && k === 'e') { void exportWav(); return true; }
-    if (!mod && !e.altKey && e.key === 'F9') { record(); return true; }
+    if (!mod && !e.altKey && e.key === 'F9') { if (view === 'session') recordJam(); else record(); return true; }
     if (!mod && !e.altKey && k === 'a' && view === 'arrange') { setShowAuto((a) => !a); return true; }
     if (!mod && !e.altKey && k === 'l') { setLoop((l) => !l); return true; }
     if (!mod && !e.altKey && k === 'b' && editing && detail === 'notes' && drumView !== 'steps') { setDraw((d) => !d); return true; }
@@ -2149,7 +2176,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         <span className="studio-sep" aria-hidden="true" />
         <ToolbarItem priority="keep">
           <Transport playing={playing} onPlay={() => (playing ? stop() : start())} onStop={stopOrRewind}
-            recording={recording} onRecord={view === 'arrange' && track ? record : undefined}
+            recording={view === 'session' ? jamming : recording} onRecord={view === 'session' ? recordJam : track ? record : undefined}
             loop={loop} onLoop={() => setLoop((l) => !l)} metronome={click} onMetronome={() => setClick((c) => !c)}
             keys={{ play: 'Space', stop: 'Enter', record: 'F9', loop: 'L', metronome: 'K' }} />
         </ToolbarItem>
