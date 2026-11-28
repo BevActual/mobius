@@ -81,6 +81,9 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'files.edit': return `change ${place(s('path'))}`;
     // No count: the title can be drawn while the moves still stream in, and a moved folder carries files of its own.
     case 'files.move': { const n = Array.isArray(a.moves) ? a.moves.length : 0; return `move ${n === 1 ? 'one file or folder' : 'files and folders'} in ${s('folder') ? quote(s('folder')) : 'your workspace'}`; }
+    case 'show.list': return `show your ${quote(s('list'))} list beside your work`;
+    case 'show.day': return `show ${s('date') === 'today' || !s('date') ? 'today' : s('date')} beside your work`;
+    case 'show.thread': return 'show a mail conversation beside your work';
     case 'tasks.list': return s('list') ? `read your ${quote(s('list'))} tasks` : 'read your task lists';
     case 'tasks.add': return extra > 0 ? `add ${extra + 1} tasks to ${s('list') || 'Inbox'} in Tasks` : s('text') ? `add ${quote(s('text'))} to ${s('list') || 'Inbox'} in Tasks` : 'add a task';
     case 'tasks.update': return extra > 0 ? `change ${extra + 1} tasks${s('list') ? ` in ${s('list')}` : ''}` : s('task') || s('text') ? `change the task ${quote(s('task') || s('text'))}` : 'change a task';

@@ -48,6 +48,9 @@ web.read
 code.start
 code.output
 code.stop
+show.list
+show.day
+show.thread
 db.list
 db.query
 db.execute

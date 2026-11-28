@@ -1811,7 +1811,7 @@ impl Bridge {
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
         stage.store(1, std::sync::atomic::Ordering::Relaxed);
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::contacts::is_contact_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || mobius_workspace::video::is_video_tool(t) || crate::drives::is_drive_tool(t) || crate::day::is_day_tool(t) || crate::bass::is_bass_tool(t) || crate::messages_tools::is_messages_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::contacts::is_contact_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::show::is_show_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || mobius_workspace::video::is_video_tool(t) || crate::drives::is_drive_tool(t) || crate::day::is_day_tool(t) || crate::bass::is_bass_tool(t) || crate::messages_tools::is_messages_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -1852,6 +1852,9 @@ impl Bridge {
             let result = if tool == "code.commit" { crate::code_git::commit(&dir, args.get("message").and_then(Value::as_str).unwrap_or("")) } else { crate::code_git::push(&dir) }?;
             (self.emit)("mobius:code-changed", json!({ "project": project, "path": null, "by": "assistant" }));
             return Ok(Value::String(result.to_string()));
+        }
+        if crate::show::is_show_tool(tool) {
+            return self.show(tool, &args, params.get("conversation").and_then(Value::as_str).unwrap_or("")).map(Value::String);
         }
         if crate::code_processes::is_process_tool(tool) {
             // An id as a number, or as the text of one (as a model may write it).
@@ -2519,8 +2522,36 @@ impl Bridge {
         })
     }
 
+    /// Show a list, a day or a mail conversation beside the person's work: the window brings the piece up, for the
+    /// conversation it is open on only (background work never brings pieces).
+    fn show(&self, tool: &str, args: &Value, conversation: &str) -> Result<String, String> {
+        let arg = |k: &str| args.get(k).and_then(Value::as_str).map(str::trim).unwrap_or("");
+        let (piece, said) = match tool {
+            crate::show::LIST => {
+                let list = arg("list");
+                let lists = self.tasks.lists()?;
+                let name = lists.as_array().into_iter().flatten().filter_map(|l| l["name"].as_str()).find(|n| n.eq_ignore_ascii_case(list)).ok_or_else(|| format!("There is no list called {list}. tasks.list gives their names."))?.to_owned();
+                (json!({ "kind": "tasks.list", "item": name }), format!("Showing {name} beside the person's work."))
+            }
+            crate::show::DAY => {
+                let day = crate::show::day(arg("date")).ok_or("date must be \"today\" or a day written YYYY-MM-DD")?;
+                (json!({ "kind": "calendar.day", "item": day }), format!("Showing {day} beside the person's work."))
+            }
+            _ => {
+                let id = arg("id");
+                let message = self.mail.read(id, false)?;
+                let subject = message["subject"].as_str().filter(|s| !s.is_empty()).unwrap_or("(no subject)").to_owned();
+                (json!({ "kind": "mail.thread", "item": id, "title": subject }), format!("Showing the conversation \"{subject}\" beside the person's work."))
+            }
+        };
+        let mut event = piece;
+        event["conversation"] = json!(conversation);
+        (self.emit)("mobius:show-piece", event);
+        Ok(said)
+    }
+
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::contacts::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(mobius_workspace::video::tool_descriptions()).chain(crate::drives::tool_descriptions()).chain(crate::day::tool_descriptions()).chain(crate::bass::tool_descriptions()).chain(crate::messages_tools::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::contacts::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::show::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(mobius_workspace::video::tool_descriptions()).chain(crate::drives::tool_descriptions()).chain(crate::day::tool_descriptions()).chain(crate::bass::tool_descriptions()).chain(crate::messages_tools::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());

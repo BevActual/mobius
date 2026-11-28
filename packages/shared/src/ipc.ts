@@ -685,6 +685,10 @@ export interface MobiusBridge {
     onNeeded(listener: (needed: { conversation: string; site: string; tab: string }) => void): () => void;
     onChanged(listener: (change: { conversation: string }) => void): () => void;
   };
+  /** Mobius asked to show a list, a day or a mail conversation beside the work (its show tools), for a conversation. */
+  pieces?: {
+    onShow(listener: (show: { kind: 'tasks.list' | 'calendar.day' | 'mail.thread'; item: string; title?: string; conversation: string }) => void): () => void;
+  };
   schedules?: {
     list(): Promise<ScheduleInfo[]>;
     add(draft: ScheduleDraft): Promise<{ ok: true; schedule: ScheduleInfo } | AgentFailure>;

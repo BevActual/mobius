@@ -21,6 +21,7 @@ pub mod code_tests;
 pub mod code_watch;
 pub mod code_git;
 pub mod code_processes;
+pub mod show;
 pub mod code_lsp;
 pub mod web;
 pub mod pages;
