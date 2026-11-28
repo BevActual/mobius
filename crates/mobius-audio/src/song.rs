@@ -31,6 +31,12 @@ pub struct Song {
     /// its own effects, volume and pan, on to the group it is in or to Main.
     #[serde(default)]
     pub groups: Vec<Group>,
+    /// The Groove Pool (Live 12 manual, 14.1): the grooves its clips can play with.
+    #[serde(default)]
+    pub grooves: Vec<crate::groove::Groove>,
+    /// Global Amount (14.1.1): how much of every groove's Timing, Random and Velocity is heard, 0 to 1.3.
+    #[serde(default = "one", rename = "grooveAmount")]
+    pub groove_amount: f64,
     /// The sounds its audio clips, samplers and drum pads play, by the file they name: read from the song's folder by
     /// [`crate::sample::Samples::attach`], not from the song file.
     #[serde(skip)]
@@ -462,6 +468,9 @@ pub struct SlotClip {
     /// What happens when it has played a while (Live 12 manual, 16.7 "Follow Actions"); none, it goes round.
     #[serde(default)]
     pub follow: Option<Follow>,
+    /// The groove in the Groove Pool it plays with (14: the Clip Groove chooser); none plays it as written.
+    #[serde(default)]
+    pub groove: Option<String>,
 }
 
 /// A Session clip's follow action (16.7): what plays next on its track.
@@ -550,6 +559,9 @@ pub struct Clip {
     /// not the clip's.
     #[serde(default)]
     pub unlinked: std::collections::BTreeMap<String, Span>,
+    /// The groove in the Groove Pool it plays with (14: the Clip Groove chooser); none plays it as written.
+    #[serde(default)]
+    pub groove: Option<String>,
 }
 
 /// An audio clip's sound (Live 12 manual, chapter 9): a WAV file in the song's folder, from `offset` seconds in, at
@@ -697,10 +709,11 @@ impl Song {
     /// # Errors
     /// When the text is not a song.
     pub fn parse(text: &str) -> Result<Song, String> {
-        let song: Song = serde_json::from_str(text).map_err(|e| format!("That is not a song Music can play: {e}"))?;
+        let mut song: Song = serde_json::from_str(text).map_err(|e| format!("That is not a song Music can play: {e}"))?;
         if !(song.tempo.is_finite() && (20.0..=400.0).contains(&song.tempo)) {
             return Err("The song's tempo is out of range.".to_owned());
         }
+        song.apply_grooves();
         Ok(song)
     }
 

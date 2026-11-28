@@ -57,7 +57,15 @@ export function NumberField({
   const text = (v: number) => `${signed && v > 0 ? '+' : ''}${v.toFixed(decimals)}`;
   const chars = width ?? Math.max(text(min).length, text(max).length);
 
-  useEffect(() => { if (typing !== null) input.current?.select(); }, [typing !== null]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Opened by Enter, the figure is picked to type over; opened by a typed figure, the caret goes after it, so the next
+  // one adds to it ("5" then "0" is 50).
+  const byFigure = useRef(false);
+  useEffect(() => {
+    const el = input.current;
+    if (typing === null || !el) return;
+    el.focus();
+    if (byFigure.current) el.setSelectionRange(el.value.length, el.value.length); else el.select();
+  }, [typing !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (next: number, commit: boolean) => {
     const v = round(next);
@@ -77,6 +85,8 @@ export function NumberField({
 
   const key = (e: KeyboardEvent<HTMLElement>) => {
     if (typing !== null) {
+      // A figure typed before the box has the focus goes in it, so none of a quick "50" is lost.
+      if (e.target !== input.current && /^[0-9.,+-]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); setTyping((t) => (t ?? '') + e.key); return; }
       if (e.key === 'Enter') { e.preventDefault(); finishTyping(); }
       else if (e.key === 'Escape') { e.preventDefault(); setTyping(null); }
       return;
@@ -87,8 +97,8 @@ export function NumberField({
     else if (e.key === 'PageUp' || e.key === 'PageDown') set(value + (e.key === 'PageUp' ? big : -big), true);
     else if (e.key === 'Home') set(min, true);
     else if (e.key === 'End') set(max, true);
-    else if (e.key === 'Enter') setTyping(text(value));
-    else if (/^[0-9.+-]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) setTyping(e.key);
+    else if (e.key === 'Enter') { byFigure.current = false; setTyping(text(value)); }
+    else if (/^[0-9.+-]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) { byFigure.current = true; setTyping(e.key); }
     else return;
     e.preventDefault();
   };

@@ -260,6 +260,24 @@
 .studio-clip-follow { flex: none; margin-left: auto; padding-left: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); line-height: 1; }
 /* The clip's Follow Actions in the Clip bar, side by side. */
 .studio-follow { display: inline-flex; align-items: center; gap: var(--sp-2); }
+/* The clip's Groove chooser and Commit (Live 12, 14), and the Groove Pool (14.1). */
+.studio-clip-groove { display: inline-flex; flex: none; align-items: center; gap: var(--sp-2); }
+.studio-grooves { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.studio-grooves-bar { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line-soft); }
+.studio-grooves-bar .ui-number { flex-direction: row; align-items: center; gap: var(--sp-2); }
+.studio-grooves-empty { margin: 0; padding: var(--sp-4) var(--sp-3); color: var(--muted); }
+.studio-grooves-list { list-style: none; margin: 0; padding: 0; overflow: auto; min-height: 0; }
+.studio-groove { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line-soft); }
+.studio-groove-head { display: flex; align-items: center; gap: var(--sp-2); }
+.studio-groove-head .studio-groove-name { flex: 1; min-width: 0; }
+.studio-groove-params { display: grid; grid-template-columns: repeat(auto-fill, minmax(20ch, 1fr)); gap: var(--sp-1) var(--sp-3); }
+.studio-groove-param { display: flex; justify-content: space-between; align-items: center; }
+.studio-groove-param > * { flex: 1; justify-content: space-between; }
+.studio-groove[data-unused] .studio-groove-name, .studio-groove[data-unused] .studio-groove-uses { color: var(--muted); }
+.studio-groove-name { padding: var(--sp-1) var(--sp-2); border: var(--hairline-w) solid transparent; border-radius: var(--radius-small); background: none; color: var(--ink); font: inherit; }
+.studio-groove-name:hover, .studio-groove-name:focus { border-color: var(--line); outline: none; }
+.studio-groove-uses { flex: none; color: var(--muted); font-size: var(--fs-xs); }
+.studio-groove-param .ui-number { flex-direction: row; align-items: center; gap: var(--sp-1); }
 .studio-clip-body:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 /* The chosen clip: the current fill and a hairline ink edge, as a current list row has. */
 .studio-slot[aria-selected="true"] > .studio-clip-launch:not([aria-pressed="true"]), .studio-slot[aria-selected="true"] > .studio-clip-body { background: var(--sel); }

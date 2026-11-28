@@ -14,6 +14,8 @@ import { addLocator, locatorName, loopToNext, moveLocator, nextLocator, previous
 import { CLIP_DRAG, consolidateToScene, copyToSession, hearJam, moveSlot, placeInArrange, startJam, writeJam, type Jam } from './studio-moves';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
+import { StudioGrooves } from './StudioGrooves';
+import { addGroove, commitGroove, extractGroove } from './studio-groove';
 import { deleteGroup, groupRows, groupTracks, leaveGroup, soloInside, tracksIn, ungroup } from './studio-groups';
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
@@ -1125,6 +1127,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const mixSource = useCallback(() => session.current ?? player.current, []);
   /** Bumped to bring the Mixer tab up from the toolbar. */
   const [mixerReveal, setMixerReveal] = useState(0);
+  const [grooveReveal, setGrooveReveal] = useState(0);
   const roll = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const copied = useRef<SongNote[]>([]);
@@ -1633,6 +1636,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         { label: 'Duplicate', keys: 'Ctrl+D', separated: true, disabled: !duplicateArrange(song.tracks.find((t) => t.id === trackId)!.clips, id, song.bars * perBar), run: () => arrangeClip(trackId, id, 'duplicate') },
         { label: c.muted ? 'Unmute' : 'Mute', keys: '0', run: () => arrangeClip(trackId, id, 'mute') },
         { label: c.loop ? 'Stop Looping' : 'Loop', run: () => editClips(trackId, (cs) => toggleClipLoop(cs, id), '') },
+        // Extract Groove (Live 12, 14.2.1): its timing and accents as a groove in the Groove Pool.
+        { label: 'Extract Groove', disabled: !!c.audio || c.notes.length === 0, run: () => extract(c.name ?? frozenTrack?.name ?? 'Clip', c.notes, c.loop ? c.loop.end : ownLength(c)) },
         { label: 'Copy to Session', separated: true, run: () => change((s) => { copyToSession(s, trackId, id); }) },
         { label: 'Delete', keys: 'Delete', run: () => arrangeClip(trackId, id, 'delete') },
       ] });
@@ -1647,9 +1652,15 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     setMenu({ x, y, label: c.name, items: [
       { label: 'Launch', run: () => launch(id, slot) },
       { label: `Copy to Arrange at Bar ${Math.round(at / perBar) + 1}`, separated: true, disabled: !!t?.frozen || !!c.audio !== (t?.kind === 'audio'), run: () => change((s) => { placeInArrange(s, id, c, at); }) },
+      { label: 'Extract Groove', separated: true, disabled: !!c.audio || c.notes.length === 0, run: () => extract(c.name, c.notes, c.bars * perBar) },
       { label: 'Duplicate', keys: 'Ctrl+D', separated: true, run: () => duplicateClip(id, slot) },
       { label: 'Delete', keys: 'Delete', run: () => deleteClip(id, slot) },
     ] });
+  };
+  /** Extract Groove (14.2.1): a clip's notes as a new groove in the pool, which comes up to show it. */
+  const extract = (name: string, notes: SongNote[], own: number) => {
+    change((s) => { addGroove(s, extractGroove(name, notes, own)); });
+    setGrooveReveal((n) => n + 1);
   };
   const setSceneName = (slot: number, name: string) => change((s) => {
     const names = [...(s.scenes ?? [])];
@@ -2175,6 +2186,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const mixerPanel: PanelSpec = { id: 'mixer', name: 'Mixer', dock: 'bottom', group: 'bottom', keys: 'mod+alt+m', size: 300, reveal: mixerReveal, render: () => (
     <StudioMixer song={song} selected={track?.id ?? null} onSelect={setSelected} setTrack={setTrack} setSong={change} source={mixSource} playing={playing} />
   ) };
+  const groovePanel: PanelSpec = { id: 'grooves', name: 'Groove Pool', dock: 'left', keys: 'mod+alt+6', reveal: grooveReveal, render: () => (
+    <StudioGrooves song={song} setSong={change} />
+  ) };
   // The Browser (Live 12's): the Library, Collections and Places in one panel; the songs list is its Songs place.
   const songsList = listPanels[0];
   const libraryPanel: PanelSpec = { id: 'library', name: 'Browser', dock: 'left', shown: true, size: 420, keys: 'mod+alt+b', render: () => (
@@ -2227,6 +2241,25 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
             </>}
           </span>
         )}
+        {detail === 'notes' && (() => {
+          // The Clip Groove chooser and Commit (Live 12, 14 and 14.1.2), for a MIDI clip: grooves move notes as they play.
+          const target = clip && clipAt !== null && !clip.audio ? clip : arrClip && !arrClip.audio ? arrClip : null;
+          if (!target) return null;
+          const own = clip ? span : arrClip!.loop ? arrClip!.loop.end : ownLength(arrClip!);
+          const edit = (fn: (c: Clip | ArrangeClip, s: Song) => void, tag = '') => {
+            if (clip && clipAt !== null) change((s) => { const c = s.tracks.find((t) => t.id === track.id)?.slots?.[clipAt]; if (c) fn(c, s); }, tag);
+            else if (arrClip) change((s) => { const c = s.tracks.find((t) => t.id === track.id)?.clips.find((k) => k.id === arrClip.id); if (c) fn(c, s); }, tag);
+          };
+          const pool = song.grooves ?? [];
+          return (
+            <span className="studio-clip-groove" role="group" aria-label="Clip groove">
+              <Select inline label="Groove" value={target.groove ?? ''} choices={[{ value: '', label: 'None' }, ...pool.map((g) => ({ value: g.id, label: g.name }))]}
+                onChange={(v) => { if (v) edit((c) => { c.groove = v; }); else edit((c) => { delete c.groove; }); }} />
+              {pool.length === 0 && <Button kind="quiet" title="Open the Groove Pool to add a groove" onClick={() => setGrooveReveal((n) => n + 1)}>Groove Pool</Button>}
+              {target.groove && <Button kind="quiet" title="Write the groove into the notes, then play them as they are" onClick={() => edit((c, s) => { commitGroove(s, c, own); })}>Commit</Button>}
+            </span>
+          );
+        })()}
         <Segmented label="Show" value={detail} choices={DETAIL_VIEWS} onChange={setDetail} />
         {detail === 'notes' && (view === 'arrange' || clip) && !arrClip?.audio && <>
         <Segmented label="View" value={drumView} choices={STEP_VIEWS} onChange={setDrumView} />
@@ -2482,7 +2515,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           <Menu label="Export" entries={exportEntries} trigger={<IconButton label="Export" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export as WAV: Main, or every track on its own'} icon={TOOL_ICONS.export} />} />
         </ToolbarItem>
       </ToolbarControls>
-      <PanelLayout app="studio" panels={[libraryPanel, ...(detailPanel ? [detailPanel] : []), mixerPanel]}>
+      <PanelLayout app="studio" panels={[libraryPanel, ...(detailPanel ? [detailPanel] : []), mixerPanel, groovePanel]}>
       <div className="studio-main">
         {view === 'arrange' && song.tracks.length > 0 && (
           <header className="studio-arrange-head">
