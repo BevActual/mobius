@@ -173,6 +173,8 @@ function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: strin
   const openBranches = useCallback(async (name: string | null = null) => {
     setPicking(true);
     setNaming(name);
+    // The last list may be out of date (a branch since started or switched): rows show only once git has said.
+    setList([]);
     const got = code.project ? await window.mobius.code?.branches?.(code.project).catch(() => null) : null;
     setList(got && 'branches' in got ? got.branches : []);
   }, [code.project]);

@@ -8,6 +8,10 @@ import type { CodeState } from './useCode';
  * Browser beside the editor. Saving reloads it; the page's errors come back here with a way to Mobius; Pick lets the
  * person click an element on the page and go to its code.
  */
+
+/** How long after a save the watcher's report of it is taken as that save coming back, not a new change. */
+const SAVE_ECHO_MS = 2000;
+
 export type PreviewError = Extract<CodePreviewReport, { kind: 'error' }>;
 export type PreviewPick = Extract<CodePreviewReport, { kind: 'pick' }>;
 
@@ -112,13 +116,20 @@ export function useCodePreview(code: CodeState) {
   // Live refresh: each save of a file, the person's or Mobius's, reloads the pages showing.
   const saved = code.open?.modified;
   const first = useRef(true);
+  const savedAt = useRef(0);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
-    if (live.current.url) void say('reload');
+    if (live.current.url) { savedAt.current = Date.now(); void say('reload'); }
   }, [saved, say]);
   useEffect(() => {
     if (!api) return undefined;
-    return api.onChanged((change) => { if (live.current.url && (!change.project || change.project === live.current.project)) void say('reload'); });
+    return api.onChanged((change) => {
+      if (!live.current.url || (change.project && change.project !== live.current.project)) return;
+      // A save just reloaded the page: the watcher seeing that same save come back would load it again, and a second
+      // load can land after Pick has started on the page, which a fresh page forgets.
+      if (Date.now() - savedAt.current < SAVE_ECHO_MS) return;
+      void say('reload');
+    });
   }, [api, say]);
 
   const pick = useCallback(async () => {
