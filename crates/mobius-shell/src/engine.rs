@@ -436,20 +436,16 @@ impl Engine for WebViewEngine {
     }
 
     fn emulate(&self, tab: &str, emulation: mobius_browser::tabs::Emulation) {
-        // The DevTools protocol's own overrides: they stay with the page as it navigates.
+        // The colour scheme is a DevTools protocol override: it stays with the page as it navigates.
         #[cfg(windows)]
         {
             let pages = self.pages.clone();
             let tab = tab.to_owned();
             // Off this thread: a DevTools call waits for the page, which answers on the thread that owns it.
             std::thread::spawn(move || {
-                // Always start from the page's own screen, then set the width. Never `mobile`: in WebView2 a mobile
-                // override leaves the page at that width, and no later override or clear moves it (PC check of #988).
-                // The width alone is what media queries and the page's layout read.
-                let clear = engine_cdp(&pages, &tab, "Emulation.clearDeviceMetricsOverride", json!({}));
-                let set = emulation.width.map(|width| engine_cdp(&pages, &tab, "Emulation.setDeviceMetricsOverride", json!({ "width": width, "height": 0, "deviceScaleFactor": 0, "mobile": false })));
-                eprintln!("[mobius] emulate {tab}: width {:?} (clear {:?}, set {:?})", emulation.width, clear.as_ref().map(|_| "ok"), set.as_ref().map(|r| r.as_ref().map(|_| "ok")));
-                let size = clear.and(set.unwrap_or(Ok(Value::Null)));
+                // The width is the page's real width (Browser lays the page out that wide); only the colour scheme is
+                // the DevTools protocol's. Clear any width override an earlier build left on the page.
+                let size = engine_cdp(&pages, &tab, "Emulation.clearDeviceMetricsOverride", json!({}));
                 let scheme = emulation.scheme.map_or("", |s| s.as_str());
                 let media = engine_cdp(&pages, &tab, "Emulation.setEmulatedMedia", json!({ "features": [{ "name": "prefers-color-scheme", "value": scheme }] }));
                 if let Err(e) = size.and(media) {
