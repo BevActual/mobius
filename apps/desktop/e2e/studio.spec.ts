@@ -602,6 +602,53 @@ test('Follow Actions play the next clip once one has played, as set in the Clip 
   await expect.poll(() => slots()?.[0]?.follow).toBeUndefined();
 });
 
+test('a clip plays with a groove from the Groove Pool, commits it into its notes, and gives its own groove (Live 12, 14)', async () => {
+  const keys = { ...SONG.tracks[0]!, slots: [{ name: 'Keys 1', bars: 1, notes: [{ pitch: 60, start: 0, length: 0.25, velocity: 0.8 }, { pitch: 60, start: 0.5, length: 0.25, velocity: 0.8 }] }] };
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, version: 2, tracks: [keys] }));
+  await start();
+  await shell().getByRole('radio', { name: 'Session' }).click();
+  const grid = shell().getByRole('grid', { name: 'Clips' });
+  await grid.getByRole('button', { name: /^Keys 1, 1 bar/ }).click();
+  type Slot = { groove?: string; notes: { start: number }[] };
+  type Saved = { grooves?: { id: string; name: string; timing: number }[]; grooveAmount?: number; tracks: { slots?: Slot[] }[] };
+  const now = () => saved() as unknown as Saved;
+  // No grooves yet: the clip bar opens the pool, and the pool adds one from the library.
+  const chooser = shell().getByRole('group', { name: 'Clip groove' });
+  await chooser.getByRole('button', { name: 'Groove Pool' }).click();
+  const pool = shell().getByRole('region', { name: 'Groove Pool' });
+  await expect(pool.getByText(/No grooves yet/)).toBeVisible();
+  await pool.getByRole('button', { name: 'Add groove' }).click();
+  await shell().getByRole('menuitem', { name: /Swing 8ths 66/ }).click();
+  await expect.poll(() => now().grooves?.map((g) => g.name)).toEqual(['Swing 8ths 66']);
+  await expect(pool.getByRole('listitem', { name: 'Swing 8ths 66' })).toContainText('Not used');
+  // Chosen for the clip, it is used; its notes stay as written in the song.
+  await chooser.getByRole('combobox', { name: 'Groove' }).click();
+  await shell().getByRole('option', { name: 'Swing 8ths 66' }).click();
+  await expect.poll(() => now().tracks[0]!.slots?.[0]?.groove).toBe(now().grooves?.[0]?.id);
+  await expect(pool.getByRole('listitem', { name: 'Swing 8ths 66' })).toContainText('1 clip');
+  expect(now().tracks[0]!.slots?.[0]?.notes.map((n) => n.start)).toEqual([0, 0.5]);
+  // Timing at half and Global Amount at 120%, in the pool.
+  await pool.getByRole('spinbutton', { name: 'Timing' }).focus();
+  await shell().keyboard.type('50');
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => now().grooves?.[0]?.timing).toBe(0.5);
+  await pool.getByRole('spinbutton', { name: 'Global Amount' }).focus();
+  await shell().keyboard.type('120');
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => now().grooveAmount).toBe(1.2);
+  // Commit writes it in: the off-beat moves 0.6 of the way to two thirds, and the clip's Groove is None.
+  await chooser.getByRole('button', { name: 'Commit' }).click();
+  await expect.poll(() => now().tracks[0]!.slots?.[0]?.groove).toBeUndefined();
+  expect(now().tracks[0]!.slots?.[0]?.notes.map((n) => n.start)).toEqual([0, 0.6]);
+  await expect(pool.getByRole('listitem', { name: 'Swing 8ths 66' })).toContainText('Not used');
+  // Extract Groove takes the clip's timing as a groove of its own.
+  await grid.getByRole('button', { name: /^Keys 1, 1 bar/ }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Keys 1' }).getByRole('menuitem', { name: 'Extract Groove' }).click();
+  await expect.poll(() => now().grooves?.map((g) => g.name)).toEqual(['Swing 8ths 66', 'Keys 1 Groove']);
+  await pool.getByRole('button', { name: 'Remove Swing 8ths 66' }).click();
+  await expect.poll(() => now().grooves?.map((g) => g.name)).toEqual(['Keys 1 Groove']);
+});
+
 test('the Session view has clips to launch in scenes, each with its own notes, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();

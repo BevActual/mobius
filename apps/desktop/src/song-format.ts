@@ -350,7 +350,7 @@ export function freshEffectId(track: { fx?: readonly Effect[] }): string {
  * A clip in the Session view: a short loop of notes for one track, started and stopped live. Its notes start from the
  * clip's own beat 0 and it goes round every `bars` bars.
  */
-export interface Clip { name: string; bars: number; notes: SongNote[]; /** What happens when it has played a while (Live 12, 16.7 "Follow Actions"); left out, it goes round. */ follow?: Follow; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
+export interface Clip { name: string; bars: number; notes: SongNote[]; /** The groove in the Groove Pool it plays with (Live 12, 14); left out, as written. */ groove?: string; /** What happens when it has played a while (Live 12, 16.7 "Follow Actions"); left out, it goes round. */ follow?: Follow; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 /**
  * An audio clip's sound (Live 12 manual, chapter 9), as the engine reads it (mobius-audio song.rs `Audio`): a WAV file
  * in the song's folder (`file`, relative to it), from `offset` seconds in, at `gainDb`. Unwarped, it plays at its own
@@ -561,10 +561,43 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  * `offset` (its start marker) in its own time; with a `loop` it goes round from `loop.start` to `loop.end` until
  * `length` runs out, so stretching a looped clip repeats it. The engine plays it the same way (song.rs `notes_of`).
  */
-export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
+export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** The groove in the Groove Pool it plays with (Live 12, 14); left out, as written. */ groove?: string; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 
 export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An electric piano track's settings (`instrument` "electric"). */ electric?: ElectricSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number>; /** The group track it plays into (Live 12, 18.3), by the group's id; left out, Main. */ group?: string }
-export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[]; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature; /** Group tracks (Live 12, 18.3), each summing the tracks and groups in it. */ groups?: GroupTrack[] }
+export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[]; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature; /** Group tracks (Live 12, 18.3), each summing the tracks and groups in it. */ groups?: GroupTrack[]; /** The Groove Pool (Live 12, 14.1): the grooves its clips can play with. */ grooves?: Groove[]; /** Global Amount (14.1.1), 0 to 1.3: how much of every groove's Timing, Random and Velocity is heard; left out, 1. */ grooveAmount?: number }
+
+/**
+ * A groove in the Groove Pool (Live 12 manual, 14 "Using Grooves"): its notes (`hits`, in its own beats, going round
+ * every `length` beats) and its parameters (14.1.1). `base` is the grid in beats each note is measured against;
+ * `quantize`, `timing` and `random` are 0 to 1; `velocity` is -1 to 1 (below 0, loud and quiet turn round).
+ */
+export interface Groove { id: string; name: string; base: number; quantize: number; timing: number; random: number; velocity: number; length: number; hits: { at: number; velocity: number }[] }
+/** The most grooves a song keeps, and the most notes one holds (the engine's own limits). */
+export const MAX_GROOVES = 64;
+export const MAX_HITS = 512;
+/** Global Amount's top (14.1.1: "up to 130%"). */
+export const MAX_GROOVE_AMOUNT = 1.3;
+/** The Base grids a groove can measure against, in beats (Live's 1/4 to 1/32). */
+export const GROOVE_BASES = [1, 0.5, 1 / 3, 0.25, 1 / 6, 0.125] as const;
+
+/** A Groove Pool from a file: each with an id of its own, its parameters in range, its notes inside its length. */
+export function readGrooves(v: unknown): Groove[] {
+  const taken = new Set<string>();
+  return (Array.isArray(v) ? v : []).slice(0, MAX_GROOVES).flatMap((g, i): Groove[] => {
+    const o = obj(g);
+    let id = typeof o.id === 'string' && o.id ? o.id.slice(0, 40) : `groove-${i + 1}`;
+    while (taken.has(id)) id = `${id}-${i}`;
+    taken.add(id);
+    const length = num(o.length, 4, 0.25, 64);
+    const base = GROOVE_BASES.reduce((best, b) => (Math.abs(b - num(o.base, 0.25, 0, 4)) < Math.abs(best - num(o.base, 0.25, 0, 4)) ? b : best), 0.25 as number);
+    const hits = (Array.isArray(o.hits) ? o.hits : []).slice(0, MAX_HITS).flatMap((h) => {
+      const ho = obj(h);
+      if (typeof ho.at !== 'number' || !Number.isFinite(ho.at) || ho.at < 0 || ho.at >= length) return [];
+      return [{ at: ho.at, velocity: num(ho.velocity, 1, 0, 1) }];
+    }).sort((a, b) => a.at - b.at);
+    return [{ id, name: typeof o.name === 'string' && o.name ? o.name.slice(0, 60) : 'Groove', base, quantize: num(o.quantize, 0, 0, 1), timing: num(o.timing, 1, 0, 1), random: num(o.random, 0, 0, 1), velocity: num(o.velocity, 0, -1, 1), length, hits }];
+  });
+}
 /**
  * A group track (Live 12 manual, 18.3 "Group Tracks"): the tracks whose `group` is its id, and the groups in it, play
  * into it, through its effects, then its volume and pan, into the group it is in or Main. It holds no clips of its own.
@@ -676,6 +709,7 @@ function readClip(v: unknown, fallbackName: string, perBar = BEATS_PER_BAR): Cli
   if (unlinked) clip.unlinked = unlinked;
   const follow = readFollow(c.follow);
   if (follow) clip.follow = follow;
+  if (typeof c.groove === 'string' && c.groove) clip.groove = c.groove.slice(0, 40);
   return clip;
 }
 
@@ -837,6 +871,15 @@ export function parseSong(text: string): { song: Song } | { error: string } {
   }
   if (returns.length > 0) song.returns = returns;
   if (groups.length > 0) song.groups = groups;
+  // The Groove Pool (14.1): a clip naming a groove that is not in it plays as written.
+  const grooves = readGrooves(o.grooves);
+  if (grooves.length > 0) song.grooves = grooves;
+  if (typeof o.grooveAmount === 'number' && Number.isFinite(o.grooveAmount) && o.grooveAmount !== 1) song.grooveAmount = num(o.grooveAmount, 1, 0, MAX_GROOVE_AMOUNT);
+  const grooveIds = new Set(grooves.map((g) => g.id));
+  for (const t of tracks) {
+    for (const c of t.clips) if (c.groove && !grooveIds.has(c.groove)) delete c.groove;
+    for (const c of t.slots ?? []) if (c?.groove && !grooveIds.has(c.groove)) delete c.groove;
+  }
   const met = obj(o.metronome);
   if (typeof met.volume === 'number' && Number.isFinite(met.volume)) song.metronome = { volume: num(met.volume, METRONOME_VOLUME, 0, 1) };
   if (Array.isArray(o.scenes) && o.scenes.length > 0) song.scenes = o.scenes.slice(0, MAX_SCENES).map((n) => (typeof n === 'string' ? n.slice(0, 40) : ''));
@@ -915,6 +958,8 @@ export function writeSong(song: Song): string {
     ...(song.metronome ? [`  "metronome": ${JSON.stringify(song.metronome)},`] : []),
     ...(song.locators && song.locators.length > 0 ? [`  "locators": ${JSON.stringify(song.locators)},`] : []),
     ...(song.groups && song.groups.length > 0 ? ['  "groups": [', ...song.groups.map((g, i) => `    ${JSON.stringify(g)}${i < song.groups!.length - 1 ? ',' : ''}`), '  ],'] : []),
+    ...(song.grooves && song.grooves.length > 0 ? ['  "grooves": [', ...song.grooves.map((g, i) => `    ${JSON.stringify(g)}${i < song.grooves!.length - 1 ? ',' : ''}`), '  ],'] : []),
+    ...(song.grooveAmount !== undefined && song.grooveAmount !== 1 ? [`  "grooveAmount": ${song.grooveAmount},`] : []),
     ...(song.returns && song.returns.length > 0 ? ['  "returns": [', ...song.returns.map((r, i) => `    ${JSON.stringify(r)}${i < song.returns!.length - 1 ? ',' : ''}`), '  ],'] : []),
     '  "tracks": ['];
   song.tracks.forEach((t, i) => {
@@ -1032,6 +1077,7 @@ function readClips(list: unknown, beats: number, perBar = BEATS_PER_BAR): Arrang
     const envelopes = readEnvelopes(c.envelopes, own, unlinked);
     if (envelopes) clip.envelopes = envelopes;
     if (unlinked) clip.unlinked = unlinked;
+    if (typeof c.groove === 'string' && c.groove) clip.groove = c.groove.slice(0, 40);
     return [clip];
   }).sort((a, b) => a.start - b.start);
   return read.flatMap((c, i): ArrangeClip[] => {
