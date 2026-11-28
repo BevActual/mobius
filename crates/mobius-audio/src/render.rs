@@ -27,6 +27,8 @@ struct Lane {
     sound: Option<Sound>,
     /// A string track's settings.
     string: Option<crate::string::StringSound>,
+    /// A mallet track's settings.
+    mallet: Option<crate::mallet::MalletSound>,
     instrument: Instrument,
     /// Its instrument stack's chains, which play its notes in place of its instrument when there are any.
     chains: Vec<InstrumentChain>,
@@ -513,7 +515,7 @@ impl Lane {
             return;
         }
         // A track with no sound of its own plays its instrument's own voices, as the window does.
-        let mut voice = Voice::for_note(self.instrument, self.sound.as_ref(), self.string.as_ref(), note.pitch, note.length * spb, note.velocity);
+        let mut voice = Voice::for_note(self.instrument, self.sound.as_ref(), crate::voice::Models { string: self.string.as_ref(), mallet: self.mallet.as_ref() }, note.pitch, note.length * spb, note.velocity);
         voice.add_to(&mut self.scratch[offset.min(frames)..frames], rate);
         if self.voices.len() >= MAX_VOICES {
             self.voices.remove(0);
@@ -545,7 +547,7 @@ pub type Gains = (f32, f32);
 /// A stack chain's note: its instrument with its sound, or the instrument's own.
 #[must_use]
 pub fn chain_voice(chain: &InstrumentChain, pitch: u8, seconds: f64, velocity: f64) -> Voice {
-    Voice::for_note(chain.instrument, chain.sound.as_ref(), None, pitch, seconds, velocity)
+    Voice::for_note(chain.instrument, chain.sound.as_ref(), crate::voice::Models::default(), pitch, seconds, velocity)
 }
 
 /// A stack chain's volume and pan as left and right gains on its instrument's (mono) sound.
@@ -1040,6 +1042,7 @@ impl Renderer {
                     next,
                     sound: t.sound,
                     string: t.string,
+                    mallet: t.mallet,
                     instrument: t.instrument,
                     chains: if is_frozen { Vec::new() } else { t.chains().to_vec() },
                     stacked: Vec::with_capacity(MAX_VOICES),
@@ -1834,6 +1837,30 @@ mod tests {
         };
         assert!(like(436) > 0.9 && like(218) < 0.5, "{} {}", like(436), like(218));
         assert!(pluck.iter().chain(&bow).all(|v| v.is_finite() && v.abs() <= 1.0));
+    }
+
+    #[test]
+    fn a_mallet_track_rings_a_struck_resonator_at_its_note() {
+        let rms = |x: &[f32]| (x.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / x.len() as f64).sqrt();
+        // A3 on a marimba bar, then the same on a bell, which sounds its hum an octave below too.
+        let bar = render_song(&song(r#"{"id":"t","instrument":"mallet","notes":[{"pitch":57,"start":0,"length":1,"velocity":0.9}]}"#), 48_000).0;
+        let bell = render_song(&song(r#"{"id":"t","instrument":"mallet","mallet":{"resonator":"bell","decay":3,"material":0},"notes":[{"pitch":57,"start":0,"length":2,"velocity":0.9}]}"#), 48_000).0;
+        assert!(rms(&bar[1_000..6_000]) > 0.01, "bar {}", rms(&bar[1_000..6_000]));
+        assert!(rms(&bell[1_000..6_000]) > 0.01, "bell {}", rms(&bell[1_000..6_000]));
+        let at = |x: &[f32], hz: f64| {
+            let (mut re, mut im) = (0.0, 0.0);
+            for (n, v) in x.iter().enumerate() {
+                let p = std::f64::consts::TAU * hz * n as f64 / 48_000.0;
+                re += f64::from(*v) * p.cos();
+                im += f64::from(*v) * p.sin();
+            }
+            (re * re + im * im).sqrt() / x.len() as f64
+        };
+        let w = &bar[2_400..12_000];
+        assert!(at(w, 220.0) > 5.0 * at(w, 300.0), "{} {}", at(w, 220.0), at(w, 300.0));
+        let b = &bell[2_400..12_000];
+        assert!(at(b, 110.0) > 5.0 * at(b, 150.0), "{} {}", at(b, 110.0), at(b, 150.0));
+        assert!(bar.iter().chain(&bell).all(|v| v.is_finite() && v.abs() <= 1.0));
     }
 
     #[test]

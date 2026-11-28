@@ -4,6 +4,7 @@
 
 use crate::param::Param;
 use crate::song::{Instrument, Sound};
+use crate::mallet::{MalletSound, Modes};
 use crate::string::{Exciter, Strand, StringSound};
 use std::f64::consts::{PI, SQRT_2, TAU};
 
@@ -16,7 +17,15 @@ pub fn peak_of(instrument: Instrument) -> f64 {
         Instrument::Bass => 0.35,
         Instrument::Piano | Instrument::Drums => 0.3,
         Instrument::String => 0.5,
+        Instrument::Mallet => 0.4,
     }
+}
+
+/// A track's modelled instruments' settings, for the one its instrument is.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Models<'a> {
+    pub string: Option<&'a StringSound>,
+    pub mallet: Option<&'a MalletSound>,
 }
 
 /// How long a held note is made to last: far longer than any key is held, so only letting it go ends it.
@@ -94,6 +103,16 @@ pub struct Voice {
     /// A modelled string in place of the oscillators: its settings, the string once made (it needs the output's
     /// rate), and when its bow lifts.
     string: Option<StringNote>,
+    /// A modelled struck resonator in place of the oscillators: its settings and strike, and its partials once made.
+    mallet: Option<MalletNote>,
+}
+
+/// A note on a modelled resonator: what was struck and how hard, and its partials once made (at the output's rate).
+#[derive(Debug, Clone)]
+struct MalletNote {
+    sound: MalletSound,
+    velocity: f64,
+    modes: Option<Box<Modes>>,
 }
 
 /// A note on a modelled string: its settings and how it was played, and the string once made (it needs the output's
@@ -158,15 +177,17 @@ impl Voice {
             release,
             fade: None,
             string: None,
+            mallet: None,
         }
     }
 
     /// A note on an instrument: a string plays its `string` settings (or its own); another plays `sound`, or its
     /// instrument's own voices without one.
     #[must_use]
-    pub fn for_note(instrument: Instrument, sound: Option<&Sound>, string: Option<&StringSound>, pitch: u8, seconds: f64, velocity: f64) -> Voice {
+    pub fn for_note(instrument: Instrument, sound: Option<&Sound>, models: Models, pitch: u8, seconds: f64, velocity: f64) -> Voice {
         match (instrument, sound) {
-            (Instrument::String, _) => Voice::string(&string.copied().unwrap_or_default(), pitch, seconds, velocity),
+            (Instrument::String, _) => Voice::string(&models.string.copied().unwrap_or_default(), pitch, seconds, velocity),
+            (Instrument::Mallet, _) => Voice::mallet(&models.mallet.copied().unwrap_or_default(), pitch, seconds, velocity),
             (_, Some(sound)) => Voice::new(instrument, sound, pitch, seconds, velocity),
             (_, None) => Voice::legacy(instrument, pitch, seconds, velocity),
         }
@@ -195,7 +216,7 @@ impl Voice {
             Instrument::Bass => &[osc(Wave::Saw, 1.0, 0.0)],
             Instrument::Pad => &[osc(Wave::Saw, 1.0, -7.0), osc(Wave::Saw, 1.0, 7.0)],
             Instrument::Lead => &[osc(Wave::Square, 1.0, 0.0)],
-            Instrument::Piano | Instrument::Drums | Instrument::String => &[osc(Wave::Triangle, 1.0, 0.0), osc(Wave::Sine, 2.0, 0.0)],
+            Instrument::Piano | Instrument::Drums | Instrument::String | Instrument::Mallet => &[osc(Wave::Triangle, 1.0, 0.0), osc(Wave::Sine, 2.0, 0.0)],
         };
         oscs[..list.len()].copy_from_slice(list);
         let cutoff = match instrument {
@@ -221,6 +242,7 @@ impl Voice {
             release,
             fade: None,
             string: None,
+            mallet: None,
         }
     }
 
@@ -252,6 +274,37 @@ impl Voice {
             fade: None,
             // The same note sounds the same each time it is rendered.
             string: Some(StringNote { sound: s, velocity: velocity.clamp(0.0, 1.0), seed: 0x9e37_79b9 ^ u32::from(pitch).wrapping_mul(2_654_435_761), lift: held, strand: None }),
+            mallet: None,
+        }
+    }
+
+    /// A note on a struck resonator (Live 12's Collision): it rings by itself for as long as its decay, and lifting the
+    /// key damps it, as a hand on a bar does.
+    #[must_use]
+    pub fn mallet(sound: &MalletSound, pitch: u8, seconds: f64, velocity: f64) -> Voice {
+        let s = sound.clamped();
+        let release = 0.08;
+        let rings = seconds.max(0.01).min(s.decay * 1.5);
+        let peak = peak_of(Instrument::Mallet);
+        let gain = Param::new(peak).set(peak, 0.0).target(0.0001, rings, release / 4.0);
+        Voice {
+            oscs: [SILENT; 5],
+            count: 0,
+            base: hz(f64::from(pitch)),
+            gain,
+            cutoff: Param::new(18_000.0),
+            q_db: 0.0,
+            drive: 0.0,
+            vibrato: 0.0,
+            rate: 5.0,
+            lfo: 0.0,
+            filter: LowPass::default(),
+            end: rings + release + 0.05,
+            time: 0.0,
+            release,
+            fade: None,
+            string: None,
+            mallet: Some(MalletNote { sound: s, velocity: velocity.clamp(0.0, 1.0), modes: None }),
         }
     }
 
@@ -288,6 +341,10 @@ impl Voice {
                     made.lift();
                 }
                 x = made.sample();
+            }
+            if let Some(note) = &mut self.mallet {
+                let (sound, velocity, base) = (note.sound, note.velocity, self.base);
+                x = note.modes.get_or_insert_with(|| Box::new(Modes::new(sound, base, rate, velocity))).sample();
             }
             let wobble = if self.vibrato > 0.0 { self.vibrato * (TAU * self.lfo).sin() } else { 0.0 };
             self.lfo = (self.lfo + self.rate * dt).fract();

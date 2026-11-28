@@ -700,6 +700,28 @@ test('a String track is a modelled string: plucked, struck or bowed, with its de
   await expect.poll(() => (saved().tracks[1] as { string?: unknown }).string).toBeUndefined();
 });
 
+test('a Mallet track is a struck resonator: what is struck, its decay, material, hardness and position kept in the song', async () => {
+  await start();
+  await tracks().getByRole('button', { name: 'Add track' }).click();
+  await shell().getByRole('menu', { name: 'Add track' }).getByRole('menuitem', { name: 'Mallet' }).click();
+  await expect.poll(() => saved().tracks.map((t) => [t.name, (t as { instrument?: string }).instrument])).toEqual([['Keys', 'piano'], ['Mallet', 'mallet']]);
+  const device = await openDevice('Mallet');
+  const mallet = device.getByRole('region', { name: 'Mallet' });
+  // No oscillators or filter: the resonator's own settings (Live 12's Collision).
+  await expect(device.getByRole('slider', { name: 'Cutoff and resonance' })).toHaveCount(0);
+  await expect(mallet.getByRole('slider', { name: 'Decay' })).toHaveAttribute('aria-valuetext', '1.2 s');
+  await mallet.getByRole('combobox', { name: 'Resonator' }).click();
+  await shell().getByRole('option', { name: 'Bell' }).click();
+  await expect(mallet).toContainText('a hum an octave below');
+  await mallet.getByRole('slider', { name: 'Hardness' }).focus();
+  await shell().keyboard.press('ArrowUp');
+  await expect.poll(() => (saved().tracks[1] as { mallet?: unknown }).mallet).toEqual({ resonator: 'bell', decay: 1.2, material: 0.6, hardness: 0.51, position: 0.2 });
+  // Another instrument chosen for the track leaves no mallet settings behind.
+  await device.getByRole('combobox', { name: 'Instrument' }).click();
+  await shell().getByRole('option', { name: 'Pad' }).click();
+  await expect.poll(() => (saved().tracks[1] as { mallet?: unknown }).mallet).toBeUndefined();
+});
+
 test('a melody is written as steps too, a row per note of the key', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start([], 'Bass');
