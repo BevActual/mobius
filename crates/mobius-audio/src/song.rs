@@ -545,6 +545,54 @@ pub struct Note {
     pub start: f64,
     pub length: f64,
     pub velocity: f64,
+    /// The chance it plays each time it comes round, 0 to 1 (Live 12's note Chance); left out, it always plays.
+    #[serde(default = "one")]
+    pub chance: f64,
+    /// How many times it plays, evenly over its length (Live 13's step Repeat); 1 or none plays it once.
+    #[serde(default)]
+    pub repeat: u32,
+    /// For one of a note's repeats: where the note it came from starts, so all of them share one roll of its chance.
+    #[serde(skip)]
+    pub from: Option<f64>,
+}
+
+/// The most times a note repeats.
+pub const MAX_REPEAT: u32 = 8;
+
+impl Note {
+    /// The note as it plays: its repeats, each an equal part of its length, or itself when it plays once.
+    pub fn repeats(&self) -> impl Iterator<Item = Note> + '_ {
+        let times = self.repeat.clamp(1, MAX_REPEAT);
+        let part = self.length / f64::from(times);
+        (0..times).map(move |k| if times == 1 { *self } else { Note { start: self.start + part * f64::from(k), length: part, repeat: 1, from: Some(self.from.unwrap_or(self.start)), ..*self } })
+    }
+
+    /// Whether it plays when it comes round at `beat` on the track whose dice are `dice`: always at full chance, else
+    /// by a roll that is the same each time the song is rendered (and differs each time round a loop).
+    #[must_use]
+    pub fn plays(&self, beat: f64, dice: u64) -> bool {
+        if self.chance >= 1.0 || self.chance.is_nan() {
+            return true;
+        }
+        if self.chance <= 0.0 {
+            return false;
+        }
+        // The roll is where the note it came from falls, so a note's repeats play or rest together.
+        let at = beat - self.start + self.from.unwrap_or(self.start);
+        let mut x = dice ^ u64::from(self.pitch).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ ((at * 960.0).round() as i64 as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        x ^= x >> 30;
+        x = x.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        x ^= x >> 27;
+        x = x.wrapping_mul(0x94D0_49BB_1331_11EB);
+        x ^= x >> 31;
+        ((x >> 11) as f64 / (1u64 << 53) as f64) < self.chance
+    }
+}
+
+/// A track's dice for its notes' chances: from its id, so each track rolls its own.
+#[must_use]
+pub fn dice_of(id: &str) -> u64 {
+    id.bytes().fold(0xCBF2_9CE4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01B3))
 }
 
 /// A track's own sound (song-format.ts `Sound`): oscillator, filter, envelope and vibrato.
@@ -659,6 +707,10 @@ impl Song {
             }
         }
         out.truncate(MAX_NOTES);
+        // Each note's repeats in its place (Live 13's step Repeat).
+        if out.iter().any(|n| n.repeat > 1) {
+            out = out.iter().flat_map(Note::repeats).take(MAX_NOTES).collect();
+        }
         out.sort_by(|a, b| a.start.total_cmp(&b.start));
         out
     }

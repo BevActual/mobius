@@ -71,6 +71,11 @@
   content: ''; position: absolute; inset: auto 0 0 0; height: calc(var(--vel, 0) * 100%); background: var(--ink);
 }
 .ui-steps .ui-step[data-now] { box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); }
+/* A step's repeat and chance ("×3", "50%"): small, each in a corner of the step. */
+.ui-step-mark { position: absolute; right: var(--hairline-w); bottom: var(--hairline-w); padding: 0 var(--sp-1); z-index: 1; font: var(--fw-semibold) var(--fs-floor) / 1 var(--font-mono); color: var(--ink); pointer-events: none; white-space: nowrap; }
+.ui-step[data-on] .ui-step-mark { color: var(--on-ink); }
+/* With both, the repeat sits in the top corner, clear of the chance. */
+.ui-step-mark[data-first] { top: var(--hairline-w); left: var(--hairline-w); right: auto; bottom: auto; }
 .ui-steps .ui-step:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); z-index: 1; }
 
 /* A numbered handle (an EQ band): a larger dot with its number; the chosen band is filled. */

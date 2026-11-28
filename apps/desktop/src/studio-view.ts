@@ -326,10 +326,38 @@ export function stepCells(notes: readonly SongNote[], bar: number, pitches: read
 /** A step switched on (a hit at that velocity, a sixteenth long unless `length` says), changed, or off (velocity 0); the notes stay in order. */
 export function setStep(notes: readonly SongNote[], bar: number, pitch: number, step: number, velocity: number, length = 0.25, perBar = BEATS_PER_BAR): SongNote[] {
   const at = bar * perBar + step / 4;
-  const kept = notes.filter((n) => !(n.pitch === pitch && sameBeat(n.start, at)));
-  if (velocity > 0) kept.push({ pitch, start: at, length, velocity: Math.min(1, velocity) });
+  const was = notes.find((n) => n.pitch === pitch && sameBeat(n.start, at));
+  const kept = notes.filter((n) => n !== was);
+  // A step changed keeps its chance and repeat.
+  if (velocity > 0) kept.push({ pitch, start: at, length, velocity: Math.min(1, velocity), ...(was?.chance !== undefined ? { chance: was.chance } : {}), ...(was?.repeat !== undefined ? { repeat: was.repeat } : {}) });
   return kept.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 }
+
+/** The note on each step of a bar, by row (null where the step is off), for its chance and repeat. */
+export function stepNotes(notes: readonly SongNote[], bar: number, pitches: readonly number[], perBar = BEATS_PER_BAR): (SongNote | null)[][] {
+  return pitches.map((pitch) => Array.from({ length: stepsPerBar(perBar) }, (_, i) => notes.find((n) => n.pitch === pitch && sameBeat(n.start, bar * perBar + i / 4)) ?? null));
+}
+
+/** A step's chance (0 to 1) or repeat (1 to 8) set; full chance and one play are left out of the note. */
+export function setStepExtra(notes: readonly SongNote[], bar: number, pitch: number, step: number, extra: { chance?: number; repeat?: number }, perBar = BEATS_PER_BAR): SongNote[] {
+  const at = bar * perBar + step / 4;
+  return notes.map((n) => (n.pitch === pitch && sameBeat(n.start, at) ? withExtras(n, extra) : n));
+}
+
+/** The picked notes' chance set (0 to 1); full chance is left out of the note. */
+export function setChance(notes: readonly SongNote[], picked: Picked, chance: number): SongNote[] {
+  return notes.map((n, i) => (picked.has(i) ? withExtras(n, { chance }) : n));
+}
+
+function withExtras(n: SongNote, { chance, repeat }: { chance?: number; repeat?: number }): SongNote {
+  const next = { ...n };
+  if (chance !== undefined) { const c = Math.round(Math.max(0, Math.min(1, chance)) * 100) / 100; if (c < 1) next.chance = c; else delete next.chance; }
+  if (repeat !== undefined) { const r = Math.round(Math.max(1, Math.min(8, repeat))); if (r > 1) next.repeat = r; else delete next.repeat; }
+  return next;
+}
+
+/** A step's chance and repeat as the step grid marks it: "×3", "50%", both, or nothing. */
+export const stepMark = (n: SongNote | null): string => (n ? [n.repeat && n.repeat > 1 ? `×${n.repeat}` : '', n.chance !== undefined && n.chance < 1 ? `${Math.round(n.chance * 100)}%` : ''].filter(Boolean).join(' ') : '');
 
 /**
  * Where a looping clip's notes fall in [from, to): the clip started at `start` (in beats played) and goes round every

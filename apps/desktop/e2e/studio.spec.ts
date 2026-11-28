@@ -835,6 +835,36 @@ test('a melody is written as steps too, a row per note of the key', async () => 
   await expect(shell().getByRole('group', { name: 'E5' })).toBeVisible();
 });
 
+test("a step's menu sets its Repeat and Chance (Live 13), and a picked note gets a Chance (Live 12)", async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
+  await start([], 'Bass');
+  await shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Steps' }).click();
+  const step = shell().getByRole('group', { name: 'C3' }).getByRole('button', { name: /^C3, step 3,?/ });
+  await step.click();
+  const note = () => (saved().tracks[1]!.notes as ({ pitch: number; chance?: number; repeat?: number })[]).find((n) => n.pitch === 48);
+  await expect.poll(note).toMatchObject({ start: 0.5 });
+  await step.click({ button: 'right' });
+  await shell().getByRole('menuitemcheckbox', { name: 'Repeat 3 Times' }).click();
+  await expect.poll(() => note()?.repeat).toBe(3);
+  await step.click({ button: 'right' });
+  await shell().getByRole('menuitemcheckbox', { name: '50% Chance' }).click();
+  await expect.poll(() => note()?.chance).toBe(0.5);
+  // The step shows both and reads them out.
+  await expect(step).toHaveAccessibleName(/repeat 3, 50% chance/);
+  await expect(step).toContainText('×3');
+  await expect(step).toContainText('50%');
+  // In the piano roll, the picked note's Chance slider.
+  await shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Piano roll' }).click();
+  const roll = shell().getByRole('grid', { name: 'Notes of Bass' });
+  const n = roll.getByRole('button', { name: /50% chance/ });
+  await n.click();
+  const slider = shell().getByRole('slider', { name: 'Chance' });
+  await slider.focus();
+  await shell().keyboard.press('End');
+  await expect.poll(() => note()?.chance).toBeUndefined();
+  await expect(roll.getByRole('button', { name: /chance/ })).toHaveCount(0);
+});
+
 test('draw mode writes a note a grid step long in each step a drag crosses, takes them out from a note, and undoes as one', async () => {
   await start();
   const draw = shell().getByRole('button', { name: 'Draw' });
