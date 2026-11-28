@@ -120,6 +120,9 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   // Long notebooks are drawn in part, and more as the list is scrolled; the open page is always drawn.
   const [rows, setRows] = useState(FIRST_FRAME_ROWS);
   const more = useCallback(() => setRows((n) => n + MORE_ROWS), []);
+  // Kept hidden for the next visit (useAway), a long list drawn far down goes back to its first rows: they are what a
+  // visit shows first, and the rest would be held in the page meanwhile.
+  useEffect(() => { if (away) setRows(FIRST_ROWS); }, [away]);
   // Two frames on: the first shows the page with a screenful of rows, the next fills in the rest of the first hundred.
   useEffect(() => {
     let cancel = afterPaint(() => { cancel = afterPaint(() => setRows((n) => Math.max(n, FIRST_ROWS))); });

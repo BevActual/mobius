@@ -67,8 +67,10 @@ after its first visit and hidden while another app is on screen (`keptNotes` in 
 nothing afresh. Hidden, it has `content-visibility: hidden`, so the browser keeps its layout but does not paint it, and
 it is `inert`. Through `useAway` (src/ui/Away.tsx) its toolbar controls and inspector panels go, its panel keys and menu
 commands are left to the app on screen, and it is not drawn again until it is back. In split view it is made in its pane
-as before. Locally, switching to Notes went from 78 ms to 42 ms, the same as Files (38 to 45 ms). Docs could be kept the
-same way if it becomes the slowest.
+as before. Locally, switching to Notes went from 78 ms to 42 ms, the same as Files (38 to 45 ms). On the first CI run Notes' slowest-app figure came to 75 and 82 ms
+scaled (budget 180), but the page then held 12,176 DOM nodes (budget 6,000): the kept notebook still had every row
+the test had scrolled down to. A kept list now goes back to its first 100 rows while it is hidden (locally 4,607
+nodes down to 2,207). Docs could be kept the same way if it becomes the slowest.
 
 On 23 November 2026 the DOM growth budget came down from 1,500 to 400 nodes. Every visit to Docs or Notes had kept its
 editor's Markdown reader in the shared `marked` instance (about 105 nodes a visit), which the old budget let through
