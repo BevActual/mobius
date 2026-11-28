@@ -229,6 +229,8 @@ test('start, switching apps, a long list and memory after long use stay within t
   const after = await pageMemory(shell);
   measured('interface memory after long use', after.heapMB, 'MB');
   measured('interface memory growth over long use', after.heapMB - before.heapMB, 'MB');
+  // Where the page's elements are, so a count over budget says which part holds them (Notes is kept, hidden, between visits).
+  console.log(`[speed] elements: ${await shell.evaluate(() => { const n = (sel: string) => document.querySelectorAll(sel).length; return `all ${n('*')}, kept Notes ${n('.kept-pane *')} (list rows ${n('.kept-pane li')}, page ${n('.kept-pane .note-page *')}), Mobius panel ${n('.dock.right *')}`; })}`);
   measured('DOM nodes after long use', after.nodes, 'nodes');
   measured('DOM node growth over long use', after.nodes - before.nodes, 'nodes');
   if (pid) {
