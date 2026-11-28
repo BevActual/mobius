@@ -1,6 +1,7 @@
 import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent } from 'react';
-import { Button, IconButton } from './ui';
-import { FOLLOW_NAMES, barBeats, sceneCount, sceneName, type Song } from './song-format';
+import { Button, IconButton, NumberField, Select } from './ui';
+import { FOLLOW_NAMES, SIGNATURE_UNITS, barBeats, meterOf, sceneCount, sceneName, type Signature, type Song } from './song-format';
+import { sceneSettingsOf, sceneSettingsWords } from './studio-scenes';
 import type { SessionPlaying, SessionQueued } from './studio-engine';
 import { CLIP_DRAG } from './studio-moves';
 
@@ -13,8 +14,11 @@ import { CLIP_DRAG } from './studio-moves';
 const PLAY = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5l8 5-8 5z" /></svg>;
 const ADD = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>;
 const STOP = <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1" /></svg>;
+const TEMPO = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 16.5h5l-1.8-12h-1.4zM10 12.5l3.5-6" /></svg>;
+const CLEAR = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>;
+const UNITS = SIGNATURE_UNITS.map((u) => ({ value: String(u), label: String(u) }));
 
-export function SessionGrid({ song, selected, chosen, playing, queued, beat, onSelect, onChoose, onCreate, onLaunch, onLaunchScene, onStopAll, onSceneName, onAddScene, onClipMenu, onDropClip }: {
+export function SessionGrid({ song, selected, chosen, playing, queued, beat, onSelect, onChoose, onCreate, onLaunch, onLaunchScene, onStopAll, onSceneName, onAddScene, onClipMenu, onDropClip, sceneTempo = false, onSceneTempo, onSceneSetting }: {
   song: Song;
   selected: string | null;
   /** The chosen clip's slot on the selected track, shown in the bottom area. */
@@ -34,6 +38,11 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
   onClipMenu: (trackId: string, slot: number, x: number, y: number) => void;
   /** A clip dragged onto a slot: moved there, or copied with Ctrl held (Live 12, 7.4). */
   onDropClip: (from: { trackId: string; slot: number }, to: { trackId: string; slot: number }, copy: boolean) => void;
+  /** Whether the scenes show their tempo and time signature controls (Live 12, 7.2.1: hidden until revealed). */
+  sceneTempo?: boolean;
+  onSceneTempo?: (shown: boolean) => void;
+  /** A scene's tempo or time signature set, or cleared with null. */
+  onSceneSetting?: (slot: number, change: { tempo?: number | null; signature?: Signature | null }) => void;
 }) {
   // A slot takes a Session clip dragged onto it; the drop reads which one from the drag's data.
   const dropOn = (trackId: string, slot: number) => ({
@@ -48,7 +57,7 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
   const scenes = sceneCount(song);
   const soloed = song.tracks.some((t) => t.solo);
   return (
-    <div className="studio-session" role="grid" aria-label="Clips" style={{ ['--cols' as string]: song.tracks.length }}>
+    <div className="studio-session" role="grid" aria-label="Clips" data-scene-tempo={sceneTempo || undefined} style={{ ['--cols' as string]: song.tracks.length }}>
       <div className="studio-session-row studio-session-heads" role="row">
         {song.tracks.map((t, n) => (
           <div key={t.id} role="columnheader" className="studio-session-head" style={{ '--tc': `var(--c-${t.color})` } as CSSProperties}
@@ -58,7 +67,11 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
             </button>
           </div>
         ))}
-        <div role="columnheader" className="studio-scene-head">Scenes</div>
+        <div role="columnheader" className="studio-scene-head">
+          <span>Scenes</span>
+          {onSceneTempo && <IconButton className="studio-scene-tempo-toggle" label="Scene tempo and time signature" pressed={sceneTempo} icon={TEMPO}
+            title={sceneTempo ? 'Hide scene tempo and time signature' : 'Show scene tempo and time signature: a scene sets the song’s when it is launched'} onClick={() => onSceneTempo(!sceneTempo)} />}
+        </div>
       </div>
       {Array.from({ length: scenes }, (_, i) => (
         <div key={i} className="studio-session-row" role="row" aria-label={`Scene ${sceneName(song, i)}`}>
@@ -93,8 +106,32 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
             );
           })}
           <div role="rowheader" className="studio-scene">
-            <IconButton className="studio-scene-launch" label={`Launch scene ${sceneName(song, i)}`} title="Launch this row of clips on the next bar" icon={PLAY} onClick={() => onLaunchScene(i)} />
-            <input className="studio-scene-name" aria-label={`Scene ${i + 1} name`} placeholder={`Scene ${i + 1}`} value={song.scenes?.[i] ?? ''} maxLength={40} onChange={(e) => onSceneName(i, e.target.value)} />
+            {(() => {
+              const set = sceneSettingsOf(song, i);
+              const words = sceneSettingsWords(set);
+              return <>
+                {/* A scene with its own tempo or time signature has its launch button filled in, as Live colours it. */}
+                <IconButton className="studio-scene-launch" data-set={set ? true : undefined} label={`Launch scene ${sceneName(song, i)}${words ? `, ${words}` : ''}`} title={words ? `Launch this row of clips on the next bar, at ${words}` : 'Launch this row of clips on the next bar'} icon={PLAY} onClick={() => onLaunchScene(i)} />
+                <input className="studio-scene-name" aria-label={`Scene ${i + 1} name`} placeholder={`Scene ${i + 1}`} value={song.scenes?.[i] ?? ''} maxLength={40} onChange={(e) => onSceneName(i, e.target.value)} />
+                {sceneTempo && onSceneSetting && (
+                  <span className="studio-scene-set" role="group" aria-label={`Scene ${i + 1} tempo and time signature`}>
+                    <span className="studio-scene-field" data-unset={set?.tempo === undefined || undefined}>
+                      <NumberField label="Scene tempo" hideLabel value={set?.tempo ?? song.tempo} min={30} max={300} step={1} bigStep={10} decimals={0} width={3}
+                        onChange={(v) => onSceneSetting(i, { tempo: v })} />
+                    </span>
+                    <span className="studio-scene-field" data-unset={!set?.signature || undefined}>
+                      <NumberField label="Scene beats in a bar" hideLabel value={(set?.signature ?? meterOf(song))[0]} min={1} max={32} step={1} decimals={0} width={2}
+                        onChange={(v) => onSceneSetting(i, { signature: [v, (set?.signature ?? meterOf(song))[1]] })} />
+                      <span aria-hidden="true">/</span>
+                      <Select label="Scene beat unit" hideLabel quiet value={String((set?.signature ?? meterOf(song))[1])} choices={UNITS}
+                        onChange={(u) => onSceneSetting(i, { signature: [(set?.signature ?? meterOf(song))[0], Number(u)] })} />
+                    </span>
+                    {set && <IconButton className="studio-scene-clear" label={`Clear scene ${i + 1} tempo and time signature`} title="Return to default: the scene leaves the song’s tempo and time signature as they are" icon={CLEAR}
+                      onClick={() => onSceneSetting(i, { tempo: null, signature: null })} />}
+                  </span>
+                )}
+              </>;
+            })()}
           </div>
         </div>
       ))}

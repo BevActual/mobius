@@ -1,4 +1,5 @@
 import { BEATS_PER_BAR, MAX_SCENES, barBeats, playedNotes, sceneCount, type ArrangeClip, type Clip, type Song, type SongNote } from './song-format';
+import { insertSceneSettings } from './studio-scenes';
 import { recordOver } from './studio-view';
 
 /**
@@ -123,6 +124,7 @@ export function consolidateToScene(song: Song, from: number, to: number, after: 
   while (names.length < row) names.push('');
   names.splice(row, 0, '');
   song.scenes = names;
+  insertSceneSettings(song, row);
   for (const t of song.tracks) {
     const notes = t.kind === 'audio' || t.frozen ? [] : t.clips.filter((c) => !c.muted).flatMap(playedNotes)
       // A note held into the stretch starts at its start, as Live cuts it; what runs past its end is cut too.

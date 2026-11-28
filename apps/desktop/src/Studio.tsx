@@ -16,6 +16,7 @@ import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
 import { StudioGrooves } from './StudioGrooves';
 import { addGroove, commitGroove, extractGroove } from './studio-groove';
+import { applyScene, sceneSettingsOf, setSceneSetting } from './studio-scenes';
 import { deleteGroup, groupRows, groupTracks, leaveGroup, soloInside, tracksIn, ungroup } from './studio-groups';
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
@@ -1128,6 +1129,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   /** Bumped to bring the Mixer tab up from the toolbar. */
   const [mixerReveal, setMixerReveal] = useState(0);
   const [grooveReveal, setGrooveReveal] = useState(0);
+  const [sceneTempo, setSceneTempo] = useState(false);
   const roll = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const copied = useRef<SongNote[]>([]);
@@ -1590,6 +1592,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   };
   /** Launches a row: each track plays its clip in that scene, and a track with none there stops. */
   const launchScene = (slot: number) => {
+    // A scene's own tempo and time signature, taken by the song as it launches (Live 12, 7.2.1).
+    if (sceneSettingsOf(song, slot)) change((s) => { applyScene(s, slot); }, 'scene-tempo');
     const row = Object.fromEntries(song.tracks.map((t) => [t.id, t.slots?.[slot] ? slot : null]));
     if (session.current) for (const [id, at] of Object.entries(row)) session.current.launch(id, at);
     else startSession(Object.fromEntries(Object.entries(row).filter(([, at]) => at !== null)));
@@ -2557,7 +2561,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) { following.current = false; return; } e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
           {view === 'session' ? (<>
             <SessionGrid song={song} selected={track?.id ?? null} chosen={clipAt} playing={sessionNow.playing} queued={sessionNow.queued} beat={beat}
-              onSelect={(id) => { setSelected(id); setClipAt(null); }} onChoose={chooseClip} onCreate={createClip} onLaunch={launch} onLaunchScene={launchScene}
+              onSelect={(id) => { setSelected(id); setClipAt(null); }} onChoose={chooseClip} onCreate={createClip} onLaunch={launch} onLaunchScene={launchScene} sceneTempo={sceneTempo} onSceneTempo={setSceneTempo} onSceneSetting={(slot, c) => change((s) => { setSceneSetting(s, slot, c); }, `scene-set:${slot}`)}
               onStopAll={stopAll} onSceneName={setSceneName} onAddScene={addScene} onClipMenu={clipMenu}
               onDropClip={(from, to, copy) => change((s) => { moveSlot(s, from, to, copy); })} />
             {proposal && <div className="studio-float">{proposal}</div>}
