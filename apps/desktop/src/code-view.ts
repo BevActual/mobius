@@ -276,8 +276,9 @@ export function gitMarks(changes: readonly { status: string; path: string }[]): 
  * Code's Glance after a failed test run: the first line that says what failed, the command, and how long it took.
  * Nothing when the last run passed or there was none.
  */
-export function testsGlance(last: { passed: boolean; output: string; seconds: number; timedOut: boolean } | null, command: string | null): { label: string; value: string }[] | null {
-  if (!last || last.passed) return null;
+export function testsGlance(last: { passed: boolean; output: string; seconds: number; timedOut: boolean; stopped?: boolean } | null, command: string | null): { label: string; value: string }[] | null {
+  // A run the person stopped says nothing about the tests.
+  if (!last || last.passed || last.stopped) return null;
   const lines = last.output.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   // node --test names the failing test: "not ok 2 - pack temperature" (TAP) or "✖ pack temperature (2.1ms)" (spec).
   const named = lines.map((l) => /^not ok \d+ - (.+?)(?:\s+#.*)?$/.exec(l)?.[1] ?? /^✖\s+(.+?)\s+\([\d.]+m?s\)$/.exec(l)?.[1]).find(Boolean);

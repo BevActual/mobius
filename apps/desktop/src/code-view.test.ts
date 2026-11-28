@@ -80,6 +80,7 @@ describe('Code in Glance', () => {
   it('shows nothing when the tests passed or never ran', () => {
     expect(testsGlance(null, 'npm test')).toBeNull();
     expect(testsGlance({ passed: true, output: 'ok', seconds: 1, timedOut: false }, 'npm test')).toBeNull();
+    expect(testsGlance({ passed: false, output: 'x\nStopped.', seconds: 1, timedOut: false, stopped: true }, 'npm test')).toBeNull();
   });
   it('leads with the line that says what failed, then the command and the time', () => {
     const facts = testsGlance({ passed: false, output: 'running 3 tests\n  ✓ adds\n  ✗ total: expected 30, received 29\n2 passed, 1 failed', seconds: 1.23, timedOut: false }, 'npm test');

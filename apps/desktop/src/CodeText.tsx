@@ -1056,7 +1056,7 @@ export function CodeText({ code, lang, bar, setBar, jump, lsp, onShowProblems, b
                   const result = runner.results.get(runner.keyOf(m));
                   const label = runner.label(m);
                   return (
-                    <button type="button" tabIndex={-1} className="ed-run" data-result={result} aria-label={label} title={label} disabled={runner.running} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={() => runner.run(m)}>
+                    <button type="button" tabIndex={-1} className="ed-run" data-result={result} aria-label={label} title={label} disabled={runner.running && result !== 'running'} onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }} onClick={() => runner.run(m)}>
                       <svg viewBox="0 0 20 20" aria-hidden="true">{result === 'passed' ? <path d="m5 10.5 3.2 3L15 6.5" /> : result === 'failed' ? <path d="m6 6 8 8m0-8-8 8" /> : result === 'running' ? <circle cx="10" cy="10" r="5" /> : <path d="M7 5.5v9l7.5-4.5z" />}</svg>
                     </button>
                   );

@@ -918,3 +918,21 @@ test('a task starts its branch; branches switch from Changes, History shows the 
   await expect(bar.getByRole('status')).toHaveText('Nothing to commit');
   expect(fs.existsSync(path.join(project, 'notes.txt'))).toBe(false);
 });
+
+test('a test run can be stopped from the Tests panel, with what it started', async () => {
+  fs.writeFileSync(path.join(project, 'tests', 'slow.js'), "console.log('waiting')\nsetTimeout(() => console.log('done'), 30000)\n");
+  await start();
+  await tests().getByRole('button', { name: 'Choose command' }).click();
+  await tests().getByRole('textbox', { name: 'Test command' }).fill('node tests/slow.js');
+  await tests().getByRole('button', { name: 'Save' }).click();
+  await tests().getByRole('button', { name: 'Run' }).click();
+  await expect(tests().getByRole('status')).toHaveText('Running…');
+  const t = Date.now();
+  await tests().getByRole('button', { name: 'Stop' }).click();
+  await expect(tests().getByRole('status')).toContainText('Stopped');
+  expect(Date.now() - t).toBeLessThan(10_000);
+  await expect(tests().getByLabel('Test output')).toContainText('Stopped.');
+  await expect(tests().getByRole('button', { name: 'Run' })).toBeEnabled();
+  // A stopped run is no failure: nothing asks Mobius to find its cause.
+  await expect(shell().getByText('A test fails')).toHaveCount(0);
+});

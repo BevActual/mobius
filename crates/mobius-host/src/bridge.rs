@@ -3805,6 +3805,8 @@ impl Bridge {
                 _ => Err("a project and a command are needed".to_owned()),
             },
             "stopProcess" => args.first().and_then(Value::as_u64).ok_or_else(|| "which one?".to_owned()).and_then(|i| self.processes.stop(i)),
+            // Stop on the Tests panel: the run going in the project, with all it started.
+            "stopTests" => text(0).ok_or_else(need).map(|p| json!({ "ok": true, "stopped": self.code_tests.stop(p) })),
             "runTests" => text(0).ok_or_else(need).and_then(|p| {
                 let dir = code.project_dir(p)?;
                 let command = self.code_tests.get(p).ok_or("Choose a test command first.")?;
@@ -3813,7 +3815,9 @@ impl Bridge {
                 if let Some(extra) = text(1).filter(|e| !e.trim().is_empty()) {
                     ran.push_str(&crate::code_tests::narrowing(extra)?);
                 }
-                let result = crate::code_tests::run(&dir, &ran, crate::code_tests::TIMEOUT);
+                let stop = self.code_tests.started(p);
+                let result = crate::code_tests::run_until(&dir, &ran, crate::code_tests::TIMEOUT, &stop);
+                self.code_tests.ended(p, &stop);
                 (self.emit)("mobius:code-tests", json!({ "project": p, "running": false, "result": result, "command": command, "ran": ran, "by": "person" }));
                 Ok(result)
             }),
