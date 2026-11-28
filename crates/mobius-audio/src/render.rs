@@ -36,6 +36,8 @@ struct Lane {
     mallet: Option<crate::mallet::MalletSound>,
     /// An electric piano track's settings.
     electric: Option<crate::electric::ElectricSound>,
+    /// A wavetable track's settings.
+    wavetable: Option<crate::wavetable::WavetableSound>,
     instrument: Instrument,
     /// Its instrument stack's chains, which play its notes in place of its instrument when there are any.
     chains: Vec<InstrumentChain>,
@@ -538,7 +540,7 @@ impl Lane {
             return;
         }
         // A track with no sound of its own plays its instrument's own voices, as the window does.
-        let mut voice = Voice::for_note(self.instrument, self.sound.as_ref(), crate::voice::Models { string: self.string.as_ref(), mallet: self.mallet.as_ref(), electric: self.electric.as_ref() }, note.pitch, note.length * spb, note.velocity);
+        let mut voice = Voice::for_note(self.instrument, self.sound.as_ref(), crate::voice::Models { string: self.string.as_ref(), mallet: self.mallet.as_ref(), electric: self.electric.as_ref(), wavetable: self.wavetable.as_ref() }, note.pitch, note.length * spb, note.velocity);
         voice.add_to(&mut self.scratch[offset.min(frames)..frames], rate);
         if self.voices.len() >= MAX_VOICES {
             self.voices.remove(0);
@@ -1056,6 +1058,10 @@ impl Renderer {
                 };
                 // A sampler track's sound and its drum pads' own sounds, from the files the song has read.
                 let samplers = if is_frozen { Samplers::default() } else { Samplers::of(t, &song.sounds) };
+                // A wavetable track's tables are made here, before any note, not on the audio thread.
+                if t.instrument == Instrument::Wavetable && !is_frozen {
+                    crate::wavetable::warm(&t.wavetable.unwrap_or_default().clamped());
+                }
                 // An audio track's sound comes in with two channels, as a sampler's does.
                 let stereo = is_frozen || Song::is_audio(t) || Song::sampler_of(t).is_some() || !samplers.pads.is_empty() || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9)) || t.chains().iter().any(|c| c.pan.abs() > 1e-9);
                 let chain = if is_frozen { None } else { Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, stereo) };
@@ -1103,6 +1109,7 @@ impl Renderer {
                     string: t.string,
                     mallet: t.mallet,
                     electric: t.electric,
+                    wavetable: t.wavetable,
                     instrument: t.instrument,
                     chains: if is_frozen { Vec::new() } else { t.chains().to_vec() },
                     stacked: Vec::with_capacity(MAX_VOICES),
@@ -2142,6 +2149,15 @@ mod tests {
         let b = &bell[2_400..12_000];
         assert!(at(b, 110.0) > 5.0 * at(b, 150.0), "{} {}", at(b, 110.0), at(b, 150.0));
         assert!(bar.iter().chain(&bell).all(|v| v.is_finite() && v.abs() <= 1.0));
+    }
+
+    #[test]
+    fn a_wavetable_track_plays_its_note_through_its_envelope() {
+        let rms = |x: &[f32]| (x.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / x.len() as f64).sqrt();
+        let x = render_song(&song(r#"{"id":"t","instrument":"wavetable","wavetable":{"table1":"sync","position1":0.6,"unison":3,"sub":0.4,"release":0.1},"notes":[{"pitch":57,"start":0,"length":1,"velocity":0.9}]}"#), 48_000).0;
+        assert!(rms(&x[2_000..20_000]) > 0.02, "{}", rms(&x[2_000..20_000]));
+        assert!(x.len() < 40_000 || rms(&x[36_000..40_000]) < rms(&x[2_000..20_000]) * 0.05);
+        assert!(x.iter().all(|v| v.is_finite() && v.abs() <= 1.0));
     }
 
     #[test]

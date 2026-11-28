@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { FOLLOW_ACTIONS, FOLLOW_DEFAULT, FOLLOW_NAMES, type Follow, MAIN_VOLUME, heard as isHeard, type GroupTrack, barBeats, meterOf, SIGNATURE_UNITS, isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { FOLLOW_ACTIONS, FOLLOW_DEFAULT, FOLLOW_NAMES, type Follow, MAIN_VOLUME, heard as isHeard, type GroupTrack, barBeats, meterOf, SIGNATURE_UNITS, isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, wavetableOf, WAVETABLE_DEFAULTS, WAVETABLE_RANGE, type WavetableSound, type WavetableKnob, TABLES, TABLE_NAMES, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { AudioClipDetail } from './studio-audio-clip';
@@ -51,7 +51,7 @@ type FreezeTrack = (path: string, trackId: string, song?: unknown) => Promise<{ 
 /** The engine's stems export, once it has one (music.renderStems). */
 type RenderStems = (path: string, name: string, song?: unknown) => Promise<{ ok: true; saved: string; path: string; files: { file: string; peakDb: number; over: boolean }[] } | { ok: false; message: string }>;
 /** The order the sidebar lists sounds in: drums first, as most songs start with a beat. */
-const SOUNDS: Instrument[] = ['drums', 'bass', 'piano', 'pad', 'lead', 'string', 'mallet', 'electric'];
+const SOUNDS: Instrument[] = ['drums', 'bass', 'piano', 'pad', 'lead', 'string', 'mallet', 'electric', 'wavetable'];
 
 /** When a song was last changed, short: the time today, the weekday this week, else the date ("3 Nov"). */
 function whenShort(at: number, now: number): string {
@@ -756,6 +756,44 @@ const ELECTRIC_CELLS: { k: Exclude<keyof ElectricSound, 'fork'>; name: string; l
   { k: 'bell', name: 'Bell', format: pct },
   { k: 'drive', name: 'Drive', format: pct },
 ];
+const TABLE_CHOICES = TABLES.map((t) => ({ value: t, label: TABLE_NAMES[t] }));
+const SUB_OCTAVE_CHOICES = [{ value: '-1', label: '-1 oct' }, { value: '-2', label: '-2 oct' }] as const;
+const secs = (v: number) => (v < 1 ? `${Math.round(v * 1000)} ms` : `${v.toFixed(2)} s`);
+const semis = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v)} st`;
+const cents = (v: number) => `${v > 0 ? '+' : ''}${Math.round(v)} ct`;
+type WaveCell = { k: WavetableKnob; name: string; log?: boolean; format: (v: number) => string };
+const oscCells = (n: 1 | 2): WaveCell[] => [
+  { k: `position${n}`, name: 'Position', format: pct },
+  { k: `level${n}`, name: 'Level', format: pct },
+  { k: `transpose${n}`, name: 'Transpose', format: semis },
+  { k: `detune${n}`, name: 'Detune', format: cents },
+];
+/** Wavetable's panel (Live 12's Wavetable): its two oscillators, then the sub and unison, filter, envelope and modulation. */
+const WAVETABLE_GROUPS: { name: string; cells: WaveCell[] }[] = [
+  { name: 'Sub and Unison', cells: [
+    { k: 'sub', name: 'Sub', format: pct },
+    { k: 'unison', name: 'Unison', format: (v) => (Math.round(v) === 1 ? 'Off' : `${Math.round(v)} voices`) },
+    { k: 'spread', name: 'Spread', format: pct },
+    { k: 'fm', name: 'FM', format: pct },
+  ] },
+  { name: 'Filter', cells: [
+    { k: 'cutoff', name: 'Cutoff', log: true, format: (v) => (v < 1000 ? `${Math.round(v)} Hz` : `${(v / 1000).toFixed(1)} kHz`) },
+    { k: 'resonance', name: 'Resonance', format: pct },
+    { k: 'filterEnv', name: 'Env', format: pct },
+  ] },
+  { name: 'Envelope', cells: [
+    { k: 'attack', name: 'Attack', log: true, format: secs },
+    { k: 'decay', name: 'Decay', log: true, format: secs },
+    { k: 'sustain', name: 'Sustain', format: pct },
+    { k: 'release', name: 'Release', log: true, format: secs },
+  ] },
+  { name: 'Modulation', cells: [
+    { k: 'lfoRate', name: 'LFO Rate', log: true, format: (v) => `${v < 1 ? v.toFixed(2) : v.toFixed(1)} Hz` },
+    { k: 'lfoPosition', name: 'LFO Position', format: pct },
+    { k: 'envPosition', name: 'Env Position', format: (v) => `${v > 0 ? '+' : ''}${Math.round(v * 100)}%` },
+    { k: 'modDecay', name: 'Env Decay', log: true, format: secs },
+  ] },
+];
 /** The Song Tempo lane's range, as the window's tempo field. */
 const TEMPO_LANE = { lo: TEMPO_MIN, hi: TEMPO_MAX };
 const UNIT_CHOICES = SIGNATURE_UNITS.map((u) => ({ value: String(u), label: String(u) }));
@@ -822,6 +860,12 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
   const setMallet = (patch: Partial<MalletSound>, tag: string) => onTrack((t) => { if (t.instrument !== 'mallet') return; t.mallet = { ...MALLET_DEFAULTS, ...t.mallet, ...patch }; }, `mallet:${tag}`);
   const keyed = track ? electricOf(track) : null;
   const setElectric = (patch: Partial<ElectricSound>, tag: string) => onTrack((t) => { if (t.instrument !== 'electric') return; t.electric = { ...ELECTRIC_DEFAULTS, ...t.electric, ...patch }; }, `electric:${tag}`);
+  const waved = track ? wavetableOf(track) : null;
+  const setWavetable = (patch: Partial<WavetableSound>, tag: string) => onTrack((t) => { if (t.instrument !== 'wavetable') return; t.wavetable = { ...WAVETABLE_DEFAULTS, ...t.wavetable, ...patch }; }, `wavetable:${tag}`);
+  const waveKnob = ({ k, name, log, format }: WaveCell) => (
+    <Knob key={k} label={name} value={waved![k]} min={WAVETABLE_RANGE[k].lo} max={WAVETABLE_RANGE[k].hi} step={WAVETABLE_RANGE[k].whole ? 1 : 0.01} scale={log ? 'log' : 'linear'} origin={k === 'envPosition' ? 0 : WAVETABLE_DEFAULTS[k]} reset={WAVETABLE_DEFAULTS[k]} format={format}
+      proposed={proposed?.has(`wavetable:${k}`)} onChange={(v) => setWavetable({ [k]: WAVETABLE_RANGE[k].whole ? Math.round(v) : v }, k)} />
+  );
   const kit = track ? kitOf(track) : null;
   const set = (k: keyof Sound, v: number) => onTrack((t) => { if (!isSynth(t.instrument)) return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), [k]: v }; }, `sound:${k}`);
   const setMany = (patch: Partial<Sound>, tag: string) => onTrack((t) => { if (!isSynth(t.instrument)) return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), ...patch }; }, `sound:${tag}`);
@@ -850,7 +894,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
       <DeviceFrame className="studio-instrument" title={track.kind === 'sampler' ? 'Sampler' : 'Instrument'} index={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
         collapsed={folded.has(`${track.id}:instrument`)} onCollapse={fold(`${track.id}:instrument`)}
         actions={track.kind === 'sampler' ? undefined : <>
-          <Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; delete t.string; delete t.mallet; delete t.electric; })} />
+          <Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; delete t.string; delete t.mallet; delete t.electric; delete t.wavetable; })} />
           {!track.kind && !track.stack && isSynth(track.instrument) && <IconButton label="Stack instruments" icon={<Icon d="M4 6h12M4 10h12M4 14h12" />}
             onClick={() => onTrack((t) => { if (!isSynth(t.instrument)) return; t.stack = { chains: [{ instrument: t.instrument, ...(t.sound ? { sound: { ...t.sound } } : {}) }] }; })} />}
         </>}>
@@ -918,6 +962,21 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
               <p className="studio-dev-note">{FORK_NOTES[keyed.fork]}</p>
             </section>
           )}
+          {/* A wavetable synth (Live 12's Wavetable): two oscillators sweeping their tables, then what shapes them. */}
+          {waved && ([1, 2] as const).map((n) => (
+            <section key={n} className="studio-dev-section studio-dev-col" aria-label={`Oscillator ${n}`}>
+              <h4 className="studio-dev-head">{`Oscillator ${n}`}</h4>
+              <Select label="Table" value={waved[`table${n}`]} choices={TABLE_CHOICES} onChange={(t) => setWavetable(n === 1 ? { table1: t } : { table2: t }, `table${n}`)} />
+              <ParamGrid label={`Oscillator ${n}`} columns={2}>{oscCells(n).map(waveKnob)}</ParamGrid>
+            </section>
+          ))}
+          {waved && WAVETABLE_GROUPS.map((g) => (
+            <section key={g.name} className="studio-dev-section studio-dev-col" aria-label={g.name}>
+              <h4 className="studio-dev-head">{g.name}</h4>
+              {g.name === 'Sub and Unison' && <Select label="Sub octave" value={String(waved.subOctave)} choices={SUB_OCTAVE_CHOICES} onChange={(o) => setWavetable({ subOctave: o === '-2' ? -2 : -1 }, 'subOctave')} />}
+              <ParamGrid label={g.name} columns={2}>{g.cells.map(waveKnob)}</ParamGrid>
+            </section>
+          ))}
           {kit && (
             <section className="studio-dev-section studio-dev-col" aria-label="Kit">
               <h4 className="studio-dev-head">Kit</h4>

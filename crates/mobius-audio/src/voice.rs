@@ -5,6 +5,7 @@
 use crate::param::Param;
 use crate::song::{Instrument, Sound};
 use crate::electric::{ElectricSound, Tines};
+use crate::wavetable::{Wavetable, WavetableSound};
 use crate::mallet::{MalletSound, Modes};
 use crate::string::{Exciter, Strand, StringSound};
 use std::f64::consts::{PI, SQRT_2, TAU};
@@ -20,6 +21,7 @@ pub fn peak_of(instrument: Instrument) -> f64 {
         Instrument::String => 0.5,
         Instrument::Mallet => 0.4,
         Instrument::Electric => 0.45,
+        Instrument::Wavetable => 0.3,
     }
 }
 
@@ -29,6 +31,7 @@ pub struct Models<'a> {
     pub string: Option<&'a StringSound>,
     pub mallet: Option<&'a MalletSound>,
     pub electric: Option<&'a ElectricSound>,
+    pub wavetable: Option<&'a WavetableSound>,
 }
 
 /// How long a held note is made to last: far longer than any key is held, so only letting it go ends it.
@@ -110,6 +113,26 @@ pub struct Voice {
     mallet: Option<MalletNote>,
     /// A modelled electric piano in place of the oscillators: its settings and strike, and its fork once made.
     electric: Option<ElectricNote>,
+    /// A wavetable synth's oscillators in place of the plain ones: its settings, and its tables once read.
+    wavetable: Option<WavetableNote>,
+}
+
+/// A note on the wavetable synth: its settings, and its oscillators once made (at the output's rate).
+struct WavetableNote {
+    sound: WavetableSound,
+    oscs: Option<Box<Wavetable>>,
+}
+
+impl std::fmt::Debug for WavetableNote {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WavetableNote").field("sound", &self.sound).finish_non_exhaustive()
+    }
+}
+
+impl Clone for WavetableNote {
+    fn clone(&self) -> WavetableNote {
+        WavetableNote { sound: self.sound, oscs: None }
+    }
 }
 
 /// A note on a modelled electric piano: its settings and how hard it was struck, and its fork once made (at the
@@ -193,6 +216,7 @@ impl Voice {
             string: None,
             mallet: None,
             electric: None,
+            wavetable: None,
         }
     }
 
@@ -204,6 +228,7 @@ impl Voice {
             (Instrument::String, _) => Voice::string(&models.string.copied().unwrap_or_default(), pitch, seconds, velocity),
             (Instrument::Mallet, _) => Voice::mallet(&models.mallet.copied().unwrap_or_default(), pitch, seconds, velocity),
             (Instrument::Electric, _) => Voice::electric(&models.electric.copied().unwrap_or_default(), pitch, seconds, velocity),
+            (Instrument::Wavetable, _) => Voice::wavetable(&models.wavetable.copied().unwrap_or_default(), pitch, seconds, velocity),
             (_, Some(sound)) => Voice::new(instrument, sound, pitch, seconds, velocity),
             (_, None) => Voice::legacy(instrument, pitch, seconds, velocity),
         }
@@ -232,7 +257,7 @@ impl Voice {
             Instrument::Bass => &[osc(Wave::Saw, 1.0, 0.0)],
             Instrument::Pad => &[osc(Wave::Saw, 1.0, -7.0), osc(Wave::Saw, 1.0, 7.0)],
             Instrument::Lead => &[osc(Wave::Square, 1.0, 0.0)],
-            Instrument::Piano | Instrument::Drums | Instrument::String | Instrument::Mallet | Instrument::Electric => &[osc(Wave::Triangle, 1.0, 0.0), osc(Wave::Sine, 2.0, 0.0)],
+            Instrument::Piano | Instrument::Drums | Instrument::String | Instrument::Mallet | Instrument::Electric | Instrument::Wavetable => &[osc(Wave::Triangle, 1.0, 0.0), osc(Wave::Sine, 2.0, 0.0)],
         };
         oscs[..list.len()].copy_from_slice(list);
         let cutoff = match instrument {
@@ -260,6 +285,7 @@ impl Voice {
             string: None,
             mallet: None,
             electric: None,
+            wavetable: None,
         }
     }
 
@@ -293,6 +319,7 @@ impl Voice {
             string: Some(StringNote { sound: s, velocity: velocity.clamp(0.0, 1.0), seed: 0x9e37_79b9 ^ u32::from(pitch).wrapping_mul(2_654_435_761), lift: held, strand: None }),
             mallet: None,
             electric: None,
+            wavetable: None,
         }
     }
 
@@ -324,6 +351,45 @@ impl Voice {
             string: None,
             mallet: Some(MalletNote { sound: s, velocity: velocity.clamp(0.0, 1.0), modes: None }),
             electric: None,
+            wavetable: None,
+        }
+    }
+
+    /// A note on the wavetable synth (Live 12's Wavetable): its oscillators through its own amp envelope and low-pass
+    /// filter, the filter opened by the envelope as much as its `filter_env` says.
+    #[must_use]
+    pub fn wavetable(sound: &WavetableSound, pitch: u8, seconds: f64, velocity: f64) -> Voice {
+        let s = sound.clamped();
+        crate::wavetable::warm(&s);
+        let held = s.attack.max(seconds);
+        let peak = velocity.clamp(0.0, 1.0) * peak_of(Instrument::Wavetable);
+        let rest = (peak * s.sustain).max(0.0001);
+        let gain = Param::new(0.0).set(0.0, 0.0).linear(peak, s.attack).target(rest, s.attack, s.decay / 3.0).target(0.0001, held, s.release / 4.0);
+        let open = (s.cutoff * 2f64.powf(s.filter_env * 4.0)).min(18_000.0);
+        let mut cutoff = Param::new(s.cutoff).set(s.cutoff, 0.0);
+        if s.filter_env > 0.001 {
+            cutoff = cutoff.linear(open, s.attack).target(s.cutoff, s.attack, s.decay / 3.0);
+        }
+        Voice {
+            oscs: [SILENT; 5],
+            count: 0,
+            base: hz(f64::from(pitch)),
+            gain,
+            cutoff,
+            q_db: 0.7 + s.resonance * 14.0,
+            drive: 0.0,
+            vibrato: 0.0,
+            rate: 5.0,
+            lfo: 0.0,
+            filter: LowPass::default(),
+            end: held + s.release + 0.05,
+            time: 0.0,
+            release: s.release,
+            fade: None,
+            string: None,
+            mallet: None,
+            electric: None,
+            wavetable: Some(WavetableNote { sound: s, oscs: None }),
         }
     }
 
@@ -355,6 +421,7 @@ impl Voice {
             string: None,
             mallet: None,
             electric: Some(ElectricNote { sound: s, velocity: velocity.clamp(0.0, 1.0), tines: None }),
+            wavetable: None,
         }
     }
 
@@ -399,6 +466,10 @@ impl Voice {
             if let Some(note) = &mut self.electric {
                 let (sound, velocity, base) = (note.sound, note.velocity, self.base);
                 x = note.tines.get_or_insert_with(|| Box::new(Tines::new(sound, base, rate, velocity))).sample();
+            }
+            if let Some(note) = &mut self.wavetable {
+                let (sound, base) = (note.sound, self.base);
+                x = note.oscs.get_or_insert_with(|| Box::new(Wavetable::new(sound, base, rate))).sample();
             }
             let wobble = if self.vibrato > 0.0 { self.vibrato * (TAU * self.lfo).sin() } else { 0.0 };
             self.lfo = (self.lfo + self.rate * dt).fract();
