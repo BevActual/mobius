@@ -849,6 +849,7 @@ test('a task starts its branch; branches switch from Changes, History shows the 
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 'test@example.com');
   git('config', 'user.name', 'Test');
+  git('config', 'core.autocrlf', 'false'); // Windows runners turn it on; files keep the endings they were written with
   git('add', '-A');
   git('commit', '-q', '-m', 'Start the planner', '-m', 'With a budget and its test.');
   await start();
