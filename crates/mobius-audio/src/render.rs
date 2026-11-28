@@ -29,6 +29,8 @@ struct Lane {
     string: Option<crate::string::StringSound>,
     /// A mallet track's settings.
     mallet: Option<crate::mallet::MalletSound>,
+    /// An electric piano track's settings.
+    electric: Option<crate::electric::ElectricSound>,
     instrument: Instrument,
     /// Its instrument stack's chains, which play its notes in place of its instrument when there are any.
     chains: Vec<InstrumentChain>,
@@ -515,7 +517,7 @@ impl Lane {
             return;
         }
         // A track with no sound of its own plays its instrument's own voices, as the window does.
-        let mut voice = Voice::for_note(self.instrument, self.sound.as_ref(), crate::voice::Models { string: self.string.as_ref(), mallet: self.mallet.as_ref() }, note.pitch, note.length * spb, note.velocity);
+        let mut voice = Voice::for_note(self.instrument, self.sound.as_ref(), crate::voice::Models { string: self.string.as_ref(), mallet: self.mallet.as_ref(), electric: self.electric.as_ref() }, note.pitch, note.length * spb, note.velocity);
         voice.add_to(&mut self.scratch[offset.min(frames)..frames], rate);
         if self.voices.len() >= MAX_VOICES {
             self.voices.remove(0);
@@ -1043,6 +1045,7 @@ impl Renderer {
                     sound: t.sound,
                     string: t.string,
                     mallet: t.mallet,
+                    electric: t.electric,
                     instrument: t.instrument,
                     chains: if is_frozen { Vec::new() } else { t.chains().to_vec() },
                     stacked: Vec::with_capacity(MAX_VOICES),
@@ -1861,6 +1864,26 @@ mod tests {
         let b = &bell[2_400..12_000];
         assert!(at(b, 110.0) > 5.0 * at(b, 150.0), "{} {}", at(b, 110.0), at(b, 150.0));
         assert!(bar.iter().chain(&bell).all(|v| v.is_finite() && v.abs() <= 1.0));
+    }
+
+    #[test]
+    fn an_electric_piano_track_rings_while_held_and_the_damper_stops_it() {
+        let rms = |x: &[f32]| (x.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / x.len() as f64).sqrt();
+        // A3 held for a beat (half a second at 120 bpm), on a tine and on a reed.
+        let tine = render_song(&song(r#"{"id":"t","instrument":"electric","notes":[{"pitch":57,"start":0,"length":1,"velocity":0.9}]}"#), 48_000).0;
+        let reed = render_song(&song(r#"{"id":"t","instrument":"electric","electric":{"fork":"reed"},"notes":[{"pitch":57,"start":0,"length":1,"velocity":0.9}]}"#), 48_000).0;
+        for x in [&tine, &reed] {
+            assert!(rms(&x[2_000..20_000]) > 0.02, "{}", rms(&x[2_000..20_000]));
+            // The damper: a quarter second after the key is up it is near silent.
+            assert!(x.len() < 40_000 || rms(&x[36_000..40_000]) < rms(&x[2_000..20_000]) * 0.02);
+            assert!(x.iter().all(|v| v.is_finite() && v.abs() <= 1.0));
+        }
+        let like = |x: &[f32], shift: usize| {
+            let (a, b) = (&x[4_800..9_600], &x[4_800 + shift..9_600 + shift]);
+            a.iter().zip(b).map(|(p, q)| f64::from(*p) * f64::from(*q)).sum::<f64>() / (rms(a) * rms(b) * a.len() as f64)
+        };
+        // 220 Hz: it matches itself one period (218.2 samples) on, and not half of one.
+        assert!(like(&tine, 218) > 0.9 && like(&tine, 109) < 0.5, "{} {}", like(&tine, 218), like(&tine, 109));
     }
 
     #[test]

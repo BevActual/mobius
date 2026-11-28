@@ -103,6 +103,8 @@ pub enum Instrument {
     String,
     /// A modelled struck resonator (Live 12's Collision): its `mallet` settings.
     Mallet,
+    /// A modelled electric piano (Live 12's Electric): its `electric` settings.
+    Electric,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -154,6 +156,9 @@ pub struct Track {
     /// A mallet track's settings (`instrument` "mallet"); none plays the marimba bar.
     #[serde(default)]
     pub mallet: Option<crate::mallet::MalletSound>,
+    /// An electric piano track's settings (`instrument` "electric"); none plays the tine piano's own.
+    #[serde(default)]
+    pub electric: Option<crate::electric::ElectricSound>,
     /// An instrument stack (Live 12's Instrument Rack): its chains play each note in their key and velocity zones in
     /// place of the track's own instrument. None, or no chain, plays the track's own.
     #[serde(default)]
@@ -535,7 +540,7 @@ impl Sound {
             Instrument::Bass => Some(s(1.0, 0.0, 700.0, 0.1, 0.3, 1.0, 0.005, 0.08)),
             Instrument::Pad => Some(s(1.0, 14.0, 1800.0, 0.1, 0.3, 1.0, 0.25, 0.5)),
             Instrument::Lead => Some(s(0.7, 0.0, 5000.0, 0.1, 0.3, 1.0, 0.005, 0.08)),
-            Instrument::Drums | Instrument::String | Instrument::Mallet => None,
+            Instrument::Drums | Instrument::String | Instrument::Mallet | Instrument::Electric => None,
         }
     }
 }

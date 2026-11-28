@@ -771,6 +771,28 @@ test('locators mark places in the song: set at the playhead or in the ruler, nam
   await expect.poll(locs).toEqual([{ beat: 0, name: '' }, { beat: 12, name: 'Chorus' }]);
 });
 
+test('an Electric track is a modelled electric piano: tine or reed, its decay, hardness, bell and drive kept in the song', async () => {
+  await start();
+  await tracks().getByRole('button', { name: 'Add track' }).click();
+  await shell().getByRole('menu', { name: 'Add track' }).getByRole('menuitem', { name: 'Electric' }).click();
+  await expect.poll(() => saved().tracks.map((t) => [t.name, (t as { instrument?: string }).instrument])).toEqual([['Keys', 'piano'], ['Electric', 'electric']]);
+  const device = await openDevice('Electric');
+  const piano = device.getByRole('region', { name: 'Electric' });
+  // No oscillators or filter: the piano's own settings (Live 12's Electric).
+  await expect(device.getByRole('slider', { name: 'Cutoff and resonance' })).toHaveCount(0);
+  await expect(piano.getByRole('slider', { name: 'Decay' })).toHaveAttribute('aria-valuetext', '4.0 s');
+  await piano.getByRole('combobox', { name: 'Fork' }).click();
+  await shell().getByRole('option', { name: 'Reed' }).click();
+  await expect(piano).toContainText('electrostatic pickup');
+  await piano.getByRole('slider', { name: 'Drive' }).focus();
+  await shell().keyboard.press('ArrowUp');
+  await expect.poll(() => (saved().tracks[1] as { electric?: unknown }).electric).toEqual({ fork: 'reed', decay: 4, hardness: 0.5, bell: 0.4, drive: 0.36 });
+  // Another instrument chosen for the track leaves no piano settings behind.
+  await device.getByRole('combobox', { name: 'Instrument' }).click();
+  await shell().getByRole('option', { name: 'Lead' }).click();
+  await expect.poll(() => (saved().tracks[1] as { electric?: unknown }).electric).toBeUndefined();
+});
+
 test('a melody is written as steps too, a row per note of the key', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start([], 'Bass');

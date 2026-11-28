@@ -12,11 +12,13 @@ import { FILTER_TYPES, LFO_SHAPES, parseDevice, PART_KINDS, type Device, type De
  * number (60 is middle C); `velocity` runs from 0 to 1. On a drums track the pitch picks the drum: 36 kick, 38 snare,
  * 42 closed hat, 46 open hat, 39 clap, 45 tom. Mobius writes notes, never audio over recordings.
  */
-export type Instrument = 'piano' | 'bass' | 'pad' | 'lead' | 'drums' | 'string' | 'mallet';
-export const INSTRUMENTS: Instrument[] = ['piano', 'bass', 'pad', 'lead', 'drums', 'string', 'mallet'];
-/** The instruments made of oscillators, with a `sound` to set: not drums (a kit), a string (its `string`) or a mallet (its `mallet`). */
-export type SynthInstrument = Exclude<Instrument, 'drums' | 'string' | 'mallet'>;
-export const isSynth = (i: Instrument): i is SynthInstrument => i !== 'drums' && i !== 'string' && i !== 'mallet';
+export type Instrument = 'piano' | 'bass' | 'pad' | 'lead' | 'drums' | 'string' | 'mallet' | 'electric';
+export const INSTRUMENTS: Instrument[] = ['piano', 'bass', 'pad', 'lead', 'drums', 'string', 'mallet', 'electric'];
+/** The modelled instruments, each with settings of its own in place of a `sound`. */
+export const MODELLED = ['string', 'mallet', 'electric'] as const;
+/** The instruments made of oscillators, with a `sound` to set: not drums (a kit) or a modelled one (its own settings). */
+export type SynthInstrument = Exclude<Instrument, 'drums' | (typeof MODELLED)[number]>;
+export const isSynth = (i: Instrument): i is SynthInstrument => i !== 'drums' && !(MODELLED as readonly string[]).includes(i);
 /** How a modelled string is set going (Live 12's Tension): plucked, struck or bowed. */
 export const EXCITERS = ['pluck', 'hammer', 'bow'] as const;
 export type Exciter = (typeof EXCITERS)[number];
@@ -41,7 +43,19 @@ export const MALLET_DEFAULTS: MalletSound = { resonator: 'marimba', decay: 1.2, 
 export const MALLET_RANGE: Record<Exclude<keyof MalletSound, 'resonator'>, { lo: number; hi: number }> = { decay: { lo: 0.05, hi: 20 }, material: { lo: 0, hi: 1 }, hardness: { lo: 0, hi: 1 }, position: { lo: 0.02, hi: 0.5 } };
 /** A mallet track's settings: its own, or the mallet's own. */
 export const malletOf = (t: Pick<Track, 'instrument' | 'mallet'>): MalletSound | null => (t.instrument === 'mallet' ? { ...MALLET_DEFAULTS, ...t.mallet } : null);
-export const INSTRUMENT_NAMES: Record<Instrument, string> = { piano: 'Piano', bass: 'Bass', pad: 'Pad', lead: 'Lead', drums: 'Drums', string: 'String', mallet: 'Mallet' };
+/** An electric piano's fork (Live 12's Electric): a tine with a magnetic pickup, or a reed with an electrostatic one. */
+export const FORKS = ['tine', 'reed'] as const;
+export type Fork = (typeof FORKS)[number];
+/**
+ * An electric piano track's settings (crates/mobius-audio/src/electric.rs): `decay` seconds for a low note to die away,
+ * `hardness` of the hammer tip, `bell` how loud the fork's high partials ring, `drive` how close the pickup sits (bark).
+ */
+export interface ElectricSound { fork: Fork; decay: number; hardness: number; bell: number; drive: number }
+export const ELECTRIC_DEFAULTS: ElectricSound = { fork: 'tine', decay: 4, hardness: 0.5, bell: 0.4, drive: 0.35 };
+export const ELECTRIC_RANGE: Record<Exclude<keyof ElectricSound, 'fork'>, { lo: number; hi: number }> = { decay: { lo: 0.2, hi: 20 }, hardness: { lo: 0, hi: 1 }, bell: { lo: 0, hi: 1 }, drive: { lo: 0, hi: 1 } };
+/** An electric piano track's settings: its own, or the piano's own. */
+export const electricOf = (t: Pick<Track, 'instrument' | 'electric'>): ElectricSound | null => (t.instrument === 'electric' ? { ...ELECTRIC_DEFAULTS, ...t.electric } : null);
+export const INSTRUMENT_NAMES: Record<Instrument, string> = { piano: 'Piano', bass: 'Bass', pad: 'Pad', lead: 'Lead', drums: 'Drums', string: 'String', mallet: 'Mallet', electric: 'Electric' };
 export interface SongNote { pitch: number; start: number; length: number; velocity: number }
 /**
  * How a track's instrument sounds (the Device panel):
@@ -520,7 +534,7 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  */
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 
-export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
+export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An electric piano track's settings (`instrument` "electric"). */ electric?: ElectricSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[] }
 /** A named place in the song, at `beat` (Live 12, "Locators"). */
 export interface Locator { beat: number; name: string }
@@ -654,6 +668,16 @@ export function parseSong(text: string): { song: Song } | { error: string } {
         resonator: (RESONATORS as readonly unknown[]).includes(ml.resonator) ? (ml.resonator as Resonator) : d.resonator,
         decay: num(ml.decay, d.decay, r.decay.lo, r.decay.hi), material: num(ml.material, d.material, r.material.lo, r.material.hi),
         hardness: num(ml.hardness, d.hardness, r.hardness.lo, r.hardness.hi), position: num(ml.position, d.position, r.position.lo, r.position.hi),
+      };
+    }
+    if (instrument === 'electric' && to.electric && typeof to.electric === 'object') {
+      const el = to.electric as Record<string, unknown>;
+      const r = ELECTRIC_RANGE;
+      const d = ELECTRIC_DEFAULTS;
+      track.electric = {
+        fork: (FORKS as readonly unknown[]).includes(el.fork) ? (el.fork as Fork) : d.fork,
+        decay: num(el.decay, d.decay, r.decay.lo, r.decay.hi), hardness: num(el.hardness, d.hardness, r.hardness.lo, r.hardness.hi),
+        bell: num(el.bell, d.bell, r.bell.lo, r.bell.hi), drive: num(el.drive, d.drive, r.drive.lo, r.drive.hi),
       };
     }
     const stack = readInstrumentStack(to.stack);
@@ -809,6 +833,7 @@ export function writeSong(song: Song): string {
     if (t.sound && isSynth(t.instrument)) head.sound = t.sound;
     if (t.string && t.instrument === 'string') head.string = t.string;
     if (t.mallet && t.instrument === 'mallet') head.mallet = t.mallet;
+    if (t.electric && t.instrument === 'electric') head.electric = t.electric;
     if (t.kind === 'sampler' && t.sampler) head.sampler = t.sampler;
     if (t.stack && t.stack.chains.length > 0) head.stack = t.stack;
     if (t.frozen) head.frozen = t.frozen;
