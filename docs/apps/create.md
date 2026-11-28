@@ -265,7 +265,10 @@ A code editor for projects in your workspace.
   the fix.
 - **Source control**: the branch, each file changed since the last commit with git's mark (M modified, A added,
   D deleted, R renamed, ? not tracked yet, C in conflict) in the list and in the file tree, **Commit** and **Push**.
-  Mobius asks before either.
+  Mobius asks before either. Click the branch to switch, or start **New branch…** from here; a task's menu in Tasks
+  has **Start a branch in Code**, named for the task. A changed file's **Discard** (it asks once) puts it back as the
+  last commit has it. **History** (a bottom panel, in View) lists the branch's commits; one opens to its message and
+  files.
 - **With no file open**, a start page shows the project, the files you opened lately, and Open a file, New file and
   Run tests.
 - **Shortcuts** live in tooltips and Help, not the status bar, and show as your computer writes them: Ctrl on Windows

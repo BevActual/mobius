@@ -166,6 +166,117 @@ pub fn commit(dir: &Path, message: &str) -> Result<Value, String> {
     Ok(json!({ "ok": true, "commit": id }))
 }
 
+/// The repository's local branches, the current one first, then the newest.
+pub fn branches(dir: &Path) -> Result<Value, String> {
+    if !dir.join(".git").exists() {
+        return Err("This project is not a git repository.".into());
+    }
+    // The name first: git's output is trimmed, which would eat a leading blank (%(HEAD) is a space but on the current).
+    let out = git(dir, &["branch", "--format=%(refname:short)%09%(committerdate:unix)%09%(HEAD)"], QUICK)?;
+    let mut list: Vec<Value> = out
+        .lines()
+        .filter_map(|l| {
+            let mut parts = l.split('\t');
+            let (name, when, head) = (parts.next()?, parts.next().and_then(|w| w.parse::<i64>().ok()).unwrap_or(0), parts.next().unwrap_or(""));
+            (!name.starts_with('(') && !name.is_empty()).then(|| json!({ "name": name, "current": head.trim() == "*", "when": when }))
+        })
+        .collect();
+    list.sort_by_key(|b| (!b["current"].as_bool().unwrap_or(false), -b["when"].as_i64().unwrap_or(0)));
+    list.truncate(200);
+    Ok(json!({ "branches": list }))
+}
+
+/// A branch name git takes: checked by git itself, and never one that reads as an option.
+fn branch_ok(dir: &Path, name: &str) -> Result<(), String> {
+    if name.is_empty() || name.len() > 200 || name.starts_with('-') || git(dir, &["check-ref-format", "--branch", name], QUICK).is_err() {
+        return Err(format!("\"{name}\" cannot be a branch name."));
+    }
+    Ok(())
+}
+
+/// Switches to a branch, or starts a new one from here (`create`). What is not committed comes along, as with
+/// `git switch`; when it would be overwritten, git refuses and says why.
+pub fn switch(dir: &Path, name: &str, create: bool) -> Result<Value, String> {
+    if !dir.join(".git").exists() {
+        return Err("This project is not a git repository.".into());
+    }
+    let name = name.trim();
+    branch_ok(dir, name)?;
+    let args: Vec<&str> = if create { vec!["switch", "-q", "-c", name] } else { vec!["switch", "-q", name] };
+    git(dir, &args, QUICK).map_err(|e| {
+        let line = e.lines().find(|l| !l.trim().is_empty() && !l.starts_with("hint:")).unwrap_or("Git would not switch branches.");
+        line.trim_start_matches("error: ").trim_start_matches("fatal: ").to_owned()
+    })?;
+    Ok(json!({ "ok": true, "branch": name }))
+}
+
+/// The branch's latest commits, newest first: id, subject, author, when (seconds), and whether it is pushed.
+pub fn history(dir: &Path, limit: usize) -> Value {
+    if !dir.join(".git").exists() {
+        return json!({ "repo": false });
+    }
+    let n = format!("-n{}", limit.clamp(1, 500));
+    let out = git(dir, &["log", &n, "--format=%h%x09%ct%x09%an%x09%s"], QUICK).unwrap_or_default();
+    let upstream = git(dir, &["rev-parse", "--abbrev-ref", "@{u}"], QUICK).is_ok();
+    let pushed: std::collections::HashSet<String> = if upstream {
+        git(dir, &["rev-list", "--abbrev-commit", &n, "@{u}"], QUICK).map(|o| o.lines().map(str::to_owned).collect()).unwrap_or_default()
+    } else {
+        Default::default()
+    };
+    let commits: Vec<Value> = out
+        .lines()
+        .filter_map(|l| {
+            let mut p = l.splitn(4, '\t');
+            let (id, when, author, subject) = (p.next()?, p.next()?.parse::<i64>().ok()?, p.next()?, p.next().unwrap_or(""));
+            Some(json!({ "id": id, "when": when, "author": author, "subject": subject, "pushed": pushed.contains(id) }))
+        })
+        .collect();
+    json!({ "repo": true, "commits": commits })
+}
+
+/// One commit: its whole message and the files it changed, with lines added and removed.
+pub fn show(dir: &Path, id: &str) -> Result<Value, String> {
+    if id.is_empty() || id.len() > 64 || !id.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err("That is not a commit.".into());
+    }
+    let message = git(dir, &["log", "-n1", "--format=%B", id], QUICK)?;
+    let numstat = git(dir, &["show", "--numstat", "--format=", id], QUICK)?;
+    let files: Vec<Value> = numstat
+        .lines()
+        .filter_map(|l| {
+            let mut p = l.splitn(3, '\t');
+            let (added, removed, path) = (p.next()?, p.next()?, p.next()?);
+            Some(json!({ "path": path, "added": added.parse::<u64>().ok(), "removed": removed.parse::<u64>().ok() }))
+        })
+        .collect();
+    Ok(json!({ "id": id, "message": message, "files": files }))
+}
+
+/// Puts a file back as the last commit has it, throwing away what changed since; a file the commit does not have is
+/// removed. The person asked, on that file; nothing else changes.
+pub fn discard(dir: &Path, path: &str) -> Result<Value, String> {
+    if !dir.join(".git").exists() {
+        return Err("This project is not a git repository.".into());
+    }
+    if path.is_empty() || path.starts_with(['/', '\\', '-']) || path.contains(':') || path.split(['/', '\\']).any(|p| p == ".." || p == ".git") {
+        return Err("That file cannot be put back.".into());
+    }
+    let tracked = git(dir, &["ls-files", "--error-unmatch", "--", path], QUICK).is_ok();
+    let in_head = git(dir, &["cat-file", "-e", &format!("HEAD:./{path}")], QUICK).is_ok();
+    if in_head {
+        git(dir, &["restore", "--source=HEAD", "--staged", "--worktree", "--", path], QUICK)?;
+    } else {
+        if tracked {
+            git(dir, &["rm", "-q", "--cached", "--", path], QUICK)?;
+        }
+        let file = dir.join(path);
+        if file.is_file() {
+            std::fs::remove_file(&file).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(json!({ "ok": true, "path": path }))
+}
+
 /// Pushes the current branch to its upstream (or to `origin` under the same name, the first time).
 pub fn push(dir: &Path) -> Result<Value, String> {
     if !dir.join(".git").exists() {
@@ -207,6 +318,56 @@ mod tests {
         commit(&work, "Change a").unwrap();
         let s = status(&work);
         assert_eq!((s["branch"].as_str(), s["ahead"].as_u64(), s["changes"].as_array().map(Vec::len)), (Some("main"), Some(1), Some(0)));
+    }
+
+    #[test]
+    fn branches_are_listed_switched_and_started_history_read_and_a_file_put_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        if git(d, &["init", "-q", "-b", "main"], QUICK).is_err() {
+            return;
+        }
+        let _ = git(d, &["config", "user.email", "test@example.com"], QUICK);
+        let _ = git(d, &["config", "user.name", "Test"], QUICK);
+        std::fs::write(d.join("a.txt"), "one\n").unwrap();
+        commit(d, "First\n\nWhy it was done.").unwrap();
+        let list = branches(d).unwrap();
+        assert_eq!((list["branches"][0]["name"].as_str(), list["branches"][0]["current"].as_bool()), (Some("main"), Some(true)));
+        // A new branch from here, then back; a name git would refuse, or one like an option, is refused first.
+        switch(d, "fix/split-cents", true).unwrap();
+        assert_eq!(status(d)["branch"], "fix/split-cents");
+        assert!(switch(d, "-x", true).is_err());
+        assert!(switch(d, "a..b", true).unwrap_err().contains("cannot be a branch name"));
+        assert!(switch(d, "nope", false).is_err());
+        std::fs::write(d.join("a.txt"), "two\n").unwrap();
+        commit(d, "Second").unwrap();
+        let names: Vec<(String, bool)> = branches(d).unwrap()["branches"].as_array().unwrap().iter().map(|b| (b["name"].as_str().unwrap().to_owned(), b["current"].as_bool().unwrap())).collect();
+        assert_eq!(names, [("fix/split-cents".to_owned(), true), ("main".to_owned(), false)]);
+        switch(d, "main", false).unwrap();
+        let names: Vec<(String, bool)> = branches(d).unwrap()["branches"].as_array().unwrap().iter().map(|b| (b["name"].as_str().unwrap().to_owned(), b["current"].as_bool().unwrap())).collect();
+        assert_eq!(names, [("main".to_owned(), true), ("fix/split-cents".to_owned(), false)]);
+        switch(d, "fix/split-cents", false).unwrap();
+        let h = history(d, 10);
+        let commits = h["commits"].as_array().unwrap();
+        assert_eq!(commits.len(), 2);
+        assert_eq!((commits[0]["subject"].as_str(), commits[0]["author"].as_str(), commits[0]["pushed"].as_bool()), (Some("Second"), Some("Test"), Some(false)));
+        let first = show(d, commits[1]["id"].as_str().unwrap()).unwrap();
+        assert_eq!(first["message"], "First\n\nWhy it was done.");
+        assert_eq!(first["files"], json!([{ "path": "a.txt", "added": 1, "removed": 0 }]));
+        assert!(show(d, "HEAD; rm").is_err());
+        switch(d, "main", false).unwrap();
+        assert_eq!(std::fs::read_to_string(d.join("a.txt")).unwrap(), "one\n");
+        // Discard: a changed file goes back to the commit, a new one goes, and nothing outside is touched.
+        std::fs::write(d.join("a.txt"), "changed\n").unwrap();
+        std::fs::write(d.join("new.txt"), "new\n").unwrap();
+        discard(d, "a.txt").unwrap();
+        discard(d, "new.txt").unwrap();
+        assert_eq!(std::fs::read_to_string(d.join("a.txt")).unwrap(), "one\n");
+        assert!(!d.join("new.txt").exists());
+        assert_eq!(status(d)["changes"], json!([]));
+        for bad in ["../x", "/etc/passwd", ".git/config", "-f", "C:x"] {
+            assert!(discard(d, bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

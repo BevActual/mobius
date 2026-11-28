@@ -16,7 +16,9 @@ import { pagePath, pickedLine, sourcePath, useCodePreview, type PreviewState } f
 import { useSideFile, type SideFile } from './code-split';
 import { testArgs, testKey, type TestMark } from './code-run';
 import { fixPrompt, reviewRequest } from './code-mobius';
-import type { CodeProblem, ContextItem } from '@mobius/shared';
+import { START_BRANCH_EVENT, takeBranchName } from './code-branch';
+import { relativeTime } from './relative-time';
+import { isNotesFailure, type CodeBranch, type CodeCommit, type CodeProblem, type ContextItem } from '@mobius/shared';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
@@ -161,8 +163,50 @@ function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: strin
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  /** The branch list, open below the branch's name; `naming` is a new branch's name being typed. */
+  const [picking, setPicking] = useState(false);
+  const [naming, setNaming] = useState<string | null>(null);
+  const [list, setList] = useState<CodeBranch[]>([]);
+  /** The changed file whose Discard is waiting for a yes. */
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const repo = code.git.repo;
+  const openBranches = useCallback(async (name: string | null = null) => {
+    setPicking(true);
+    setNaming(name);
+    // The last list may be out of date (a branch since started or switched): rows show only once git has said.
+    setList([]);
+    const got = code.project ? await window.mobius.code?.branches?.(code.project).catch(() => null) : null;
+    setList(got && 'branches' in got ? got.branches : []);
+  }, [code.project]);
+  // A task asked for a branch (Tasks' Start a branch in Code): New branch opens with its name.
+  useEffect(() => {
+    if (!repo) return undefined;
+    const take = () => { const name = takeBranchName(); if (name) void openBranches(name); };
+    take();
+    window.addEventListener(START_BRANCH_EVENT, take);
+    return () => window.removeEventListener(START_BRANCH_EVENT, take);
+  }, [repo, openBranches]);
   if (!code.git.repo) return null;
   const { branch, changes, ahead } = code.git;
+  const switchTo = async (name: string, create: boolean) => {
+    const project = code.project;
+    if (!project || !window.mobius.code?.switchBranch) return;
+    setBusy(true);
+    const done = await window.mobius.code.switchBranch(project, name, create).catch(() => null);
+    setBusy(false);
+    if (!done || isNotesFailure(done)) { code.setMessage(done?.message ?? 'Git would not switch branches.'); return; }
+    setPicking(false); setNaming(null);
+    code.setMessage('');
+    await code.refresh();
+  };
+  const discard = async (path: string) => {
+    const project = code.project;
+    setConfirm(null);
+    if (!project || !window.mobius.code?.discard) return;
+    const done = await window.mobius.code.discard(project, path).catch(() => null);
+    if (!done || isNotesFailure(done)) { code.setMessage(done?.message ?? 'That file could not be put back.'); return; }
+    await code.refresh();
+  };
   const marks = [...gitMarks(changes)];
   const shown = showAll ? marks : marks.slice(0, SHOWN_CHANGES);
   const submit = async (e: FormEvent) => {
@@ -193,9 +237,31 @@ function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: strin
         </div>
       </div>
       <div className="code-git-head">
-        <span className="code-git-branch" title="Branch"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="4.5" r="1.8" /><circle cx="6" cy="15.5" r="1.8" /><circle cx="14" cy="7" r="1.8" /><path d="M6 6.3v7.4M14 8.8c0 3-3 3.2-8 4.9" /></svg>{branch || 'no branch'}</span>
+        <button type="button" className="code-git-branch" aria-expanded={picking} aria-label={`Branch: ${branch || 'none'}. Switch or start a branch`} title="Switch branch, or start a new one from here" onClick={() => (picking ? setPicking(false) : void openBranches())}><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="6" cy="4.5" r="1.8" /><circle cx="6" cy="15.5" r="1.8" /><circle cx="14" cy="7" r="1.8" /><path d="M6 6.3v7.4M14 8.8c0 3-3 3.2-8 4.9" /></svg><span>{branch || 'no branch'}</span><svg className="code-git-caret" viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg></button>
         <span className="code-git-count" role="status">{status}</span>
       </div>
+      {picking && (
+        <div className="code-git-branches" role="group" aria-label="Branches" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPicking(false); } }}>
+          {naming !== null ? (
+            <form className="code-git-form" onSubmit={(e) => { e.preventDefault(); if (naming.trim()) void switchTo(naming.trim(), true); }}>
+              <input autoFocus aria-label="New branch name" placeholder="New branch, from here" value={naming} maxLength={200} onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setNaming(null); } }} />
+              <Button kind="primary" type="submit" disabled={busy || !naming.trim()}>Start</Button>
+            </form>
+          ) : (
+            <button type="button" className="list-row code-git-new" onClick={() => setNaming('')}>New branch…</button>
+          )}
+          <ul className="ui-side-list" aria-label="Switch to">
+            {list.map((b) => (
+              <li key={b.name}>
+                <button type="button" className="list-row code-git-change" aria-current={b.current || undefined} disabled={busy} onClick={() => (b.current ? setPicking(false) : void switchTo(b.name, false))}>
+                  <span className="code-git-name">{b.name}</span>
+                  {b.current && <span className="code-git-where">current</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {writing && (
         <form className="code-git-form" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label="Commit message" placeholder="What changed, and why" value={message} maxLength={500} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setWriting(false); }} />
@@ -206,14 +272,27 @@ function GitBar({ code, onReview }: { code: CodeState; onReview?: (prompt: strin
         <ul className="ui-side-list code-git-changes" aria-label="Changed files">
           {shown.map(([path, mark]) => {
             const name = path.split('/').pop() ?? path;
-            const where = path.slice(0, path.length - name.length - 1);
+            const where = path.includes('/') ? path.slice(0, path.length - name.length - 1) : '';
             return (
-              <li key={path}>
-                <button type="button" className="list-row code-git-change" aria-label={`${path}, ${mark.label.toLowerCase()}`} disabled={mark.letter === 'D'} title={path} onClick={() => void code.openFile(path)}>
-                  <span className="code-git-name">{name}</span>
-                  {where && <span className="code-git-where">{where}</span>}
-                  <GitLetter mark={mark} />
-                </button>
+              <li key={path} className="code-git-row">
+                {confirm === path ? (
+                  <div className="code-git-confirm" role="group" aria-label={`Discard changes to ${path}?`}>
+                    <span className="code-git-where">{mark.letter === '?' || mark.letter === 'A' ? `Delete ${name}?` : `Put back ${name}?`}</span>
+                    <button type="button" className="btn code-git-yes" autoFocus onClick={() => void discard(path)}>Discard</button>
+                    <button type="button" className="btn" onClick={() => setConfirm(null)}>Keep</button>
+                  </div>
+                ) : (
+                  <>
+                    <button type="button" className="list-row code-git-change" aria-label={`${path}, ${mark.label.toLowerCase()}`} disabled={mark.letter === 'D'} title={path} onClick={() => void code.openFile(path)}>
+                      <span className="code-git-name">{name}</span>
+                      {where && <span className="code-git-where">{where}</span>}
+                      <GitLetter mark={mark} />
+                    </button>
+                    <button type="button" className="code-git-discard" aria-label={`Discard changes to ${path}`} title="Discard changes: put the file back as the last commit has it" onClick={() => setConfirm(path)}>
+                      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8h7a3.5 3.5 0 0 1 0 7H8" /><path d="m8 5-3 3 3 3" /></svg>
+                    </button>
+                  </>
+                )}
               </li>
             );
           })}
@@ -298,7 +377,7 @@ function QuickOpen({ code, onClose }: { code: CodeState; onClose: () => void }) 
         <ul id="code-quick-list" role="listbox" aria-label="Files">
           {found.map((path, i) => {
             const name = path.split('/').pop() ?? path;
-            const where = path.slice(0, path.length - name.length - 1);
+            const where = path.includes('/') ? path.slice(0, path.length - name.length - 1) : '';
             return (
               <li key={path} id={`code-quick-${i}`} role="option" aria-selected={i === lit} onMouseEnter={() => setLit(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(path)}>
                 <FileGlyph />
@@ -460,7 +539,7 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
             <ul>
               {code.recent.slice(0, 5).map((path) => {
                 const name = path.split('/').pop() ?? path;
-                const where = path.slice(0, path.length - name.length - 1);
+                const where = path.includes('/') ? path.slice(0, path.length - name.length - 1) : '';
                 return (
                   <li key={path}>
                     <button type="button" className="code-none-row" onClick={() => void code.openFile(path)}>
@@ -621,6 +700,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   const bottomPanels: PanelSpec[] = [
     { id: 'tests', name: 'Tests', dock: 'bottom', group: 'run', shown: true, reveal: showTests, render: () => <TestsPanel code={code} /> },
     { id: 'console', name: 'Console', dock: 'bottom', group: 'run', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
+    ...(code.git.repo ? [{ id: 'history', name: 'History', dock: 'bottom' as const, group: 'run', shown: false, render: () => <HistoryPanel code={code} /> }] : []),
     { id: 'problems', name: 'Problems', dock: 'bottom', group: 'run', shown: false, reveal: showProblems, render: () => <ProblemsPanel lsp={lsp} {...(onAsk && !busy ? { onFix: fixFor } : {})} /> },
     ...terminalPanels,
   ];
@@ -786,6 +866,58 @@ function PreviewNotice({ code, lsp, preview, onAsk, onDraft }: { code: CodeState
     );
   }
   return null;
+}
+
+/** History (bottom dock, beside Tests): the branch's commits, newest first; one opens to its message and files. */
+function HistoryPanel({ code }: { code: CodeState }) {
+  const [commits, setCommits] = useState<CodeCommit[] | null>(null);
+  const [open, setOpen] = useState<{ id: string; message: string; files: { path: string; added: number | null; removed: number | null }[] } | null>(null);
+  const key = code.git.repo ? `${code.git.branch}\u0001${code.git.ahead ?? ''}\u0001${code.git.changes.length}` : '';
+  useEffect(() => {
+    const project = code.project;
+    if (!project || !window.mobius.code?.history) return undefined;
+    let on = true;
+    void window.mobius.code.history(project).catch(() => null).then((got) => { if (on) setCommits(got && 'repo' in got && got.repo ? got.commits : []); });
+    return () => { on = false; };
+  }, [code.project, key]);
+  const show = async (id: string) => {
+    if (open?.id === id) { setOpen(null); return; }
+    const got = code.project ? await window.mobius.code?.showCommit?.(code.project, id).catch(() => null) : null;
+    if (got && !isNotesFailure(got)) setOpen(got);
+  };
+  if (commits === null) return <p className="code-panel code-problems-empty">Reading the history…</p>;
+  if (commits.length === 0) return <p className="code-panel code-problems-empty">No commits on this branch yet. Commit from Changes, in the Explorer.</p>;
+  const now = Date.now();
+  return (
+    <div className="code-panel code-history">
+      <ul aria-label="Commits">
+        {commits.map((c) => (
+          <li key={c.id}>
+            <button type="button" className="code-commit" aria-expanded={open?.id === c.id} onClick={() => void show(c.id)}>
+              <span className="code-commit-subject">{c.subject}</span>
+              {!c.pushed && code.git.repo && code.git.ahead != null && <span className="code-commit-tag" title="On this computer only">Not pushed</span>}
+              <span className="code-commit-where">{c.author} · {relativeTime(c.when * 1000, now)} · <code>{c.id}</code></span>
+            </button>
+            {open?.id === c.id && (
+              <div className="code-commit-open">
+                {open.message.trim().split('\n').slice(1).join('\n').trim() && <p className="code-commit-body">{open.message.trim().split('\n').slice(1).join('\n').trim()}</p>}
+                <ul aria-label={`Files in ${c.id}`}>
+                  {open.files.map((f) => (
+                    <li key={f.path}>
+                      <button type="button" className="code-commit-file" onClick={() => void code.openFile(f.path)}>
+                        <span>{f.path}</span>
+                        <span className="code-commit-count">{f.added === null ? 'binary' : <><span data-kind="add">+{f.added}</span> <span data-kind="del">−{f.removed}</span></>}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 /** Problems (bottom dock, beside Tests): what the project's language servers found, file by file; a click goes there. */

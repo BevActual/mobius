@@ -97,6 +97,7 @@ import { readRuns, useBackgroundRuns } from './background';
 import { BRIEF_TITLE, BRIEF_TOOLS, useMorningBrief } from './brief';
 import { checkInTitle, useCheckIns } from './checkins';
 import { ASSIGN_EVENT, setAssignAgents, type Assignment } from './assign';
+import { START_BRANCH_EVENT } from './code-branch';
 import { ABILITY_ITEM, abilityAsk, jobSteps, markSaved } from './ability-offer';
 import { AskHere, inlineAnswer, pickedNow, plainAnswer, type Picked } from './AskHere';
 import { hereOf } from './surface';
@@ -1624,6 +1625,12 @@ export function App() {
     window.addEventListener(ASSIGN_EVENT, onAssign);
     return () => window.removeEventListener(ASSIGN_EVENT, onAssign);
   }, []);
+  // A task starts its branch (Tasks' Start a branch in Code): Code opens, and its Changes offers the name.
+  useEffect(() => {
+    const onBranch = () => openApp('code');
+    window.addEventListener(START_BRANCH_EVENT, onBranch);
+    return () => window.removeEventListener(START_BRANCH_EVENT, onBranch);
+  }, [openApp]);
   // Starting to type in the app Mobius is working in pauses it; the pill (or the panel) resumes it.
   const stageNode = useCallback(() => document.querySelector<HTMLElement>('.stage'), []);
   usePauseOnTyping(stageNode, activity, appOfTurn(conversation.state), app, conversation.takeOver, setToast);

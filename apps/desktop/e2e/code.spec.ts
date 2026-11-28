@@ -841,3 +841,80 @@ test('Mobius fixes a problem from its hover or Ctrl+., and reviews what changed 
   expect(asked(2)).toContain('Do not change any files.');
   expect(fs.readFileSync(path.join(project, 'src', 'budget.js'), 'utf8')).toBe(`${BUDGET}// TODO tidy`);
 });
+
+test('a task starts its branch; branches switch from Changes, History shows the commits, and a file\'s changes can be discarded', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'tasks'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), '# Inbox\n\n- [ ] Split cents exactly\n');
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: project, encoding: 'utf8' }).trim();
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 'test@example.com');
+  git('config', 'user.name', 'Test');
+  git('config', 'core.autocrlf', 'false'); // Windows runners turn it on; files keep the endings they were written with
+  git('add', '-A');
+  git('commit', '-q', '-m', 'Start the planner', '-m', 'With a budget and its test.');
+  await start();
+  const bar = shell().getByRole('region', { name: 'Changes' });
+  await expect(bar.getByRole('button', { name: 'Branch: main. Switch or start a branch' })).toBeVisible();
+
+  // From a task in Tasks: Code opens with New branch named for it.
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Tasks');
+  await shell().keyboard.press('Enter');
+  await shell().getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Inbox/ }).click();
+  await shell().locator('.tasks-page').getByRole('button', { name: 'Split cents exactly', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Start a branch in Code' }).click();
+  const name = bar.getByRole('textbox', { name: 'New branch name' });
+  await expect(name).toHaveValue('split-cents-exactly');
+  await expect(name).toBeFocused();
+  await bar.getByRole('button', { name: 'Start', exact: true }).click();
+  await expect(bar.getByRole('button', { name: 'Branch: split-cents-exactly. Switch or start a branch' })).toBeVisible();
+  expect(git('branch', '--show-current')).toBe('split-cents-exactly');
+
+  // A commit on it shows in History, and opens to its message and files; a file there opens in the editor.
+  fs.writeFileSync(path.join(project, 'src', 'budget.js'), BUDGET.replace(OLD_LINE, NEW_LINE));
+  git('commit', '-q', '-am', 'Split cents exactly');
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'History' }).click();
+  const history = shell().getByRole('region', { name: 'History' });
+  const commits = history.getByRole('list', { name: 'Commits' });
+  await expect(commits.locator(':scope > li')).toHaveCount(2);
+  await expect(commits.locator(':scope > li').first()).toContainText('Split cents exactly');
+  await commits.getByRole('button', { name: /Start the planner/ }).click();
+  await expect(history).toContainText('With a budget and its test.');
+  await expect(history.getByRole('button', { name: /tests\/budget\.test\.js/ })).toBeVisible();
+
+  // Switching back to main brings its files back, in the editor too.
+  await bar.getByRole('button', { name: /^Branch: split-cents-exactly/ }).click();
+  await bar.getByRole('group', { name: 'Branches' }).getByRole('button', { name: 'main' }).click();
+  // When the switch does not happen, say what git and Code said, so a failure on another system can be read.
+  await expect(bar.getByRole('button', { name: 'Branch: main. Switch or start a branch' })).toBeVisible().catch(async (e: Error) => {
+    const said = await shell().getByRole('region', { name: 'Code' }).getByRole('alert').allTextContents();
+    throw new Error(`${e.message}\nCode said: ${JSON.stringify(said)}\ngit branch: ${git('branch', '--show-current')}\ngit status: ${JSON.stringify(git('status', '--porcelain'))}`);
+  });
+  expect(budget()).toBe(BUDGET);
+  await expect(shell().getByRole('textbox', { name: 'Contents of src/budget.js' })).toHaveValue(BUDGET);
+  await expect(commits.locator(':scope > li')).toHaveCount(1);
+
+  // Discard asks once, then puts a changed file back and removes a new one.
+  const editor = shell().getByRole('textbox', { name: 'Contents of src/budget.js' });
+  await editor.focus();
+  await shell().keyboard.press('Control+End');
+  await shell().keyboard.type('// scratch\n');
+  await shell().keyboard.press('Control+s');
+  await expect.poll(budget).toBe(`${BUDGET}// scratch\n`);
+  await shell().getByRole('button', { name: 'New file' }).click();
+  await shell().getByRole('textbox', { name: 'File name' }).fill('notes.txt');
+  await shell().getByRole('textbox', { name: 'File name' }).press('Enter');
+  await expect.poll(() => fs.existsSync(path.join(project, 'notes.txt'))).toBe(true);
+  const changes = bar.getByRole('list', { name: 'Changed files' });
+  await expect(changes.getByRole('listitem')).toHaveCount(2, { timeout: 10_000 });
+  await changes.getByRole('button', { name: 'Discard changes to src/budget.js' }).click({ force: true });
+  await expect(bar.getByRole('group', { name: 'Discard changes to src/budget.js?' })).toContainText('Put back budget.js?');
+  await bar.getByRole('button', { name: 'Discard', exact: true }).click();
+  await expect.poll(budget).toBe(BUDGET);
+  await changes.getByRole('button', { name: 'Discard changes to notes.txt' }).click({ force: true });
+  await expect(bar.getByRole('group', { name: 'Discard changes to notes.txt?' })).toContainText('Delete notes.txt?');
+  await bar.getByRole('button', { name: 'Discard', exact: true }).click();
+  await expect(bar.getByRole('status')).toHaveText('Nothing to commit');
+  expect(fs.existsSync(path.join(project, 'notes.txt'))).toBe(false);
+});

@@ -296,6 +296,8 @@ export type DbCell = string | number | null;
 export type DbResult = { ok: true; columns: string[]; rows: DbCell[][]; changed: number; truncated: boolean; ms: number } | NotesFailure;
 export interface DbChange { name: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 export interface CodeFile { project: string; path: string; text: string | null; why?: string; modified: number }
+export interface CodeBranch { name: string; current: boolean; when: number }
+export interface CodeCommit { id: string; when: number; author: string; subject: string; pushed: boolean }
 export interface CodeTestRun { ok: true; passed: boolean; code: number | null; output: string; seconds: number; timedOut: boolean }
 export interface CodeProcess { id: number; command: string; by: 'person' | 'assistant'; started: number; running: boolean; code: number | null; output: string }
 export type CodeGit = { repo: false } | { repo: true; branch: string; changes: { status: string; path: string }[]; ahead: number | null };
@@ -1284,6 +1286,15 @@ export interface MobiusBridge {
     gitBase(project: string, path: string): Promise<{ repo: false } | { repo: true; text: string | null } | NotesFailure>;
     /** What changed since the last commit as one diff (new files whole), cut to 20 KB (what one attachment holds), for Review with Mobius. */
     gitDiff?(project: string): Promise<{ repo: false } | { repo: true; diff: string; truncated: boolean } | NotesFailure>;
+    /** Local branches, the current one first. */
+    branches?(project: string): Promise<{ branches: CodeBranch[] } | NotesFailure>;
+    /** Switches to a branch, or starts one from here (`create`); what is not committed comes along, as with git switch. */
+    switchBranch?(project: string, name: string, create?: boolean): Promise<{ ok: true; branch: string } | NotesFailure>;
+    /** The branch's latest commits, newest first. */
+    history?(project: string): Promise<{ repo: false } | { repo: true; commits: CodeCommit[] } | NotesFailure>;
+    showCommit?(project: string, id: string): Promise<{ id: string; message: string; files: { path: string; added: number | null; removed: number | null }[] } | NotesFailure>;
+    /** Puts a file back as the last commit has it (a new file is removed). */
+    discard?(project: string, path: string): Promise<{ ok: true; path: string } | NotesFailure>;
     commit(project: string, message: string): Promise<{ ok: true; commit: string } | NotesFailure>;
     push(project: string): Promise<{ ok: true; branch: string } | NotesFailure>;
     onChanged(listener: (change: CodeChanged) => void): () => void;

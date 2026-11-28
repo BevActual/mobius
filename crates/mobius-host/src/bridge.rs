@@ -3770,6 +3770,26 @@ impl Bridge {
                 _ => Err("a project and a message are needed".to_owned()),
             },
             "push" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p)).and_then(|dir| crate::code_git::push(&dir)),
+            "branches" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p)).and_then(|dir| crate::code_git::branches(&dir)),
+            // The person's own choices, from Code's Changes: switch or start a branch, put a file back. The files that
+            // change are read again by every app, as for any change on disk.
+            "switchBranch" => match (text(0), text(1)) {
+                (Some(p), Some(name)) => code.project_dir(p).and_then(|dir| crate::code_git::switch(&dir, name, args.get(2).and_then(Value::as_bool).unwrap_or(false))).inspect(|_| {
+                    (self.emit)("mobius:code-changed", json!({ "project": p, "path": null, "by": "person" }));
+                }),
+                _ => Err("a project and a branch are needed".to_owned()),
+            },
+            "history" => text(0).ok_or_else(need).and_then(|p| code.project_dir(p)).map(|dir| crate::code_git::history(&dir, 100)),
+            "showCommit" => match (text(0), text(1)) {
+                (Some(p), Some(id)) => code.project_dir(p).and_then(|dir| crate::code_git::show(&dir, id)),
+                _ => Err(need()),
+            },
+            "discard" => match (text(0), text(1)) {
+                (Some(p), Some(f)) => code.project_dir(p).and_then(|dir| crate::code_git::discard(&dir, f)).inspect(|_| {
+                    (self.emit)("mobius:code-changed", json!({ "project": p, "path": f, "by": "person" }));
+                }),
+                _ => Err(need()),
+            },
             // The person's own command, typed in Code's console: theirs to run, so nothing asks.
             "runCommand" => match (text(0), text(1).map(str::trim).filter(|c| !c.is_empty() && c.len() <= 2000 && !c.contains(['\n', '\r', '\0']))) {
                 (Some(p), Some(command)) => code.project_dir(p).map(|dir| {
