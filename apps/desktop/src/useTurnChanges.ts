@@ -59,7 +59,12 @@ export function useTurnChanges(conversation: string, busy: boolean, progress = 0
   // Only the latest read counts: one made before the turn (on opening, say) can come back after the one made when it
   // ended on a busy computer, and would take every dashed edge away (canvas.spec:139 once saw that).
   const reads = useRef(0);
-  const load = useCallback(async () => {
+  // One read at a time: a read is a git diff, slow on a busy computer, and a burst of changes (Try another putting a
+  // song back, say) once started eight at once, which starved the turn's own tool calls (studio.spec:224 on Windows).
+  // Asked again while one is out, it reads once more when that one is back, which then is the latest.
+  const out = useRef<Promise<void> | null>(null);
+  const again = useRef(false);
+  const readOnce = useCallback(async () => {
     const n = ++reads.current;
     if (reading) reading.current = true;
     const asked = performance.now();
@@ -73,6 +78,21 @@ export function useTurnChanges(conversation: string, busy: boolean, progress = 0
     // One app's Keep takes only its own files' dashed edges away.
     setMarks(result && 'files' in result && !(id && keptTurns().includes(id)) ? marksOf(result.files.filter((f) => !(id && fileKept(id, f)))) : NONE);
   }, [conversation, reading]);
+  const load = useCallback(async (): Promise<void> => {
+    if (out.current) {
+      again.current = true;
+      if (reading) reading.current = true;
+      return out.current;
+    }
+    const run = (async () => {
+      do {
+        again.current = false;
+        await readOnce();
+      } while (again.current);
+    })();
+    out.current = run;
+    try { await run; } finally { out.current = null; }
+  }, [readOnce, reading]);
   useEffect(() => { if (!busy) void load(); }, [busy, load]);
   // A burst of calls is one read, a moment after the last of them.
   useEffect(() => {
