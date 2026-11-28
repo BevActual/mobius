@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { Menu, PointMenu, type MenuEntry } from './Menu';
 import { useInspector } from './PanelTabs';
 import { afterPaint } from './frame';
+import { useAway } from './Away';
 import { dockIn, dockLeaves, dockOut } from '../motion';
 
 /**
@@ -277,7 +278,10 @@ export function PanelLayout({ app, panels: own, away = false, children }: { app:
 
   // Each panel's key, and a key for each whole dock (DOCK_KEYS). The dock keys are taken before the shell sees them
   // (capture), so an app with its own left panels answers Ctrl+\ rather than the shell's list.
+  // An app kept hidden for its next visit (useAway) leaves the keys to the one on screen.
+  const hidden = useAway();
   useEffect(() => {
+    if (hidden) return undefined;
     const onDock = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const dock = DOCKS.find((d) => pressIs(DOCK_KEYS[d], e, mac()));
@@ -301,7 +305,7 @@ export function PanelLayout({ app, panels: own, away = false, children }: { app:
     window.addEventListener('keydown', onDock, true);
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('keydown', onDock, true); window.removeEventListener('keydown', onKey); };
-  }, [panels, isShown, toggle, update]);
+  }, [panels, isShown, toggle, update, hidden]);
 
   const main = useRef<HTMLDivElement>(null);
   // The content's height, for how tall the bottom dock may be: kept from a ResizeObserver, since reading it while

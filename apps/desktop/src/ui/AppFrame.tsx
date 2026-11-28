@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { PanelRegistryContext, type PanelsOfApp } from './PanelLayout';
+import { useAway } from './Away';
 import { PanelTabsProvider } from './PanelTabs';
 import { AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
 import { createPortal } from 'react-dom';
@@ -130,11 +131,12 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
 
 /**
  * An app's own controls in the toolbar's middle (zone 3), written in the app's own file. They show only while the
- * app is on screen, and go when it goes. Keep to what is used often; the rest goes in the app's menu (⋯).
+ * app is on screen, and go when it goes (or is kept hidden, `useAway`). Keep to what is used often; the rest goes in the app's menu (⋯).
  */
 export function ToolbarControls({ label, children, above }: { label: string; children: ReactNode; /** Drawn over the app, as Settings is: shown while the app's own tools are covered. */ above?: boolean }) {
   const slot = useContext(ToolbarSlot);
-  if (!slot) return null;
+  const away = useAway();
+  if (!slot || away) return null;
   return createPortal(<div className="ui-toolbar-group" role="group" aria-label={label} data-above={above || undefined}>{children}</div>, slot);
 }
 

@@ -861,6 +861,13 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 
 /* Split view: two panes side by side. Each pane is its own positioning box, so an app fills its pane as it fills the stage. */
 .pane { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; }
+.kept-app { position: absolute; inset: 0; }
+.kept-app[data-away] { content-visibility: hidden; pointer-events: none; }
+/* Notes kept for its next visit (App.tsx keptNotes): laid out as a pane, and while away it keeps its drawing but is not
+   painted, so showing it again is quick. Its way in is shown again as it comes back. */
+.kept-pane { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; }
+.kept-pane[data-away] { content-visibility: hidden; pointer-events: none; }
+.kept-pane[data-away] .pane-body > .note-editor { animation: none; }
 .pane-body { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .pane-body > .tasks-page, .pane-body > .note-editor, .pane-body > .chat.full { animation: app-in var(--dur-med) var(--ease); }
 .stage[data-split] { --divider: 9px; }

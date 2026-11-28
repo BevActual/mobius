@@ -5,7 +5,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ListenButton, Menu, PanelTab, ToolbarControls, UndoToast, useInspector } from './ui';
+import { ListenButton, Menu, PanelTab, ToolbarControls, UndoToast, useAway, useInspector } from './ui';
 import { publishOutline, toHeading } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
 import { settleGone, settleIn, settleKept } from './settle';
@@ -330,6 +330,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   sourceNow.current = source;
   // The selection bar sits just above the selection.
   const [selection, setSelection] = useState<{ text: string; top: number; left: number } | null>(null);
+  // Kept hidden for the next visit (useAway): nothing of Notes shows or listens elsewhere meanwhile.
+  const away = useAway();
   const barShown = useRef(false);
   barShown.current = selection !== null;
   const selectionFor = useRef(onSelection);
@@ -511,6 +513,17 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     });
   }, [path, editor]);
   useEffect(() => setSelection(null), [path, source]);
+  // Put aside for another app, what floats over the page goes; back, the page takes the cursor where it was left.
+  const wasAway = useRef(away);
+  useEffect(() => {
+    const back = wasAway.current && !away;
+    wasAway.current = away;
+    if (away) { setSelection(null); setLinking(null); setClipping(null); setHistory(false); return; }
+    if (!back || !focusOnOpen.current) return;
+    if (sourceNow.current) area.current?.focus();
+    else if (editor && !editor.isDestroyed) editor.commands.focus();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [away]);
   const quoteKey = quotesNow.current.join('\u0000');
   useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(commentKey, true)); }, [editor, quoteKey]);
   // Writing a comment on the chosen words, where they are.
@@ -821,13 +834,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   // The Notes menu's "Show what the agent changed".
   const showLatest = useRef(showChanges);
   showLatest.current = showChanges;
-  useEffect(() => onCommand('show-changes', () => void showLatest.current()), []);
+  useEffect(() => (away ? undefined : onCommand('show-changes', () => void showLatest.current())), [away]);
   // The Notes menu (⋯ in the toolbar): Clip a web page, and Show Markdown or the formatted page.
   const toggleLatest = useRef(toggleSource);
   toggleLatest.current = toggleSource;
-  useEffect(() => onCommand('clip-page', () => setClipping('')), []);
-  useEffect(() => onCommand('show-history', () => { if (window.mobius.notes?.versions) setHistory(true); }), []);
-  useEffect(() => onCommand('show-markdown', () => toggleLatest.current()), []);
+  useEffect(() => (away ? undefined : onCommand('clip-page', () => setClipping(''))), [away]);
+  useEffect(() => (away ? undefined : onCommand('show-history', () => { if (window.mobius.notes?.versions) setHistory(true); })), [away]);
+  useEffect(() => (away ? undefined : onCommand('show-markdown', () => toggleLatest.current())), [away]);
   const undoChanges = async () => {
     if (!review || !path) return;
     const result = await window.mobius.changes.undoFile(review.conversation, `notes/${path}`).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
@@ -1043,7 +1056,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
           })()}
         </ol>
       )}
-      {linkAt && linkForm && diff === null && !history && createPortal(linkForm, document.body)}
+      {linkAt && linkForm && diff === null && !history && !away && createPortal(linkForm, document.body)}
       <div ref={setScroller} className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined}
         // Comments follow the words at the normal gap, so the room left over is below them: a click there writes on.
         onMouseDown={(e) => { if (e.target !== e.currentTarget || !editor || source) return; e.preventDefault(); editor.commands.focus('end'); }}

@@ -116,7 +116,7 @@ import { PanelsListed, ShellPanelsContext, pressIs } from './ui/PanelLayout';
 import { calendarDay, meetingKey, meetingStarting, OFFER_SHOWN_MS } from './meeting-start';
 import { alertDue, alertSaid } from './calendar-alerts';
 import { stopReading } from './useSpeech';
-import { OPEN_SPEAKING_SETTINGS, UndoToast, AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
+import { OPEN_SPEAKING_SETTINGS, AwayContext, UndoToast, AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { SERVICE_NAMES, catchUpAsk, channelLabel, chatItem, isSpaceAccount } from './messages-view';
@@ -1213,7 +1213,9 @@ export function App() {
         // The app's own panel, in the pane being worked in when two apps are side by side.
         const within: ParentNode = document.activeElement?.closest('.pane') ?? document;
         const NEW = '.app-side .side-new > .side-new-row, .app-side .app-side-new';
-        const create = within.querySelector<HTMLButtonElement>(NEW) ?? document.querySelector<HTMLButtonElement>(NEW);
+        // Not in Notes kept hidden for its next visit (inert): its New is not the open app's.
+        const live = (from: ParentNode) => [...from.querySelectorAll<HTMLButtonElement>(NEW)].find((b) => !b.closest('[inert]'));
+        const create = live(within) ?? live(document);
         if (create && !create.disabled) { claim(); create.click(); }
         // Calendar's New event is in its tool row, not its panel: the key makes one all the same.
         else if (!create && app === 'calendar') { claim(); setEventToken((n) => n + 1); }
@@ -1527,6 +1529,20 @@ export function App() {
     { id: 'list', name: 'Sections', dock: 'left', shown: true, fixed: true, render: () => <div ref={setSettingsSlot} className="settings-side" /> },
   ], []);
   const listFor = (id: AppId): readonly PanelSpec[] => (settingsOpen ? NO_PANELS : ownListPanels[id] ?? NO_PANELS);
+  // Notes is kept after its first visit (outside split view) and hidden while another app is on screen, so going back
+  // to it makes nothing afresh: made anew, its editor and long notebook took two to four times as long to show as any
+  // other app (docs/developers/speed.md). Hidden, it is inert and shows nothing elsewhere (useAway), and it is not drawn
+  // again until it is back: what changed meanwhile reaches it then.
+  const [notesKept, setNotesKept] = useState(false);
+  useEffect(() => { if (inNotes && !split) setNotesKept(true); }, [inNotes, split]);
+  const keepNotes = !split && (notesKept || inNotes);
+  const notesAway = !inNotes;
+  const keptNotes = useRef<ReactNode>(null);
+  if (!keepNotes) keptNotes.current = null;
+  const keptNotesContent = (): ReactNode => {
+    if (!notesAway || keptNotes.current === null) keptNotes.current = withOwnList('notes', paneContent('notes'));
+    return keptNotes.current;
+  };
   const withOwnList = (id: AppId, content: ReactNode): ReactNode => {
     const panels = ownListPanels[id];
     return panels && !LIST_HANDED.includes(id) ? <PanelLayout app={id} panels={settingsOpen ? NO_PANELS : panels} away={settingsOpen}>{content}</PanelLayout> : content;
@@ -2578,7 +2594,22 @@ export function App() {
             </PanelLayout>
             </div>
           )}
-          {(split ? ([0, 1] as const) : ([focused] as const)).map((index, at) => {
+          {keepNotes && (
+            // Notes, kept after its first visit and hidden while another app is on screen (see keptNotes); the pane on
+            // screen while it is shown.
+            <section className={notesAway ? 'kept-pane' : 'pane kept-pane'} data-app="notes" data-away={notesAway || undefined} inert={notesAway} aria-hidden={notesAway || undefined}>
+              <div className="pane-body">
+                <AwayContext.Provider value={notesAway}>
+                  <PanelsListed on={!notesAway}>
+                    <ShellPanelsContext.Provider value={notesAway ? NO_PANELS : shownPieces}>
+                      <TurnRunningContext.Provider value={conversation.state.busy}>{keptNotesContent()}</TurnRunningContext.Provider>
+                    </ShellPanelsContext.Provider>
+                  </PanelsListed>
+                </AwayContext.Provider>
+              </div>
+            </section>
+          )}
+          {(split ? ([0, 1] as const) : ([focused] as const)).filter(() => !(keepNotes && !notesAway)).map((index, at) => {
             const id = split ? (panes[index] ?? app) : app;
             const pane = (
               <Pane key={`pane-${at}`} index={index} app={id} split={split} focused={focused === index}

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useAway } from './Away';
 import { SIDEBAR_WIDTH } from '@mobius/shared';
 import { Resizer } from '../Resizer';
 import { afterPaint } from './frame';
@@ -115,12 +116,14 @@ export function PanelTab({ id, name, shown, children }: { id: string; name: stri
   const add = api?.add;
   const remove = api?.remove;
   const starts = shown ?? STARTS_SHOWN.has(id);
+  // An app kept hidden for its next visit has no panels in the inspector meanwhile.
+  const away = useAway();
   useEffect(() => {
-    if (!add || !remove) return undefined;
+    if (!add || !remove || away) return undefined;
     add({ id, name, shown: starts });
     return () => remove(id);
-  }, [add, remove, id, name, starts]);
-  const host = api?.hosts[id];
+  }, [add, remove, id, name, starts, away]);
+  const host = away ? undefined : api?.hosts[id];
   return host ? createPortal(children, host) : null;
 }
 

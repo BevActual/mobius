@@ -87,6 +87,36 @@ test('a first notebook and page are real files, and typing is saved as Markdown'
   await expect(shell().locator('.toolbar-sub')).toContainText('Work');
 });
 
+test('Notes is kept while another app is open: nothing of it shows or answers there, and back it is as it was left', async () => {
+  await start();
+  await newNotebook('Work');
+  await expect(text()).toBeFocused();
+  await retitle('Kept');
+  await shell().keyboard.press('End');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('Where I was');
+  await expect(status()).toHaveText('Saved');
+  // In Tasks, Notes is still in the page (kept for the visit back) but hidden and out of reach: no notebooks, no
+  // format bar in the toolbar, and its panel key and New are Tasks' own.
+  await goTo(shell(), 'Tasks');
+  await expect(shell().getByRole('complementary', { name: 'Lists' })).toBeVisible();
+  await expect(shell().locator('.kept-pane[data-away][inert]')).toHaveCount(1);
+  await expect(side()).toBeHidden();
+  await expect(format()).toHaveCount(0);
+  await expect(text()).toHaveCount(0);
+  await shell().locator('body').evaluate((b) => (document.activeElement as HTMLElement | null)?.blur?.() ?? b);
+  await shell().keyboard.press('Control+n');
+  await expect(side()).toBeHidden();
+  expect(fs.readdirSync(file('Work'))).toEqual(['Untitled.md']);
+  // Back in Notes, the page is as it was left, the cursor where it was.
+  await goTo(shell(), 'Notes');
+  await expect(side()).toBeVisible();
+  await expect(format()).toBeVisible();
+  await expect(text()).toBeFocused();
+  await shell().keyboard.type(', still.');
+  await expect.poll(() => onDisk('Work', 'Untitled.md')).toBe('# Kept\n\nWhere I was, still.\n');
+});
+
 test('pages survive a restart, search finds them, and a deleted page is gone from disk', async () => {
   fs.mkdirSync(file('Home'), { recursive: true });
   fs.writeFileSync(file('Home', 'Groceries.md'), '# Groceries\n- oat milk\n');

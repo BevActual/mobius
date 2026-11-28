@@ -61,8 +61,14 @@ the editor made afresh on each visit costs about 15 ms and Notes' panels and sta
 editor a frame later did not help (72 ms): the switch is timed to the frame after the panels show, and the page then
 lands in it. The budget stays at 180 ms.
 
-A later idea, not built: keep a heavy app (Notes, Docs) mounted but hidden after its first visit, so switching back
-makes nothing afresh. It is a shell change: a hidden app must ignore keys and shortcuts, and it holds its memory.
+On 27 and 28 November 2026 the slowest-app budget failed three times on main and pull requests (184, 193 and
+239 ms scaled), Notes at a median of 284 ms as measured against 69 to 111 ms for the other apps. So Notes is now kept
+after its first visit and hidden while another app is on screen (`keptNotes` in App.tsx), and going back to it makes
+nothing afresh. Hidden, it has `content-visibility: hidden`, so the browser keeps its layout but does not paint it, and
+it is `inert`. Through `useAway` (src/ui/Away.tsx) its toolbar controls and inspector panels go, its panel keys and menu
+commands are left to the app on screen, and it is not drawn again until it is back. In split view it is made in its pane
+as before. Locally, switching to Notes went from 78 ms to 42 ms, the same as Files (38 to 45 ms). Docs could be kept the
+same way if it becomes the slowest.
 
 On 23 November 2026 the DOM growth budget came down from 1,500 to 400 nodes. Every visit to Docs or Notes had kept its
 editor's Markdown reader in the shared `marked` instance (about 105 nodes a visit), which the old budget let through

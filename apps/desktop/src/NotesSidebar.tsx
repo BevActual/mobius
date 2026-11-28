@@ -10,7 +10,7 @@ import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { assignEntries, pageAssignment } from './assign';
-import { AppSidebar, SidebarRow, SidebarSection, SidebarSearch } from './ui';
+import { AppSidebar, SidebarRow, SidebarSection, SidebarSearch, useAway } from './ui';
 import { afterPaint } from './ui/frame';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
@@ -98,7 +98,8 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   const [hits, setHits] = useState<NoteHit[] | null>(null);
   const [naming, setNaming] = useState(false);
   // The menus' New notebook opens the same naming field.
-  useEffect(() => onCommand(words === NOTES_WORDS ? 'new-notebook' : 'new-folder', () => setNaming(true)), [words]);
+  const away = useAway();
+  useEffect(() => (away ? undefined : onCommand(words === NOTES_WORDS ? 'new-notebook' : 'new-folder', () => setNaming(true))), [words, away]);
   const [name, setName] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; page: NotePage; row?: HTMLElement } | null>(null);

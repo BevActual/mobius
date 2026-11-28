@@ -17,6 +17,7 @@ export { Menu, PointMenu, useAnyMenuOpen, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
 export { ListenButton, OPEN_SPEAKING_SETTINGS } from './Listen';
 export { BeforeAfter, HoldButton, useHold, type Hold } from './BeforeAfter';
+export { AwayContext, useAway } from './Away';
 export { AppFrame, ToolbarControls, ToolbarItem, type ToolbarParts } from './AppFrame';
 export { type ToolbarPriority } from './toolbarFit';
 export { useKeyboardClaim, keyboardClaimed } from './keyboardClaim';
