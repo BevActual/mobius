@@ -149,7 +149,18 @@ impl Server {
             use std::os::windows::process::CommandExt;
             cmd.creation_flags(0x0800_0000);
         }
-        let mut child = cmd.spawn().map_err(|e| StartError::Failed(program, e.to_string()))?;
+        // A program just written (a project's install, or a test's stand-in) can be "busy" for a moment on Linux while
+        // another thread's new process still holds the file open, so that one is tried again.
+        let mut tries = 0;
+        let mut child = loop {
+            match cmd.spawn() {
+                Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && tries < 10 => {
+                    tries += 1;
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                other => break other.map_err(|e| StartError::Failed(program, e.to_string()))?,
+            }
+        };
         let (Some(input), Some(output), Some(mut errors)) = (child.stdin.take(), child.stdout.take(), child.stderr.take()) else {
             let _ = child.kill();
             return Err(StartError::Failed(program, "it could not be started".into()));
@@ -736,7 +747,8 @@ mod tests {
         let kept = Arc::clone(&heard);
         let languages = Languages::new(Arc::new(move |name: &str, value: Value| kept.lock().unwrap().push(json!({ "name": name, "value": value }))));
         let text = "const total = 1\ntotal.\nTODO\n";
-        assert_eq!(languages.sync(dir.path(), "demo", "a.ts", text, false)["server"], "typescript-language-server");
+        let started = languages.sync(dir.path(), "demo", "a.ts", text, false);
+        assert_eq!(started["server"], "typescript-language-server", "{started}");
         let t = Instant::now();
         while heard.lock().unwrap().is_empty() && t.elapsed() < Duration::from_secs(5) {
             std::thread::sleep(Duration::from_millis(20));
