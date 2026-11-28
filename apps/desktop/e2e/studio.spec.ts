@@ -678,6 +678,28 @@ test('Record in Session lays what is launched into Arrange, each clip going roun
   await expect.poll(() => (saved().tracks[1]!.clips ?? []).some((c) => c.name === 'Riff')).toBe(false);
 });
 
+test('a String track is a modelled string: plucked, struck or bowed, with its decay, damping, position and tone kept in the song', async () => {
+  await start();
+  await tracks().getByRole('button', { name: 'Add track' }).click();
+  await shell().getByRole('menu', { name: 'Add track' }).getByRole('menuitem', { name: 'String' }).click();
+  await expect.poll(() => saved().tracks.map((t) => [t.name, (t as { instrument?: string }).instrument])).toEqual([['Keys', 'piano'], ['String', 'string']]);
+  const device = await openDevice('String');
+  const string = device.getByRole('region', { name: 'String' });
+  // No oscillators or filter: the string's own settings (Live 12's Tension).
+  await expect(device.getByRole('slider', { name: 'Cutoff and resonance' })).toHaveCount(0);
+  await expect(string.getByRole('slider', { name: 'Decay' })).toHaveAttribute('aria-valuetext', '3.0 s');
+  await string.getByRole('combobox', { name: 'Exciter' }).click();
+  await shell().getByRole('option', { name: 'Bow' }).click();
+  await expect(string).toContainText('sounds for as long as the note is held');
+  await string.getByRole('slider', { name: 'Damping' }).focus();
+  await shell().keyboard.press('ArrowUp');
+  await expect.poll(() => (saved().tracks[1] as { string?: unknown }).string).toEqual({ exciter: 'bow', decay: 3, damping: 0.41, position: 0.2, tone: 0.6 });
+  // Another instrument chosen for the track leaves no string settings behind.
+  await device.getByRole('combobox', { name: 'Instrument' }).click();
+  await shell().getByRole('option', { name: 'Bass' }).click();
+  await expect.poll(() => (saved().tracks[1] as { string?: unknown }).string).toBeUndefined();
+});
+
 test('a melody is written as steps too, a row per note of the key', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start([], 'Bass');

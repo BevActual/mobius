@@ -389,10 +389,7 @@ fn note_of(track: &crate::song::Track, samplers: &crate::sampler::Samplers, pitc
                 .collect(),
         )
     } else {
-        Note::Voices(vec![(match &track.sound {
-            Some(sound) => crate::voice::Voice::new(track.instrument, sound, pitch, seconds, velocity),
-            None => crate::voice::Voice::legacy(track.instrument, pitch, seconds, velocity),
-        }, gains)])
+        Note::Voices(vec![(crate::voice::Voice::for_note(track.instrument, track.sound.as_ref(), track.string.as_ref(), pitch, seconds, velocity), gains)])
     }
 }
 

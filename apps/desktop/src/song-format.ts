@@ -12,9 +12,24 @@ import { FILTER_TYPES, LFO_SHAPES, parseDevice, PART_KINDS, type Device, type De
  * number (60 is middle C); `velocity` runs from 0 to 1. On a drums track the pitch picks the drum: 36 kick, 38 snare,
  * 42 closed hat, 46 open hat, 39 clap, 45 tom. Mobius writes notes, never audio over recordings.
  */
-export type Instrument = 'piano' | 'bass' | 'pad' | 'lead' | 'drums';
-export const INSTRUMENTS: Instrument[] = ['piano', 'bass', 'pad', 'lead', 'drums'];
-export const INSTRUMENT_NAMES: Record<Instrument, string> = { piano: 'Piano', bass: 'Bass', pad: 'Pad', lead: 'Lead', drums: 'Drums' };
+export type Instrument = 'piano' | 'bass' | 'pad' | 'lead' | 'drums' | 'string';
+export const INSTRUMENTS: Instrument[] = ['piano', 'bass', 'pad', 'lead', 'drums', 'string'];
+/** The instruments made of oscillators, with a `sound` to set: not drums (a kit) or a string (its `string`). */
+export type SynthInstrument = Exclude<Instrument, 'drums' | 'string'>;
+export const isSynth = (i: Instrument): i is SynthInstrument => i !== 'drums' && i !== 'string';
+/** How a modelled string is set going (Live 12's Tension): plucked, struck or bowed. */
+export const EXCITERS = ['pluck', 'hammer', 'bow'] as const;
+export type Exciter = (typeof EXCITERS)[number];
+/**
+ * A string track's settings (crates/mobius-audio/src/string.rs): `decay` seconds for a low note to die away, `damping`
+ * 0 bright to 1 dark, `position` where it is struck from the bridge (to 0.5, the middle), `tone` 0 soft to 1 hard.
+ */
+export interface StringSound { exciter: Exciter; decay: number; damping: number; position: number; tone: number }
+export const STRING_DEFAULTS: StringSound = { exciter: 'pluck', decay: 3, damping: 0.4, position: 0.2, tone: 0.6 };
+export const STRING_RANGE: Record<Exclude<keyof StringSound, 'exciter'>, { lo: number; hi: number }> = { decay: { lo: 0.05, hi: 30 }, damping: { lo: 0, hi: 1 }, position: { lo: 0.02, hi: 0.5 }, tone: { lo: 0, hi: 1 } };
+/** A string track's settings: its own, or the string's own. */
+export const stringOf = (t: Pick<Track, 'instrument' | 'string'>): StringSound | null => (t.instrument === 'string' ? { ...STRING_DEFAULTS, ...t.string } : null);
+export const INSTRUMENT_NAMES: Record<Instrument, string> = { piano: 'Piano', bass: 'Bass', pad: 'Pad', lead: 'Lead', drums: 'Drums', string: 'String' };
 export interface SongNote { pitch: number; start: number; length: number; velocity: number }
 /**
  * How a track's instrument sounds (the Device panel):
@@ -123,7 +138,7 @@ export function readInstrumentStack(v: unknown): InstrumentStack | undefined {
     const instrument = INSTRUMENTS.includes(co.instrument as Instrument) ? (co.instrument as Instrument) : 'piano';
     const chain: InstrumentChain = { instrument };
     const so = obj(co.sound);
-    if (instrument !== 'drums' && Object.keys(so).length > 0) chain.sound = readSound(so, instrument);
+    if (isSynth(instrument) && Object.keys(so).length > 0) chain.sound = readSound(so, instrument);
     const keys = readZone(co.keys, 0, 127), velocities = readZone(co.velocities, 1, 127);
     if (keys) chain.keys = keys;
     if (velocities) chain.velocities = velocities;
@@ -136,7 +151,7 @@ export function readInstrumentStack(v: unknown): InstrumentStack | undefined {
   return chains.length > 0 ? { chains } : undefined;
 }
 /** A sound from a file, each key in range, those left out at the instrument's own. */
-const readSound = (so: Record<string, unknown>, instrument: Exclude<Instrument, 'drums'>): Sound =>
+const readSound = (so: Record<string, unknown>, instrument: SynthInstrument): Sound =>
   Object.fromEntries((Object.keys(SOUND_RANGE) as (keyof Sound)[]).map((k) => [k, num(so[k], SOUND_DEFAULTS[instrument][k], SOUND_RANGE[k].lo, SOUND_RANGE[k].hi)])) as unknown as Sound;
 /** Every effect in a list, those in a stack's chains after the stack itself. */
 export const allEffects = (fx: readonly Effect[]): Effect[] => fx.flatMap((e) => (e.kind === 'stack' ? [e, ...e.chains.flatMap((c) => c.fx)] : [e]));
@@ -493,7 +508,7 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  */
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 
-export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
+export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number } }
 /** The Main track: everything heard goes through its effects, then its volume (0 to 1). */
 export interface MainTrack { volume: number; fx?: Effect[]; /** Main's volume along the song. */ auto?: Automation; autoOff?: string[] }
@@ -521,14 +536,14 @@ export const SOUND_RANGE: Record<keyof Sound, { lo: number; hi: number }> = {
 export const KIT_RANGE: Record<keyof KitSound, { lo: number; hi: number }> = { tune: { lo: -12, hi: 12 }, decay: { lo: 0.5, hi: 2 }, tone: { lo: 0, hi: 1 } };
 export const KIT_DEFAULTS: KitSound = { tune: 0, decay: 1, tone: 0.5 };
 /** What each instrument starts as, close to how it sounded before it had settings. */
-export const SOUND_DEFAULTS: Record<Exclude<Instrument, 'drums'>, Sound> = {
+export const SOUND_DEFAULTS: Record<SynthInstrument, Sound> = {
   piano: { shape: 0.2, detune: 0, sub: 0, drive: 0, cutoff: 5000, resonance: 0, envAmount: 0, attack: 0.005, decay: 0.8, sustain: 0.3, release: 0.3, vibrato: 0, rate: 5 },
   bass: { shape: 1, detune: 0, sub: 0, drive: 0, cutoff: 700, resonance: 0.1, envAmount: 0, attack: 0.005, decay: 0.3, sustain: 1, release: 0.08, vibrato: 0, rate: 5 },
   pad: { shape: 1, detune: 14, sub: 0, drive: 0, cutoff: 1800, resonance: 0.1, envAmount: 0, attack: 0.25, decay: 0.3, sustain: 1, release: 0.5, vibrato: 0, rate: 5 },
   lead: { shape: 0.7, detune: 0, sub: 0, drive: 0, cutoff: 5000, resonance: 0.1, envAmount: 0, attack: 0.005, decay: 0.3, sustain: 1, release: 0.08, vibrato: 0, rate: 5 },
 };
 /** A track's sound as the panel shows it: its own settings, or its instrument's. Drums have a kit instead. */
-export const soundOf = (t: Track): Sound | null => (t.instrument === 'drums' ? null : (t.sound ?? SOUND_DEFAULTS[t.instrument]));
+export const soundOf = (t: Track): Sound | null => (isSynth(t.instrument) ? (t.sound ?? SOUND_DEFAULTS[t.instrument]) : null);
 /** A drums track's kit: its own, or the kit as it always sounded. */
 export const kitOf = (t: Track): KitSound | null => (t.instrument === 'drums' ? (t.kit ?? KIT_DEFAULTS) : null);
 /**
@@ -605,7 +620,16 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     }
     if (typeof to.input === 'number' && Number.isInteger(to.input) && to.input >= 0 && to.input < 64) track.input = to.input;
     const so = obj(to.sound);
-    if (instrument !== 'drums' && Object.keys(so).length > 0) track.sound = readSound(so, instrument);
+    if (isSynth(instrument) && Object.keys(so).length > 0) track.sound = readSound(so, instrument);
+    if (instrument === 'string' && to.string && typeof to.string === 'object') {
+      const st = to.string as Record<string, unknown>;
+      const r = STRING_RANGE;
+      track.string = {
+        exciter: (EXCITERS as readonly unknown[]).includes(st.exciter) ? (st.exciter as Exciter) : STRING_DEFAULTS.exciter,
+        decay: num(st.decay, STRING_DEFAULTS.decay, r.decay.lo, r.decay.hi), damping: num(st.damping, STRING_DEFAULTS.damping, r.damping.lo, r.damping.hi),
+        position: num(st.position, STRING_DEFAULTS.position, r.position.lo, r.position.hi), tone: num(st.tone, STRING_DEFAULTS.tone, r.tone.lo, r.tone.hi),
+      };
+    }
     const stack = readInstrumentStack(to.stack);
     if (stack) track.stack = stack;
     const fx = readFx(to.fx, `Track “${track.name}”`, (why) => { refused ??= why; });
@@ -744,7 +768,8 @@ export function writeSong(song: Song): string {
     if (t.instrumentOn === false) head.instrumentOn = false;
     if (t.pan) head.pan = t.pan;
     if (t.sends && Object.keys(t.sends).length > 0) head.sends = t.sends;
-    if (t.sound && t.instrument !== 'drums') head.sound = t.sound;
+    if (t.sound && isSynth(t.instrument)) head.sound = t.sound;
+    if (t.string && t.instrument === 'string') head.string = t.string;
     if (t.kind === 'sampler' && t.sampler) head.sampler = t.sampler;
     if (t.stack && t.stack.chains.length > 0) head.stack = t.stack;
     if (t.frozen) head.frozen = t.frozen;

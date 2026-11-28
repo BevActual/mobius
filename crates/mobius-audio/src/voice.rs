@@ -4,6 +4,7 @@
 
 use crate::param::Param;
 use crate::song::{Instrument, Sound};
+use crate::string::{Exciter, Strand, StringSound};
 use std::f64::consts::{PI, SQRT_2, TAU};
 
 /// How loud a note at full velocity peaks, by instrument (as the window has it).
@@ -14,6 +15,7 @@ pub fn peak_of(instrument: Instrument) -> f64 {
         Instrument::Lead => 0.12,
         Instrument::Bass => 0.35,
         Instrument::Piano | Instrument::Drums => 0.3,
+        Instrument::String => 0.5,
     }
 }
 
@@ -89,6 +91,21 @@ pub struct Voice {
     release: f64,
     /// Let go early (a key lifted): when, and the level it fell from.
     fade: Option<(f64, f64)>,
+    /// A modelled string in place of the oscillators: its settings, the string once made (it needs the output's
+    /// rate), and when its bow lifts.
+    string: Option<StringNote>,
+}
+
+/// A note on a modelled string: its settings and how it was played, and the string once made (it needs the output's
+/// rate, which only the first block brings).
+#[derive(Debug, Clone)]
+struct StringNote {
+    sound: StringSound,
+    velocity: f64,
+    seed: u32,
+    /// When the bow lifts (the note's end).
+    lift: f64,
+    strand: Option<Box<Strand>>,
 }
 
 impl Voice {
@@ -140,6 +157,18 @@ impl Voice {
             time: 0.0,
             release,
             fade: None,
+            string: None,
+        }
+    }
+
+    /// A note on an instrument: a string plays its `string` settings (or its own); another plays `sound`, or its
+    /// instrument's own voices without one.
+    #[must_use]
+    pub fn for_note(instrument: Instrument, sound: Option<&Sound>, string: Option<&StringSound>, pitch: u8, seconds: f64, velocity: f64) -> Voice {
+        match (instrument, sound) {
+            (Instrument::String, _) => Voice::string(&string.copied().unwrap_or_default(), pitch, seconds, velocity),
+            (_, Some(sound)) => Voice::new(instrument, sound, pitch, seconds, velocity),
+            (_, None) => Voice::legacy(instrument, pitch, seconds, velocity),
         }
     }
 
@@ -166,7 +195,7 @@ impl Voice {
             Instrument::Bass => &[osc(Wave::Saw, 1.0, 0.0)],
             Instrument::Pad => &[osc(Wave::Saw, 1.0, -7.0), osc(Wave::Saw, 1.0, 7.0)],
             Instrument::Lead => &[osc(Wave::Square, 1.0, 0.0)],
-            Instrument::Piano | Instrument::Drums => &[osc(Wave::Triangle, 1.0, 0.0), osc(Wave::Sine, 2.0, 0.0)],
+            Instrument::Piano | Instrument::Drums | Instrument::String => &[osc(Wave::Triangle, 1.0, 0.0), osc(Wave::Sine, 2.0, 0.0)],
         };
         oscs[..list.len()].copy_from_slice(list);
         let cutoff = match instrument {
@@ -191,12 +220,47 @@ impl Voice {
             time: 0.0,
             release,
             fade: None,
+            string: None,
+        }
+    }
+
+    /// A note of `pitch` on a modelled string (Live 12's Tension), held for `seconds`. A pluck or a hammer
+    /// rings by itself for as long as its decay; a bow plays for as long as the note is held.
+    #[must_use]
+    pub fn string(sound: &StringSound, pitch: u8, seconds: f64, velocity: f64) -> Voice {
+        let s = sound.clamped();
+        let release = if s.exciter == Exciter::Bow { 0.25 } else { 0.12 };
+        let held = seconds.max(0.01);
+        let rings = if s.exciter == Exciter::Bow { held } else { held.min(s.decay * 2.0) };
+        let peak = peak_of(Instrument::String);
+        let gain = Param::new(peak).set(peak, 0.0).target(0.0001, rings, release / 4.0);
+        Voice {
+            oscs: [SILENT; 5],
+            count: 0,
+            base: hz(f64::from(pitch)),
+            gain,
+            cutoff: Param::new(18_000.0),
+            q_db: 0.0,
+            drive: 0.0,
+            vibrato: 0.0,
+            rate: 5.0,
+            lfo: 0.0,
+            filter: LowPass::default(),
+            end: rings + release + 0.05,
+            time: 0.0,
+            release,
+            fade: None,
+            // The same note sounds the same each time it is rendered.
+            string: Some(StringNote { sound: s, velocity: velocity.clamp(0.0, 1.0), seed: 0x9e37_79b9 ^ u32::from(pitch).wrapping_mul(2_654_435_761), lift: held, strand: None }),
         }
     }
 
     /// Lets the note go now (a key lifted): it dies away over its release from wherever its envelope has reached, as
     /// Web Audio's `setTargetAtTime` takes over from the level a ramp is at. A note already let go is left alone.
     pub fn release(&mut self) {
+        if let Some(strand) = self.string.as_mut().and_then(|n| n.strand.as_mut()) {
+            strand.lift();
+        }
         if self.fade.is_none() && self.time < self.end {
             self.fade = Some((self.time, self.gain.at(self.time)));
             self.end = self.end.min(self.time + self.release + 0.05);
@@ -216,9 +280,17 @@ impl Voice {
             if self.done() {
                 return;
             }
+            let mut x = 0.0;
+            if let Some(note) = &mut self.string {
+                let (sound, velocity, seed, base) = (note.sound, note.velocity, note.seed, self.base);
+                let made = note.strand.get_or_insert_with(|| Box::new(Strand::new(sound, base, rate, velocity, seed)));
+                if self.time >= note.lift {
+                    made.lift();
+                }
+                x = made.sample();
+            }
             let wobble = if self.vibrato > 0.0 { self.vibrato * (TAU * self.lfo).sin() } else { 0.0 };
             self.lfo = (self.lfo + self.rate * dt).fract();
-            let mut x = 0.0;
             for osc in &mut self.oscs[..self.count] {
                 let step = self.base * osc.ratio * 2f64.powf((osc.cents + wobble) / 1200.0) * dt;
                 x += osc.level * match osc.wave {

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { AudioClipDetail } from './studio-audio-clip';
@@ -45,7 +45,7 @@ type FreezeTrack = (path: string, trackId: string, song?: unknown) => Promise<{ 
 /** The engine's stems export, once it has one (music.renderStems). */
 type RenderStems = (path: string, name: string, song?: unknown) => Promise<{ ok: true; saved: string; path: string; files: { file: string; peakDb: number; over: boolean }[] } | { ok: false; message: string }>;
 /** The order the sidebar lists sounds in: drums first, as most songs start with a beat. */
-const SOUNDS: Instrument[] = ['drums', 'bass', 'piano', 'pad', 'lead'];
+const SOUNDS: Instrument[] = ['drums', 'bass', 'piano', 'pad', 'lead', 'string'];
 
 /** When a song was last changed, short: the time today, the weekday this week, else the date ("3 Nov"). */
 function whenShort(at: number, now: number): string {
@@ -711,6 +711,15 @@ const PAD_CELLS: readonly { k: PadSetting; name: string; step: number; log?: boo
   { k: 'pan', name: 'Pan', step: 0.01, format: panText },
 ];
 const INSTRUMENT_CHOICES = INSTRUMENTS.map((i) => ({ value: i, label: INSTRUMENT_NAMES[i] }));
+const EXCITER_CHOICES = [{ value: 'pluck', label: 'Pluck' }, { value: 'hammer', label: 'Hammer' }, { value: 'bow', label: 'Bow' }] as const;
+const EXCITER_NOTES: Record<Exciter, string> = { pluck: 'Plucked: it rings on by itself, like a guitar or harp.', hammer: 'Struck: a hammer hits it once, like a piano or dulcimer.', bow: 'Bowed: it sounds for as long as the note is held.' };
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+const STRING_CELLS: { k: Exclude<keyof StringSound, 'exciter'>; name: string; log?: boolean; format: (v: number) => string }[] = [
+  { k: 'decay', name: 'Decay', log: true, format: (v) => (v < 1 ? `${Math.round(v * 1000)} ms` : `${v.toFixed(1)} s`) },
+  { k: 'damping', name: 'Damping', format: pct },
+  { k: 'position', name: 'Position', format: pct },
+  { k: 'tone', name: 'Tone', format: pct },
+];
 const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
 const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
 
@@ -766,10 +775,12 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
   onTrack: (fn: (t: Track) => void, tag?: string) => void;
 }) {
   const sound = track ? soundOf(track) : null;
-  const base = track && track.instrument !== 'drums' ? SOUND_DEFAULTS[track.instrument] : null;
+  const base = track && isSynth(track.instrument) ? SOUND_DEFAULTS[track.instrument] : null;
+  const strung = track ? stringOf(track) : null;
+  const setString = (patch: Partial<StringSound>, tag: string) => onTrack((t) => { if (t.instrument !== 'string') return; t.string = { ...STRING_DEFAULTS, ...t.string, ...patch }; }, `string:${tag}`);
   const kit = track ? kitOf(track) : null;
-  const set = (k: keyof Sound, v: number) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), [k]: v }; }, `sound:${k}`);
-  const setMany = (patch: Partial<Sound>, tag: string) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), ...patch }; }, `sound:${tag}`);
+  const set = (k: keyof Sound, v: number) => onTrack((t) => { if (!isSynth(t.instrument)) return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), [k]: v }; }, `sound:${k}`);
+  const setMany = (patch: Partial<Sound>, tag: string) => onTrack((t) => { if (!isSynth(t.instrument)) return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), ...patch }; }, `sound:${tag}`);
   const [pad, setPad] = useState(0);
   // Folded devices, by track and device, so a long chain fits: the head stays, with its switch and name.
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
@@ -795,9 +806,9 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
       <DeviceFrame className="studio-instrument" title={track.kind === 'sampler' ? 'Sampler' : 'Instrument'} index={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
         collapsed={folded.has(`${track.id}:instrument`)} onCollapse={fold(`${track.id}:instrument`)}
         actions={track.kind === 'sampler' ? undefined : <>
-          <Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; })} />
-          {!track.kind && !track.stack && track.instrument !== 'drums' && <IconButton label="Stack instruments" icon={<Icon d="M4 6h12M4 10h12M4 14h12" />}
-            onClick={() => onTrack((t) => { if (t.instrument === 'drums') return; t.stack = { chains: [{ instrument: t.instrument, ...(t.sound ? { sound: { ...t.sound } } : {}) }] }; })} />}
+          <Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; delete t.string; })} />
+          {!track.kind && !track.stack && isSynth(track.instrument) && <IconButton label="Stack instruments" icon={<Icon d="M4 6h12M4 10h12M4 14h12" />}
+            onClick={() => onTrack((t) => { if (!isSynth(t.instrument)) return; t.stack = { chains: [{ instrument: t.instrument, ...(t.sound ? { sound: { ...t.sound } } : {}) }] }; })} />}
         </>}>
         <div className="studio-dev-cols">
           {track.kind === 'sampler' && <SamplerSection track={track} songPath={songPath} onTrack={onTrack} />}
@@ -821,6 +832,20 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
               </ParamGrid>}
             </section>
           ))}
+          {/* A modelled string (Live 12's Tension): what sets it going, then the string itself. */}
+          {strung && (
+            <section className="studio-dev-section studio-dev-col" aria-label="String">
+              <h4 className="studio-dev-head">String</h4>
+              <Select label="Exciter" value={strung.exciter} choices={EXCITER_CHOICES} onChange={(e) => setString({ exciter: e }, 'exciter')} />
+              <ParamGrid label="String" columns={2}>
+                {STRING_CELLS.map(({ k, name, log, format }) => (
+                  <Knob key={k} label={name} value={strung[k]} min={STRING_RANGE[k].lo} max={STRING_RANGE[k].hi} step={0.01} scale={log ? 'log' : 'linear'} origin={STRING_DEFAULTS[k]} reset={STRING_DEFAULTS[k]} format={format}
+                    proposed={proposed?.has(`string:${k}`)} onChange={(v) => setString({ [k]: v }, k)} />
+                ))}
+              </ParamGrid>
+              <p className="studio-dev-note">{EXCITER_NOTES[strung.exciter]}</p>
+            </section>
+          )}
           {kit && (
             <section className="studio-dev-section studio-dev-col" aria-label="Kit">
               <h4 className="studio-dev-head">Kit</h4>
