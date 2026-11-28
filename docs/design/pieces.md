@@ -212,7 +212,13 @@ These follow the motion rules in [guide.md](guide.md) and the motion checklist.
 - **Fold to its header:** a piece, or any panel beside others in a side dock, folds to its header (the chevron, a
   double click on the header, or its menu), so the ones beside it have the room. Kept per app with its layout.
 
-Not yet: a `show` tool for Mobius to bring a piece without changing anything, a piece remembered by project.
+Round 5: **Mobius shows on purpose.** Three host tools, `show.list`, `show.day` and `show.thread` (crates/mobius-host/src/show.rs), bring up a
+task list, a day or a mail conversation when the person asks ("show me my errands beside this"). Each needs only its
+app's reading capability (`tasks.read`, `calendar.read`, `mail.read`), so the person's access level for that app decides
+it, and the window shows it only for the conversation open there. As the person asked for it, the piece is theirs: no
+dashed edge, and it stays after the turn.
+
+Not yet: a piece remembered by project.
 
 ## First rounds
 

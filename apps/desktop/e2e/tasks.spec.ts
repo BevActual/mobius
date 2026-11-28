@@ -544,3 +544,26 @@ test('a piece folds to its header, so the others beside it have the room, and op
   await errands.locator('.ui-panel-head').dblclick({ position: { x: 40, y: 10 } });
   await expect(errands.getByRole('checkbox', { name: 'Post the parcel' })).toBeVisible();
 });
+
+test('asked to, Mobius shows a list beside the work, and it stays as the person\'s', async () => {
+  fs.mkdirSync(path.dirname(file('Errands')), { recursive: true });
+  fs.writeFileSync(file('Errands'), '# Errands\n\n- [ ] Post the parcel\n');
+  await start([callsTool('show-list', { list: 'errands' }), says(['Errands is beside you now.'])]);
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  await expect(shell().getByRole('complementary', { name: 'Notebooks' })).toBeVisible();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Show me my errands beside this');
+  await composer.press('Enter');
+  // Showing reads the list, so it asks as reading Tasks does in this mode.
+  await expect(shell().getByText('Mobius wants to show your “errands” list beside your work')).toBeVisible();
+  await shell().getByRole('button', { name: 'Allow once' }).click();
+  const piece = shell().locator('section[data-panel="piece:tasks.list:Errands"]');
+  await expect(piece.getByRole('checkbox', { name: 'Post the parcel' })).toBeVisible();
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Errands is beside you now.', { timeout: 15_000 });
+  // Nothing changed, so there is nothing to keep: the piece is the person's, with no dashed edge, and it stays.
+  await expect(piece).not.toHaveAttribute('data-mobius', /.*/);
+  await shell().waitForTimeout(1200);
+  await expect(piece).toBeVisible();
+});

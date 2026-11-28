@@ -213,6 +213,9 @@ export function createTauriBridge(): MobiusBridge {
       onNeeded: (listener) => on<{ conversation: string; site: string; tab: string }>('mobius:signin-needed', listener),
       onChanged: (listener) => on<{ conversation: string }>('mobius:signins-changed', listener),
     },
+    pieces: {
+      onShow: (listener) => on('mobius:show-piece', listener),
+    },
     schedules: {
       list: () => call('schedules', 'list', [], () => []),
       add: (draft) => call('schedules', 'add', [draft], () => refused),

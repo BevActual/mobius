@@ -1492,6 +1492,14 @@ export function App() {
     }, 800);
     return () => clearTimeout(t);
   }, [turnBusy, mobiusWork]);
+  // Mobius's show tools: the person asked to see it, so it is theirs and stays (no dashed edge, not put away). Only for
+  // the conversation open here; background work never brings pieces.
+  const openConversation = useRef(conversation.state.conversation);
+  openConversation.current = conversation.state.conversation;
+  useEffect(() => window.mobius.pieces?.onShow((s) => {
+    if (s.conversation !== openConversation.current) return;
+    showPiece(s.kind, s.item, 'you', s.title);
+  }), []);
   // A piece whose thing is gone (a list deleted, a message removed) puts itself away rather than say so.
   useEffect(() => {
     // Not while a turn runs, nor for a list Mobius is making: the lists catch up a moment later.
