@@ -177,12 +177,13 @@ export function notesIn(notes: readonly SongNote[], b0: number, b1: number, p0: 
 }
 
 /** Where the song is, as the transport shows it: bar.beat.sixteenth, and minutes and seconds. */
-export function position(beat: number, tempo: number): { bars: string; time: string } {
+export function position(beat: number, tempo: number, at?: number): { bars: string; time: string } {
   const b = Math.max(0, beat);
   const bar = Math.floor(b / BEATS_PER_BAR) + 1;
   const inBar = Math.floor(b % BEATS_PER_BAR) + 1;
   const sixteenth = Math.floor((b % 1) * 4) + 1;
-  const seconds = (b * 60) / tempo;
+  // `at`: the seconds it falls at along a tempo line, when the song has one.
+  const seconds = at ?? (b * 60) / tempo;
   const m = Math.floor(seconds / 60);
   const s = seconds - m * 60;
   return { bars: `${bar}.${inBar}.${sixteenth}`, time: `${m}:${s.toFixed(1).padStart(4, '0')}` };

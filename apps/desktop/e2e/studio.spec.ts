@@ -1034,6 +1034,35 @@ test('an audio track arms with its Arm button, not by being chosen, and Record a
   await expect(tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: 'Arm Keys' })).toHaveCount(0);
 });
 
+test('the song tempo changes along a line on Main: the playhead reads it, and Clear takes it away', async () => {
+  await start();
+  await resizeWindow(mobius!.app, 1600, 900);
+  type Main = { main?: { auto?: { tempo?: { beat: number; value: number }[] } } };
+  const line = () => (saved() as Main).main?.auto?.tempo;
+  await shell().getByRole('button', { name: 'Automation' }).click();
+  const lane = tracks().getByRole('listitem', { name: 'Main' }).getByRole('group', { name: 'Song Tempo automation' });
+  await expect(lane).toBeVisible();
+  // Two points: slow at the start, fast at the end (the lane runs 30 to 300 bpm).
+  const plot = lane.locator('.ui-lane-plot');
+  const box = (await plot.boundingBox())!;
+  await plot.click({ position: { x: 2, y: box.height * 0.85 } });
+  await expect.poll(() => line()?.length).toBe(1);
+  await plot.click({ position: { x: box.width - 2, y: box.height * 0.2 } });
+  await expect.poll(() => line()?.length).toBe(2);
+  const [a, b] = line()!;
+  expect(a!.value).toBeLessThan(b!.value);
+  expect(a!.value).toBeGreaterThanOrEqual(30);
+  expect(b!.value).toBeLessThanOrEqual(300);
+  // The tempo readout follows the line where the playhead is: the first point's tempo at the start.
+  const tempo = shell().getByRole('spinbutton', { name: 'Tempo' });
+  await expect(tempo).toHaveValue(String(Math.round(a!.value)));
+  await expect(tempo).toHaveAttribute('readonly', '');
+  // Clear takes the line away and the song's own tempo is back.
+  await tracks().getByRole('listitem', { name: 'Main' }).getByRole('button', { name: 'Clear' }).click();
+  await expect.poll(line).toBeUndefined();
+  await expect(tempo).toHaveValue('112');
+});
+
 test('automation draws a volume or pan line under a track with points, kept in the song', async () => {
   await start();
   // Wide enough that the Automation button stays in the toolbar rather than the ⋯ menu.

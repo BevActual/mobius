@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { MAIN_VOLUME, isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { AudioClipDetail } from './studio-audio-clip';
@@ -18,6 +18,7 @@ import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { secondsAt, setTempoLine, tempoAt, tempoChanges, tempoLine, TEMPO_MAX, TEMPO_MIN } from './studio-tempo';
 import { type AutoChoice, stackTargets, autoChoices, envelopeChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, setEnvelope, setUnlinked, toLane } from './studio-auto';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
@@ -750,6 +751,8 @@ const ELECTRIC_CELLS: { k: Exclude<keyof ElectricSound, 'fork'>; name: string; l
   { k: 'bell', name: 'Bell', format: pct },
   { k: 'drive', name: 'Drive', format: pct },
 ];
+/** The Song Tempo lane's range, as the window's tempo field. */
+const TEMPO_LANE = { lo: TEMPO_MIN, hi: TEMPO_MAX };
 const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
 const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
 
@@ -1736,7 +1739,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (moved.length) parts.push(`${t.name}: ${moved.slice(0, 3).map((c) => c.text).join(', ')}${moved.length > 3 ? ` and ${moved.length - 3} more` : ''}`);
     return parts.length ? parts : [t.name];
   });
-  const pos = position(beat, song.tempo);
+  const pos = position(beat, song.tempo, view === 'arrange' && tempoChanges(song) ? secondsAt(song, beat) : undefined);
 
   // ---------- The piano roll's pointer ----------
   const at = (e: { clientX: number; clientY: number }) => {
@@ -2316,8 +2319,11 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           <span className="studio-readouts" role="group" aria-label="Song">
             <span className="studio-readout studio-pos" aria-label="Position" role="status" title={pos.time}>{pos.bars.split('.').join(' . ')}</span>
             <span className="studio-readout-dot" aria-hidden="true">·</span>
-            <label className="studio-readout studio-tempo" title="Tempo, in beats per minute">
-              <input aria-label="Tempo" type="number" min={30} max={300} value={song.tempo} onChange={(e) => { const v = Number(e.target.value); if (v >= 30 && v <= 300) change((s) => { s.tempo = Math.round(v); }, 'tempo'); }} />
+            {/* With a tempo line, Arrange reads the tempo where the playhead is; the line is changed in its lane. */}
+            <label className="studio-readout studio-tempo" title={view === 'arrange' && tempoChanges(song) ? 'Tempo here, from the Song Tempo line: change it in its lane (Automation)' : 'Tempo, in beats per minute'}>
+              {view === 'arrange' && tempoChanges(song)
+                ? <input aria-label="Tempo" type="number" readOnly value={Math.round(tempoAt(song, beat))} />
+                : <input aria-label="Tempo" type="number" min={30} max={300} value={song.tempo} onChange={(e) => { const v = Number(e.target.value); if (v >= 30 && v <= 300) change((s) => { s.tempo = Math.round(v); }, 'tempo'); }} />}
               <span aria-hidden="true">bpm</span>
             </label>
             <span className="studio-readout-dot" aria-hidden="true">·</span>
@@ -2430,6 +2436,18 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
             </div>
           </div>
           <div className="studio-tracks" role="list" aria-label="Tracks" style={{ ['--grid' as string]: `${ticks * BEATS_PER_BAR * bw}px` }}>
+            {/* The song's tempo along it (Live 12's tempo automation, on the Main track): shown with the other lines. */}
+            {showAuto && (
+              <div role="listitem" aria-label="Main" className="studio-track studio-tempo-track">
+                <div className="studio-auto-head">
+                  <span className="studio-auto-name studio-tempo-name">Main · Song Tempo</span>
+                  {tempoChanges(song) && <button type="button" className="studio-auto-off" title="Take the line away: the song plays at one tempo again" onClick={() => change((s) => { setTempoLine(s, [], MAIN_VOLUME); }, 'tempo-line')}>Clear</button>}
+                </div>
+                <AutomationLane className="studio-auto" label="Song Tempo" head={false} points={toLane(tempoLine(song), TEMPO_LANE)} beats={total} pxPerBeat={bw} empty={(song.tempo - TEMPO_LANE.lo) / (TEMPO_LANE.hi - TEMPO_LANE.lo)}
+                  format={(v) => `${Math.round(TEMPO_LANE.lo + v * (TEMPO_LANE.hi - TEMPO_LANE.lo))} bpm`}
+                  onChange={(next) => change((s) => { setTempoLine(s, fromLane(next, tempoLine(s), TEMPO_LANE).map((p) => ({ ...p, value: Math.round(p.value * 10) / 10 })), MAIN_VOLUME); }, 'tempo-line')} />
+              </div>
+            )}
             {song.tracks.map((t, n) => (
               <div key={t.id} role="listitem" aria-label={t.name} tabIndex={-1} className="studio-track" style={{ '--tc': `var(--c-${t.color})` } as CSSProperties} aria-current={track?.id === t.id || undefined} data-instrument={t.instrument} data-muted={(t.muted || (song.tracks.some((x) => x.solo) && !t.solo)) || undefined} onClick={() => setSelected(t.id)}>
                 <div className="studio-track-head" onContextMenu={(e) => { e.preventDefault(); setSelected(t.id); trackMenu(t, e.clientX, e.clientY); }} onDoubleClick={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') openDevice(t.id); }}>

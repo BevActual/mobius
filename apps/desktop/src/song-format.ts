@@ -1,3 +1,4 @@
+import { secondsAt } from './studio-tempo';
 import { FILTER_TYPES, LFO_SHAPES, parseDevice, PART_KINDS, type Device, type DevicePart, type PartSetting } from './device-format';
 /**
  * A song is JSON, notes rather than sound, so the agent can read and write it like a score:
@@ -388,9 +389,9 @@ export interface AutoPoint { beat: number; value: number; curve?: number }
 /** A song's automation, by setting: "volume" and sends 0 to 1, "pan" -1 to 1, "send:<return id>", and "fx:<id>:<setting>" in the setting's own units (a device's settings keep to its range where it plays). */
 export type Automation = Record<string, AutoPoint[]>;
 /** What each automated setting's values may be: pan goes -1 to 1, the rest 0 to 1 (device settings by their own range, next). */
-export const autoRange = (name: string): { lo: number; hi: number } => (name === 'pan' ? { lo: -1, hi: 1 } : name.startsWith('fx:') ? { lo: -1e6, hi: 1e6 } : { lo: 0, hi: 1 });
+export const autoRange = (name: string): { lo: number; hi: number } => (name === 'tempo' ? { lo: 30, hi: 300 } : name === 'pan' ? { lo: -1, hi: 1 } : name.startsWith('fx:') ? { lo: -1e6, hi: 1e6 } : { lo: 0, hi: 1 });
 /** Effect settings go by the effect's id and the setting's name; a Workbench device's by "<part id>.<setting>". */
-const AUTO_NAME = /^(volume|pan|send:[\w-]{1,40}|fx:[\w-]{1,20}:[\w-]{1,40}(\.[\w-]{1,40})?)$/;
+const AUTO_NAME = /^(volume|pan|tempo|send:[\w-]{1,40}|fx:[\w-]{1,20}:[\w-]{1,40}(\.[\w-]{1,40})?)$/;
 
 /** Automation points read from a file: in the song, values kept in range, in order. */
 export function readAuto(list: unknown, beats: number, range: { lo: number; hi: number } = { lo: 0, hi: 1 }): AutoPoint[] {
@@ -883,7 +884,8 @@ export function keyPitches(key: string): Set<number> {
 }
 
 /** How long a song lasts, in seconds. */
-export const songSeconds = (song: Song) => (song.bars * BEATS_PER_BAR * 60) / song.tempo;
+/** How long the song lasts, along its tempo line when it has one (studio-tempo.ts). */
+export const songSeconds = (song: Song) => secondsAt(song, song.bars * BEATS_PER_BAR);
 
 /** Which tracks are heard: the soloed ones if any are, else every one not muted. */
 export function audible(song: Song): Track[] {
