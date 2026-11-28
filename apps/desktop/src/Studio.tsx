@@ -20,7 +20,7 @@ import { deleteGroup, groupRows, groupTracks, leaveGroup, soloInside, tracksIn, 
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
-import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, setChance, setStepExtra, stepMark, stepNotes, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, setChance, setStepExtra, setRowStep, setRowStepExtra, setRowLength, ROW_LENGTH_MIN, stepsPerBar, stepMark, stepNotes, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { secondsAt, setTempoLine, tempoAt, tempoChanges, tempoLine, TEMPO_MAX, TEMPO_MIN } from './studio-tempo';
 import { type AutoChoice, stackTargets, autoChoices, envelopeChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, setEnvelope, setUnlinked, toLane } from './studio-auto';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
@@ -1484,7 +1484,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const stepRows = drums ? STEP_ROWS : scaleRows(inKey, octave).map((p) => ({ id: String(p), name: spellIn(p, song.key) }));
   const pickedNotes = notes.filter((_, i) => picked.has(i));
 
-  const setNotes = (fn: (n: SongNote[]) => { notes: SongNote[]; picked: Set<number> } | SongNote[], tag = '') => {
+  const setNotes = (fn: (n: SongNote[]) => { notes: SongNote[]; picked: Set<number> } | SongNote[], tag = '', also?: (t: Track) => void) => {
     if (!track) return;
     const after: { picked: Set<number> | null } = { picked: null };
     change((s) => {
@@ -1495,6 +1495,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       // Arrange's notes go back into the track's clips: each into the clip it starts in, new clips for the rest.
       const put = (v: SongNote[]) => { if (c) c.notes = v; else t.clips = putNotes(t.clips, v, s.bars); };
       if (Array.isArray(out)) put(out); else { put(out.notes); after.picked = out.picked; }
+      also?.(t);
     }, tag);
     if (after.picked) setPicked(after.picked);
   };
@@ -2297,31 +2298,52 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       onClip={(fn, tag) => editClips(track.id, (cs) => cs.map((x) => { if (x.id !== arrClip.id) return x; const y = { ...x }; fn(y); return y; }), tag)} />
   ) : view === 'session' && !clip ? (
     <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
-  ) : drumView === 'steps' ? (
+  ) : drumView === 'steps' ? (() => {
+    const rowLengthOf = (pitch: number): number | undefined => { const l = track.stepRows?.[String(pitch)]; return l && l < spanBars * stepsPerBar(perBar) ? l : undefined; };
+    return (
     <div className="studio-steps">
       <p className="studio-dev-note studio-steps-hint">{drums ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Rows are the notes of the key. Click a step to play that note there, Shift+click for an accent.'}</p>
       <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, spanBars - 1) + 1}`} rows={stepRows} cells={stepCells(notes, Math.min(stepBar, spanBars - 1), stepRows.map((r) => Number(r.id)), perBar)}
         now={playing && rollBeat >= 0 && Math.floor(rollBeat / perBar + 1e-9) === Math.min(stepBar, spanBars - 1) ? Math.floor((rollBeat - Math.floor(rollBeat / perBar + 1e-9) * perBar) * 4) : undefined}
         marks={stepNotes(notes, Math.min(stepBar, spanBars - 1), stepRows.map((r) => Number(r.id)), perBar).map((row) => row.map(stepMark))}
+        lengths={stepRows.map((r) => rowLengthOf(Number(r.id)))} first={Math.min(stepBar, spanBars - 1) * stepsPerBar(perBar)}
         onMenu={(row, step, x, y) => {
-          // A step's Repeat and Chance (Live 13's step sequencer tabs), from its menu.
+          // A step's Repeat and Chance (Live 13's step sequencer tabs), and its row's length, from its menu.
           const pitch = Number(stepRows[row]!.id);
           const bar = Math.min(stepBar, spanBars - 1);
+          const at = bar * stepsPerBar(perBar) + step;
+          const total = spanBars * stepsPerBar(perBar);
+          const own = rowLengthOf(pitch);
           const n = stepNotes(notes, bar, [pitch], perBar)[0]![step];
-          if (!n) return;
-          const set = (extra: { chance?: number; repeat?: number }) => setNotes((ns) => setStepExtra(ns, bar, pitch, step, extra, perBar), 'steps');
+          const set = (extra: { chance?: number; repeat?: number }) => setNotes((ns) => setRowStepExtra(ns, pitch, at, extra, own, total), 'steps');
+          const setLength = (length: number | undefined) => setNotes((ns) => (length ? setRowLength(ns, pitch, length, total) : ns), '', (t) => {
+            const rows = { ...t.stepRows };
+            if (length) rows[String(pitch)] = length; else delete rows[String(pitch)];
+            if (Object.keys(rows).length > 0) t.stepRows = rows; else delete t.stepRows;
+          });
+          // Live 13's row length: the row ends at this step and plays again from its start.
+          const lengthItems = [
+            ...(at + 1 >= ROW_LENGTH_MIN && at + 1 < total ? [{ label: `End Row Here (${at + 1} Steps)`, checked: own === at + 1, separated: !!n, run: () => setLength(at + 1) }] : []),
+            ...(own ? [{ label: 'Play Row Through Clip', separated: !n && !(at + 1 >= ROW_LENGTH_MIN && at + 1 < total), run: () => setLength(undefined) }] : []),
+          ];
+          if (!n && lengthItems.length === 0) return;
           setMenu({ x, y, label: `${stepRows[row]!.name}, step ${step + 1}`, items: [
-            ...[1, 2, 3, 4, 6, 8].map((r) => ({ label: r === 1 ? 'Play Once' : `Repeat ${r} Times`, checked: (n.repeat ?? 1) === r, run: () => set({ repeat: r }) })),
-            ...[1, 0.75, 0.5, 0.25, 0.1].map((c, i) => ({ label: c === 1 ? 'Always Play' : `${Math.round(c * 100)}% Chance`, checked: (n.chance ?? 1) === c, separated: i === 0, run: () => set({ chance: c }) })),
+            ...(n ? [
+              ...[1, 2, 3, 4, 6, 8].map((r) => ({ label: r === 1 ? 'Play Once' : `Repeat ${r} Times`, checked: (n.repeat ?? 1) === r, run: () => set({ repeat: r }) })),
+              ...[1, 0.75, 0.5, 0.25, 0.1].map((c, i) => ({ label: c === 1 ? 'Always Play' : `${Math.round(c * 100)}% Chance`, checked: (n.chance ?? 1) === c, separated: i === 0, run: () => set({ chance: c }) })),
+            ] : []),
+            ...lengthItems,
           ] });
         }}
         onChange={(row, step, v) => {
           const pitch = Number(stepRows[row]!.id);
           if (v > 0) { previewOn(track, pitch, v, drums ? undefined : 0.3, track.pads?.[pitch]); }
-          setNotes((n) => setStep(n, Math.min(stepBar, spanBars - 1), pitch, step, v, drums ? 0.25 : drawLength, perBar), 'steps');
+          const at = Math.min(stepBar, spanBars - 1) * stepsPerBar(perBar) + step;
+          setNotes((n) => setRowStep(n, pitch, at, v, drums ? 0.25 : drawLength, rowLengthOf(pitch), spanBars * stepsPerBar(perBar)), 'steps');
         }} />
     </div>
-  ) : <>
+    );
+  })() : <>
   {/* How to draw, while there is nothing drawn yet; the bar keeps to controls so none of them is cut short. */}
   {notes.length === 0 && <p className="studio-dev-note studio-roll-hint">{draw ? 'Drag along a row to write a note in each grid step, or start on a note to take notes out. B leaves draw mode.' : 'Click to draw a note, drag to move it, drag its end to stretch it. B draws a run of notes.'}</p>}
   <div className="studio-roll" ref={roll} data-own-keys="mod+j" role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>

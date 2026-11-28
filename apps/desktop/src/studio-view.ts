@@ -356,6 +356,45 @@ function withExtras(n: SongNote, { chance, repeat }: { chance?: number; repeat?:
   return next;
 }
 
+/**
+ * Row lengths (Live 13's step sequencer, where each row has a length of its own): a row `length` steps long plays its
+ * first steps over and over across the `total` steps shown, so rows of different lengths drift against each other. A
+ * step set anywhere in the row is set in each of its repeats.
+ */
+export function setRowStep(notes: readonly SongNote[], pitch: number, step: number, velocity: number, length: number, rowLength: number | undefined, total: number): SongNote[] {
+  if (!rowLength || rowLength >= total) return setStep(notes, 0, pitch, step, velocity, length, 1);
+  let out = [...notes];
+  for (let at = step % rowLength; at < total; at += rowLength) out = setStep(out, 0, pitch, at, velocity, length, 1);
+  return out;
+}
+
+/** A step's chance or repeat set in each repeat of its row (see `setRowStep`). */
+export function setRowStepExtra(notes: readonly SongNote[], pitch: number, step: number, extra: { chance?: number; repeat?: number }, rowLength: number | undefined, total: number): SongNote[] {
+  if (!rowLength || rowLength >= total) return setStepExtra(notes, 0, pitch, step, extra, 1);
+  let out = [...notes];
+  for (let at = step % rowLength; at < total; at += rowLength) out = setStepExtra(out, 0, pitch, at, extra, 1);
+  return out;
+}
+
+/**
+ * A row made `rowLength` steps long: its notes in its first steps are played again every `rowLength` steps to the end
+ * of the `total` shown, in place of what the row had there. Notes of other rows are left as they are.
+ */
+export function setRowLength(notes: readonly SongNote[], pitch: number, rowLength: number, total: number): SongNote[] {
+  const own = rowLength / 4;
+  const end = total / 4;
+  const first = notes.filter((n) => n.pitch === pitch && n.start < own - 1e-6);
+  const kept = notes.filter((n) => n.pitch !== pitch || n.start < own - 1e-6 || n.start >= end - 1e-6);
+  const copies: SongNote[] = [];
+  for (let k = 1; k * own < end - 1e-6; k++) {
+    for (const n of first) { const start = round(n.start + k * own); if (start < end - 1e-6) copies.push({ ...n, start }); }
+  }
+  return [...kept, ...copies].sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+}
+
+/** Row lengths a step's menu offers: the row ending at that step (at least two steps, and short of the whole). */
+export const ROW_LENGTH_MIN = 2;
+
 /** A step's chance and repeat as the step grid marks it: "×3", "50%", both, or nothing. */
 export const stepMark = (n: SongNote | null): string => (n ? [n.repeat && n.repeat > 1 ? `×${n.repeat}` : '', n.chance !== undefined && n.chance < 1 ? `${Math.round(n.chance * 100)}%` : ''].filter(Boolean).join(' ') : '');
 

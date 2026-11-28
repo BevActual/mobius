@@ -465,7 +465,7 @@ export interface StepRow { id: string; name: string }
 /** A step mark read out: "×3 50%" is "repeat 3, 50% chance". */
 const markWords = (mark: string): string => mark.split(' ').map((m) => (m.startsWith('×') ? `repeat ${m.slice(1)}` : m.endsWith('%') ? `${m} chance` : m)).join(', ');
 
-export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, stepsPerBeat = 4, velocity = 0.7, accent = 1, now, fill, disabled, className, marks, onMenu }: {
+export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, stepsPerBeat = 4, velocity = 0.7, accent = 1, now, fill, disabled, className, marks, onMenu, lengths, first = 0 }: {
   label?: string;
   rows: readonly StepRow[];
   cells: readonly (readonly number[])[];
@@ -484,6 +484,11 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
   marks?: readonly (readonly string[])[];
   /** A step's menu, from a right-click or the menu key, at a point on screen. */
   onMenu?: (row: number, step: number, x: number, y: number) => void;
+  /** Each row's own length in steps, where it has one (Live 13's row lengths): steps past it repeat the row's first
+   *  steps, shown dimmer, and the last step of each pass is marked. */
+  lengths?: readonly (number | undefined)[];
+  /** Which step of the whole the first one shown is (a bar further on starts later), for `lengths`. */
+  first?: number;
 }) {
   const [focus, setFocus] = useState({ row: 0, step: 0 });
   const paint = useRef<number | null>(null);
@@ -536,6 +541,9 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
           {Array.from({ length: steps }, (_, s) => {
             const v = vel(r, s);
             const mark = marks?.[r]?.[s] ?? '';
+            const own = lengths?.[r];
+            const at = first + s;
+            const echo = own !== undefined && at >= own;
             return (
               <button
                 key={s}
@@ -546,7 +554,9 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
                 data-accent={v >= accent || undefined}
                 data-beat={Math.floor(s / stepsPerBeat) % 2 === 1 || undefined}
                 data-now={now === s || undefined}
-                aria-label={`${row.name}, step ${s + 1}${v > 0 ? `, velocity ${Math.round(v * 127)}${v >= accent ? ', accent' : ''}` : ''}${mark ? `, ${markWords(mark)}` : ''}`}
+                data-echo={echo || undefined}
+                data-end={(own !== undefined && at % own === own - 1) || undefined}
+                aria-label={`${row.name}, step ${s + 1}${v > 0 ? `, velocity ${Math.round(v * 127)}${v >= accent ? ', accent' : ''}` : ''}${mark ? `, ${markWords(mark)}` : ''}${echo ? `, repeats step ${(at % own!) + 1}` : ''}`}
                 aria-pressed={v > 0}
                 tabIndex={focus.row === r && focus.step === s ? 0 : -1}
                 disabled={disabled}

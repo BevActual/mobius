@@ -914,6 +914,35 @@ test('a melody is written as steps too, a row per note of the key', async () => 
   await expect(shell().getByRole('group', { name: 'E5' })).toBeVisible();
 });
 
+test("a step row ends where its menu says and plays again from its start, against the other rows (Live 13 row lengths)", async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
+  await start([], 'Bass');
+  await shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Steps' }).click();
+  const row = shell().getByRole('group', { name: 'C3' });
+  type Saved = { pitch: number; start: number }[];
+  const c3 = () => (saved().tracks[1]!.notes as Saved).filter((n) => n.pitch === 48).map((n) => n.start);
+  // Three steps long, from step 3's menu.
+  await row.getByRole('button', { name: /^C3, step 3,?/ }).click({ button: 'right' });
+  await shell().getByRole('menuitemcheckbox', { name: 'End Row Here (3 Steps)' }).click();
+  await expect.poll(() => (saved().tracks[1] as { stepRows?: Record<string, number> }).stepRows).toEqual({ 48: 3 });
+  await expect(row.getByRole('button', { name: /^C3, step 4, repeats step 1$/ })).toBeVisible();
+  // A step set plays in every pass of the row: every three sixteenths through the four bars.
+  await row.getByRole('button', { name: /^C3, step 1(,|$)/ }).click();
+  await expect.poll(() => c3().length).toBe(22);
+  expect(c3().slice(0, 4)).toEqual([0, 0.75, 1.5, 2.25]);
+  // Set in a repeat, it is set in the row itself.
+  await row.getByRole('button', { name: /^C3, step 5, repeats step 2$/ }).click();
+  await expect.poll(() => c3().length).toBe(43);
+  // The bass's own notes are left as they were.
+  expect((saved().tracks[1]!.notes as Saved).filter((n) => n.pitch === 45).map((n) => n.start)).toEqual([0, 4, 8, 12]);
+  // Back through the whole clip: the notes stay, and steps are their own again.
+  await row.getByRole('button', { name: /^C3, step 1(,|$)/ }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Play Row Through Clip' }).click();
+  await expect.poll(() => (saved().tracks[1] as { stepRows?: unknown }).stepRows).toBeUndefined();
+  await expect(row.getByRole('button', { name: /repeats step/ })).toHaveCount(0);
+  expect(c3()).toHaveLength(43);
+});
+
 test("a step's menu sets its Repeat and Chance (Live 13), and a picked note gets a Chance (Live 12)", async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start([], 'Bass');
