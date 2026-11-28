@@ -10,6 +10,7 @@ import { AudioClipDetail } from './studio-audio-clip';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
 import { pressKey, soundInputs, chooseInput, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
+import { addLocator, locatorName, loopToNext, moveLocator, nextLocator, previousLocator, removeLocator, renameLocator } from './studio-locators';
 import { CLIP_DRAG, consolidateToScene, copyToSession, hearJam, moveSlot, placeInArrange, startJam, writeJam, type Jam } from './studio-moves';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
@@ -143,6 +144,9 @@ const ICONS = {
   draw: 'M12.5 4.5l3 3-8 8H4.5v-3zM10.5 6.5l3 3',
   auto: 'M3.5 14.5l4-6 4 3 5-7',
   export: 'M10 3.5v9M6.5 9l3.5 3.5L13.5 9M4 14.5v2h12v-2',
+  locPrev: 'M12.5 5.5 8 10l4.5 4.5M5.5 5v10',
+  locSet: 'M6.5 4v12M6.5 4.5h7l-2 2.5 2 2.5h-7',
+  locNext: 'M7.5 5.5 12 10l-4.5 4.5M14.5 5v10',
 };
 
 /** The notes editor's Transform menu, Quantize first: each row changes the picked notes, or all of them when none are picked. */
@@ -991,6 +995,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [loop, setLoop] = useState(false);
   // The bars the loop goes round, as picked on the ruler (counted from 0); null loops the whole song.
   const [range, setRange] = useState<{ a: number; b: number } | null>(null);
+  /** The locator being named (by its beat), and one being dragged along the ruler: where it was and where it is now. */
+  const [naming, setNaming] = useState<number | null>(null);
+  const [locMove, setLocMove] = useState<{ beat: number; to: number } | null>(null);
+  const locDrag = useRef<{ beat: number; x: number; moved: boolean } | null>(null);
   const loopDrag = useRef<{ a: number; moved: boolean } | null>(null);
   // When the top of the ruler was last let go after a press that did not drag, so a second press soon after can loop the whole song.
   const lastZonePress = useRef(0);
@@ -1635,6 +1643,45 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const bar = Math.max(0, Math.min(song.bars - 1, Math.floor((e.clientX - r.left) / (perBar * bw))));
     if (bar !== d.a) d.moved = true;
     setRange((was) => (was && was.a === d.a && was.b === bar ? was : { a: d.a, b: bar }));
+  };
+  // Locators (Live 12, Arrangement View, "Locators"): click one to jump there, drag it to move it, double-click to name it.
+  const jumpTo = (beat: number) => seek(Math.max(0, Math.min(total - 1, beat)));
+  const setLocator = (beat: number) => change((s) => { addLocator(s, beat); });
+  const stepLocator = (back: boolean) => {
+    const to = back ? previousLocator(song.locators, beat, playing) : nextLocator(song.locators, beat);
+    if (to) jumpTo(to.beat);
+  };
+  const onLocatorDown = (e: ReactPointerEvent<HTMLButtonElement>, at: number) => {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    locDrag.current = { beat: at, x: e.clientX, moved: false };
+  };
+  const onLocatorMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const d = locDrag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    if (!d.moved && Math.abs(dx) < 4) return;
+    d.moved = true;
+    setLocMove({ beat: d.beat, to: Math.max(0, Math.min(total - 0.25, Math.round((d.beat + dx / bw) * 4) / 4)) });
+  };
+  const onLocatorUp = (at: number) => {
+    const d = locDrag.current;
+    locDrag.current = null;
+    if (!d) return;
+    if (!d.moved) { jumpTo(at); return; }
+    const to = locMove?.to;
+    setLocMove(null);
+    if (to !== undefined && Math.abs(to - at) > 1e-6) change((s) => { moveLocator(s, at, to); });
+  };
+  const locatorMenu = (at: number, x: number, y: number) => {
+    const i = (song.locators ?? []).findIndex((l) => l.beat === at);
+    setMenu({ x, y, label: `Locator ${locatorName(song.locators ?? [], i)}`, items: [
+      { label: 'Jump to Locator', run: () => jumpTo(at) },
+      { label: 'Rename', run: () => setNaming(at) },
+      { label: 'Loop to Next Locator', run: () => { setRange(loopToNext(song, at)); setLoop(true); } },
+      { label: 'Delete', separated: true, run: () => change((s) => { removeLocator(s, at); }) },
+    ] });
   };
   /** A track's menu, from a right-click on its header: the same things as its buttons. */
   /** An audio track's input, as Live's Audio From chooser (19.1): the computer's default or one of its inputs. A choice
@@ -2309,7 +2356,15 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         {view === 'arrange' && song.tracks.length > 0 && (
           <header className="studio-arrange-head">
             <h2 className="studio-arrange-title">Arrangement</h2>
-            <span className="studio-arrange-sum">{song.tracks.length} track{song.tracks.length === 1 ? '' : 's'} · {song.bars} bar{song.bars === 1 ? '' : 's'}</span>
+            <span className="studio-arrange-tools">
+              {/* Live's locator controls: back to the one before, set one at the playhead, on to the next. */}
+              <span className="studio-locator-tools" role="group" aria-label="Locators">
+                <IconButton label="Previous Locator" title="Jump to the locator before the playhead" disabled={!previousLocator(song.locators, beat, playing)} icon={<Icon d={ICONS.locPrev} />} onClick={() => stepLocator(true)} />
+                <IconButton label="Set Locator" title="Add a locator at the playhead" icon={<Icon d={ICONS.locSet} />} onClick={() => setLocator(Math.floor(beat))} />
+                <IconButton label="Next Locator" title="Jump to the locator after the playhead" disabled={!nextLocator(song.locators, beat)} icon={<Icon d={ICONS.locNext} />} onClick={() => stepLocator(false)} />
+              </span>
+              <span className="studio-arrange-sum">{song.tracks.length} track{song.tracks.length === 1 ? '' : 's'} · {song.bars} bar{song.bars === 1 ? '' : 's'}</span>
+            </span>
           </header>
         )}
         <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${perBar * bw}px` }}
@@ -2321,10 +2376,11 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               onDropClip={(from, to, copy) => change((s) => { moveSlot(s, from, to, copy); })} />
             {proposal && <div className="studio-float">{proposal}</div>}
           </>) : <>
-          <div className="studio-ruler-row">
+          <div className="studio-ruler-row" data-locators={song.locators?.length ? true : undefined}>
             <div className="studio-ruler-head" />
             <div
               className="studio-ruler"
+              data-locators={song.locators?.length ? true : undefined}
               role="slider"
               aria-label="Playhead"
               aria-valuemin={0}
@@ -2337,8 +2393,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               onPointerDown={onRulerDown}
               onPointerMove={onRulerMove}
               onPointerUp={(e) => { if (loopDrag.current && !loopDrag.current.moved) lastZonePress.current = e.timeStamp; loopDrag.current = null; }}
-              onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, label: 'Loop', items: [
-              { label: 'Loop Whole Song', disabled: loop && !range, run: () => { setRange(null); setLoop(true); } },
+              onContextMenu={(e) => { e.preventDefault(); const at = Math.max(0, Math.min(total - 1, Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / bw))); setMenu({ x: e.clientX, y: e.clientY, label: 'Loop', items: [
+              { label: `Add Locator at ${position(at, song.tempo, meterOf(song)).bars.split('.').slice(0, 2).join('.')}`, run: () => setLocator(at) },
+              { label: 'Loop Whole Song', separated: true, disabled: loop && !range, run: () => { setRange(null); setLoop(true); } },
               // Live's Consolidate Time to New Scene (7.5), for the bars looped: a new scene, a clip per track.
               { label: 'Consolidate Loop to New Scene', disabled: !range, run: () => { if (!range) return; const cy = cycleOf(range.a, range.b, song.bars, perBar); change((s) => { consolidateToScene(s, cy.from, cy.to, null); }); } },
               { label: loop ? 'Turn Loop Off' : 'Turn Loop On', keys: 'L', run: () => setLoop((l) => !l) },
@@ -2357,6 +2414,28 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               <span className="studio-cycle-zone" aria-hidden="true" />
               {cycle && <span className="studio-cycle" role="img" aria-label={`Loop: ${loopWords}`} data-part={range ? true : undefined} style={{ left: cycle.from * bw, width: (cycle.to - cycle.from) * bw }} />}
               {Array.from({ length: Math.ceil(song.bars / ticks) }, (_, k) => k * ticks).map((b) => <span key={b} className="studio-ruler-bar" style={{ left: b * perBar * bw }}>{b + 1}</span>)}
+              {(song.locators ?? []).map((l, i) => {
+                const at = locMove?.beat === l.beat ? locMove.to : l.beat;
+                const name = locatorName(song.locators!, i);
+                const where = position(at, song.tempo, meterOf(song)).bars.split('.').slice(0, 2).join('.');
+                return naming === l.beat ? (
+                  <input key={l.beat} className="studio-locator-name" aria-label="Locator name" defaultValue={l.name} maxLength={40} autoFocus style={{ left: at * bw }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') { e.currentTarget.value = l.name; e.currentTarget.blur(); } }}
+                    onBlur={(e) => { const v = e.currentTarget.value; setNaming(null); if (v.trim() !== l.name) change((s) => { renameLocator(s, l.beat, v); }); }} />
+                ) : (
+                  <button key={l.beat} type="button" className="studio-locator" aria-label={`Locator ${name}, at ${where}`} title={`${name}: click to jump here, drag to move, double-click to rename`}
+                    data-moving={locMove?.beat === l.beat || undefined} style={{ left: at * bw }}
+                    onPointerDown={(e) => onLocatorDown(e, l.beat)} onPointerMove={onLocatorMove} onPointerUp={() => onLocatorUp(l.beat)}
+                    onPointerCancel={() => { locDrag.current = null; setLocMove(null); }}
+                    onDoubleClick={(e) => { e.stopPropagation(); setNaming(l.beat); }}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); locatorMenu(l.beat, e.clientX, e.clientY); }}
+                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpTo(l.beat); } else if (e.key === 'F2') setNaming(l.beat); else if (e.key === 'Delete' || e.key === 'Backspace') change((s) => { removeLocator(s, l.beat); }); }}>
+                    <span className="studio-locator-mark" aria-hidden="true" />
+                    <span className="studio-locator-text">{name}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="studio-tracks" role="list" aria-label="Tracks" style={{ ['--grid' as string]: `${ticks * perBar * bw}px` }}>

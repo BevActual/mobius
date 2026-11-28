@@ -535,7 +535,11 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 
 export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An electric piano track's settings (`instrument` "electric"). */ electric?: ElectricSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
-export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature }
+export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[]; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature }
+/** A named place in the song, at `beat` (Live 12, "Locators"). */
+export interface Locator { beat: number; name: string }
+/** The most locators a song keeps. */
+export const MAX_LOCATORS = 128;
 /** The Main track: everything heard goes through its effects, then its volume (0 to 1). */
 export interface MainTrack { volume: number; fx?: Effect[]; /** Main's volume along the song. */ auto?: Automation; autoOff?: string[] }
 /** A return track: what tracks send to it goes through its effects, its volume and pan, into Main. Its id never matches a track's. */
@@ -758,6 +762,17 @@ export function parseSong(text: string): { song: Song } | { error: string } {
   const met = obj(o.metronome);
   if (typeof met.volume === 'number' && Number.isFinite(met.volume)) song.metronome = { volume: num(met.volume, METRONOME_VOLUME, 0, 1) };
   if (Array.isArray(o.scenes) && o.scenes.length > 0) song.scenes = o.scenes.slice(0, MAX_SCENES).map((n) => (typeof n === 'string' ? n.slice(0, 40) : ''));
+  // Locators inside the song, a beat apart at least once rounded to a sixteenth, in time order.
+  const seen = new Set<number>();
+  const locators = (Array.isArray(o.locators) ? o.locators : []).flatMap((l): Locator[] => {
+    const lo = obj(l);
+    if (typeof lo.beat !== 'number' || !Number.isFinite(lo.beat) || lo.beat < 0 || lo.beat >= bars * perBar) return [];
+    const beat = Math.round(lo.beat * 4) / 4;
+    if (seen.has(beat)) return [];
+    seen.add(beat);
+    return [{ beat, name: typeof lo.name === 'string' ? lo.name.slice(0, 40) : '' }];
+  }).sort((a, b) => a.beat - b.beat).slice(0, MAX_LOCATORS);
+  if (locators.length > 0) song.locators = locators;
   return { song };
 }
 
@@ -820,6 +835,7 @@ export function writeSong(song: Song): string {
   const lines = ['{', '  "version": 2,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.signature ? [`  "signature": ${JSON.stringify(song.signature)},`] : []), ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []),
     ...(song.main ? [`  "main": ${JSON.stringify(song.main)},`] : []),
     ...(song.metronome ? [`  "metronome": ${JSON.stringify(song.metronome)},`] : []),
+    ...(song.locators && song.locators.length > 0 ? [`  "locators": ${JSON.stringify(song.locators)},`] : []),
     ...(song.returns && song.returns.length > 0 ? ['  "returns": [', ...song.returns.map((r, i) => `    ${JSON.stringify(r)}${i < song.returns!.length - 1 ? ',' : ''}`), '  ],'] : []),
     '  "tracks": ['];
   song.tracks.forEach((t, i) => {

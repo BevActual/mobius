@@ -47,7 +47,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Clips are objects on a track: start, length, loop, offset, name, colour | Real clips in Arrange with name and mute; **loop and start marker in the format and played by the engine and the window player alike; Loop in a clip's menu, stretching a looped clip repeats it** | Clip View's Set buttons, the loop brace in the notes editor, colour | XL (format) |
 | Drag clips between Session and Arrange; record Session into Arrange | Copy to Arrange and Copy to Session in the clips' menus, a Session clip dragged over Arrange's name and dropped on a track, slot-to-slot drags (Ctrl copies), and Consolidate Loop to New Scene (Live 12 manual, 7.5 "Recording Sessions into the Arrangement"; audio tracks are left empty there for now, as Live renders a new sample) | Done: Record in Session (F9) lays each launch into Arrange from the bar Arrange's playhead was on, going round for as long as it played (7.5). Back to Arrangement is not needed while Music plays Session and Arrange one at a time; Session clips playing over the Arrangement would need the engine to mix both | M |
 | Time signature and tempo changes along the song | One tempo; a time signature per song (`signature`, 1 to 32 over 1, 2, 4, 8 or 16) set in the control bar's readout: bars, the ruler, the position (counted in the signature's own beat), loops, steps, Session launches and the metronome (ticking each beat, louder on the bar) follow it | Tempo changes along the song, then meter changes | M |
-| Locators and arrangement markers, sections to move as a whole | None | Markers, then sections | M |
+| Locators and arrangement markers, sections to move as a whole | Locators (`studio-locators.ts`, song `locators`): set at the playhead or from the ruler's menu, shown in a strip under the bar numbers, click to jump, drag to move, double-click or F2 to name, Previous and Next, Loop to Next Locator, Delete | Sections to move as a whole; locators following tempo changes | M |
 | Group tracks, folding, a group's own level and effects | None | Groups | L |
 | Take lanes and comping | None | After audio | L |
 | Follow playhead, zoom to fit, "Insert time" / "Delete time" | Zoom only | Follow (Next), time edits | S to M |
@@ -290,6 +290,7 @@ interface Song {
   main?: { volume: number; fx?: Effect[]; auto?: Record<string, AutoPoint[]>; autoOff?: string[] };   // the Main track (Live's name for the master); auto "volume"
   metronome?: { volume: number };          // 0..1, the metronome's own level apart from Main (0.8 if left out)
   scenes?: string[];
+  locators?: { beat: number; name: string }[];   // Live 12's locators, in time order; a locator with no name is numbered
 }
 interface Track {
   id: string; name: string; instrument: Instrument; color: TrackColour;

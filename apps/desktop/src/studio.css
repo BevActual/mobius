@@ -453,3 +453,17 @@
 .studio-meter input::-webkit-inner-spin-button { display: none; }
 .studio-meter input:focus { outline: none; }
 .studio-meter:focus-within { border-color: var(--ink); }
+
+/* Locators (Live 12, Arrangement View, "Locators"): a strip of their own under the bar numbers, a flag and a name each. */
+.studio-ruler-row[data-locators], .studio-ruler[data-locators] { height: calc(var(--row-h) + 16px); }
+.studio-ruler[data-locators] .studio-ruler-bar { bottom: 16px; }
+.studio-ruler[data-locators]::after { content: ""; position: absolute; left: 0; right: 0; bottom: 16px; border-top: var(--hairline-w) solid var(--line); pointer-events: none; }
+.studio-locator { position: absolute; bottom: 1px; height: 14px; display: flex; align-items: center; gap: 3px; max-width: 160px; margin: 0; padding: 0 4px 0 0; border: 0; border-radius: 0 var(--radius-small) var(--radius-small) 0; background: transparent; color: var(--ink); font: var(--fs-xs) / 1 var(--font); cursor: grab; z-index: 1; }
+.studio-locator:hover, .studio-locator[data-moving] { background: var(--sel); }
+.studio-locator[data-moving] { cursor: grabbing; }
+.studio-locator:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.studio-locator-mark { flex: none; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid var(--ink); }
+.studio-locator-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.studio-locator-name { position: absolute; bottom: 0; height: 16px; width: 120px; padding: 0 4px; border: var(--hairline-w) solid var(--ink); border-radius: var(--radius-small); background: var(--paper); color: var(--ink); font: var(--fs-xs) / 1 var(--font); z-index: 2; }
+.studio-arrange-tools { display: flex; align-items: center; gap: var(--sp-3); }
+.studio-locator-tools { display: flex; align-items: center; gap: 2px; }

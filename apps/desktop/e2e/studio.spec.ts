@@ -722,6 +722,55 @@ test('a Mallet track is a struck resonator: what is struck, its decay, material,
   await expect.poll(() => (saved().tracks[1] as { mallet?: unknown }).mallet).toBeUndefined();
 });
 
+test('locators mark places in the song: set at the playhead or in the ruler, named, stepped through, moved, looped to the next and deleted', async () => {
+  await start();
+  await resizeWindow(mobius!.app, 1440, 900);
+  const locs = () => (saved() as { locators?: { beat: number; name: string }[] }).locators;
+  const ruler = shell().getByRole('slider', { name: 'Playhead' });
+  const r = (await ruler.boundingBox())!;
+  const bar = r.width / 4;
+  // Set Locator puts one at the playhead (the song's start); the ruler's menu puts one where it was right-clicked.
+  await shell().getByRole('group', { name: 'Locators' }).getByRole('button', { name: 'Set Locator' }).click();
+  await ruler.click({ button: 'right', position: { x: bar * 2 + 2, y: 20 } });
+  await shell().getByRole('menu', { name: 'Loop' }).getByRole('menuitem', { name: 'Add Locator at 3.1' }).click();
+  await expect.poll(locs).toEqual([{ beat: 0, name: '' }, { beat: 8, name: '' }]);
+  // Double-click names it.
+  await ruler.getByRole('button', { name: 'Locator 2, at 3.1' }).dblclick();
+  await ruler.getByRole('textbox', { name: 'Locator name' }).fill('Chorus');
+  await ruler.getByRole('textbox', { name: 'Locator name' }).press('Enter');
+  await expect.poll(locs).toEqual([{ beat: 0, name: '' }, { beat: 8, name: 'Chorus' }]);
+  // Its first click jumped there; Previous and Next step the playhead from one to the other.
+  const tools = shell().getByRole('group', { name: 'Locators' });
+  await expect(ruler).toHaveAttribute('aria-valuenow', '8');
+  await expect(tools.getByRole('button', { name: 'Next Locator' })).toBeDisabled();
+  await tools.getByRole('button', { name: 'Previous Locator' }).click();
+  await expect(ruler).toHaveAttribute('aria-valuenow', '0');
+  await expect(tools.getByRole('button', { name: 'Previous Locator' })).toBeDisabled();
+  await tools.getByRole('button', { name: 'Next Locator' }).click();
+  await expect(ruler).toHaveAttribute('aria-valuenow', '8');
+  await tools.getByRole('button', { name: 'Previous Locator' }).click();
+  // Clicking a locator jumps there; dragging it moves it.
+  const chorus = ruler.getByRole('button', { name: 'Locator Chorus, at 3.1' });
+  await chorus.click();
+  await expect(ruler).toHaveAttribute('aria-valuenow', '8');
+  const c = (await chorus.boundingBox())!;
+  await shell().mouse.move(c.x + 3, c.y + c.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(c.x + 3 + bar, c.y + c.height / 2, { steps: 5 });
+  await shell().mouse.up();
+  await expect.poll(locs).toEqual([{ beat: 0, name: '' }, { beat: 12, name: 'Chorus' }]);
+  // From the first, Loop to Next Locator loops the bars up to the next.
+  await ruler.getByRole('button', { name: 'Locator 1, at 1.1' }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Locator 1' }).getByRole('menuitem', { name: 'Loop to Next Locator' }).click();
+  await expect(ruler.getByRole('img', { name: 'Loop: bars 1 to 3' })).toBeVisible();
+  // Deleted from its menu, and back with one Undo.
+  await ruler.getByRole('button', { name: 'Locator Chorus, at 4.1' }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Locator Chorus' }).getByRole('menuitem', { name: 'Delete' }).click();
+  await expect.poll(locs).toEqual([{ beat: 0, name: '' }]);
+  await ruler.press('Control+z');
+  await expect.poll(locs).toEqual([{ beat: 0, name: '' }, { beat: 12, name: 'Chorus' }]);
+});
+
 test('an Electric track is a modelled electric piano: tine or reed, its decay, hardness, bell and drive kept in the song', async () => {
   await start();
   await tracks().getByRole('button', { name: 'Add track' }).click();
