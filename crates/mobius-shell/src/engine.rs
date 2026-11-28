@@ -436,17 +436,16 @@ impl Engine for WebViewEngine {
     }
 
     fn emulate(&self, tab: &str, emulation: mobius_browser::tabs::Emulation) {
-        // The DevTools protocol's own overrides: they stay with the page as it navigates.
+        // The colour scheme is a DevTools protocol override: it stays with the page as it navigates.
         #[cfg(windows)]
         {
             let pages = self.pages.clone();
             let tab = tab.to_owned();
             // Off this thread: a DevTools call waits for the page, which answers on the thread that owns it.
             std::thread::spawn(move || {
-                let size = match emulation.width {
-                    Some(width) => engine_cdp(&pages, &tab, "Emulation.setDeviceMetricsOverride", json!({ "width": width, "height": 0, "deviceScaleFactor": 0, "mobile": width < 768 })),
-                    None => engine_cdp(&pages, &tab, "Emulation.clearDeviceMetricsOverride", json!({})),
-                };
+                // The width is the page's real width (Browser lays the page out that wide); only the colour scheme is
+                // the DevTools protocol's. Clear any width override an earlier build left on the page.
+                let size = engine_cdp(&pages, &tab, "Emulation.clearDeviceMetricsOverride", json!({}));
                 let scheme = emulation.scheme.map_or("", |s| s.as_str());
                 let media = engine_cdp(&pages, &tab, "Emulation.setEmulatedMedia", json!({ "features": [{ "name": "prefers-color-scheme", "value": scheme }] }));
                 if let Err(e) = size.and(media) {
