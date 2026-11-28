@@ -1,7 +1,7 @@
 import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { Button, IconButton, NumberField, Select } from './ui';
-import { FOLLOW_NAMES, SIGNATURE_UNITS, barBeats, meterOf, sceneCount, sceneName, type Signature, type Song } from './song-format';
-import { sceneSettingsOf, sceneSettingsWords } from './studio-scenes';
+import { FOLLOW_NAMES, type Follow, SIGNATURE_UNITS, barBeats, meterOf, sceneCount, sceneName, type Signature, type Song } from './song-format';
+import { SCENE_FOLLOW_NAMES, sceneSettingsOf, sceneSettingsWords } from './studio-scenes';
 import type { SessionPlaying, SessionQueued } from './studio-engine';
 import { CLIP_DRAG } from './studio-moves';
 
@@ -42,7 +42,7 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
   sceneTempo?: boolean;
   onSceneTempo?: (shown: boolean) => void;
   /** A scene's tempo or time signature set, or cleared with null. */
-  onSceneSetting?: (slot: number, change: { tempo?: number | null; signature?: Signature | null }) => void;
+  onSceneSetting?: (slot: number, change: { tempo?: number | null; signature?: Signature | null; follow?: Follow | null }) => void;
 }) {
   // A slot takes a Session clip dragged onto it; the drop reads which one from the drag's data.
   const dropOn = (trackId: string, slot: number) => ({
@@ -69,8 +69,8 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
         ))}
         <div role="columnheader" className="studio-scene-head">
           <span>Scenes</span>
-          {onSceneTempo && <IconButton className="studio-scene-tempo-toggle" label="Scene tempo and time signature" pressed={sceneTempo} icon={TEMPO}
-            title={sceneTempo ? 'Hide scene tempo and time signature' : 'Show scene tempo and time signature: a scene sets the song’s when it is launched'} onClick={() => onSceneTempo(!sceneTempo)} />}
+          {onSceneTempo && <IconButton className="studio-scene-tempo-toggle" label="Scene settings" pressed={sceneTempo} icon={TEMPO}
+            title={sceneTempo ? 'Hide scene settings' : 'Show scene settings: a tempo and time signature the song takes when the scene is launched, and what plays after it'} onClick={() => onSceneTempo(!sceneTempo)} />}
         </div>
       </div>
       {Array.from({ length: scenes }, (_, i) => (
@@ -114,7 +114,7 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
                 <IconButton className="studio-scene-launch" data-set={set ? true : undefined} label={`Launch scene ${sceneName(song, i)}${words ? `, ${words}` : ''}`} title={words ? `Launch this row of clips on the next bar, at ${words}` : 'Launch this row of clips on the next bar'} icon={PLAY} onClick={() => onLaunchScene(i)} />
                 <input className="studio-scene-name" aria-label={`Scene ${i + 1} name`} placeholder={`Scene ${i + 1}`} value={song.scenes?.[i] ?? ''} maxLength={40} onChange={(e) => onSceneName(i, e.target.value)} />
                 {sceneTempo && onSceneSetting && (
-                  <span className="studio-scene-set" role="group" aria-label={`Scene ${i + 1} tempo and time signature`}>
+                  <span className="studio-scene-set" role="group" aria-label={`Scene ${i + 1} settings`}>
                     <span className="studio-scene-field" data-unset={set?.tempo === undefined || undefined}>
                       <NumberField label="Scene tempo" hideLabel value={set?.tempo ?? song.tempo} min={30} max={300} step={1} bigStep={10} decimals={0} width={3}
                         onChange={(v) => onSceneSetting(i, { tempo: v })} />
@@ -126,7 +126,24 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
                       <Select label="Scene beat unit" hideLabel quiet value={String((set?.signature ?? meterOf(song))[1])} choices={UNITS}
                         onChange={(u) => onSceneSetting(i, { signature: [(set?.signature ?? meterOf(song))[0], Number(u)] })} />
                     </span>
-                    {set && <IconButton className="studio-scene-clear" label={`Clear scene ${i + 1} tempo and time signature`} title="Return to default: the scene leaves the song’s tempo and time signature as they are" icon={CLEAR}
+                    {(() => {
+                      // The scene's follow action (16.7): what is launched once it has played a while; Jump by the scene's name.
+                      const f = set?.follow;
+                      const bar = barBeats(song);
+                      const then = f ? (f.a === 'jump' ? `jump:${f.jump ?? 0}` : f.a) : 'none';
+                      const choices = [...Object.entries(SCENE_FOLLOW_NAMES).map(([value, label]) => ({ value, label: label! })), ...Array.from({ length: scenes }, (_, k) => ({ value: `jump:${k}`, label: `Scene ${sceneName(song, k)}` }))];
+                      const afters = [1, 2, 4, 8, 16].map((b) => ({ value: String(b * bar), label: b === 1 ? '1 bar' : `${b} bars` }));
+                      return <>
+                        <Select inline label="Then" value={then} choices={choices} onChange={(v) => {
+                          if (v === 'none') { onSceneSetting(i, { follow: null }); return; }
+                          const time = f?.time ?? 4 * bar;
+                          onSceneSetting(i, { follow: v.startsWith('jump:') ? { a: 'jump', b: 'none', chance: 1, time, jump: Number(v.slice(5)) } : { a: v as Follow['a'], b: 'none', chance: 1, time } });
+                        }} />
+                        {f && <Select inline hideLabel label="Follow after" value={afters.some((a) => Number(a.value) === f.time) ? String(f.time) : String(4 * bar)} choices={afters}
+                          onChange={(v) => onSceneSetting(i, { follow: { ...f, time: Number(v) } })} />}
+                      </>;
+                    })()}
+                    {(set?.tempo !== undefined || set?.signature) && <IconButton className="studio-scene-clear" label={`Clear scene ${i + 1} tempo and time signature`} title="Return to default: the scene leaves the song’s tempo and time signature as they are" icon={CLEAR}
                       onClick={() => onSceneSetting(i, { tempo: null, signature: null })} />}
                   </span>
                 )}

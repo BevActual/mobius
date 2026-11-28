@@ -658,9 +658,9 @@ test('a scene carries its own tempo and time signature, and the song takes them 
   type Saved = { tempo: number; signature?: number[]; sceneSettings?: ({ tempo?: number; signature?: number[] } | null)[] };
   const now = () => saved() as unknown as Saved;
   // Hidden until shown, as Live keeps them.
-  await expect(grid.getByRole('group', { name: 'Scene 2 tempo and time signature' })).toHaveCount(0);
-  await grid.getByRole('button', { name: 'Scene tempo and time signature' }).click();
-  const scene2 = grid.getByRole('group', { name: 'Scene 2 tempo and time signature' });
+  await expect(grid.getByRole('group', { name: 'Scene 2 settings' })).toHaveCount(0);
+  await grid.getByRole('button', { name: 'Scene settings' }).click();
+  const scene2 = grid.getByRole('group', { name: 'Scene 2 settings' });
   await scene2.getByRole('spinbutton', { name: 'Scene tempo' }).focus();
   await shell().keyboard.type('140');
   await shell().keyboard.press('Enter');
@@ -682,6 +682,38 @@ test('a scene carries its own tempo and time signature, and the song takes them 
   await shell().getByRole('button', { name: 'Stop', exact: true }).click();
   // Return to default.
   await grid.getByRole('button', { name: 'Clear scene 2 tempo and time signature' }).click();
+  await expect.poll(() => now().sceneSettings).toBeUndefined();
+});
+
+test('a scene follow action launches the next scene once the scene has played its bars (Live 12, 16.7)', async () => {
+  await start();
+  await shell().getByRole('radio', { name: 'Session' }).click();
+  const grid = shell().getByRole('grid', { name: 'Clips' });
+  await grid.getByRole('button', { name: 'New clip on Keys, scene 1' }).click();
+  await grid.getByRole('button', { name: 'New clip on Keys, scene 2' }).click();
+  type Saved = { sceneSettings?: ({ follow?: { a: string; time?: number; jump?: number } } | null)[] };
+  const now = () => saved() as unknown as Saved;
+  await grid.getByRole('button', { name: 'Scene settings' }).click();
+  const scene1 = grid.getByRole('group', { name: 'Scene 1 settings' });
+  await scene1.getByRole('combobox', { name: 'Then' }).click();
+  await shell().getByRole('option', { name: 'Next Scene' }).click();
+  await expect.poll(() => now().sceneSettings?.[0]?.follow).toMatchObject({ a: 'next', time: 16 });
+  await scene1.getByRole('combobox', { name: 'Follow after' }).click();
+  await shell().getByRole('option', { name: '1 bar', exact: true }).click();
+  await expect.poll(() => now().sceneSettings?.[0]?.follow?.time).toBe(4);
+  // Launched, scene 1 plays a bar and scene 2 takes over.
+  await grid.getByRole('button', { name: 'Launch scene 1, then next scene' }).click();
+  await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene 1' })).toHaveAttribute('aria-pressed', 'true', { timeout: 8000 });
+  await expect(grid.getByRole('button', { name: 'Launch Keys 2, scene 2' })).toHaveAttribute('aria-pressed', 'true', { timeout: 8000 });
+  await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene 1' })).toHaveAttribute('aria-pressed', 'false');
+  await grid.getByRole('button', { name: 'Stop all' }).click();
+  await shell().getByRole('button', { name: 'Stop', exact: true }).click();
+  // Jump names a scene; No Action takes it off.
+  await scene1.getByRole('combobox', { name: 'Then' }).click();
+  await shell().getByRole('option', { name: 'Scene 2' }).click();
+  await expect.poll(() => now().sceneSettings?.[0]?.follow).toMatchObject({ a: 'jump', jump: 1, time: 4 });
+  await scene1.getByRole('combobox', { name: 'Then' }).click();
+  await shell().getByRole('option', { name: 'No Action' }).click();
   await expect.poll(() => now().sceneSettings).toBeUndefined();
 });
 
