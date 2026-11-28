@@ -886,7 +886,11 @@ test('a task starts its branch; branches switch from Changes, History shows the 
   // Switching back to main brings its files back, in the editor too.
   await bar.getByRole('button', { name: /^Branch: split-cents-exactly/ }).click();
   await bar.getByRole('group', { name: 'Branches' }).getByRole('button', { name: 'main' }).click();
-  await expect(bar.getByRole('button', { name: 'Branch: main. Switch or start a branch' })).toBeVisible();
+  // When the switch does not happen, say what git and Code said, so a failure on another system can be read.
+  await expect(bar.getByRole('button', { name: 'Branch: main. Switch or start a branch' })).toBeVisible().catch(async (e: Error) => {
+    const said = await shell().getByRole('region', { name: 'Code' }).getByRole('alert').allTextContents();
+    throw new Error(`${e.message}\nCode said: ${JSON.stringify(said)}\ngit branch: ${git('branch', '--show-current')}\ngit status: ${JSON.stringify(git('status', '--porcelain'))}`);
+  });
   expect(budget()).toBe(BUDGET);
   await expect(shell().getByRole('textbox', { name: 'Contents of src/budget.js' })).toHaveValue(BUDGET);
   await expect(commits.locator(':scope > li')).toHaveCount(1);
