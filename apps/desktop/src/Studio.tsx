@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { AudioClipDetail } from './studio-audio-clip';
@@ -45,7 +45,7 @@ type FreezeTrack = (path: string, trackId: string, song?: unknown) => Promise<{ 
 /** The engine's stems export, once it has one (music.renderStems). */
 type RenderStems = (path: string, name: string, song?: unknown) => Promise<{ ok: true; saved: string; path: string; files: { file: string; peakDb: number; over: boolean }[] } | { ok: false; message: string }>;
 /** The order the sidebar lists sounds in: drums first, as most songs start with a beat. */
-const SOUNDS: Instrument[] = ['drums', 'bass', 'piano', 'pad', 'lead', 'string', 'mallet'];
+const SOUNDS: Instrument[] = ['drums', 'bass', 'piano', 'pad', 'lead', 'string', 'mallet', 'electric'];
 
 /** When a song was last changed, short: the time today, the weekday this week, else the date ("3 Nov"). */
 function whenShort(at: number, now: number): string {
@@ -735,6 +735,17 @@ const MALLET_CELLS: { k: Exclude<keyof MalletSound, 'resonator'>; name: string; 
   { k: 'hardness', name: 'Hardness', format: pct },
   { k: 'position', name: 'Position', format: pct },
 ];
+const FORK_CHOICES = [{ value: 'tine', label: 'Tine' }, { value: 'reed', label: 'Reed' }] as const;
+const FORK_NOTES: Record<Fork, string> = {
+  tine: 'A tine and tone bar over a magnetic pickup: round and bell-like, barking when played hard.',
+  reed: 'A steel reed by an electrostatic pickup: reedier and shorter, with a nasal growl when played hard.',
+};
+const ELECTRIC_CELLS: { k: Exclude<keyof ElectricSound, 'fork'>; name: string; log?: boolean; format: (v: number) => string }[] = [
+  { k: 'decay', name: 'Decay', log: true, format: (v) => (v < 1 ? `${Math.round(v * 1000)} ms` : `${v.toFixed(1)} s`) },
+  { k: 'hardness', name: 'Hardness', format: pct },
+  { k: 'bell', name: 'Bell', format: pct },
+  { k: 'drive', name: 'Drive', format: pct },
+];
 const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
 const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
 
@@ -795,6 +806,8 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
   const setString = (patch: Partial<StringSound>, tag: string) => onTrack((t) => { if (t.instrument !== 'string') return; t.string = { ...STRING_DEFAULTS, ...t.string, ...patch }; }, `string:${tag}`);
   const struck = track ? malletOf(track) : null;
   const setMallet = (patch: Partial<MalletSound>, tag: string) => onTrack((t) => { if (t.instrument !== 'mallet') return; t.mallet = { ...MALLET_DEFAULTS, ...t.mallet, ...patch }; }, `mallet:${tag}`);
+  const keyed = track ? electricOf(track) : null;
+  const setElectric = (patch: Partial<ElectricSound>, tag: string) => onTrack((t) => { if (t.instrument !== 'electric') return; t.electric = { ...ELECTRIC_DEFAULTS, ...t.electric, ...patch }; }, `electric:${tag}`);
   const kit = track ? kitOf(track) : null;
   const set = (k: keyof Sound, v: number) => onTrack((t) => { if (!isSynth(t.instrument)) return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), [k]: v }; }, `sound:${k}`);
   const setMany = (patch: Partial<Sound>, tag: string) => onTrack((t) => { if (!isSynth(t.instrument)) return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), ...patch }; }, `sound:${tag}`);
@@ -823,7 +836,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
       <DeviceFrame className="studio-instrument" title={track.kind === 'sampler' ? 'Sampler' : 'Instrument'} index={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
         collapsed={folded.has(`${track.id}:instrument`)} onCollapse={fold(`${track.id}:instrument`)}
         actions={track.kind === 'sampler' ? undefined : <>
-          <Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; delete t.string; delete t.mallet; })} />
+          <Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; delete t.string; delete t.mallet; delete t.electric; })} />
           {!track.kind && !track.stack && isSynth(track.instrument) && <IconButton label="Stack instruments" icon={<Icon d="M4 6h12M4 10h12M4 14h12" />}
             onClick={() => onTrack((t) => { if (!isSynth(t.instrument)) return; t.stack = { chains: [{ instrument: t.instrument, ...(t.sound ? { sound: { ...t.sound } } : {}) }] }; })} />}
         </>}>
@@ -875,6 +888,20 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
                 ))}
               </ParamGrid>
               <p className="studio-dev-note">{RESONATOR_NOTES[struck.resonator]}</p>
+            </section>
+          )}
+          {/* An electric piano (Live 12's Electric): the fork, then the hammer and the pickup. */}
+          {keyed && (
+            <section className="studio-dev-section studio-dev-col" aria-label="Electric">
+              <h4 className="studio-dev-head">Electric</h4>
+              <Select label="Fork" value={keyed.fork} choices={FORK_CHOICES} onChange={(f) => setElectric({ fork: f }, 'fork')} />
+              <ParamGrid label="Electric" columns={2}>
+                {ELECTRIC_CELLS.map(({ k, name, log, format }) => (
+                  <Knob key={k} label={name} value={keyed[k]} min={ELECTRIC_RANGE[k].lo} max={ELECTRIC_RANGE[k].hi} step={0.01} scale={log ? 'log' : 'linear'} origin={ELECTRIC_DEFAULTS[k]} reset={ELECTRIC_DEFAULTS[k]} format={format}
+                    proposed={proposed?.has(`electric:${k}`)} onChange={(v) => setElectric({ [k]: v }, k)} />
+                ))}
+              </ParamGrid>
+              <p className="studio-dev-note">{FORK_NOTES[keyed.fork]}</p>
             </section>
           )}
           {kit && (
