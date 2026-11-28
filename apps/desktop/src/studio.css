@@ -447,6 +447,13 @@
 /* The view switch, wrapped so a dragged Session clip can open the other view; it lays out as the switch alone. */
 .studio-views { display: contents; }
 
+/* The time signature in the readout: the beats typed, the unit chosen, read as one "6/8". */
+.studio-meter { display: inline-flex; align-items: center; gap: 1px; }
+.studio-meter input { width: 2.2ch; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: right; appearance: none; -moz-appearance: textfield; }
+.studio-meter input::-webkit-inner-spin-button { display: none; }
+.studio-meter input:focus { outline: none; }
+.studio-meter:focus-within { border-color: var(--ink); }
+
 /* Locators (Live 12, Arrangement View, "Locators"): a strip of their own under the bar numbers, a flag and a name each. */
 .studio-ruler-row[data-locators], .studio-ruler[data-locators] { height: calc(var(--row-h) + 16px); }
 .studio-ruler[data-locators] .studio-ruler-bar { bottom: 16px; }

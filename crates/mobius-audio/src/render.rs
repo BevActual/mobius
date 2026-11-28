@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use crate::fx::{balance, Aim, Chain, QUANTUM};
 use crate::sample::{Placed, Stretch};
 use crate::sampler::{SampleVoice, Samplers};
-use crate::song::{auto_value_at, fill_auto, AutoPoint, Instrument, InstrumentChain, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
+use crate::song::{auto_value_at, fill_auto, AutoPoint, Instrument, InstrumentChain, Kit, Note, Pad, Song, Sound};
 use crate::voice::{pan_gains, Voice};
 
 /// The longest block made at once: a longer one is made in pieces of this.
@@ -812,6 +812,9 @@ pub struct Renderer {
     click: bool,
     metronome: f64,
     ticks: Vec<Tick>,
+    /// The time signature in beats: a bar's length, and from one tick of the metronome to the next.
+    bar: f64,
+    unit: f64,
     /// In the Session view, every track's clips and launches (in song order).
     session: Option<Vec<SessionTrack>>,
 }
@@ -921,9 +924,9 @@ impl Renderer {
                             // Frozen, a slot plays its file: two times round the clip (38.1.4).
                             if let Some(files) = frozen_slots(t) {
                                 let sound = song.sounds.get(files.get(k)?.as_ref()?)?;
-                                return Some((2.0 * c.bars * BEATS_PER_BAR, Vec::new(), Some(frozen_sound(sound, song.tempo))));
+                                return Some((2.0 * c.bars * song.bar_beats(), Vec::new(), Some(frozen_sound(sound, song.tempo))));
                             }
-                            Some((c.bars * BEATS_PER_BAR, c.notes.clone(), placed(song, Song::is_audio(t), c.audio.as_ref())))
+                            Some((c.bars * song.bar_beats(), c.notes.clone(), placed(song, Song::is_audio(t), c.audio.as_ref())))
                         })
                         .collect(),
                     playing: None,
@@ -1115,6 +1118,8 @@ impl Renderer {
             main_auto: if how.session { Vec::new() } else { song.main_auto_of("volume") },
             main_volumes: vec![0.0; MAX_BLOCK],
             metronome: song.metronome.volume.clamp(0.0, 1.0),
+            bar: song.bar_beats(),
+            unit: song.beat_unit(),
             sample: start,
             peak: (0.0, 0.0),
             cycle: cycle.filter(|_| !how.session).map(|(a, b)| (clock.sample_of_beat(a), clock.sample_of_beat(b))),
@@ -1194,9 +1199,9 @@ impl Renderer {
     /// The first bar line (in beats) on or after `sample`.
     fn bar_at_or_after(&self, sample: u64) -> f64 {
         let beat = self.clock.beat(sample);
-        let mut bar = (beat / BEATS_PER_BAR).floor().max(0.0) * BEATS_PER_BAR;
+        let mut bar = (beat / self.bar).floor().max(0.0) * self.bar;
         while self.clock.sample_of_beat(bar) < sample {
-            bar += BEATS_PER_BAR;
+            bar += self.bar;
         }
         bar
     }
@@ -1204,7 +1209,7 @@ impl Renderer {
     /// The launches waiting land now, on a bar line.
     fn land(&mut self) {
         let at = self.clock.beat(self.sample);
-        let at = (at / BEATS_PER_BAR).round() * BEATS_PER_BAR;
+        let at = (at / self.bar).round() * self.bar;
         for track in self.session.iter_mut().flatten() {
             if let Some(slot) = track.queued.take() {
                 track.playing = slot.filter(|s| track.slots.get(*s).is_some_and(Option::is_some)).map(|s| (s, at));
@@ -1535,17 +1540,18 @@ impl Renderer {
         // The metronome, on each beat in this piece (inside the song), straight to the master.
         if self.click {
             let clock = self.clock;
-            let mut beat = clock.beat(from).floor().max(0.0);
+            let (unit, bar) = (self.unit, self.bar);
+            let mut beat = (clock.beat(from) / unit).floor().max(0.0) * unit;
             while clock.sample_of_beat(beat) < from {
-                beat += 1.0;
+                beat += unit;
             }
             while clock.sample_of_beat(beat) < to && beat < self.end_beat() {
                 if self.ticks.len() >= self.ticks.capacity() {
                     self.ticks.remove(0);
                 }
                 let wait = usize::try_from(clock.sample_of_beat(beat) - from).unwrap_or(0);
-                self.ticks.push(Tick { wait, time: 0, accent: beat.rem_euclid(BEATS_PER_BAR) < 1e-9, gain: self.metronome });
-                beat += 1.0;
+                self.ticks.push(Tick { wait, time: 0, accent: { let r = beat.rem_euclid(bar); r < 1e-9 || bar - r < 1e-9 }, gain: self.metronome });
+                beat += unit;
             }
         }
         self.ticks.retain_mut(|t| !t.add_to(left, right, rate));
@@ -1580,7 +1586,7 @@ fn frozen_sound(sound: &std::sync::Arc<crate::wav::Sound>, tempo: f64) -> Placed
 #[must_use]
 pub fn render_slot(song: &Song, slot: usize, sample_rate: u32) -> (Vec<f32>, Vec<f32>) {
     let Some(clip) = song.tracks.first().and_then(|t| t.slots.get(slot)?.as_ref()).filter(|c| c.bars > 0.0) else { return (Vec::new(), Vec::new()) };
-    let seconds = 2.0 * clip.bars * BEATS_PER_BAR * 60.0 / song.tempo;
+    let seconds = 2.0 * clip.bars * song.bar_beats() * 60.0 / song.tempo;
     let frames = (seconds * f64::from(sample_rate)).round() as usize;
     let (mut left, mut right) = (vec![0f32; frames], vec![0f32; frames]);
     let mut renderer = Renderer::playing(song, sample_rate, Playing { from: 0.0, cycle: None, click: false, session: true });
@@ -1955,6 +1961,28 @@ mod tests {
         // Without the click, silence.
         let (quiet, _) = play_for(&s, Playing::default(), 48_000);
         assert!(quiet.iter().all(|x| *x == 0.0));
+    }
+
+    #[test]
+    fn a_song_in_another_time_signature_is_that_many_beats_a_bar_and_the_metronome_follows_it() {
+        // 6/8 at 120: a bar is three quarter beats (72 000 samples), ticked on each eighth (12 000), louder on the bar.
+        let mut s = song("");
+        s.signature = Some([6, 8]);
+        assert!((s.bar_beats() - 3.0).abs() < 1e-12 && (s.beats() - 3.0).abs() < 1e-12);
+        let (l, _) = play_for(&s, Playing { from: 0.0, cycle: None, click: true, session: false }, 48_000 * 2);
+        for at in (0..6).map(|k| k * 12_000) {
+            assert_eq!(onset(&l[at..], 1e-6), Some(1), "{at}");
+        }
+        assert!(l[72_000..].iter().all(|x| *x == 0.0));
+        let peak = |a: usize| l[a..a + 200].iter().fold(0f32, |m, x| m.max(x.abs()));
+        assert!(peak(0) > peak(12_000) * 1.3);
+        // 7/8 is three and a half; a signature the window would not write is 4/4.
+        s.signature = Some([7, 8]);
+        assert!((s.bar_beats() - 3.5).abs() < 1e-12);
+        s.signature = Some([0, 3]);
+        assert_eq!(s.meter(), (4, 4));
+        let parsed = Song::parse(r#"{"version":2,"tempo":100,"bars":2,"signature":[3,4],"tracks":[]}"#).unwrap();
+        assert!((parsed.beats() - 6.0).abs() < 1e-12);
     }
 
     #[test]

@@ -535,7 +535,7 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 
 export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An electric piano track's settings (`instrument` "electric"). */ electric?: ElectricSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
-export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[] }
+export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[]; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature }
 /** A named place in the song, at `beat` (Live 12, "Locators"). */
 export interface Locator { beat: number; name: string }
 /** The most locators a song keeps. */
@@ -551,6 +551,17 @@ export const METRONOME_VOLUME = 0.8;
 /** A return's name: its own, or a letter by its place, as Live names them (A, B, C…). */
 export const returnName = (r: ReturnTrack, i: number): string => r.name || String.fromCharCode(65 + i);
 export const BEATS_PER_BAR = 4;
+/** A time signature, `[beats, unit]`: 6/8 is `[6, 8]`. Beats are counted in quarter notes everywhere else. */
+export type Signature = readonly [number, number];
+/** The units a time signature may count in (Live 12's control bar): a whole note to a sixteenth. */
+export const SIGNATURE_UNITS = [1, 2, 4, 8, 16] as const;
+/** A song's time signature: its own when it is one the window can write, else 4/4. */
+export const meterOf = (s: { signature?: Signature } | null | undefined): Signature => {
+  const sig = s?.signature;
+  return sig && Number.isInteger(sig[0]) && sig[0] >= 1 && sig[0] <= 32 && (SIGNATURE_UNITS as readonly number[]).includes(sig[1]) ? sig : [4, 4];
+};
+/** Quarter-note beats in a bar of the song: 4 in 4/4, 3 in 3/4 and 6/8, 3.5 in 7/8. */
+export const barBeats = (s: { signature?: Signature } | null | undefined): number => { const [n, d] = meterOf(s); return (n * 4) / d; };
 export const DRUMS: { pitch: number; name: string }[] = [
   { pitch: 46, name: 'Open hat' }, { pitch: 42, name: 'Closed hat' }, { pitch: 45, name: 'Tom' }, { pitch: 39, name: 'Clap' }, { pitch: 38, name: 'Snare' }, { pitch: 36, name: 'Kick' },
 ];
@@ -603,16 +614,16 @@ function readNotes(list: unknown, beats: number): SongNote[] {
 }
 
 /** A clip from a file: its length snapped to the lengths a clip can be, and its notes kept inside it. */
-function readClip(v: unknown, fallbackName: string): Clip | null {
+function readClip(v: unknown, fallbackName: string, perBar = BEATS_PER_BAR): Clip | null {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return null;
   const c = obj(v);
   const asked = num(c.bars, 1, 1, 16);
   const bars = [...CLIP_BARS].reverse().find((b) => b <= asked) ?? 1;
-  const clip: Clip = { name: typeof c.name === 'string' && c.name ? c.name.slice(0, 60) : fallbackName, bars, notes: readNotes(c.notes, bars * BEATS_PER_BAR).filter((n) => n.start < bars * BEATS_PER_BAR) };
+  const clip: Clip = { name: typeof c.name === 'string' && c.name ? c.name.slice(0, 60) : fallbackName, bars, notes: readNotes(c.notes, bars * perBar).filter((n) => n.start < bars * perBar) };
   const audio = readAudio(c.audio);
   if (audio) clip.audio = audio;
   const unlinked = readUnlinked(c.unlinked);
-  const envelopes = readEnvelopes(c.envelopes, bars * BEATS_PER_BAR, unlinked);
+  const envelopes = readEnvelopes(c.envelopes, bars * perBar, unlinked);
   if (envelopes) clip.envelopes = envelopes;
   if (unlinked) clip.unlinked = unlinked;
   return clip;
@@ -623,6 +634,9 @@ export function parseSong(text: string): { song: Song } | { error: string } {
   try { raw = JSON.parse(text || '{}'); } catch (e) { return { error: e instanceof Error ? e.message : 'not JSON' }; }
   const o = obj(raw);
   const bars = Math.round(num(o.bars, 8, 1, 512));
+  // The time signature first: every length in the file is counted in its bars.
+  const signature = meterOf({ signature: Array.isArray(o.signature) ? [Number(o.signature[0]), Number(o.signature[1])] : undefined });
+  const perBar = (signature[0] * 4) / signature[1];
   const taken = new Set<string>();
   // The first rule a device in the song breaks: a song with a device that can't play is refused, saying which.
   let refused: string | null = null;
@@ -634,9 +648,9 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     const instrument = INSTRUMENTS.includes(to.instrument as Instrument) ? (to.instrument as Instrument) : 'piano';
     // Version 2 keeps Arrange's notes in clips. A version 1 track's notes (one list for the song), or notes written
     // beside the clips, are put into the clips they fall in, and new clips are made for the rest.
-    const written = readClips(to.clips, bars * BEATS_PER_BAR);
-    const loose = readNotes(to.notes, bars * BEATS_PER_BAR);
-    const clips = loose.length > 0 ? putNotes(written, [...trackNotes({ clips: written }), ...loose], bars) : written;
+    const written = readClips(to.clips, bars * perBar, perBar);
+    const loose = readNotes(to.notes, bars * perBar);
+    const clips = loose.length > 0 ? putNotes(written, [...trackNotes({ clips: written }), ...loose], bars, perBar) : written;
     const color = TRACK_COLOURS.includes(to.color as TrackColour) ? (to.color as TrackColour) : TRACK_COLOURS[i % (TRACK_COLOURS.length - 2)]!;
     const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), pan: num(to.pan, 0, -1, 1), muted: to.muted === true, solo: to.solo === true, color, clips };
     if (to.instrumentOn === false) track.instrumentOn = false;
@@ -684,13 +698,13 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     if (stack) track.stack = stack;
     const fx = readFx(to.fx, `Track “${track.name}”`, (why) => { refused ??= why; });
     if (fx.length > 0) track.fx = fx;
-    const auto = readAutomation(to.auto, bars * BEATS_PER_BAR, to.volumeAuto);
+    const auto = readAutomation(to.auto, bars * perBar, to.volumeAuto);
     if (auto) track.auto = auto;
     const autoOff = readAutoOff(to.autoOff);
     if (autoOff) track.autoOff = autoOff;
     const mods = readMods(to.mods);
     if (mods) track.mods = mods;
-    const slots = (Array.isArray(to.slots) ? to.slots : []).slice(0, MAX_SCENES).map((c) => readClip(c, track.name));
+    const slots = (Array.isArray(to.slots) ? to.slots : []).slice(0, MAX_SCENES).map((c) => readClip(c, track.name, perBar));
     while (slots.length > 0 && slots[slots.length - 1] === null) slots.pop();
     if (slots.length > 0) track.slots = slots;
     const ko = obj(to.kit);
@@ -735,10 +749,11 @@ export function parseSong(text: string): { song: Song } | { error: string } {
   const mainFx = readFx(mo.fx, 'Main', (why) => { refused ??= why; });
   if (refused) return { error: refused };
   const song: Song = { version: 2, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks };
+  if (signature[0] !== 4 || signature[1] !== 4) song.signature = signature;
   if (Object.keys(mo).length > 0) {
     song.main = { volume: num(mo.volume, MAIN_VOLUME, 0, 1) };
     if (mainFx.length > 0) song.main.fx = mainFx;
-    const mainAuto = readAutomation(mo.auto, bars * BEATS_PER_BAR);
+    const mainAuto = readAutomation(mo.auto, bars * perBar);
     if (mainAuto) song.main.auto = mainAuto;
     const mainOff = readAutoOff(mo.autoOff);
     if (mainOff) song.main.autoOff = mainOff;
@@ -751,7 +766,7 @@ export function parseSong(text: string): { song: Song } | { error: string } {
   const seen = new Set<number>();
   const locators = (Array.isArray(o.locators) ? o.locators : []).flatMap((l): Locator[] => {
     const lo = obj(l);
-    if (typeof lo.beat !== 'number' || !Number.isFinite(lo.beat) || lo.beat < 0 || lo.beat >= bars * BEATS_PER_BAR) return [];
+    if (typeof lo.beat !== 'number' || !Number.isFinite(lo.beat) || lo.beat < 0 || lo.beat >= bars * perBar) return [];
     const beat = Math.round(lo.beat * 4) / 4;
     if (seen.has(beat)) return [];
     seen.add(beat);
@@ -817,7 +832,7 @@ export const sceneName = (song: Song, i: number): string => song.scenes?.[i] || 
 
 /** One note to a line, so a change reads as the notes it touched. */
 export function writeSong(song: Song): string {
-  const lines = ['{', '  "version": 2,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []),
+  const lines = ['{', '  "version": 2,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.signature ? [`  "signature": ${JSON.stringify(song.signature)},`] : []), ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []),
     ...(song.main ? [`  "main": ${JSON.stringify(song.main)},`] : []),
     ...(song.metronome ? [`  "metronome": ${JSON.stringify(song.metronome)},`] : []),
     ...(song.locators && song.locators.length > 0 ? [`  "locators": ${JSON.stringify(song.locators)},`] : []),
@@ -883,7 +898,7 @@ export function keyPitches(key: string): Set<number> {
 }
 
 /** How long a song lasts, in seconds. */
-export const songSeconds = (song: Song) => (song.bars * BEATS_PER_BAR * 60) / song.tempo;
+export const songSeconds = (song: Song) => (song.bars * barBeats(song) * 60) / song.tempo;
 
 /** Which tracks are heard: the soloed ones if any are, else every one not muted. */
 export function audible(song: Song): Track[] {
@@ -903,14 +918,14 @@ const byStart = (a: SongNote, b: SongNote) => a.start - b.start || a.pitch - b.p
 const round = (v: number) => Math.round(v * 1e4) / 1e4;
 
 /** Arrange's clips from a file: in the song, in time order, never overlapping (a later one cuts an earlier one short), with ids. */
-function readClips(list: unknown, beats: number): ArrangeClip[] {
+function readClips(list: unknown, beats: number, perBar = BEATS_PER_BAR): ArrangeClip[] {
   const taken = new Set<string>();
   const read = (Array.isArray(list) ? list : []).slice(0, 512).flatMap((v, i): ArrangeClip[] => {
     const c = obj(v);
     if (typeof c.start !== 'number' || typeof c.length !== 'number' || !Number.isFinite(c.start) || !Number.isFinite(c.length)) return [];
     const start = round(num(c.start, 0, 0, beats));
     if (beats - start < 0.25) return [];
-    const length = round(num(c.length, BEATS_PER_BAR, 0.25, beats - start));
+    const length = round(num(c.length, perBar, 0.25, beats - start));
     let id = typeof c.id === 'string' && c.id ? c.id.slice(0, 40) : `c${i + 1}`;
     while (taken.has(id)) id = `${id}-${i}`;
     taken.add(id);
@@ -1016,7 +1031,7 @@ export function newClipId(clips: readonly ArrangeClip[]): string {
  * whole bar at a time around them, where no clip is. A clip left with no notes goes, as an empty stretch of the lane
  * did before clips were kept; new clips next to each other join.
  */
-export function putNotes(clips: readonly ArrangeClip[], notes: readonly SongNote[], bars: number): ArrangeClip[] {
+export function putNotes(clips: readonly ArrangeClip[], notes: readonly SongNote[], bars: number, perBar = BEATS_PER_BAR): ArrangeClip[] {
   // Notes outside a clip's first pass (before its start marker, or past its loop) aren't in the editor; they stay.
   const kept = clips.map((c) => { const { from, to } = firstPass(c); return { ...c, notes: c.notes.filter((n) => n.start < from - 1e-9 || n.start >= to - 1e-9) }; });
   const rest: SongNote[] = [];
@@ -1029,14 +1044,14 @@ export function putNotes(clips: readonly ArrangeClip[], notes: readonly SongNote
   const made: ArrangeClip[] = [];
   for (const n of rest) {
     // A note at or after the song's end has no bar to go in, and is never heard.
-    if (n.start >= bars * BEATS_PER_BAR - 1e-9) continue;
+    if (n.start >= bars * perBar - 1e-9) continue;
     const into = made.find((c) => n.start >= c.start - 1e-9 && n.start < c.start + c.length - 1e-9);
     if (into) { into.notes.push({ ...n, start: round(n.start - into.start) }); continue; }
     // A new clip from the note's bar to the bar its end falls in, kept clear of the clips around it.
     const all = [...kept, ...made];
-    const bar = Math.floor(n.start / BEATS_PER_BAR) * BEATS_PER_BAR;
+    const bar = Math.floor(n.start / perBar + 1e-9) * perBar;
     const lo = Math.max(bar, ...all.filter((c) => c.start + c.length <= n.start + 1e-9).map((c) => c.start + c.length));
-    const want = Math.min(bars * BEATS_PER_BAR, Math.max(bar + BEATS_PER_BAR, Math.ceil((n.start + n.length) / BEATS_PER_BAR - 1e-9) * BEATS_PER_BAR));
+    const want = Math.min(bars * perBar, Math.max(bar + perBar, Math.ceil((n.start + n.length) / perBar - 1e-9) * perBar));
     const hi = Math.min(want, ...all.filter((c) => c.start > n.start).map((c) => c.start));
     const start = round(lo);
     made.push({ id: newClipId(all), start, length: round(Math.max(0.25, hi - lo)), notes: [{ ...n, start: round(n.start - start) }] });

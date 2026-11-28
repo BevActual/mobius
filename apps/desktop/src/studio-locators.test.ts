@@ -46,3 +46,13 @@ describe('locators', () => {
     expect(back.song.locators).toEqual(read.song.locators);
   });
 });
+
+describe('locators in another time signature', () => {
+  it('stay inside the song and loop whole bars of it', () => {
+    const s: Song = { ...song(4), signature: [3, 4] };
+    expect(addLocator(s, 99)).toBe(0);
+    expect(s.locators).toEqual([{ beat: 11.75, name: '' }]);
+    addLocator(s, 3);
+    expect(loopToNext(s, 3)).toEqual({ a: 1, b: 3 });
+  });
+});

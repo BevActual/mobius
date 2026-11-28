@@ -97,3 +97,13 @@ describe('recording a Session jam into Arrange', () => {
     expect(writeJam(s, startJam(s, {}, 0, 0), 8)).toBe(0);
   });
 });
+
+describe('in another time signature', () => {
+  it('a Session clip lands a bar of the song long, and an Arrange clip goes back as whole bars of it', () => {
+    const s: Song = { ...song([track('a')], 2), signature: [3, 4] };
+    placeInArrange(s, 'a', { name: 'Waltz', bars: 2, notes: [note(0)] }, 3);
+    expect(s.tracks[0]!.clips.map((c) => [c.start, c.length, c.loop?.end])).toEqual([[3, 6, 6]]);
+    expect(s.bars).toBe(3);
+    expect(asSessionClip({ id: 'c1', start: 0, length: 7, notes: [] }, 'A', 3).bars).toBe(3);
+  });
+});
