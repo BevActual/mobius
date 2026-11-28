@@ -1089,7 +1089,7 @@ function Preview({ preview }: { preview: LauncherPreview }) {
   );
 }
 
-/** The answer to a question asked here: Mobius's words, and the apps they came from. Mobius's, so indigo and dashed. */
+/** The answer to a question asked here: Mobius's words, and the apps they came from. Mobius's, so Mobius's colour and dashed. */
 function AnswerCard({ answer }: { answer: InlineAnswer }) {
   return (
     <div className="launcher-ans" data-state={answer.state} role="status" aria-live="polite">

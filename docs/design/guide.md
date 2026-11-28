@@ -77,7 +77,7 @@ Panels on the frame turns the gaps off for more room.
   window), the menus (File, Edit, View, Go, the app's own, Window, Help), and what is open, centred, with its grey
   subline. On macOS the menus are in the system menu bar and a Panels button takes their place.
 - **Tool row:** only tools, **centred**. At the trailing end: Comments and Share where they apply, ⋯ only when a tool
-  did not fit, then the Mobius icon, lightly tinted indigo. An app with no tools (Home, Settings) has only the title
+  did not fit, then the Mobius icon, ink, and in colour while Mobius works. An app with no tools (Home, Settings) has only the title
   row, with that trailing end at its right.
 - **Content:** the current view. It is the app's.
 - **Docks:** left, right of the content, and bottom. They hold the app's panels. A dock with nothing shown takes no
@@ -181,8 +181,14 @@ place as tabs), `fixed` and `size`. Mobius is added by the frame; no app can put
 
 ## Colour and surfaces
 
-- **Indigo means Mobius, only.** It is on the Mobius icon, on what Mobius made (dashed until kept) and on From Mobius
-  rows. Selection, unread marks, switches, segmented controls and focus use ink and grey.
+- **No accent colour; Mobius is ink at rest and colour only while it works** (Andrew, 27 November 2026). The interface
+  is monochrome: primary buttons are solid ink, selection and hover are grey tints (selected a step stronger), focus
+  is a full-strength ink ring, and links are ink and underlined, with a quiet blue (`--link`) kept only in long reading
+  (Docs). The Mobius mark and what Mobius made (dashed until kept) are ink at rest. While Mobius works,
+  `:root[data-mobius-working]` gives `--mobius` a soft colour that goes slowly round the hues (stepped, 24 s a trip),
+  and the mark's three bands each take a hue a third of the way round from the last, moving together, so the colour
+  travels the loop. Waiting on you or paused, it rests. With Reduce Motion the colour stays still. Errors, warnings and
+  "needs you" keep their own colours.
 - **Controls and state are ink.** A primary button is ink, inverted. An active tool, a muted track or a selected clip
   is shown by inverting ink, not by a colour.
 - **Red means record, error, delete, overdue** and Calendar's current-time line. Nothing else.
@@ -207,11 +213,11 @@ place as tabs), `fixed` and `size`. Mobius is added by the frame; no app can put
 | A proposed value on a control | A dashed `--mobius` tick on the slider or field; the person's value stays ink |
 | A proposed region (mask, cut, range) | Dashed `--mobius` edge with a 45 degree hatch at 12 % `--mobius` |
 | Something Mobius made, waiting to be looked at | The grey Mobius mark in the row (Files, From Mobius) |
-| The Mobius icon | The trefoil, lightly tinted; `--sel` fill while its panel is open |
+| The Mobius icon | The trefoil in ink; its three bands go round the colours while Mobius works; a light tint while its panel is open |
 | Mobius working | The dashed edge moves along its path; still with Reduce Motion |
 
-The dashed edge marks only what Mobius made or changed that waits for you, and comes first, indigo second, so it
-reads beside violet content and for people who can't tell the colours apart.
+The dashed edge marks only what Mobius made or changed that waits for you, and comes first, colour second, so it
+reads at rest, beside coloured content and for people who can't tell the colours apart.
 
 ## Type and density
 

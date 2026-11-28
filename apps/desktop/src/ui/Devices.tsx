@@ -56,7 +56,7 @@ export function DeviceFrame({ title, index, on, onToggle, collapsed, onCollapse,
   lead?: ReactNode;
   /** Small controls at the head's end (a preset menu, a ⋯). */
   actions?: ReactNode;
-  /** Mobius added or changed it and it waits for Keep: a dashed indigo edge. */
+  /** Mobius added or changed it and it waits for Keep: a dashed Mobius edge. */
   proposed?: boolean;
   children: ReactNode;
   className?: string;
@@ -192,7 +192,7 @@ export function EqGraph({ label = 'EQ', bands, onChange: change, onCommit, reset
   /** Called once a drag is let go. */
   onCommit?: (index: number, band: EqBand) => void;
   reset?: readonly EqBand[];
-  /** Per band, the settings Mobius moved that nobody has kept yet: they read in indigo, the band's dot and the curve dashed. */
+  /** Per band, the settings Mobius moved that nobody has kept yet: they read in Mobius's colour, the band's dot and the curve dashed. */
   proposed?: readonly (Partial<Record<'freq' | 'gain' | 'q', boolean>> | undefined)[];
   disabled?: boolean;
   className?: string;

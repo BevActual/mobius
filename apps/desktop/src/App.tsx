@@ -150,6 +150,7 @@ import { LESSONS } from './learn'; // Learn (shell/learn-view)
 import { clipToNotes } from './clip';
 import { loadPanes, savePanes, loadByMobius, saveByMobius, leavesSplit, companionFor, followPane, loadShare, saveShare } from './split';
 import { TRY_ANOTHER_ASK, TryAnotherContext, TurnRunningContext } from './ReviewBar';
+import { MobiusMark } from './MobiusMark';
 
 /** Focuses a task's row once its list shows (opened from Ctrl+K), trying for a moment while the list renders. */
 function focusTaskRow(text: string, tries = 20): void {
@@ -177,7 +178,7 @@ function MobiusButton({ open, toggle }: { open: boolean; toggle: () => void }) {
   return (
     <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={front} aria-label={front ? 'Hide Mobius' : 'Show Mobius'} title={`${front ? 'Hide Mobius' : 'Ask Mobius, beside the work'} (${describeCombo(MOBIUS_KEYS, window.mobius.platform)})`}
       onClick={open && aside ? bringForward : toggle}>
-      <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
+      <MobiusMark size={18} />
     </button>
   );
 }
@@ -693,6 +694,13 @@ export function App() {
   // Quitting: write what is still being typed first, then let Mobius go (it waits up to 3 s for this).
   useEffect(() => window.mobius.tray?.onQuitting(() => { void saveAll().finally(() => void window.mobius.tray?.savedForQuit().catch(() => undefined)); }), []);
   const activity = activityOf(conversation.state);
+  // While Mobius works, its colour moves (tokens.css :root[data-mobius-working]); waiting on you or paused, it rests.
+  const mobiusWorking = !!activity && !activity.needsYou && !activity.paused;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (mobiusWorking) root.dataset.mobiusWorking = '';
+    else delete root.dataset.mobiusWorking;
+  }, [mobiusWorking]);
   const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
   const marksReading = useRef(false);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone, marksReading);

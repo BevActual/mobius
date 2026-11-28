@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
  * Empty states and the busy mark (docs/design/instrument.md, "Empty state" and "Personality"). An empty view is a
  * small single-weight line drawing in grey ink, one short line, and the New action: it does the teaching, so no tours.
  * The busy mark replaces spinners: a short row of dots that rise and fall like a level meter, in grey, since only
- * Mobius's own work is indigo.
+ * Mobius's own work is Mobius's colour.
  */
 
 /** The drawings, one per kind of thing, all on the same 112 × 72 grid and line weight. */
@@ -88,7 +88,7 @@ export function EmptyState({ kind = 'generic', children, action, quiet, classNam
 }
 
 /**
- * Something is loading or working (not Mobius: its own work is the indigo matrix). A short row of grey dots that rise
+ * Something is loading or working (not Mobius: its own work is the Mobius-coloured matrix). A short row of grey dots that rise
  * and fall; still under reduced motion. `label` is read out, and shown beside the dots unless `hideLabel`.
  */
 export function Busy({ label, hideLabel, className }: { label: string; hideLabel?: boolean; className?: string }) {

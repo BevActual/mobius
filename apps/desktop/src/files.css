@@ -41,7 +41,7 @@
 /* A column's gap between the right-aligned date and Kind, so the two never read as one. */
 .files-head [data-col="kind"], .files-kind { margin-left: var(--sp-4); }
 .files-page .list-count { font-variant-numeric: tabular-nums; }
-/* A folder holding what Mobius made and nobody kept: the Mobius mark in grey (indigo is for the unkept file itself,
+/* A folder holding what Mobius made and nobody kept: the Mobius mark in grey (Mobius's colour is for the unkept file itself,
    dashed, when the folder is open). */
 .files-held { flex: none; display: inline-flex; margin-left: auto; padding-right: var(--sp-1); color: var(--muted); }
 .files-held .mobius-mark { width: 14px; height: 14px; }
@@ -105,7 +105,7 @@
 .drive-hint { margin: -2px 0 var(--sp-1); color: var(--muted); font-size: var(--fs-sm); }
 .drive-actions { display: flex; justify-content: flex-end; margin-top: var(--sp-2); }
 
-/* Sync: the two-arc glyph in muted ink (never indigo, which is Mobius's), turning while it syncs; a problem adds a dot. */
+/* Sync: the two-arc glyph in muted ink (never Mobius's colour, which is Mobius's), turning while it syncs; a problem adds a dot. */
 .sync-glyph { position: relative; display: inline-flex; flex: none; width: 14px; height: 14px; color: var(--muted); }
 .sync-glyph svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .sync-glyph svg[data-busy] { animation: sync-turn var(--dur-loop) linear infinite; }

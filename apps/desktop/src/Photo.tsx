@@ -723,7 +723,7 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
         <PanelTab id="adjust" name="Adjust">
         <div className="photo-page photo-dock">
         <aside className="photo-panel" id="photo-tabpanel" role="tabpanel" aria-label={tab === 'adjust' ? 'Adjustments' : tab === 'filters' ? 'Filters' : 'Crop'}>
-          {/* What Mobius changed, once, at the top of the panel: dashed indigo until it is kept or discarded. */}
+          {/* What Mobius changed, once, at the top of the panel: dashed Mobius until it is kept or discarded. */}
           {showReview && (
             <div className="photo-proposal" role="group" aria-label="Mobius's change">
               <p className="photo-proposal-title">Mobius changed {named.join(', ') || 'the edits'}</p>

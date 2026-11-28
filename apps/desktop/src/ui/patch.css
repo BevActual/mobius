@@ -15,7 +15,7 @@
 .ui-patch[data-panning='on'] .ui-patch-view { cursor: grabbing; }
 .ui-patch-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
 
-/* Cables: ink, or the source box's colour; thicker as they get louder; dashed indigo while Mobius proposes them. */
+/* Cables: ink, or the source box's colour; thicker as they get louder; dashed Mobius while Mobius proposes them. */
 svg.ui-patch-wires { position: absolute; left: 0; top: 0; width: var(--hairline-w); height: var(--hairline-w); overflow: visible; fill: none; stroke: none; }
 .ui-cable {
   fill: none; stroke: var(--cable-ink, var(--ink)); stroke-linecap: round; pointer-events: none;

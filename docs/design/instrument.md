@@ -39,7 +39,7 @@ on 13 November 2026.
 - The frame from [Panel layouts](panel-layouts.md): top bar, content, the app's own docks, and Mobius alone at the right
   edge, never a tab.
 - The neutral frame, three flat surfaces, hairlines, and no glass or blur.
-- Ink for state, indigo with a dashed edge for Mobius, and colour for the user's content.
+- Ink for state, a dashed edge for Mobius (ink at rest, a travelling colour while it works), and colour for the user's content.
 - The four themes, Inter, single-weight line icons, and two densities.
 - Motion only for live state, with today's timings, and today's accessibility rules.
 - Keep, Discard, Try another, and the shared undo pill.
@@ -123,7 +123,7 @@ These mostly restate the adopted theme. Rules 4 and 5 are new.
 
 1. The frame is neutral in every theme: the top bar, docks and panels carry no colour.
 2. Ink shows state. Selection is a grey fill, primary buttons are ink, and a waiting dot is ink.
-3. Indigo with a dashed edge means Mobius and nothing else.
+3. A dashed edge means Mobius and nothing else; it is ink at rest and takes the travelling colour while Mobius works (see the [design guide](guide.md#colour-and-surfaces)).
 4. Colour belongs to the user's content: calendar colours, list colours, track colours, labels, charts. Content colours
    come from one shared palette of eight, so apps match each other.
 5. Content colour is shown as a small dot, a 3px edge or a soft tint. Solid colour blocks are only for things that are
@@ -158,7 +158,7 @@ Character is allowed in exactly five places. Everywhere else the instrument stay
 | Place | What it looks like | Limit |
 | --- | --- | --- |
 | Empty states | A small single-weight line drawing, one short line of text, and the New action | One drawing style for all apps, drawn in grey ink |
-| Mobius working | A 24 × 6 indigo dot matrix that moves with the kind of work: breathing while thinking, a scan while reading, a ping while searching, type filling while writing, a level meter while working, two blinking dots while waiting, a tick when done, an X when stopped. The bottom row fills with progress. Numbered steps and Stop sit beside it | Only while live, and the mode comes from the real tool running. It stops the moment the work ends |
+| Mobius working | A 24 × 6 dot matrix in `--mobius` that moves with the kind of work: breathing while thinking, a scan while reading, a ping while searching, type filling while writing, a level meter while working, two blinking dots while waiting, a tick when done, an X when stopped. The bottom row fills with progress. Numbered steps and Stop sit beside it | Only while live, and the mode comes from the real tool running. It stops the moment the work ends |
 | Agents | Each agent is a small dot character: body shape and colour from its name. At rest it shows two eye dots (idle, waiting for you, done, failed, paused). While it works it has no face, and its body shows the same pattern as the matrix | Two eye dots and at most a mouth line. Faces come only from real state. Mobius itself never gets a face |
 | Finishing something | A brief tick or strike-through when a task is completed or a change is kept | Under 200ms, and off when reduced motion is on |
 | Readouts in pro apps | Large mono values, step dots and meters in Music and Video | Shows real state only, never ornament |
@@ -280,11 +280,11 @@ comfortable first, then compact. Comment on a row to change it.
 | Search field | Shared field with a magnifier and the "/" key shown. | 32px / 28px tall |
 | List panel row | `SidebarRow`: line icon, label, and an optional grey count at the right. Selected is a grey fill with medium-weight ink. | 28px in both densities |
 | List panel section label | `SidebarSection`: small grey semibold label above a group ("Lists"). Sentence case. Small all-caps only in pro apps' panels. | 11 to 12px |
-| From Mobius row | In a list panel, the last group. Dashed Mobius icon, with an indigo note at the right such as "2 new". | Same as a row |
+| From Mobius row | In a list panel, the last group. Dashed Mobius icon, with a `--mobius` note at the right such as "2 new". | Same as a row |
 | Top bar | One row across the whole window, above every panel and Mobius. The Go button, the title of what is open, the app's controls in the middle, then the trailing group (and the window controls on Windows). A hairline below and no fill. | 52px / 44px tall |
 | Toolbar title | The name of what is open, with a grey detail after it ("Today · Thursday 13 November"). Never repeats the app name. | 15px semibold |
 | Trailing group | Fixed order: Panels, Comments, Share, the more menu, Mobius. Apps without comments or sharing leave those out. | 32px buttons |
-| Mobius button | The only tinted button in the frame: indigo icon on a pale indigo wash. Opens and closes the Mobius panel at the right edge. | 32px |
+| Mobius button | The only tinted button in the frame: the trefoil in ink, its bands going round the colours while Mobius works, on a light tint while its panel is open. Opens and closes the Mobius panel at the right edge. | 32px |
 | Right dock | The app's panels between the content and Mobius (Format, Inspector, Adjust, Outline, Details), as tabs when there is more than one. Same surface as the frame. | 280px, resizable to 240px |
 | Mobius panel | Mobius alone, at the far right edge, docked. Same surface as the docks. Never has tabs. | 340px, resizable to 280px |
 | Bottom dock | The app's wide or long panels under the content only (timelines, devices, terminals, speaker notes), as tabs when there is more than one. | 150px by default, resizable |
@@ -294,7 +294,7 @@ comfortable first, then compact. Comment on a row to change it.
 
 | Element | How it looks and behaves | Size |
 | --- | --- | --- |
-| Primary button | Solid ink with paper-coloured text. One per view at most. Never indigo. | 30px / 28px tall, 6 to 8px corners |
+| Primary button | Solid ink with paper-coloured text. One per view at most. Never coloured. | 30px / 28px tall, 6 to 8px corners |
 | Secondary button | White with a hairline border and ink text. | Same |
 | Quiet button | Text or icon only, with a grey fill on hover. Used in toolbars and rows. | Same |
 | Icon button | A line icon with no border. Hover is a grey fill. It always has a tooltip with its name and key. | 32px / 28px, 18px icon |
@@ -314,13 +314,13 @@ comfortable first, then compact. Comment on a row to change it.
 | Knob | A parameter cell as a dial for dense instrument panels. A 2px grey track arc, a 3px ink value arc and pointer with round caps, filling from the value's origin (pan from C, tune from 0). The value reads under it in mono: grey at its default, ink once changed. | 40px dial |
 | Envelope and filter graphs | A frame-grey plot with a light fill under one ink curve and hollow handles you drag. Readouts sit under the plot in mono. A modulated or "opens to" curve is a 1px solid muted line, never dashed, because dashed means Mobius. | Panel width, 120 to 160px tall |
 | EQ graph | The same plot with numbered band dots (across is frequency, up is gain) and the chosen band's own shape faint under the curve. Guides at ±6 and ±12 dB are solid hairlines at half the 0 dB line's strength, with faint mono labels at the left edge and 100, 1k, 10k along the foot. One column per band under the plot; the chosen band's dot and column are ink. | 144px tall, 120px compact |
-| Device frame | Head: grip, on/off switch, title, fold. Off dims the body only; the title stays ink so the device can be found in the chain. Collapsed shows the head alone. A device Mobius added waits with the dashed indigo edge. Labels are sentence case in fs-xs grey. | Head 32px, 28px compact |
+| Device frame | Head: grip, on/off switch, title, fold. Off dims the body only; the title stays ink so the device can be found in the chain. Collapsed shows the head alone. A device Mobius added waits with the dashed Mobius edge. Labels are sentence case in fs-xs grey. | Head 32px, 28px compact |
 | Step grid | Rows of square steps in groups of four, with every other group on frame grey. With `fill` the steps stretch across a wide area such as Music's notes panel, up to 64px each (56px compact) and 28px tall. An on-step is ink filled to its velocity height, an accent fills it. The playing column is outlined. | 32 to 36px steps, 4px gaps |
 | Automation lane | One setting's line under a track, exactly as wide as the arrangement so its beats meet the clips. Straight ink segments between round points, held flat before the first and after the last, over the faint 8% fill; bar lines are the faint guides. The setting's name and the focused point's place (bar.beat.sixteenth) and value sit top left in `fs-xs`, the value in mono. An empty lane shows the setting's own level as a thin muted line. Never dashed unless Mobius wrote the points. | 56px tall, 44px compact |
 | Menu | White, a hairline border, 10px corners and a soft shadow. Mobius actions come first where they exist, then the app's. Every item shows its key. | 30px rows |
 | Tooltip | Small ink label with the control's name, then its key. | 12px text |
 | Key cap | A small bordered cap with a heavier bottom edge. Used in menus, tooltips, the New button and the hint bar. | 11px text |
-| Link | A web link in reading text (replies, Notes, Docs, reports): ink text with a 1px underline in line-strong at a 2px offset, the underline turning ink on hover. Never blue; indigo stays for names of things Mobius touched. A sourced claim wears the same underline with a soft fill on hover; an unsure one is dotted and italic, still ink. A citation is a superscript [n] in muted fs-xs. | Text size |
+| Link | A web link in reading text (replies, Notes, Docs, reports): ink text with a 1px underline in line-strong at a 2px offset, the underline turning ink on hover. Blue (`--link`) only in long reading (Docs); names of things Mobius touched. A sourced claim wears the same underline with a soft fill on hover; an unsure one is dotted and italic, still ink. A citation is a superscript [n] in muted fs-xs. | Text size |
 | Chip (label or tag) | An outlined pill with a small colour dot and grey text. Never a solid colour fill. | 12px text |
 | Count | A plain grey number at the trailing edge. Never a black or coloured badge; a waiting app gets one ink dot on the Go button and in the launcher. | 12.5px, tabular |
 | Avatar | A grey circle with initials, or the photo. | 24px in one-line rows, 32px in two-line rows, 40px on a card |
@@ -340,7 +340,7 @@ comfortable first, then compact. Comment on a row to change it.
 | Card | Only for things that are objects in their own right: a file thumbnail, a board card, a dashboard tile. A list of rows is never drawn as cards. | 8 to 10px corners |
 | Empty state | A small line drawing, one short line of text, and the New action. It appears when a view is empty, and in a quieter form at the end of a short list. Built: `EmptyState` in the library, with a drawing for each kind of thing. | Drawing about 112 by 72px |
 | Bare field | A text field that reads as a line of text (an add row, a title edited in place) has no focus box. Its row's hairline turns ink while it has focus. Mark the input `data-bare`. | Row height |
-| Busy | Grey dots that rise and fall like a level meter, with what is loading said beside them. It replaces every spinner. Built: `Busy`. Mobius's own work is the indigo dot matrix, never this. | Text height |
+| Busy | Grey dots that rise and fall like a level meter, with what is loading said beside them. It replaces every spinner. Built: `Busy`. Mobius's own work is its dot matrix, never this. | Text height |
 | Selection | A grey fill for rows and an ink outline for objects on a canvas. The canvas selection handles are the one place blue is allowed, because blue there is a tool convention. | 1.5px outline |
 | Dates and times | Always from the shared formatter, in tabular figures, grey unless overdue. | 12.5 to 13.5px |
 | Scrollbars | Thin, grey, and visible only while scrolling or on hover. | 8px |
@@ -352,9 +352,9 @@ comfortable first, then compact. Comment on a row to change it.
 | Mobius panel header | The word "Mobius" as a plain title (never a tab), then new chat, history, pop out and close. No logo, gradient or status pill. | 52px / 44px tall |
 | Context line | Replaced by context chips in the composer. Until the shell changes: one grey line with an eye icon that says what Mobius can see ("Sees Tasks · Today"). | 12.5px |
 | Your message | A grey bubble, right-aligned. | 9px corners |
-| Mobius's reply | Plain text on the panel with no bubble. Names of things it touched are indigo links. | 14px, 1.6 line height |
+| Mobius's reply | Plain text on the panel with no bubble. Names of things it touched are `--mobius` links. | 14px, 1.6 line height |
 | Working indicator | The dot-matrix pattern, "Working" and a step count such as 02/04, the numbered steps, and Stop. | 24 by 6 dots |
-| Change block | A dashed indigo edge around what Mobius changed, in place in the content. It carries one line: Mobius changed this, Discard, Try another, Keep. | 1.5px dashed |
+| Change block | A dashed Mobius edge around what Mobius changed, in place in the content. It carries one line: Mobius changed this, Discard, Try another, Keep. | 1.5px dashed |
 | Proposed item | A new row, event or clip that Mobius added shows dashed and unfilled until you keep it. | Same as the item |
 | Composer | A white box at the foot of the panel with a hint, context chips above it, then one row: the plus button, Mode, Permission, the model and an ink send button. | 9px corners |
 | Suggestions | Up to three quiet text rows above the composer when the chat is empty. No coloured pills. | Row height |
@@ -414,7 +414,7 @@ Every control and row shows the same states in the same way.
 | Loading | Grey placeholder bars the shape of the content that's coming. No spinners in content. |
 | Dragging | The dragged thing follows the pointer at 90% opacity with the raised shadow. |
 | Drop target | A 2px ink line where the thing will land, or an ink outline around the row or folder that will take it. |
-| Changed by Mobius | A dashed indigo edge until you keep or discard it. |
+| Changed by Mobius | A dashed Mobius edge until you keep or discard it. |
 | Error | A red dot and one plain sentence next to the thing that failed. |
 | Unread or new | Semibold title. No coloured dot. |
 
@@ -458,7 +458,7 @@ The frame holds and the app shapes its tools. This draws the line, so app thread
 | The frame: top bar, content, docks, Mobius at the right edge | Which views it has and what the content looks like |
 | Sizes, spacing, corners, faces and weights | Which controls go in the toolbar's middle slot |
 | The states table | Which panels it has, which dock each starts in, and which start shown |
-| Ink for state and indigo for Mobius | How the user's content colours are used inside the content |
+| Ink for state and `--mobius` for Mobius | How the user's content colours are used inside the content |
 | Shared controls, menus, the undo pill and the empty state | Its empty-state drawing and one line of text |
 | Comfortable or compact row heights | Which density it starts in |
 
@@ -812,8 +812,8 @@ size token.**
 | Head | "Mobius" as a plain title (never a tab), then New chat, History, Pop out and Close as icon buttons | 52px / 44px tall, 32px buttons |
 | Glance (slot) | One paper card: up to three facts as a grey label over a value (tabular figures), and at most one quiet button. Hidden when the app gives none. | 8px corners, 12px inside |
 | Section heading | "Waiting for you", "For this email", "Earlier chats": grey semibold, sentence case, a count at the right, a hairline under it | 12.5px, 20px above |
-| Waiting card | One per pending change. Dashed indigo edge (1.5px). Line 1: app icon and what changed, one line, ending in an ellipsis. Line 2: grey app name and time. Then Show and Discard as quiet text buttons and one small ink Keep at the right. Three at most, then a "2 more" row. | 8px corners, 26px buttons |
-| Other chat needing you | A list row: the chat's title, and "Needs your answer" in indigo text at the right. No dot. | 36px / 32px row |
+| Waiting card | One per pending change. Dashed Mobius edge (1.5px). Line 1: app icon and what changed, one line, ending in an ellipsis. Line 2: grey app name and time. Then Show and Discard as quiet text buttons and one small ink Keep at the right. Three at most, then a "2 more" row. | 8px corners, 26px buttons |
+| Other chat needing you | A list row: the chat's title, and "Needs your answer" in `--mobius` text at the right. No dot. | 36px / 32px row |
 | Actions (slot) | The ideas list. Up to four rows that follow the selection: a 16px line icon, the action, and its number key cap at the right. Grey fill on hover. Never outlined buttons, and never a lone button above the list. | 36px / 32px rows |
 | Earlier chats | List rows: title with an ellipsis, time at the right in grey tabular figures. Five at most, then "All chats" opens History. | 36px / 32px rows |
 
@@ -834,7 +834,7 @@ size token.**
 | --- | --- | --- |
 | Steps | Numbered rows. The number in tabular grey, then the step naming its app ("Checking Calendar for the 23rd"). The current step is ink, done steps grey. | 28px rows |
 | Stop | A quiet button with Esc shown, always under the steps | 26px |
-| Reply | Plain 14px text, no bubble. Names of things it touched are indigo links. | 1.6 line height |
+| Reply | Plain 14px text, no bubble. Names of things it touched are `--mobius` links. | 1.6 line height |
 | Under each reply | Rewind to here, Copy and one follow-up as grey text buttons. The model that answered in small grey text at the right. | 12.5px, model fs-xs |
 | Result (slot) | The real objects, drawn as shared object cards or rows | Shared object sizes |
 | Turn summary | One per turn that changed things. A paper card with a hairline between parts. Header: the title on one line with an ellipsis and "5 changes" in grey at the right. One row per app with its icon, what changed and Show. Footer: Discard all and Try another as quiet text on the left, one ink Keep all on the right, all on one line. | 8px corners, 36px header, 32px rows, 40px footer |
@@ -890,7 +890,7 @@ count at the trailing edge in tabular figures.
 | File | The kind's line icon | App and folder | When it last changed |
 | Person | Grey initials | Role or address | A count, such as "3 emails" |
 
-Anything Mobius proposed or changed carries the dashed indigo edge in every form, inset 3px with 8px corners in a list,
+Anything Mobius proposed or changed carries the dashed Mobius edge in every form, inset 3px with 8px corners in a list,
 and its card's kind line says "changed by Mobius". Mock: `instrument/mobius-shared-objects.jpg`. The two-axis pad's mock
 is `instrument/mobius-xy-pad.jpg`.
 

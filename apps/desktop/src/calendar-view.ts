@@ -197,7 +197,7 @@ export function calendarGlance(events: readonly CalendarEvent[], now: Date): { l
 }
 
 /** A colour for each calendar, by its place in the list, the same everywhere it is drawn. */
-// Neighbours are far apart in hue, so the first calendars never look alike, and indigo, Mobius's own colour, comes last.
+// Neighbours are far apart in hue, so the first calendars never look alike, and Mobius's colour, Mobius's own colour, comes last.
 export const PALETTE = ['#0a84ff', '#ff9f0a', '#34c759', '#af52de', '#ff3b30', '#00a3a3', '#a2845e', '#5856d6'];
 export const calendarColor = (calendars: readonly string[], name: string) => PALETTE[Math.max(0, calendars.indexOf(name)) % PALETTE.length]!;
 

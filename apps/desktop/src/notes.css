@@ -160,7 +160,7 @@
 .note-comments-panel .note-comment-tools { justify-content: flex-end; margin: 0 -4px -4px 0; }
 
 /* A commented passage: one soft warm tint and no underline, the same in Docs (--comment, with its own dark step). */
-/* A passage Mobius cited, when the note is opened from its answer: a soft grey tint that fades. Not indigo and not
+/* A passage Mobius cited, when the note is opened from its answer: a soft grey tint that fades. Not Mobius's colour and not
    dashed, because Mobius only read it. Under Reduce Motion it stays a moment, then goes without fading. */
 @keyframes note-cited-fade { 0%, 40% { background: var(--sel); } 100% { background: transparent; } }
 .note-page .note-cited { border-radius: var(--radius-small); animation: note-cited-fade calc(var(--dur-fade) * 10) var(--ease) both; }

@@ -926,6 +926,7 @@ export function createTauriBridge(): MobiusBridge {
       showBeside: (id) => fire('browser', 'showBeside', [id]),
       setZoom: (id, factor) => fire('browser', 'setZoom', [id, factor]),
       mute: (id, muted) => fire('browser', 'mute', [id, muted]),
+      emulate: (id, emulation) => fire('browser', 'emulate', [id, emulation]),
       peek: (url) => fire('browser', 'peek', [url]),
       keepPeek: () => call('browser', 'keepPeek', [], () => null),
       getState: () => call('browser', 'getState', [], () => EMPTY_BROWSER),

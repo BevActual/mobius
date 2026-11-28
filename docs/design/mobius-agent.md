@@ -47,7 +47,7 @@ work does not come back as one thing to answer, and the panel is a chat log rath
 
 ## The agent: five directions
 
-1. **A visible co-worker.** While Mobius works in an app, it is there: its own indigo cursor and selection move to
+1. **A visible co-worker.** While Mobius works in an app, it is there: its own cursor in `--mobius` and selection move to
    where it is acting, the dashed edge grows around what it touched, and a small pill in the app says what it is doing
    ("Filling in the quote table"). Pressing it, or starting to type, pauses Mobius at once (ChatGPT agent's
    interrupt and takeover); Resume carries on. This is the Duet gap turned into Mobius's strength.
