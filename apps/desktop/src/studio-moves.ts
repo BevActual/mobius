@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, MAX_SCENES, playedNotes, sceneCount, type ArrangeClip, type Clip, type Song, type SongNote } from './song-format';
+import { BEATS_PER_BAR, MAX_SCENES, barBeats, playedNotes, sceneCount, type ArrangeClip, type Clip, type Song, type SongNote } from './song-format';
 import { recordOver } from './studio-view';
 
 /**
@@ -29,7 +29,7 @@ export function placeInArrange(song: Song, trackId: string, clip: Clip, at: numb
   // An audio clip goes on an audio track and a clip of notes on any other, as Live keeps them.
   if (!t || t.frozen || !!clip.audio !== (t.kind === 'audio')) return null;
   const start = r4(Math.max(0, at));
-  const pass = Math.max(1, clip.bars) * BEATS_PER_BAR;
+  const pass = Math.max(1, clip.bars) * barBeats(song);
   // `played`: how long it went round (a recorded launch), else one pass.
   const length = r4(Math.max(0.25, played ?? pass));
   const id = nextIds(t.clips);
@@ -39,7 +39,7 @@ export function placeInArrange(song: Song, trackId: string, clip: Clip, at: numb
   if (clip.envelopes) placed.envelopes = structuredClone(clip.envelopes);
   if (clip.unlinked) placed.unlinked = structuredClone(clip.unlinked);
   t.clips = [...kept, placed].sort((a, b) => a.start - b.start);
-  song.bars = Math.max(song.bars, Math.ceil((start + length) / BEATS_PER_BAR));
+  song.bars = Math.max(song.bars, Math.ceil((start + length) / barBeats(song) - 1e-9));
   return placed.id;
 }
 
@@ -47,9 +47,9 @@ export function placeInArrange(song: Song, trackId: string, clip: Clip, at: numb
  * A Session clip that plays what an Arrange clip played: its notes from the start marker, round its loop, for its
  * length, in whole bars. An audio clip keeps its sound and where in it it starts.
  */
-export function asSessionClip(c: ArrangeClip, fallbackName: string): Clip {
+export function asSessionClip(c: ArrangeClip, fallbackName: string, perBar = BEATS_PER_BAR): Clip {
   const notes: SongNote[] = c.audio ? [] : playedNotes(c).map((n) => ({ ...n, start: r4(n.start - c.start) }));
-  const out: Clip = { name: (c.name || fallbackName).slice(0, 60), bars: Math.max(1, Math.ceil(c.length / BEATS_PER_BAR - 1e-9)), notes };
+  const out: Clip = { name: (c.name || fallbackName).slice(0, 60), bars: Math.max(1, Math.ceil(c.length / perBar - 1e-9)), notes };
   if (c.audio) out.audio = { ...c.audio };
   if (c.envelopes && !c.loop && !c.offset) out.envelopes = structuredClone(c.envelopes);
   return out;
@@ -85,7 +85,7 @@ export function copyToSession(song: Song, trackId: string, clipId: string): numb
   if (!t || !c) return null;
   const slot = freeSlot(song, trackId);
   if (slot === null) return null;
-  putSlot(song, trackId, slot, asSessionClip(c, t.name));
+  putSlot(song, trackId, slot, asSessionClip(c, t.name, barBeats(song)));
   return slot;
 }
 
@@ -118,7 +118,7 @@ export function consolidateToScene(song: Song, from: number, to: number, after: 
   const filled = Math.max(song.scenes?.length ?? 0, ...song.tracks.map((t) => t.slots?.length ?? 0));
   const row = after === null ? Math.max(filled, 0) : Math.min(after + 1, scenes);
   if (filled >= MAX_SCENES || row >= MAX_SCENES) return null;
-  const bars = Math.max(1, Math.ceil((hi - lo) / BEATS_PER_BAR - 1e-9));
+  const bars = Math.max(1, Math.ceil((hi - lo) / barBeats(song) - 1e-9));
   const names = [...(song.scenes ?? [])];
   while (names.length < row) names.push('');
   names.splice(row, 0, '');
@@ -150,7 +150,8 @@ export interface Jam { from: number; at: number; parts: Record<string, JamPart[]
  * already playing is heard from there.
  */
 export function startJam(song: Song, playing: Readonly<Record<string, { slot: number; start: number }>>, beat: number, at: number): Jam {
-  const jam: Jam = { from: Math.floor(Math.max(0, beat) / BEATS_PER_BAR) * BEATS_PER_BAR, at: Math.max(0, at), parts: {} };
+  const perBar = barBeats(song);
+  const jam: Jam = { from: Math.floor(Math.max(0, beat) / perBar + 1e-9) * perBar, at: Math.max(0, at), parts: {} };
   hearJam(jam, song, playing, beat);
   for (const list of Object.values(jam.parts)) for (const p of list) p.from = Math.max(p.from, jam.from);
   return jam;
@@ -167,7 +168,7 @@ export function hearJam(jam: Jam, song: Song, playing: Readonly<Record<string, {
     const open = list[list.length - 1];
     const now = playing[id];
     if (open && open.to === null && (!now || now.slot !== open.slot || now.start > open.from + 1e-9)) {
-      open.to = now ? now.start : Math.max(open.from, Math.floor(beat / BEATS_PER_BAR) * BEATS_PER_BAR);
+      open.to = now ? now.start : Math.max(open.from, Math.floor(beat / barBeats(song) + 1e-9) * barBeats(song));
     }
     const still = open && open.to === null;
     if (now && !still) {

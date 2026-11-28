@@ -4,7 +4,7 @@
 
 use serde::Deserialize;
 
-/// Beats in a bar: Music is in 4/4 for now.
+/// Beats (quarter notes) in a bar of 4/4, a song's time signature when it has none.
 pub const BEATS_PER_BAR: f64 = 4.0;
 /// The most notes a track plays (as the window keeps to).
 const MAX_NOTES: usize = 20_000;
@@ -13,6 +13,9 @@ const MAX_NOTES: usize = 20_000;
 pub struct Song {
     pub tempo: f64,
     pub bars: u32,
+    /// The time signature, `[beats, unit]` as 6/8 is `[6, 8]` (Live 12's control bar); none is 4/4.
+    #[serde(default)]
+    pub signature: Option<[u32; 2]>,
     #[serde(default)]
     pub tracks: Vec<Track>,
     /// The Main track: where every track and return ends up, with its own effects and level.
@@ -647,7 +650,29 @@ impl Song {
     /// The song's length in beats.
     #[must_use]
     pub fn beats(&self) -> f64 {
-        f64::from(self.bars) * BEATS_PER_BAR
+        f64::from(self.bars) * self.bar_beats()
+    }
+
+    /// The time signature kept to what the window allows: 1 to 32 beats of a whole, half, quarter, eighth or sixteenth.
+    #[must_use]
+    pub fn meter(&self) -> (u32, u32) {
+        match self.signature {
+            Some([n, d]) if (1..=32).contains(&n) && matches!(d, 1 | 2 | 4 | 8 | 16) => (n, d),
+            _ => (4, 4),
+        }
+    }
+
+    /// Quarter-note beats in a bar: 4 in 4/4, 3 in 3/4 and in 6/8, 3.5 in 7/8.
+    #[must_use]
+    pub fn bar_beats(&self) -> f64 {
+        let (n, d) = self.meter();
+        f64::from(n) * 4.0 / f64::from(d)
+    }
+
+    /// Quarter-note beats from one beat of the time signature to the next: 1 in 4/4, a half in 6/8. The metronome ticks on them.
+    #[must_use]
+    pub fn beat_unit(&self) -> f64 {
+        4.0 / f64::from(self.meter().1)
     }
 }
 

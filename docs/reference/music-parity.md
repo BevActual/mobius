@@ -46,7 +46,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | --- | --- | --- | --- |
 | Clips are objects on a track: start, length, loop, offset, name, colour | Real clips in Arrange with name and mute; **loop and start marker in the format and played by the engine and the window player alike; Loop in a clip's menu, stretching a looped clip repeats it** | Clip View's Set buttons, the loop brace in the notes editor, colour | XL (format) |
 | Drag clips between Session and Arrange; record Session into Arrange | Copy to Arrange and Copy to Session in the clips' menus, a Session clip dragged over Arrange's name and dropped on a track, slot-to-slot drags (Ctrl copies), and Consolidate Loop to New Scene (Live 12 manual, 7.5 "Recording Sessions into the Arrangement"; audio tracks are left empty there for now, as Live renders a new sample) | Done: Record in Session (F9) lays each launch into Arrange from the bar Arrange's playhead was on, going round for as long as it played (7.5). Back to Arrangement is not needed while Music plays Session and Arrange one at a time; Session clips playing over the Arrangement would need the engine to mix both | M |
-| Time signature and tempo changes along the song | One tempo, 4/4 | Tempo and meter lanes | M |
+| Time signature and tempo changes along the song | One tempo; a time signature per song (`signature`, 1 to 32 over 1, 2, 4, 8 or 16) set in the control bar's readout: bars, the ruler, the position (counted in the signature's own beat), loops, steps, Session launches and the metronome (ticking each beat, louder on the bar) follow it | Tempo changes along the song, then meter changes | M |
 | Locators and arrangement markers, sections to move as a whole | None | Markers, then sections | M |
 | Group tracks, folding, a group's own level and effects | None | Groups | L |
 | Take lanes and comping | None | After audio | L |
@@ -282,6 +282,7 @@ are read as version 2 on load, and saved as version 2 when next changed.
 ```ts
 interface Song {
   version: 2; tempo: number; key: string; bars: number;
+  signature?: [number, number];            // the time signature, [beats, unit]; none is 4/4. Beats everywhere are quarter notes
   meter?: [number, number];                 // [4, 4] when absent
   changes?: { beat: number; tempo?: number; meter?: [number, number] }[];   // along the song
   tracks: Track[];

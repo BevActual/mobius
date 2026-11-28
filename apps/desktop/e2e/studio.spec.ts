@@ -744,6 +744,33 @@ test('an Electric track is a modelled electric piano: tine or reed, its decay, h
   await expect.poll(() => (saved().tracks[1] as { electric?: unknown }).electric).toBeUndefined();
 });
 
+test('a song takes a time signature: bars, the playhead and the ruler count in it, and 4/4 is written as none', async () => {
+  await start();
+  const meter = shell().getByRole('group', { name: 'Time signature' });
+  await meter.getByRole('spinbutton', { name: 'Beats in a bar' }).fill('3');
+  await expect.poll(() => (saved() as { signature?: number[] }).signature).toEqual([3, 4]);
+  // A bar on is three beats on: the playhead reads bar 2, beat 1.
+  const ruler = shell().getByRole('slider', { name: 'Playhead' });
+  await ruler.focus();
+  await shell().keyboard.press('ArrowRight');
+  await expect(ruler).toHaveAttribute('aria-valuenow', '3');
+  await expect(shell().getByRole('status', { name: 'Position' })).toHaveText('2 . 1 . 1');
+  // The song is four bars of 3/4: twelve beats.
+  await expect(ruler).toHaveAttribute('aria-valuemax', '12');
+  // 6/8 counts in eighths: half a beat on is the bar's second.
+  await meter.getByRole('spinbutton', { name: 'Beats in a bar' }).fill('6');
+  await meter.getByRole('combobox', { name: 'Beat unit' }).click();
+  await shell().getByRole('option', { name: '8', exact: true }).click();
+  await expect.poll(() => (saved() as { signature?: number[] }).signature).toEqual([6, 8]);
+  await expect(shell().getByRole('status', { name: 'Position' })).toHaveText('2 . 1 . 1');
+  // Back to 4/4, the song has no signature written.
+  await meter.getByRole('spinbutton', { name: 'Beats in a bar' }).fill('4');
+  await meter.getByRole('combobox', { name: 'Beat unit' }).click();
+  await shell().getByRole('option', { name: '4', exact: true }).click();
+  await expect.poll(() => (saved() as { signature?: number[] }).signature).toBeUndefined();
+  await expect(ruler).toHaveAttribute('aria-valuemax', '16');
+});
+
 test('a melody is written as steps too, a row per note of the key', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start([], 'Bass');

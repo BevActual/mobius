@@ -1,5 +1,5 @@
 import type { MusicPosition, MusicTake } from '@mobius/shared';
-import { BEATS_PER_BAR, type ArrangeClip, type DrumPad, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
+import { BEATS_PER_BAR, barBeats, type ArrangeClip, type DrumPad, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
 import type { Cycle } from './studio-view';
 
 export interface Player {
@@ -297,7 +297,7 @@ function clockPlay(song: Song, fromBeat: number, loop: Cycle | null, endless = f
   const beat = () => {
     let b = fromBeat + (((stopped ?? performance.now()) - started) / 60000) * song.tempo;
     if (loop && fromBeat < loop.to && b >= loop.to) b = loop.from + ((b - loop.from) % (loop.to - loop.from));
-    return loop || endless ? b : Math.min(b, song.bars * BEATS_PER_BAR);
+    return loop || endless ? b : Math.min(b, song.bars * barBeats(song));
   };
   return { stop() { stopped ??= performance.now(); }, beat, update(next) { song = next; } };
 }
@@ -310,7 +310,7 @@ function clockSession(song: Song, launches: SessionQueued): SessionPlayer {
   let asked = 0;
   const land = () => {
     const now = clock.beat();
-    const bar = Math.ceil((asked + 1e-9) / BEATS_PER_BAR) * BEATS_PER_BAR;
+    const bar = Math.ceil((asked + 1e-9) / barBeats(song)) * barBeats(song);
     if (Object.keys(queued).length === 0 || (asked > 0 && now < bar)) return;
     const next = { ...playing };
     for (const [id, slot] of Object.entries(queued)) {
