@@ -82,7 +82,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | --- | --- | --- | --- |
 | Sample playback (one-shot, slicing, classic) | Sampler track in the engine: Classic (polyphonic, the track's ADSR, optional loop) and One-Shot (monophonic, trigger or gate, fades), a region and a root note (Live 12 manual, 36.8 "Working with Samples") | Slicing; the window's Sampler track and file drop | M |
 | A drum rack: a pad per sample, its own chain on each pad | Synth kit with pads; a pad can hold a sample, played at its own pitch with the pad's tune, level and pan (25.6.1 "Pad View") | A chain on each pad; instruments on pads | M |
-| Wavetable, FM, granular, physical modelling synths | A subtractive voice, and String: a modelled string in the engine (`string.rs`), plucked, struck or bowed, with Decay, Damping, Position and Tone (after Live 12's Tension); and Mallet: a struck resonator (`mallet.rs`, modal synthesis), a marimba bar, free beam, membrane, plate, closed pipe or bell, with Decay, Material, Hardness and Position (after Live 12's Collision) | Collision's second resonator and noise exciter, electric piano (Electric), wavetable, FM, grain cloud | L each |
+| Wavetable, FM, granular, physical modelling synths | A subtractive voice, and String: a modelled string in the engine (`string.rs`), plucked, struck or bowed, with Decay, Damping, Position and Tone (after Live 12's Tension); and Mallet: a struck resonator (`mallet.rs`, modal synthesis), a marimba bar, free beam, membrane, plate, closed pipe or bell, with Decay, Material, Hardness and Position (after Live 12's Collision); and Electric: a modelled electric piano (`electric.rs`), a tine or reed struck by a hammer, its bell partials, tone bar and a nonlinear pickup, with Decay, Hardness, Bell and Drive (after Live 12's Electric) | Collision's second resonator and noise exciter, Electric's damper and pickup controls, wavetable, FM, grain cloud | L each |
 | Instrument racks with macros | In the engine: a track's `stack: { chains: [{ instrument, sound?, keys?: { low, high }, velocities?: { low, high }, volume?, pan?, muted? }] }`, up to 16 chains, each playing the notes in its key and velocity zones in place of the track's instrument, in songs and from a keyboard | The window; zone fades; macros; sampler and drum chains | M |
 
 ### Effects and modulation
@@ -299,6 +299,7 @@ interface Track {
   sampler?: SamplerSound;                   // kind "sampler": its notes play this; pads may hold one as `sample`
   string?: { exciter: "pluck" | "hammer" | "bow"; decay: number; damping: number; position: number; tone: number };   // instrument "string"
   mallet?: { resonator: "marimba" | "beam" | "membrane" | "plate" | "pipe" | "bell"; decay: number; material: number; hardness: number; position: number };   // instrument "mallet"
+  electric?: { fork: "tine" | "reed"; decay: number; hardness: number; bell: number; drive: number };   // instrument "electric"
   sends?: Record<string, number>;           // return id -> level 0..1
   clips: ArrangeClip[];                     // Arrange, in time order, never overlapping
   slots?: (Clip | null)[];                  // Session, one per scene

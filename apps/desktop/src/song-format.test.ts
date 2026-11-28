@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song, soundOf, stringOf, STRING_DEFAULTS, malletOf, MALLET_DEFAULTS } from './song-format';
+import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song, soundOf, stringOf, STRING_DEFAULTS, malletOf, MALLET_DEFAULTS, electricOf, ELECTRIC_DEFAULTS } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -575,5 +575,22 @@ describe('a mallet track', () => {
     if (!('song' in plain)) throw new Error(plain.error);
     expect(malletOf(plain.song.tracks[0]!)).toEqual({ ...MALLET_DEFAULTS, resonator: 'bell' });
     expect(malletOf({ instrument: 'string' })).toBeNull();
+  });
+});
+
+describe('an electric piano track', () => {
+  it('keeps its settings in range, writes them back, and has no synth sound', () => {
+    const read = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 4, tracks: [{ id: 't1', instrument: 'electric', clips: [], sound: { cutoff: 900 }, mallet: { decay: 2 }, electric: { fork: 'clav', decay: 0, hardness: 0.8, bell: 7, drive: 'lots' } }] }));
+    if (!('song' in read)) throw new Error(read.error);
+    const t = read.song.tracks[0]!;
+    expect(t.electric).toEqual({ fork: 'tine', decay: 0.2, hardness: 0.8, bell: 1, drive: 0.35 });
+    expect(t.sound).toBeUndefined();
+    expect(t.mallet).toBeUndefined();
+    expect(soundOf(t)).toBeNull();
+    expect(JSON.parse(writeSong(read.song)).tracks[0].electric).toEqual(t.electric);
+    const plain = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 4, tracks: [{ id: 't1', instrument: 'electric', clips: [], electric: { fork: 'reed' } }] }));
+    if (!('song' in plain)) throw new Error(plain.error);
+    expect(electricOf(plain.song.tracks[0]!)).toEqual({ ...ELECTRIC_DEFAULTS, fork: 'reed' });
+    expect(electricOf({ instrument: 'piano' })).toBeNull();
   });
 });
