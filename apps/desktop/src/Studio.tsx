@@ -18,7 +18,7 @@ import { deleteGroup, groupRows, groupTracks, leaveGroup, soloInside, tracksIn, 
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
-import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, setChance, setStepExtra, stepMark, stepNotes, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { secondsAt, setTempoLine, tempoAt, tempoChanges, tempoLine, TEMPO_MAX, TEMPO_MIN } from './studio-tempo';
 import { type AutoChoice, stackTargets, autoChoices, envelopeChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, setEnvelope, setUnlinked, toLane } from './studio-auto';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
@@ -1970,6 +1970,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const shownVelocity = (j: number, v: number) => (velDrag && velDrag.these.has(j) ? Math.max(0, Math.min(1, v + velDrag.by)) : v);
 
   const velocity = pickedNotes.length ? pickedNotes.reduce((a, n) => a + n.velocity, 0) / pickedNotes.length : null;
+  // The picked notes' chance (Live 12's note Chance), their average as the slider shows it.
+  const chance = pickedNotes.length ? pickedNotes.reduce((a, n) => a + (n.chance ?? 1), 0) / pickedNotes.length : null;
 
   // What Mobius changed: one floating bar under the tracks (the panel look), the clips themselves dashed. Why opens
   // what was asked under it.
@@ -2219,6 +2221,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
             <span className="ui-field-label" aria-hidden="true">Velocity</span>
             <Slider className="studio-velocity" label="Velocity" hideLabel hideValue value={Math.round(velocity * 100) / 100} min={0} max={1} step={0.01} format={(v) => String(Math.round(v * 127))} onChange={(v) => setNotes((n) => setVelocity(n, picked, v), 'velocity')} />
             <span className="studio-mono studio-vel-value" aria-hidden="true">{Math.round(velocity * 127)}</span>
+            <span className="ui-field-label" aria-hidden="true">Chance</span>
+            <Slider className="studio-velocity" label="Chance" hideLabel hideValue value={Math.round((chance ?? 1) * 100) / 100} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setNotes((n) => setChance(n, picked, v), 'chance')} />
+            <span className="studio-mono studio-vel-value" aria-hidden="true">{Math.round((chance ?? 1) * 100)}%</span>
             <span className="studio-picked-sep" aria-hidden="true" />
             <Button kind="quiet" danger aria-label="Delete notes" title="Delete" keys="Delete" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</Button>
           </span>
@@ -2240,6 +2245,19 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       <p className="studio-dev-note studio-steps-hint">{drums ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Rows are the notes of the key. Click a step to play that note there, Shift+click for an accent.'}</p>
       <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, spanBars - 1) + 1}`} rows={stepRows} cells={stepCells(notes, Math.min(stepBar, spanBars - 1), stepRows.map((r) => Number(r.id)), perBar)}
         now={playing && rollBeat >= 0 && Math.floor(rollBeat / perBar + 1e-9) === Math.min(stepBar, spanBars - 1) ? Math.floor((rollBeat - Math.floor(rollBeat / perBar + 1e-9) * perBar) * 4) : undefined}
+        marks={stepNotes(notes, Math.min(stepBar, spanBars - 1), stepRows.map((r) => Number(r.id)), perBar).map((row) => row.map(stepMark))}
+        onMenu={(row, step, x, y) => {
+          // A step's Repeat and Chance (Live 13's step sequencer tabs), from its menu.
+          const pitch = Number(stepRows[row]!.id);
+          const bar = Math.min(stepBar, spanBars - 1);
+          const n = stepNotes(notes, bar, [pitch], perBar)[0]![step];
+          if (!n) return;
+          const set = (extra: { chance?: number; repeat?: number }) => setNotes((ns) => setStepExtra(ns, bar, pitch, step, extra, perBar), 'steps');
+          setMenu({ x, y, label: `${stepRows[row]!.name}, step ${step + 1}`, items: [
+            ...[1, 2, 3, 4, 6, 8].map((r) => ({ label: r === 1 ? 'Play Once' : `Repeat ${r} Times`, checked: (n.repeat ?? 1) === r, run: () => set({ repeat: r }) })),
+            ...[1, 0.75, 0.5, 0.25, 0.1].map((c, i) => ({ label: c === 1 ? 'Always Play' : `${Math.round(c * 100)}% Chance`, checked: (n.chance ?? 1) === c, separated: i === 0, run: () => set({ chance: c }) })),
+          ] });
+        }}
         onChange={(row, step, v) => {
           const pitch = Number(stepRows[row]!.id);
           if (v > 0) { previewOn(track, pitch, v, drums ? undefined : 0.3, track.pads?.[pitch]); }
@@ -2282,7 +2300,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   data-instrument={track.instrument}
                   role="button"
                   aria-pressed={isPicked}
-                  aria-label={`${r.label} at beat ${n.start + 1}, ${n.length} beats`}
+                  aria-label={`${r.label} at beat ${n.start + 1}, ${n.length} beats${n.chance !== undefined && n.chance < 1 ? `, ${Math.round(n.chance * 100)}% chance` : ''}`}
+                  data-chance={n.chance !== undefined && n.chance < 1 || undefined}
                   style={{ left, width, transform: isPicked && dragShift ? `translateY(${dragShift.dr * rowH}px)` : undefined, ['--vel' as string]: n.velocity }}
                 >{width > 10 && <span className="studio-note-end" aria-hidden="true" />}</span>
               );

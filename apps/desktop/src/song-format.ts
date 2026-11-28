@@ -57,7 +57,16 @@ export const ELECTRIC_RANGE: Record<Exclude<keyof ElectricSound, 'fork'>, { lo: 
 /** An electric piano track's settings: its own, or the piano's own. */
 export const electricOf = (t: Pick<Track, 'instrument' | 'electric'>): ElectricSound | null => (t.instrument === 'electric' ? { ...ELECTRIC_DEFAULTS, ...t.electric } : null);
 export const INSTRUMENT_NAMES: Record<Instrument, string> = { piano: 'Piano', bass: 'Bass', pad: 'Pad', lead: 'Lead', drums: 'Drums', string: 'String', mallet: 'Mallet', electric: 'Electric' };
-export interface SongNote { pitch: number; start: number; length: number; velocity: number }
+export interface SongNote { pitch: number; start: number; length: number; velocity: number; /** The chance it plays each time it comes round, 0 to 1 (Live 12's note Chance); left out, always. */ chance?: number; /** How many times it plays, evenly over its length (Live 13's step Repeat), 2 to 8; left out, once. */ repeat?: number }
+/** The most times a note repeats (the engine's own limit). */
+export const MAX_REPEAT = 8;
+/** A note's chance and repeat from a file, kept only when they change how it plays. */
+export function noteExtras(v: Record<string, unknown>): Pick<SongNote, 'chance' | 'repeat'> {
+  const out: Pick<SongNote, 'chance' | 'repeat'> = {};
+  if (typeof v.chance === 'number' && Number.isFinite(v.chance) && v.chance < 1) out.chance = Math.round(Math.max(0, v.chance) * 100) / 100;
+  if (typeof v.repeat === 'number' && Number.isFinite(v.repeat) && v.repeat >= 2) out.repeat = Math.min(MAX_REPEAT, Math.round(v.repeat));
+  return out;
+}
 /**
  * How a track's instrument sounds (the Device panel):
  *
@@ -629,7 +638,7 @@ function readNotes(list: unknown, beats: number): SongNote[] {
   return (Array.isArray(list) ? list : []).slice(0, 5000).flatMap((n): SongNote[] => {
     const v = Array.isArray(n) ? { pitch: n[0], start: n[1], length: n[2], velocity: n[3] } : obj(n);
     if (typeof v.pitch !== 'number' || typeof v.start !== 'number') return [];
-    return [{ pitch: Math.round(num(v.pitch, 60, 0, 127)), start: num(v.start, 0, 0, beats), length: num(v.length, 1, 0.0625, 64), velocity: num(v.velocity, 0.8, 0, 1) }];
+    return [{ pitch: Math.round(num(v.pitch, 60, 0, 127)), start: num(v.start, 0, 0, beats), length: num(v.length, 1, 0.0625, 64), velocity: num(v.velocity, 0.8, 0, 1), ...noteExtras(v) }];
   }).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 }
 

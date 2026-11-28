@@ -188,6 +188,8 @@
 .studio-key[data-drum] { padding: 0 var(--sp-2); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: var(--fs-sm) / var(--row, 26px) var(--font); color: var(--ink); background: color-mix(in srgb, var(--ink) 3%, var(--paper)); border-bottom-color: var(--line); }
 /* A note in the track's colour, stronger for louder. */
 .studio-page .studio-note { position: absolute; top: 1px; bottom: 1px; border-radius: var(--radius-small); background: color-mix(in srgb, var(--tc) calc(45% + var(--vel, 0.8) * 55%), var(--paper)); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--tc) 60%, var(--ink)); cursor: grab; }
+/* A note with less than full chance (Live 12's note Chance): a dashed edge, as it may not play. */
+.studio-page .studio-note[data-chance] { background: color-mix(in srgb, var(--tc) calc(25% + var(--vel, 0.8) * 40%), var(--paper)); outline: var(--hairline-w) dashed color-mix(in srgb, var(--tc) 70%, var(--ink)); outline-offset: -1px; }
 /* The end of a note, to drag to stretch it. */
 .studio-page .studio-note-end { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: ew-resize; }
 .studio-page .studio-note[data-picked] { box-shadow: inset 0 0 0 1.5px var(--paper), 0 0 0 1.5px var(--ink); z-index: 1; }

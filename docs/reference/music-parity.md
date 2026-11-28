@@ -71,7 +71,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Scale awareness everywhere: fold to scale, highlight, devices follow the key | Key and out-of-key shown | Fold to scale, devices follow the key | M |
 | Transform tools (arpeggiate, chop, strum, ornament, connect, recombine, quantize, humanize) | A Transform menu: quantize, arpeggiate, strum, fit to key, chop, connect, reverse, humanize | Settings per tool, ornament, recombine | M |
 | Generators (rhythm, seed, shape, stacks, Euclidean) | Mobius writes parts | Generators that run locally, next to Ask Mobius | L |
-| Note probability, velocity range, chance | Velocity only | Per-note chance and range | M |
+| Note probability, velocity range, chance | Per-note Chance (Live 12's note Chance; note `chance`, 0 to 1): a Chance slider beside Velocity for the picked notes, a dashed edge on a note that may not play, and Chance in a step's menu; the engine rolls it each time the note comes round, the same each render. Step Repeat (Live 13 beta release notes, Step Sequencer; note `repeat`, 2 to 8): a step plays that many times over its length, from its menu, shown on the step with its chance | Velocity range; Chance drawn in the velocity lane; Live 13's per-row lengths, step rate and direction, per-step pitch and offset; a fresh roll each time round Arrange's loop (it repeats the same roll now) | M |
 | Multi-clip editing | One track | Several tracks at once | M |
 | MPE | None | Later | L |
 | Groove pool (swing, feel) | None | Grooves | M |

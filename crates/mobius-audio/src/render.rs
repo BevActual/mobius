@@ -22,6 +22,8 @@ pub const RENDER_TAIL: f64 = 2.0;
 
 struct Lane {
     id: String,
+    /// Its notes' dice, for their chances ([`crate::song::dice_of`]).
+    dice: u64,
     /// The group lane it plays into (18.3 "Group Tracks"), or none for Main.
     group: Option<usize>,
     notes: Vec<Note>,
@@ -950,7 +952,7 @@ impl Renderer {
                                 let sound = song.sounds.get(files.get(k)?.as_ref()?)?;
                                 return Some((2.0 * c.bars * song.bar_beats(), Vec::new(), Some(frozen_sound(sound, song.tempo))));
                             }
-                            Some((c.bars * song.bar_beats(), c.notes.clone(), placed(song, Song::is_audio(t), c.audio.as_ref())))
+                            Some((c.bars * song.bar_beats(), c.notes.iter().flat_map(Note::repeats).collect(), placed(song, Song::is_audio(t), c.audio.as_ref())))
                         })
                         .collect(),
                     playing: None,
@@ -1067,6 +1069,7 @@ impl Renderer {
                 let slot_envs = if how.session && !is_frozen { t.slots.iter().map(|c| c.as_ref().and_then(|c| Envelopes::of(&c.envelopes, &c.unlinked, &sends, &fx_auto))).collect() } else { Vec::new() };
                 Lane {
                     group: None,
+                    dice: crate::song::dice_of(&t.id),
                     id: t.id.clone(),
                     notes,
                     next,
@@ -1452,8 +1455,12 @@ impl Renderer {
                     break;
                 }
                 lane.next += 1;
-                let offset = usize::try_from(at.saturating_sub(from)).unwrap_or(frames).min(frames);
                 let note = *note;
+                // A note with less than full chance plays only when its roll says (Live 12's note Chance).
+                if !note.plays(note.start, lane.dice) {
+                    continue;
+                }
+                let offset = usize::try_from(at.saturating_sub(from)).unwrap_or(frames).min(frames);
                 // Along a tempo line a note lasts as long as its beats take where it plays.
                 let spb = if self.clock.changes() && note.length > 1e-9 { self.clock.seconds_between(note.start, note.start + note.length) / note.length } else { spb };
                 lane.start(&note, offset, frames, spb, rate);
@@ -1466,7 +1473,7 @@ impl Renderer {
                     let mut at = start + note.start + first * length;
                     while clock.sample_of_beat(at) < to {
                         let sample = clock.sample_of_beat(at);
-                        if sample >= from {
+                        if sample >= from && note.plays(at, lane.dice) {
                             let offset = usize::try_from(sample - from).unwrap_or(frames).min(frames);
                             let held = Note { length: note.length.min(length - note.start), ..*note };
                             lane.start(&held, offset, frames, spb, rate);
@@ -1950,6 +1957,38 @@ mod tests {
         assert!((peak(stems[1].0) / peak(stems[0].0) - 0.5).abs() < 0.01);
         // What Main hears is the group, at Main's level.
         assert!((peak(&l) - peak(stems[1].0) * 0.8).abs() < 1e-6, "{} {}", peak(&l), peak(stems[1].0));
+    }
+
+    #[test]
+    fn a_notes_chance_rolls_the_same_each_render_and_its_repeats_play_evenly() {
+        // Live 12's note Chance: half the hits of a run at 0.5, the same ones each render; none at 0, all at 1.
+        let held = r#""sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.1,"sustain":1,"release":0.005,"vibrato":0,"rate":5}"#;
+        let run = |chance: &str| {
+            let notes = (0..32).map(|k| format!(r#"{{"pitch":69,"start":{},"length":0.125,"velocity":1{chance}}}"#, f64::from(k) * 0.25)).collect::<Vec<_>>().join(",");
+            Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":2,"tracks":[{{"id":"t","instrument":"lead",{held},"notes":[{notes}]}}]}}"#)).unwrap()
+        };
+        // Which of the 32 sixteenths sound: something in the first part of each.
+        let heard = |s: &Song| {
+            let (l, _) = render_song(s, 48_000);
+            (0..32).filter(|k| l[k * 6_000..k * 6_000 + 2_000].iter().any(|x| x.abs() > 1e-3)).count()
+        };
+        assert_eq!(heard(&run("")), 32);
+        assert_eq!(heard(&run(r#","chance":0"#)), 0);
+        let half = heard(&run(r#","chance":0.5"#));
+        assert!((8..=24).contains(&half), "{half}");
+        assert_eq!(render_song(&run(r#","chance":0.5"#), 48_000).0, render_song(&run(r#","chance":0.5"#), 48_000).0);
+        // Live 13's step Repeat: a beat-long note played four times, a sixteenth each.
+        let s = Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":1,"tracks":[{{"id":"t","instrument":"lead",{held},"notes":[{{"pitch":69,"start":0,"length":1,"velocity":1,"repeat":4}}]}}]}}"#)).unwrap();
+        let notes = Song::notes_of(&s.tracks[0]);
+        assert_eq!(notes.iter().map(|n| (n.start, n.length)).collect::<Vec<_>>(), [(0.0, 0.25), (0.25, 0.25), (0.5, 0.25), (0.75, 0.25)]);
+        // A repeated note with a chance plays all its repeats or none.
+        let mut n = notes[0];
+        n.chance = 0.5;
+        let parts: Vec<Note> = Note { repeat: 4, ..n }.repeats().collect();
+        for at in 0..40 {
+            let rolls: Vec<bool> = parts.iter().map(|p| p.plays(p.start + f64::from(at) * 4.0, 7)).collect();
+            assert!(rolls.iter().all(|r| *r == rolls[0]), "{rolls:?}");
+        }
     }
 
     #[test]

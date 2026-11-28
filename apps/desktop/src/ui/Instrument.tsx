@@ -462,7 +462,10 @@ export interface StepRow { id: string; name: string }
  * across to paint. Keys: arrows move, Space or Enter switches, Shift+Enter accents, + and − change the velocity.
  * `cells[row][step]` is 0 for off, else the velocity (0 to 1). `now` is the step that is playing.
  */
-export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, stepsPerBeat = 4, velocity = 0.7, accent = 1, now, fill, disabled, className }: {
+/** A step mark read out: "×3 50%" is "repeat 3, 50% chance". */
+const markWords = (mark: string): string => mark.split(' ').map((m) => (m.startsWith('×') ? `repeat ${m.slice(1)}` : m.endsWith('%') ? `${m} chance` : m)).join(', ');
+
+export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, stepsPerBeat = 4, velocity = 0.7, accent = 1, now, fill, disabled, className, marks, onMenu }: {
   label?: string;
   rows: readonly StepRow[];
   cells: readonly (readonly number[])[];
@@ -477,6 +480,10 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
   fill?: boolean;
   disabled?: boolean;
   className?: string;
+  /** A short mark shown on a step and read with it (its repeat or chance, as "×3" or "50%"), by row and step. */
+  marks?: readonly (readonly string[])[];
+  /** A step's menu, from a right-click or the menu key, at a point on screen. */
+  onMenu?: (row: number, step: number, x: number, y: number) => void;
 }) {
   const [focus, setFocus] = useState({ row: 0, step: 0 });
   const paint = useRef<number | null>(null);
@@ -494,6 +501,7 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
     const to = moves[e.key];
     if (to) { e.preventDefault(); moveTo(...to); return; }
     if (disabled) return;
+    if (onMenu && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) { e.preventDefault(); const b = e.currentTarget.getBoundingClientRect(); onMenu(r, s, b.left, b.bottom); return; }
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); put(r, s, toggled(r, s, e.shiftKey)); }
     else if (e.key === '+' || e.key === '=') { e.preventDefault(); put(r, s, Math.max(vel(r, s), 0) + 0.1); }
     else if (e.key === '-' || e.key === '_') { e.preventDefault(); if (vel(r, s) > 0) put(r, s, Math.max(0.1, vel(r, s) - 0.1)); }
@@ -527,6 +535,7 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
           <span className="ui-steps-name" aria-hidden="true">{row.name}</span>
           {Array.from({ length: steps }, (_, s) => {
             const v = vel(r, s);
+            const mark = marks?.[r]?.[s] ?? '';
             return (
               <button
                 key={s}
@@ -537,7 +546,7 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
                 data-accent={v >= accent || undefined}
                 data-beat={Math.floor(s / stepsPerBeat) % 2 === 1 || undefined}
                 data-now={now === s || undefined}
-                aria-label={`${row.name}, step ${s + 1}${v > 0 ? `, velocity ${Math.round(v * 127)}${v >= accent ? ', accent' : ''}` : ''}`}
+                aria-label={`${row.name}, step ${s + 1}${v > 0 ? `, velocity ${Math.round(v * 127)}${v >= accent ? ', accent' : ''}` : ''}${mark ? `, ${markWords(mark)}` : ''}`}
                 aria-pressed={v > 0}
                 tabIndex={focus.row === r && focus.step === s ? 0 : -1}
                 disabled={disabled}
@@ -546,7 +555,8 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
                 onPointerEnter={over(r, s)}
                 onKeyDown={key(r, s)}
                 onFocus={() => setFocus({ row: r, step: s })}
-              />
+                onContextMenu={onMenu ? (e) => { e.preventDefault(); if (!disabled) onMenu(r, s, e.clientX, e.clientY); } : undefined}
+              >{mark && mark.split(' ').map((m, i, all) => <span key={m} className="ui-step-mark" data-first={(all.length > 1 && i === 0) || undefined} aria-hidden="true">{m}</span>)}</button>
             );
           })}
         </div>
