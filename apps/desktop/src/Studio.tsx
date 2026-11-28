@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { MAIN_VOLUME, isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { MAIN_VOLUME, barBeats, meterOf, SIGNATURE_UNITS, isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { AudioClipDetail } from './studio-audio-clip';
@@ -179,7 +179,7 @@ interface ClipActions { onMove: (id: string, start: number) => void; onResize: (
  * Mobius proposes them, faded when muted. Drag one to move it and its right edge to stretch it, a bar at a time (a
  * beat with Alt held); it never passes the clips beside it.
  */
-function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { track: Track; proposed: boolean; bw: number; songPath: string; tempo: number; onOpen: (fromBeat: number, clip: string) => void; actions: ClipActions }) {
+function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo, perBar = BEATS_PER_BAR }: { track: Track; proposed: boolean; bw: number; songPath: string; tempo: number; perBar?: number; onOpen: (fromBeat: number, clip: string) => void; actions: ClipActions }) {
   const pitches = track.clips.flatMap((c) => c.notes.map((n) => n.pitch));
   const lo = Math.min(...pitches, 127), hi = Math.max(...pitches, 0);
   const span = Math.max(1, hi - lo);
@@ -197,7 +197,7 @@ function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { trac
   };
   const follow = (e: React.PointerEvent) => {
     if (!drag) return;
-    const step = e.altKey ? 1 : BEATS_PER_BAR;
+    const step = e.altKey ? 1 : perBar;
     const from = drag.size ? drag.length : drag.start;
     setDrag({ ...drag, now: Math.max(drag.size ? step : 0, from + Math.round((e.clientX - drag.x) / bw / step) * step) });
   };
@@ -212,7 +212,7 @@ function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { trac
       {track.clips.map((c) => {
         const start = drag?.id === c.id && !drag.size ? drag.now : c.start;
         const length = drag?.id === c.id && drag.size ? drag.now : c.length;
-        const first = Math.floor(c.start / BEATS_PER_BAR) + 1, last = Math.ceil((c.start + c.length) / BEATS_PER_BAR - 1e-9);
+        const first = Math.floor(c.start / perBar + 1e-9) + 1, last = Math.ceil((c.start + c.length) / perBar - 1e-9);
         // What it plays, round its loop and from its start marker, drawn from its left edge; a notch where each pass begins.
         const heard = playedNotes({ ...c, start: 0, length });
         const pass = firstPass(c);
@@ -753,6 +753,7 @@ const ELECTRIC_CELLS: { k: Exclude<keyof ElectricSound, 'fork'>; name: string; l
 ];
 /** The Song Tempo lane's range, as the window's tempo field. */
 const TEMPO_LANE = { lo: TEMPO_MIN, hi: TEMPO_MAX };
+const UNIT_CHOICES = SIGNATURE_UNITS.map((u) => ({ value: String(u), label: String(u) }));
 const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
 const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
 
@@ -1196,7 +1197,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   useEffect(() => onCommand('redo', redo), [redo]);
 
   /** What the player goes round: the picked bars, the whole song, or nothing when Loop is off. */
-  const cycleFor = useCallback((s: Song): Cycle | null => (loop ? (range ? cycleOf(range.a, range.b, s.bars) : { from: 0, to: s.bars * BEATS_PER_BAR }) : null), [loop, range]);
+  const cycleFor = useCallback((s: Song): Cycle | null => (loop ? (range ? cycleOf(range.a, range.b, s.bars, barBeats(s)) : { from: 0, to: s.bars * barBeats(s) }) : null), [loop, range]);
   /** A Session jam being recorded into Arrange (Live 12, 7.5); `endJam` lays it there. */
   const jam = useRef<Jam | null>(null);
   const [jamming, setJamming] = useState(false);
@@ -1227,7 +1228,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (!song) return;
     player.current?.stop();
     heard.current = playedAs(song, cycleFor(song));
-    player.current = play(song, from >= song.bars * BEATS_PER_BAR ? 0 : from, cycleFor(song), click);
+    player.current = play(song, from >= song.bars * barBeats(song) ? 0 : from, cycleFor(song), click);
     following.current = true;
     setPlaying(true);
   }, [song, cycleFor, click]);
@@ -1251,7 +1252,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (jam.current) { endJam.current(); return; }
     if (!song) return;
     if (!session.current) startSession();
-    jam.current = startJam(song, session.current?.playing() ?? {}, session.current?.beat() ?? 0, Math.floor(arrangeBeat.current / BEATS_PER_BAR) * BEATS_PER_BAR);
+    jam.current = startJam(song, session.current?.playing() ?? {}, session.current?.beat() ?? 0, Math.floor(arrangeBeat.current / barBeats(song) + 1e-9) * barBeats(song));
     setJamming(true);
   };
   const seek = useCallback((to: number) => {
@@ -1273,7 +1274,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const p = player.current;
       if (!p || !song) return;
       const b = p.beat();
-      if (!loop && b >= song.bars * BEATS_PER_BAR) { stop(); setBeat(0); return; }
+      if (!loop && b >= song.bars * barBeats(song)) { stop(); setBeat(0); return; }
       setBeat(Math.max(0, b));
       const el = arrangeEl.current;
       if (el && following.current && beatW.current > 0) {
@@ -1312,7 +1313,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const clip = takeClip(take, s.tempo, nextId());
       // As Live's Arrangement records: the take replaces what it covers on its track, cutting or splitting clips under it.
       t.clips = [...recordOver(t.clips, clip.start, clip.start + clip.length, s.tempo, nextId), clip].sort((a, b) => a.start - b.start);
-      const end = Math.ceil((clip.start + clip.length) / BEATS_PER_BAR);
+      const end = Math.ceil((clip.start + clip.length) / barBeats(song) - 1e-9);
       if (end > s.bars) s.bars = end;
     }, `take:${take.file}`);
     if (take.lost) setExported({ text: 'The disk fell behind while recording, so the take has gaps.', kind: 'note' });
@@ -1427,15 +1428,18 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   if (!song) return <PanelLayout app="studio" panels={listPanels}><section className="studio-page empty" aria-label="Music"><p className="note-empty">This song could not be read ({parsed && 'error' in parsed ? parsed.error : 'unknown'}).</p></section></PanelLayout>;
 
   const track = song.tracks.find((t) => t.id === selected) ?? song.tracks[0] ?? null;
-  const total = song.bars * BEATS_PER_BAR;
+  const perBar = barBeats(song);
+  const total = song.bars * perBar;
+  /** A new time signature: lengths in beats stay as they are, so notes keep their places; 4/4 is written as none. */
+  const setSignature = (beats: number, unit: number) => change((s) => { if (beats === 4 && unit === 4) delete s.signature; else s.signature = [beats, unit]; }, 'signature');
   // The Workbench shows its effect while that track stays chosen and the effect is still on it.
   const benchFx = bench && track && bench.track === track.id ? track.fx?.find((e): e is Exclude<Effect, StackEffect> => e.id === bench.fx && e.kind !== 'stack') ?? null : null;
   // The device the Workbench draws: the song's own, or the parts a built-in effect is made of (none for those it can't draw yet).
   const benchDevice = benchFx ? (benchFx.kind === 'device' ? benchFx.device : builtinDevice(benchFx)) : null;
   // In the Session view the bottom area edits the chosen clip, which goes round on its own length.
   const clip: Clip | null = view === 'session' && track && clipAt !== null ? (track.slots?.[clipAt] ?? null) : null;
-  const span = clip ? clip.bars * BEATS_PER_BAR : total;
-  const spanBars = span / BEATS_PER_BAR;
+  const span = clip ? clip.bars * perBar : total;
+  const spanBars = Math.round(span / perBar);
   // Where the playhead is in what the bottom area shows: the clip's own time round, or nowhere when it is not playing.
   const clipPlaying = clip && track ? sessionNow.playing[track.id] : undefined;
   const rollBeat = view === 'arrange' ? beat : clip && clipPlaying && clipPlaying.slot === clipAt ? (((beat - clipPlaying.start) % span) + span) % span : -1;
@@ -1568,7 +1572,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   /** A track's clips in Arrange: moved, stretched, copied, muted and deleted, each one Undo. */
   const editClips = (trackId: string, fn: (clips: ArrangeClip[], beats: number) => ArrangeClip[], tag: string) => change((s) => {
     const t = s.tracks.find((x) => x.id === trackId);
-    if (t) t.clips = fn(t.clips, s.bars * BEATS_PER_BAR);
+    if (t) t.clips = fn(t.clips, s.bars * barBeats(s));
   }, tag);
   const arrangeClip = (trackId: string, id: string, act: 'delete' | 'duplicate' | 'mute' | 'double' | 'halve') => {
     if (act === 'double' || act === 'halve') editClips(trackId, (cs) => scaleClipLoop(cs, id, act === 'double' ? 2 : 0.5), '');
@@ -1588,7 +1592,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       if (frozenTrack?.frozen) { setMenu({ x, y, label: c.name ?? 'Clip', items: [{ label: 'Unfreeze Track', run: () => unfreeze(trackId) }] }); return; }
       setMenu({ x, y, label: c.name ?? 'Clip', items: [
         { label: 'Edit Notes', keys: 'Enter', run: () => openNotes(trackId, c.start) },
-        { label: 'Duplicate', keys: 'Ctrl+D', separated: true, disabled: !duplicateArrange(song.tracks.find((t) => t.id === trackId)!.clips, id, song.bars * BEATS_PER_BAR), run: () => arrangeClip(trackId, id, 'duplicate') },
+        { label: 'Duplicate', keys: 'Ctrl+D', separated: true, disabled: !duplicateArrange(song.tracks.find((t) => t.id === trackId)!.clips, id, song.bars * perBar), run: () => arrangeClip(trackId, id, 'duplicate') },
         { label: c.muted ? 'Unmute' : 'Mute', keys: '0', run: () => arrangeClip(trackId, id, 'mute') },
         { label: c.loop ? 'Stop Looping' : 'Loop', run: () => editClips(trackId, (cs) => toggleClipLoop(cs, id), '') },
         { label: 'Copy to Session', separated: true, run: () => change((s) => { copyToSession(s, trackId, id); }) },
@@ -1601,10 +1605,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (!c) return;
     chooseClip(id, slot);
     const t = song.tracks.find((k) => k.id === id);
-    const at = Math.floor(beat / BEATS_PER_BAR) * BEATS_PER_BAR;
+    const at = Math.floor(beat / perBar + 1e-9) * perBar;
     setMenu({ x, y, label: c.name, items: [
       { label: 'Launch', run: () => launch(id, slot) },
-      { label: `Copy to Arrange at Bar ${at / BEATS_PER_BAR + 1}`, separated: true, disabled: !!t?.frozen || !!c.audio !== (t?.kind === 'audio'), run: () => change((s) => { placeInArrange(s, id, c, at); }) },
+      { label: `Copy to Arrange at Bar ${Math.round(at / perBar) + 1}`, separated: true, disabled: !!t?.frozen || !!c.audio !== (t?.kind === 'audio'), run: () => change((s) => { placeInArrange(s, id, c, at); }) },
       { label: 'Duplicate', keys: 'Ctrl+D', separated: true, run: () => duplicateClip(id, slot) },
       { label: 'Delete', keys: 'Delete', run: () => deleteClip(id, slot) },
     ] });
@@ -1617,7 +1621,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   }, `scene:${slot}`);
   const addScene = () => change((s) => { const names = [...(s.scenes ?? [])]; const n = sceneCount(s); while (names.length < n + 1) names.push(''); s.scenes = names; });
   const cycle = cycleFor(song);
-  const loopWords = cycle && range ? (cycle.to - cycle.from === BEATS_PER_BAR ? `bar ${cycle.from / BEATS_PER_BAR + 1}` : `bars ${cycle.from / BEATS_PER_BAR + 1} to ${cycle.to / BEATS_PER_BAR}`) : 'the whole song';
+  const loopWords = cycle && range ? (Math.abs(cycle.to - cycle.from - perBar) < 1e-9 ? `bar ${Math.round(cycle.from / perBar) + 1}` : `bars ${Math.round(cycle.from / perBar) + 1} to ${Math.round(cycle.to / perBar)}`) : 'the whole song';
   /** A press on the ruler: along its top it picks the bars to loop (twice quickly loops the whole song); below, it moves the playhead. */
   const onRulerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -1627,7 +1631,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       e.currentTarget.setPointerCapture(e.pointerId);
       if (lastZonePress.current && e.timeStamp - lastZonePress.current < 500) { lastZonePress.current = 0; loopDrag.current = null; setRange(null); setLoop(true); return; }
       lastZonePress.current = 0;
-      const bar = Math.max(0, Math.min(song.bars - 1, Math.floor(x / (BEATS_PER_BAR * bw))));
+      const bar = Math.max(0, Math.min(song.bars - 1, Math.floor(x / (perBar * bw))));
       loopDrag.current = { a: bar, moved: false };
       setRange({ a: bar, b: bar });
       setLoop(true);
@@ -1639,7 +1643,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const d = loopDrag.current;
     if (!d) return;
     const r = e.currentTarget.getBoundingClientRect();
-    const bar = Math.max(0, Math.min(song.bars - 1, Math.floor((e.clientX - r.left) / (BEATS_PER_BAR * bw))));
+    const bar = Math.max(0, Math.min(song.bars - 1, Math.floor((e.clientX - r.left) / (perBar * bw))));
     if (bar !== d.a) d.moved = true;
     setRange((was) => (was && was.a === d.a && was.b === bar ? was : { a: d.a, b: bar }));
   };
@@ -1730,7 +1734,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (!t) return [id];
     const was = wasSong?.tracks.find((x) => x.id === id);
     const parts: string[] = [];
-    const clips = clipsOf(trackNotes(t), song.bars);
+    const clips = clipsOf(trackNotes(t), song.bars, perBar);
     if (notesDiffer(was, t) && clips.length > 0) {
       const from = clips[0]!.from + 1, to = clips[clips.length - 1]!.to;
       parts.push(`${t.name}, ${from === to ? `bar ${from}` : `bars ${from} to ${to}`}`);
@@ -1739,7 +1743,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (moved.length) parts.push(`${t.name}: ${moved.slice(0, 3).map((c) => c.text).join(', ')}${moved.length > 3 ? ` and ${moved.length - 3} more` : ''}`);
     return parts.length ? parts : [t.name];
   });
-  const pos = position(beat, song.tempo, view === 'arrange' && tempoChanges(song) ? secondsAt(song, beat) : undefined);
+  const pos = position(beat, song.tempo, meterOf(song), view === 'arrange' && tempoChanges(song) ? secondsAt(song, beat) : undefined);
 
   // ---------- The piano roll's pointer ----------
   const at = (e: { clientX: number; clientY: number }) => {
@@ -1857,18 +1861,18 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const k = e.key;
     if ((k === 'Delete' || k === 'Backspace') && picked.size) { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); } else if (k === 'ArrowLeft' || k === 'ArrowRight') {
       if (!picked.size) return;
-      const d = (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? BEATS_PER_BAR : grid);
+      const d = (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? perBar : grid);
       if (e.altKey) setNotes((n) => stretchNotes(n, picked, d, span, Math.min(grid, 0.25))); else moveByRows(d, 0);
     } else if (k === 'ArrowUp' || k === 'ArrowDown') {
       if (!picked.size) return;
       const dir = k === 'ArrowUp' ? -1 : 1;
       if (drums) moveByRows(0, dir);
       else setNotes((n) => moveNotes(n, picked, 0, -dir * (e.shiftKey ? 12 : 1), span));
-    } else if (mod && k.toLowerCase() === 'a') { setPicked(new Set(notes.map((_, i) => i))); } else if (mod && k.toLowerCase() === 'd') { setNotes((n) => duplicateNotes(n, picked, span)); } else if (mod && k.toLowerCase() === 'c') { copied.current = pickedNotes; } else if (mod && k.toLowerCase() === 'x') { copied.current = pickedNotes; setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); } else if (mod && k.toLowerCase() === 'v') { const from = snap(beat, grid); setNotes((n) => pasteNotes(n, copied.current, from, span)); } else if (!mod && k.toLowerCase() === 'q') { setNotes((n) => quantizeNotes(n, picked, grid, span)); } else if (mod && k.toLowerCase() === 'e' && picked.size) { setNotes((n) => splitNotes(n, picked, clip ? -1 : beat, grid)); } else if (mod && k.toLowerCase() === 'j' && picked.size > 1) { setNotes((n) => joinNotes(n, picked)); } else if (mod && k.toLowerCase() === 'l' && picked.size && !clip) {
+    } else if (mod && k.toLowerCase() === 'a') { setPicked(new Set(notes.map((_, i) => i))); } else if (mod && k.toLowerCase() === 'd') { setNotes((n) => duplicateNotes(n, picked, span, perBar)); } else if (mod && k.toLowerCase() === 'c') { copied.current = pickedNotes; } else if (mod && k.toLowerCase() === 'x') { copied.current = pickedNotes; setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); } else if (mod && k.toLowerCase() === 'v') { const from = snap(beat, grid); setNotes((n) => pasteNotes(n, copied.current, from, span)); } else if (!mod && k.toLowerCase() === 'q') { setNotes((n) => quantizeNotes(n, picked, grid, span)); } else if (mod && k.toLowerCase() === 'e' && picked.size) { setNotes((n) => splitNotes(n, picked, clip ? -1 : beat, grid)); } else if (mod && k.toLowerCase() === 'j' && picked.size > 1) { setNotes((n) => joinNotes(n, picked)); } else if (mod && k.toLowerCase() === 'l' && picked.size && !clip) {
       // Loop the bars the picked notes are in.
       const first = Math.min(...pickedNotes.map((x) => x.start));
       const last = Math.max(...pickedNotes.map((x) => x.start + x.length));
-      setRange({ a: Math.floor(first / BEATS_PER_BAR), b: Math.max(Math.floor(first / BEATS_PER_BAR), Math.ceil(last / BEATS_PER_BAR) - 1) });
+      setRange({ a: Math.floor(first / perBar + 1e-9), b: Math.max(Math.floor(first / perBar + 1e-9), Math.ceil(last / perBar - 1e-9) - 1) });
       setLoop(true);
     } else if (k === 'Escape') { setPicked(new Set()); } else return;
     e.preventDefault();
@@ -1929,7 +1933,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     takeKeys.current.delete(k);
     const p = player.current;
     if (!p || !song) return;
-    const note = recordedNote(held, p.beat(), cycleFor(song), song.bars * BEATS_PER_BAR);
+    const note = recordedNote(held, p.beat(), cycleFor(song), song.bars * perBar);
     if (note) setNotes((n) => addNote(n, note), take.current);
   };
   finishAll.current = () => { for (const k of [...takeKeys.current.keys()]) finishKey.current?.(k); };
@@ -1949,7 +1953,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const go = () => { start(); if (audio) recordInput(true); };
     if (!counts) { go(); return; }
     // The count-in: a bar of ticks, then the song plays from the playhead and what is played is written.
-    const bar = countIn(song.tempo, BEATS_PER_BAR);
+    const bar = countIn(song.tempo, perBar);
     counting.current = bar;
     void bar.done.then(() => { if (counting.current !== bar) return; counting.current = null; go(); });
   };
@@ -2026,7 +2030,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (!mod && e.key === 'Enter' && t.tagName !== 'BUTTON') { openNotes(track.id); return true; }
     return false;
   };
-  const ticks = Math.max(1, [1, 2, 4, 8, 16].find((n) => n * BEATS_PER_BAR * bw >= 56) ?? 16);
+  const ticks = Math.max(1, [1, 2, 4, 8, 16].find((n) => n * perBar * bw >= 56) ?? 16);
 
   // The chosen track's clip notes or devices (Shift+Tab switches), as the bottom panel, as Ableton keeps them under
   // the arrangement. It is there while a track is open in it; hiding it closes it, so the next track opens it again.
@@ -2047,7 +2051,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const nextId = () => { while (taken.has(`c${n}`)) n++; taken.add(`c${n}`); return `c${n}`; };
       const clip = takeClip({ track: trackId, file, start: at, offset: 0, seconds, lost: false }, s.tempo, nextId());
       t.clips = [...recordOver(t.clips, clip.start, clip.start + clip.length, s.tempo, nextId), clip].sort((a, b) => a.start - b.start);
-      const end = Math.ceil((clip.start + clip.length) / BEATS_PER_BAR);
+      const end = Math.ceil((clip.start + clip.length) / barBeats(song) - 1e-9);
       if (end > s.bars) s.bars = end;
     }, `sample:${file}`);
   };
@@ -2096,21 +2100,21 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         <span className="studio-roll-title"><span className="studio-dev-dot" aria-hidden="true" />{track.name}</span>
         {clip && clipAt !== null && detail === 'notes' && <>
           <input className="studio-clip-title" aria-label="Clip name" value={clip.name} maxLength={60} onChange={(e) => setClip(track.id, clipAt, (c) => { c.name = e.target.value; }, `clip-name:${track.id}:${clipAt}`)} />
-          <Select inline label="Clip length" value={String(clip.bars)} choices={LENGTH_CHOICES} onChange={(b) => setClip(track.id, clipAt, (c) => { c.bars = Number(b); c.notes = c.notes.filter((n) => n.start < c.bars * BEATS_PER_BAR); })} />
+          <Select inline label="Clip length" value={String(clip.bars)} choices={LENGTH_CHOICES} onChange={(b) => setClip(track.id, clipAt, (c) => { c.bars = Number(b); c.notes = c.notes.filter((n) => n.start < c.bars * perBar); })} />
         </>}
         {arrClip && detail === 'notes' && (
           // Live's Clip View loop settings for the Arrange clip opened: its start marker and loop, in beats of its own time.
           <span className="studio-clip-loop" role="group" aria-label={`Loop of ${arrClip.name ?? track.name}`}>
             <IconButton label="Loop clip" pressed={!!arrClip.loop} title={arrClip.loop ? 'Loop on: stretch the clip to repeat it (Ctrl+Up doubles the loop, Ctrl+Down halves it)' : 'Loop'} icon={<Icon d={ICONS.loop} />}
               onClick={() => editClips(track.id, (cs) => toggleClipLoop(cs, arrClip.id), '')} />
-            <NumberField label="Start" value={arrClip.offset ?? 0} min={0} max={4096} step={0.25} bigStep={BEATS_PER_BAR} decimals={2} width={4}
+            <NumberField label="Start" value={arrClip.offset ?? 0} min={0} max={4096} step={0.25} bigStep={perBar} decimals={2} width={4}
               onChange={(v) => editClips(track.id, (cs) => setClipLoop(cs, arrClip.id, { offset: v }), `clip-offset:${arrClip.id}`)} />
             {arrClip.loop && <>
               <span className="ui-field-label" aria-hidden="true">Loop</span>
-              <NumberField label="Loop start" hideLabel value={arrClip.loop.start} min={0} max={4096} step={0.25} bigStep={BEATS_PER_BAR} decimals={2} width={4}
+              <NumberField label="Loop start" hideLabel value={arrClip.loop.start} min={0} max={4096} step={0.25} bigStep={perBar} decimals={2} width={4}
                 onChange={(v) => editClips(track.id, (cs) => setClipLoop(cs, arrClip.id, { loopStart: v }), `clip-loop:${arrClip.id}`)} />
               <span className="ui-field-label" aria-hidden="true">for</span>
-              <NumberField label="Loop length" hideLabel value={arrClip.loop.end - arrClip.loop.start} min={0.25} max={4096} step={0.25} bigStep={BEATS_PER_BAR} decimals={2} width={4}
+              <NumberField label="Loop length" hideLabel value={arrClip.loop.end - arrClip.loop.start} min={0.25} max={4096} step={0.25} bigStep={perBar} decimals={2} width={4}
                 onChange={(v) => editClips(track.id, (cs) => setClipLoop(cs, arrClip.id, { loopLength: v }), `clip-loop:${arrClip.id}`)} />
             </>}
           </span>
@@ -2152,12 +2156,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   ) : drumView === 'steps' ? (
     <div className="studio-steps">
       <p className="studio-dev-note studio-steps-hint">{drums ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Rows are the notes of the key. Click a step to play that note there, Shift+click for an accent.'}</p>
-      <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, spanBars - 1) + 1}`} rows={stepRows} cells={stepCells(notes, Math.min(stepBar, spanBars - 1), stepRows.map((r) => Number(r.id)))}
-        now={playing && rollBeat >= 0 && Math.floor(rollBeat / BEATS_PER_BAR) === Math.min(stepBar, spanBars - 1) ? Math.floor((rollBeat % BEATS_PER_BAR) * 4) : undefined}
+      <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, spanBars - 1) + 1}`} rows={stepRows} cells={stepCells(notes, Math.min(stepBar, spanBars - 1), stepRows.map((r) => Number(r.id)), perBar)}
+        now={playing && rollBeat >= 0 && Math.floor(rollBeat / perBar + 1e-9) === Math.min(stepBar, spanBars - 1) ? Math.floor((rollBeat - Math.floor(rollBeat / perBar + 1e-9) * perBar) * 4) : undefined}
         onChange={(row, step, v) => {
           const pitch = Number(stepRows[row]!.id);
           if (v > 0) { previewOn(track, pitch, v, drums ? undefined : 0.3, track.pads?.[pitch]); }
-          setNotes((n) => setStep(n, Math.min(stepBar, spanBars - 1), pitch, step, v, drums ? 0.25 : drawLength), 'steps');
+          setNotes((n) => setStep(n, Math.min(stepBar, spanBars - 1), pitch, step, v, drums ? 0.25 : drawLength, perBar), 'steps');
         }} />
     </div>
   ) : <>
@@ -2180,7 +2184,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
             className="studio-row-cells"
             role="gridcell"
             aria-label={`${r.label} row`}
-            style={{ width: span * rbw, backgroundSize: `${rbw * grid}px 100%, ${rbw}px 100%, ${rbw * BEATS_PER_BAR}px 100%` }}
+            style={{ width: span * rbw, backgroundSize: `${rbw * grid}px 100%, ${rbw}px 100%, ${rbw * perBar}px 100%` }}
           >
             {notes.map((n, j) => {
               if (n.pitch !== r.pitch) return null;
@@ -2218,7 +2222,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   </div>
   <div className="studio-vel" role="group" aria-label={`Velocity of ${track.name}`} style={{ height: VEL_H, ['--keys' as string]: `${keysW}px` }}>
     <span className="studio-vel-label" aria-hidden="true">Velocity</span>
-    <div className="studio-vel-inner" style={{ width: span * rbw, transform: `translateX(${-scrollX}px)`, backgroundSize: `${rbw}px 100%, ${rbw * BEATS_PER_BAR}px 100%` }} onPointerMove={onVelMove} onPointerUp={onVelUp} onPointerCancel={() => setVelDrag(null)}>
+    <div className="studio-vel-inner" style={{ width: span * rbw, transform: `translateX(${-scrollX}px)`, backgroundSize: `${rbw}px 100%, ${rbw * perBar}px 100%` }} onPointerMove={onVelMove} onPointerUp={onVelUp} onPointerCancel={() => setVelDrag(null)}>
       {notes.map((n, j) => {
         const v = shownVelocity(j, n.velocity);
         const label = drums ? (DRUMS.find((d) => d.pitch === n.pitch)?.name ?? noteName(n.pitch)) : noteName(n.pitch);
@@ -2327,7 +2331,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               <span aria-hidden="true">bpm</span>
             </label>
             <span className="studio-readout-dot" aria-hidden="true">·</span>
-            <span className="studio-readout" title="Every song is in 4 / 4 for now">4/4</span>
+            {/* The time signature, as Live's control bar has it: beats in a bar, over the note they count in. */}
+            <span className="studio-readout studio-meter" role="group" aria-label="Time signature" title="Time signature: beats in a bar, over the note each beat is">
+              <input aria-label="Beats in a bar" type="number" min={1} max={32} value={meterOf(song)[0]} onChange={(e) => { const v = Math.round(Number(e.target.value)); if (v >= 1 && v <= 32) setSignature(v, meterOf(song)[1]); }} />
+              <span aria-hidden="true">/</span>
+              <Select label="Beat unit" hideLabel quiet value={String(meterOf(song)[1])} choices={UNIT_CHOICES} onChange={(u) => setSignature(meterOf(song)[0], Number(u))} />
+            </span>
             <span className="studio-readout-dot" aria-hidden="true">·</span>
             <Select label="Key" hideLabel quiet value={song.key} choices={KEY_CHOICES} onChange={(key) => change((s) => { s.key = key; }, 'key')} />
           </span>
@@ -2364,7 +2373,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
             </span>
           </header>
         )}
-        <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px` }}
+        <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${perBar * bw}px` }}
           onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) { following.current = false; return; } e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
           {view === 'session' ? (<>
             <SessionGrid song={song} selected={track?.id ?? null} chosen={clipAt} playing={sessionNow.playing} queued={sessionNow.queued} beat={beat}
@@ -2391,10 +2400,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               onPointerMove={onRulerMove}
               onPointerUp={(e) => { if (loopDrag.current && !loopDrag.current.moved) lastZonePress.current = e.timeStamp; loopDrag.current = null; }}
               onContextMenu={(e) => { e.preventDefault(); const at = Math.max(0, Math.min(total - 1, Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / bw))); setMenu({ x: e.clientX, y: e.clientY, label: 'Loop', items: [
-              { label: `Add Locator at ${Math.floor(at / BEATS_PER_BAR) + 1}.${(at % BEATS_PER_BAR) + 1}`, run: () => setLocator(at) },
+              { label: `Add Locator at ${position(at, song.tempo, meterOf(song)).bars.split('.').slice(0, 2).join('.')}`, run: () => setLocator(at) },
               { label: 'Loop Whole Song', separated: true, disabled: loop && !range, run: () => { setRange(null); setLoop(true); } },
               // Live's Consolidate Time to New Scene (7.5), for the bars looped: a new scene, a clip per track.
-              { label: 'Consolidate Loop to New Scene', disabled: !range, run: () => { if (!range) return; const cy = cycleOf(range.a, range.b, song.bars); change((s) => { consolidateToScene(s, cy.from, cy.to, null); }); } },
+              { label: 'Consolidate Loop to New Scene', disabled: !range, run: () => { if (!range) return; const cy = cycleOf(range.a, range.b, song.bars, perBar); change((s) => { consolidateToScene(s, cy.from, cy.to, null); }); } },
               { label: loop ? 'Turn Loop Off' : 'Turn Loop On', keys: 'L', run: () => setLoop((l) => !l) },
               { label: click ? 'Turn Metronome Off' : 'Turn Metronome On', keys: 'K', run: () => setClick((c) => !c) },
               { label: counts ? 'Turn Count-In Off' : 'Turn Count-In On', run: () => setCounts((c) => { try { window.localStorage.setItem(COUNT_IN_KEY, c ? '0' : '1'); } catch { /* not kept */ } return !c; }) },
@@ -2406,15 +2415,15 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               { label: 'Zoom Out', disabled: zoom <= ZOOMS[0]!, run: () => setZoom((z) => ZOOMS[Math.max(0, ZOOMS.indexOf(z) - 1)] ?? z) },
             ] }); }}
               onPointerCancel={() => { loopDrag.current = null; }}
-              onKeyDown={(e) => { if (e.key === 'ArrowRight') seek(Math.min(total - 1, Math.floor(beat) + (e.shiftKey ? 1 : BEATS_PER_BAR))); else if (e.key === 'ArrowLeft') seek(Math.max(0, Math.floor(beat) - (e.shiftKey ? 1 : BEATS_PER_BAR))); else return; e.preventDefault(); }}
+              onKeyDown={(e) => { if (e.key === 'ArrowRight') seek(Math.min(total - 1, Math.floor(beat) + (e.shiftKey ? 1 : perBar))); else if (e.key === 'ArrowLeft') seek(Math.max(0, Math.floor(beat) - (e.shiftKey ? 1 : perBar))); else return; e.preventDefault(); }}
             >
               <span className="studio-cycle-zone" aria-hidden="true" />
               {cycle && <span className="studio-cycle" role="img" aria-label={`Loop: ${loopWords}`} data-part={range ? true : undefined} style={{ left: cycle.from * bw, width: (cycle.to - cycle.from) * bw }} />}
-              {Array.from({ length: Math.ceil(song.bars / ticks) }, (_, k) => k * ticks).map((b) => <span key={b} className="studio-ruler-bar" style={{ left: b * BEATS_PER_BAR * bw }}>{b + 1}</span>)}
+              {Array.from({ length: Math.ceil(song.bars / ticks) }, (_, k) => k * ticks).map((b) => <span key={b} className="studio-ruler-bar" style={{ left: b * perBar * bw }}>{b + 1}</span>)}
               {(song.locators ?? []).map((l, i) => {
                 const at = locMove?.beat === l.beat ? locMove.to : l.beat;
                 const name = locatorName(song.locators!, i);
-                const where = `${Math.floor(at / BEATS_PER_BAR) + 1}.${Math.floor(at % BEATS_PER_BAR) + 1}`;
+                const where = position(at, song.tempo, meterOf(song)).bars.split('.').slice(0, 2).join('.');
                 return naming === l.beat ? (
                   <input key={l.beat} className="studio-locator-name" aria-label="Locator name" defaultValue={l.name} maxLength={40} autoFocus style={{ left: at * bw }}
                     onPointerDown={(e) => e.stopPropagation()}
@@ -2435,7 +2444,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               })}
             </div>
           </div>
-          <div className="studio-tracks" role="list" aria-label="Tracks" style={{ ['--grid' as string]: `${ticks * BEATS_PER_BAR * bw}px` }}>
+          <div className="studio-tracks" role="list" aria-label="Tracks" style={{ ['--grid' as string]: `${ticks * perBar * bw}px` }}>
             {/* The song's tempo along it (Live 12's tempo automation, on the Main track): shown with the other lines. */}
             {showAuto && (
               <div role="listitem" aria-label="Main" className="studio-track studio-tempo-track">
@@ -2485,7 +2494,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                     const at = Math.max(0, Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / bw));
                     void placeSample(t.id, file, at);
                   }}>
-                  <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} songPath={songs.page?.path ?? ''} tempo={song.tempo} onOpen={(from, id) => openNotes(t.id, from, id)} actions={clipActions(t.id)} />
+                  <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} perBar={perBar} songPath={songs.page?.path ?? ''} tempo={song.tempo} onOpen={(from, id) => openNotes(t.id, from, id)} actions={clipActions(t.id)} />
                 </div>
                 {showAuto && (() => {
                   const choices = autoChoices(t, song.returns);

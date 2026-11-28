@@ -333,3 +333,18 @@ describe('recordOver', () => {
     expect(out.map((c) => [c.id, c.start, c.length, c.offset ?? 0, c.notes.length])).toEqual([['c1', 0, 2, 0, 1], ['c10', 4, 4, 4, 2]]);
   });
 });
+
+describe('a song in another time signature', () => {
+  it('counts its bars and beats in it: the position, the loop, the steps and the next bar line', () => {
+    // 6/8: a bar is three quarter beats, counted in eighths.
+    expect(position(0, 120, [6, 8]).bars).toBe('1.1.1');
+    expect(position(3.75, 120, [6, 8]).bars).toBe('2.2.2');
+    expect(position(5.5, 120, [3, 4]).bars).toBe('2.3.3');
+    expect(cycleOf(1, 2, 8, 3)).toEqual({ from: 3, to: 9 });
+    expect(stepCells([{ pitch: 36, start: 3.5, length: 0.25, velocity: 1 }], 1, [36], 3)[0]).toEqual([0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(setStep([], 1, 36, 2, 1, 0.25, 3.5)).toEqual([{ pitch: 36, start: 4, length: 0.25, velocity: 1 }]);
+    expect(nextBar(3.2, 3)).toBe(6);
+    expect(clipsOf([{ pitch: 60, start: 3.5, length: 1, velocity: 1 }], 4, 3)).toEqual([{ from: 1, to: 2 }]);
+    expect(duplicateNotes([{ pitch: 60, start: 0, length: 3, velocity: 1 }], new Set([0]), 12, 3).notes.map((n) => n.start)).toEqual([0, 3]);
+  });
+});

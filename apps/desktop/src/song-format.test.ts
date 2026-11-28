@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song, soundOf, stringOf, STRING_DEFAULTS, malletOf, MALLET_DEFAULTS, electricOf, ELECTRIC_DEFAULTS } from './song-format';
+import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song, soundOf, stringOf, STRING_DEFAULTS, malletOf, MALLET_DEFAULTS, electricOf, ELECTRIC_DEFAULTS, barBeats, meterOf } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -592,5 +592,28 @@ describe('an electric piano track', () => {
     if (!('song' in plain)) throw new Error(plain.error);
     expect(electricOf(plain.song.tracks[0]!)).toEqual({ ...ELECTRIC_DEFAULTS, fork: 'reed' });
     expect(electricOf({ instrument: 'piano' })).toBeNull();
+  });
+});
+
+describe('a time signature', () => {
+  it('is read and written, kept to ones the window can write, and sets the length of the song and its clips', () => {
+    const read = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 2, signature: [3, 4], tracks: [{ id: 't1', instrument: 'bass', notes: [{ pitch: 40, start: 4, length: 1, velocity: 1 }], slots: [{ bars: 1, notes: [{ pitch: 40, start: 2.5, length: 1, velocity: 1 }, { pitch: 40, start: 3, length: 1, velocity: 1 }] }] }] }));
+    if (!('song' in read)) throw new Error(read.error);
+    expect(read.song.signature).toEqual([3, 4]);
+    expect(barBeats(read.song)).toBe(3);
+    expect(songSeconds(read.song)).toBe(3);
+    // A loose note goes into a clip of its bar (the second, from beat 3); a slot's notes past its one bar of 3/4 go.
+    expect(read.song.tracks[0]!.clips.map((c) => [c.start, c.length])).toEqual([[3, 3]]);
+    expect(read.song.tracks[0]!.slots?.[0]?.notes.map((n) => n.start)).toEqual([2.5]);
+    expect(JSON.parse(writeSong(read.song)).signature).toEqual([3, 4]);
+    for (const odd of [[0, 4], [5, 3], [40, 8], 'x']) {
+      const r = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 2, signature: odd, tracks: [] }));
+      if (!('song' in r)) throw new Error(r.error);
+      expect(r.song.signature).toBeUndefined();
+      expect(JSON.parse(writeSong(r.song)).signature).toBeUndefined();
+    }
+    expect(meterOf({ signature: [7, 8] })).toEqual([7, 8]);
+    expect(barBeats({ signature: [7, 8] })).toBe(3.5);
+    expect(barBeats(undefined)).toBe(4);
   });
 });

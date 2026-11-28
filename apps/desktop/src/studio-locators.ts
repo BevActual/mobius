@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, MAX_LOCATORS, type Locator, type Song } from './song-format';
+import { barBeats, MAX_LOCATORS, type Locator, type Song } from './song-format';
 
 /**
  * Locators, as Live has them (Live 12 manual, Arrangement View, "Locators"): named places in the song, shown in the
@@ -16,7 +16,7 @@ export const locatorName = (locs: readonly Locator[], i: number): string => locs
  * index, or null when the song is at its limit.
  */
 export function addLocator(song: Song, beat: number): number | null {
-  const at = quarter(Math.max(0, Math.min(beat, song.bars * BEATS_PER_BAR - 0.25)));
+  const at = quarter(Math.max(0, Math.min(beat, song.bars * barBeats(song) - 0.25)));
   const locs = [...(song.locators ?? [])];
   const there = locs.findIndex((l) => Math.abs(l.beat - at) < EPS);
   if (there >= 0) return there;
@@ -45,7 +45,7 @@ export function removeLocator(song: Song, beat: number): boolean {
 
 /** The song with the locator at `beat` moved to `to` (to the sixteenth, inside the song), unless another is there. */
 export function moveLocator(song: Song, beat: number, to: number): boolean {
-  const at = quarter(Math.max(0, Math.min(to, song.bars * BEATS_PER_BAR - 0.25)));
+  const at = quarter(Math.max(0, Math.min(to, song.bars * barBeats(song) - 0.25)));
   const l = song.locators?.find((x) => Math.abs(x.beat - beat) < EPS);
   if (!l || song.locators!.some((x) => x !== l && Math.abs(x.beat - at) < EPS)) return false;
   l.beat = at;
@@ -72,8 +72,8 @@ export function nextLocator(locs: readonly Locator[] | undefined, beat: number):
  * loop is in whole bars: `a` the first bar, `b` the last.
  */
 export function loopToNext(song: Song, beat: number): { a: number; b: number } {
-  const end = nextLocator(song.locators, beat)?.beat ?? song.bars * BEATS_PER_BAR;
-  const a = Math.floor(beat / BEATS_PER_BAR + EPS);
-  const b = Math.max(a, Math.ceil(end / BEATS_PER_BAR - EPS) - 1);
+  const end = nextLocator(song.locators, beat)?.beat ?? song.bars * barBeats(song);
+  const a = Math.floor(beat / barBeats(song) + EPS);
+  const b = Math.max(a, Math.ceil(end / barBeats(song) - EPS) - 1);
   return { a, b: Math.min(b, song.bars - 1) };
 }

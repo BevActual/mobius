@@ -53,13 +53,13 @@ export function addNote(notes: readonly SongNote[], note: SongNote) {
 }
 
 /** The picked notes copied straight after themselves (Ctrl+D), the copies picked; what would run past the end is left out. */
-export function duplicateNotes(notes: readonly SongNote[], picked: Picked, total: number) {
+export function duplicateNotes(notes: readonly SongNote[], picked: Picked, total: number, perBar = BEATS_PER_BAR) {
   const chosen = notes.filter((_, i) => picked.has(i));
   if (chosen.length === 0) return { notes: [...notes], picked: new Set<number>() };
   const first = Math.min(...chosen.map((n) => n.start));
   const span = Math.max(...chosen.map((n) => n.start + n.length)) - first;
   // A copy starts on the next bar line when the picked notes fill whole bars, so loops stay in time.
-  const step = span % BEATS_PER_BAR === 0 || span > BEATS_PER_BAR ? Math.ceil(span / BEATS_PER_BAR) * BEATS_PER_BAR : span;
+  const step = Math.abs(span % perBar) < 1e-9 || span > perBar ? Math.ceil(span / perBar - 1e-9) * perBar : span;
   const copies = chosen.map((n) => ({ ...n, start: round(n.start + step) })).filter((n) => n.start + n.length <= total + 1e-6);
   return settle([...notes.map((n) => ({ note: n, picked: false })), ...copies.map((n) => ({ note: n, picked: true }))]);
 }
@@ -163,10 +163,10 @@ export function songBeat(played: number, start: number, cycle: Cycle | null): nu
 }
 
 /** The loop between two bars picked on the ruler (either way round, counted from 0), kept inside the song. */
-export function cycleOf(barA: number, barB: number, bars: number): Cycle {
+export function cycleOf(barA: number, barB: number, bars: number, perBar = BEATS_PER_BAR): Cycle {
   const a = Math.max(0, Math.min(bars - 1, Math.min(barA, barB)));
   const b = Math.max(a + 1, Math.min(bars, Math.max(barA, barB) + 1));
-  return { from: a * BEATS_PER_BAR, to: b * BEATS_PER_BAR };
+  return { from: a * perBar, to: b * perBar };
 }
 
 /** The notes inside a box drawn on the roll, from beat `b0` to `b1` and pitch `p0` to `p1` (either way round). */
@@ -176,12 +176,19 @@ export function notesIn(notes: readonly SongNote[], b0: number, b1: number, p0: 
   return new Set(notes.flatMap((n, i) => (n.pitch >= lo && n.pitch <= hi && n.start < e && n.start + n.length > s ? [i] : [])));
 }
 
-/** Where the song is, as the transport shows it: bar.beat.sixteenth, and minutes and seconds. */
-export function position(beat: number, tempo: number, at?: number): { bars: string; time: string } {
+/**
+ * Where the song is, as the transport shows it: bar.beat.sixteenth, and minutes and seconds. The beat is the time
+ * signature's own (an eighth in 6/8), as Live counts it.
+ */
+export function position(beat: number, tempo: number, signature?: readonly [number, number], at?: number): { bars: string; time: string } {
   const b = Math.max(0, beat);
-  const bar = Math.floor(b / BEATS_PER_BAR) + 1;
-  const inBar = Math.floor(b % BEATS_PER_BAR) + 1;
-  const sixteenth = Math.floor((b % 1) * 4) + 1;
+  const [num, unit] = signature ?? [4, 4];
+  const perBar = (num * 4) / unit;
+  const per = 4 / unit;
+  const bar = Math.floor(b / perBar + 1e-9) + 1;
+  const into = Math.max(0, b - (bar - 1) * perBar);
+  const inBar = Math.floor(into / per + 1e-9) + 1;
+  const sixteenth = Math.floor(((into - (inBar - 1) * per) / 0.25) + 1e-9) + 1;
   // `at`: the seconds it falls at along a tempo line, when the song has one.
   const seconds = at ?? (b * 60) / tempo;
   const m = Math.floor(seconds / 60);
@@ -201,11 +208,11 @@ export const isBlack = (pitch: number) => [1, 3, 6, 8, 10].includes(((pitch % 12
  * A track's notes as clips along the arrangement: each run of bars that has notes, split where a whole bar is empty.
  * `from` and `to` are bars counted from 0, `to` not included.
  */
-export function clipsOf(notes: readonly SongNote[], bars: number): { from: number; to: number }[] {
+export function clipsOf(notes: readonly SongNote[], bars: number, perBar = BEATS_PER_BAR): { from: number; to: number }[] {
   const used = new Array<boolean>(bars).fill(false);
   for (const n of notes) {
-    const first = Math.floor(n.start / BEATS_PER_BAR);
-    const last = Math.min(bars - 1, Math.floor((n.start + n.length - 1e-6) / BEATS_PER_BAR));
+    const first = Math.floor(n.start / perBar);
+    const last = Math.min(bars - 1, Math.floor((n.start + n.length - 1e-6) / perBar));
     for (let b = Math.max(0, first); b <= last; b++) used[b] = true;
   }
   const clips: { from: number; to: number }[] = [];
@@ -302,21 +309,23 @@ export function eqFromBand(i: number, band: EqBand): Partial<EqEffect> {
   return { high: c('high', band.gain), highFreq: c('highFreq', band.freq) };
 }
 
-/** Steps in a bar: sixteenth notes, four to a beat. */
+/** Steps in a bar of 4/4: sixteenth notes, four to a beat. */
 export const STEPS_PER_BAR = BEATS_PER_BAR * 4;
+/** Steps in a bar of `perBar` beats: a sixteenth each, so 12 in 3/4 and 14 in 7/8. */
+export const stepsPerBar = (perBar = BEATS_PER_BAR): number => Math.round(perBar * 4);
 const sameBeat = (a: number, b: number) => Math.abs(a - b) < 1e-6;
 
 /** A bar of drum notes as step cells, one row per pitch: each step is the velocity of a hit starting on it, or 0. */
-export function stepCells(notes: readonly SongNote[], bar: number, pitches: readonly number[]): number[][] {
-  return pitches.map((pitch) => Array.from({ length: STEPS_PER_BAR }, (_, i) => {
-    const at = bar * BEATS_PER_BAR + i / 4;
+export function stepCells(notes: readonly SongNote[], bar: number, pitches: readonly number[], perBar = BEATS_PER_BAR): number[][] {
+  return pitches.map((pitch) => Array.from({ length: stepsPerBar(perBar) }, (_, i) => {
+    const at = bar * perBar + i / 4;
     return notes.find((n) => n.pitch === pitch && sameBeat(n.start, at))?.velocity ?? 0;
   }));
 }
 
 /** A step switched on (a hit at that velocity, a sixteenth long unless `length` says), changed, or off (velocity 0); the notes stay in order. */
-export function setStep(notes: readonly SongNote[], bar: number, pitch: number, step: number, velocity: number, length = 0.25): SongNote[] {
-  const at = bar * BEATS_PER_BAR + step / 4;
+export function setStep(notes: readonly SongNote[], bar: number, pitch: number, step: number, velocity: number, length = 0.25, perBar = BEATS_PER_BAR): SongNote[] {
+  const at = bar * perBar + step / 4;
   const kept = notes.filter((n) => !(n.pitch === pitch && sameBeat(n.start, at)));
   if (velocity > 0) kept.push({ pitch, start: at, length, velocity: Math.min(1, velocity) });
   return kept.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
@@ -338,7 +347,7 @@ export function clipHits<N extends { start: number }>(notes: readonly N[], lengt
 }
 
 /** The next bar line at or after `beat`, where a launched clip starts, so it lands in time with what is playing. */
-export const nextBar = (beat: number): number => Math.max(0, Math.ceil(beat / BEATS_PER_BAR - 1e-9) * BEATS_PER_BAR);
+export const nextBar = (beat: number, perBar = BEATS_PER_BAR): number => Math.max(0, Math.ceil(beat / perBar - 1e-9) * perBar);
 
 /** A melody's step rows, high to low: `count` notes in the key, from the C of `octave` up (C4 is middle C). */
 export function scaleRows(inKey: ReadonlySet<number>, octave: number, count = 15): number[] {

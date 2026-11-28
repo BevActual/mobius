@@ -1,6 +1,6 @@
 import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { Button, IconButton } from './ui';
-import { BEATS_PER_BAR, sceneCount, sceneName, type Song } from './song-format';
+import { barBeats, sceneCount, sceneName, type Song } from './song-format';
 import type { SessionPlaying, SessionQueued } from './studio-engine';
 import { CLIP_DRAG } from './studio-moves';
 
@@ -75,7 +75,7 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
                 </div>
               );
             }
-            const length = clip.bars * BEATS_PER_BAR;
+            const length = clip.bars * barBeats(song);
             const round = on && now ? (((beat - now.start) % length) + length) % length / length : 0;
             const isChosen = selected === t.id && chosen === i;
             return (
