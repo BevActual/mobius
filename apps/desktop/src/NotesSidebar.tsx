@@ -252,7 +252,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
               )}
               {nb.pages.length === 0 && <li className="side-empty">No {words.items} yet.</li>}
               {drawn(pagesOf(nb)).map((pg) => pageRow(pg))}
-              {rows >= FIRST_ROWS && nb.pages.length > drawn(pagesOf(nb)).length && <MoreRows onMore={more} />}
+              {!away && rows >= FIRST_ROWS && nb.pages.length > drawn(pagesOf(nb)).length && <MoreRows onMore={more} />}
             </SidebarSection>
           ))}
           {/* Design, Canvas and Research: New folder waits until there is something to put in one. Notes keeps New
