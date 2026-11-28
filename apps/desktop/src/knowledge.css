@@ -46,7 +46,7 @@
 .wiki-page .wiki-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wiki-page .wiki-line-body > :not(.wiki-line-text) { flex: none; margin-left: auto; white-space: nowrap; }
 .wiki-page .wiki-line-actions { flex: none; }
-/* What Mobius proposes is dashed indigo with a soft tint, as everywhere in Mobius: here the whole Waiting block is. */
+/* What Mobius proposes is dashed Mobius with a soft tint, as everywhere in Mobius: here the whole Waiting block is. */
 .wiki-page .wiki-line[data-proposed] { outline: 0; padding-inline: var(--sp-3); background: color-mix(in srgb, var(--mobius) 6%, transparent); }
 .wiki-page .kn-group[data-waiting] .wiki-lines, .wiki-page .wiki-ask, .wiki-page .kn-changes { border-radius: var(--radius-panel); overflow: hidden; outline: var(--hairline-w) dashed color-mix(in srgb, var(--mobius) 70%, transparent); outline-offset: calc(var(--hairline-w) * -1); }
 .wiki-page .wiki-ask { margin-bottom: var(--sp-1); }

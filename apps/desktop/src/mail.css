@@ -28,7 +28,7 @@
 .mail-row[data-unread] .mail-row-who { font-weight: var(--fw-semibold); }
 /* Unread: the same drawn ink dot as something waiting in the launcher and on the Go button. */
 .mail-row[data-unread]::before { content: ""; position: absolute; left: 8px; top: calc(var(--sp-2) + 0.7em - var(--sp-2) / 2); width: var(--sp-2); height: var(--sp-2); border-radius: var(--radius-pill); background: var(--ink); }
-/* A reply Mobius wrote: the dashed indigo edge until it is kept or discarded. */
+/* A reply Mobius wrote: the dashed Mobius edge until it is kept or discarded. */
 /* A reply Mobius wrote: the ordinary row, with a small Mobius mark before the name (the dashed edge is for the draft itself). */
 .mail-row-mark { flex: none; margin-right: var(--sp-1); vertical-align: -1px; color: var(--mobius); }
 .mail-row-end { min-width: 4.5em; display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); }
@@ -105,7 +105,7 @@
 .mail-tools .strip-btn svg [data-dot] { fill: var(--ink); stroke: none; }
 .mail-tools .strip-btn svg[data-filled="true"] path { fill: currentColor; }
 
-/* Mobius's draft: one dashed indigo block, its text as the person would send it. */
+/* Mobius's draft: one dashed Mobius block, its text as the person would send it. */
 .mail-suggested { display: flex; flex-direction: column; gap: var(--sp-3); }
 .mail-suggested { gap: var(--sp-2); }
 .mail-suggested .doc-change-bar { flex-wrap: nowrap; }
@@ -132,9 +132,9 @@
 .mail-field input { flex: 1; height: var(--row-list); border: 0; background: transparent; font: inherit; color: inherit; outline: none; box-shadow: none; appearance: none; }
 .mail-field input:focus, .mail-field input:focus-visible { outline: none; box-shadow: none; background: transparent; }
 /* The body is borderless like the fields above it, and takes the same ring only while it has focus. */
-.mail-compose textarea:focus, .mail-compose textarea:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; box-shadow: none; background: transparent; }
+.mail-compose textarea:focus, .mail-compose textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; box-shadow: none; background: transparent; }
 /* Every field focuses the same way: the shared ring on its underline row. */
-.mail-field:focus-within { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; }
+.mail-field:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
 .mail-compose textarea { flex: 1; min-height: 160px; padding: var(--sp-2) var(--sp-1); border: 0; box-shadow: none; border-radius: var(--radius-control); resize: none; font: inherit; font-size: var(--fs-reading); line-height: 1.6; background: transparent; color: inherit; outline: none; }
 .mail-later { position: relative; display: inline-flex; }
 .mail-later-menu { position: absolute; bottom: calc(100% + var(--sp-1)); right: 0; z-index: 5; display: grid; gap: var(--sp-1); padding: var(--sp-1); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-1); white-space: nowrap; }
@@ -156,7 +156,7 @@
 
 /* Empty places in Mail: a plain line icon, not a coloured tile. */
 
-/* Get to zero, in the Mobius panel: Mobius's plan with a dashed indigo edge. */
+/* Get to zero, in the Mobius panel: Mobius's plan with a dashed Mobius edge. */
 .mail-plan { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
 .mail-plan-start { justify-self: start; }
 .mail-plan-card { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); outline: var(--hairline-w) dashed var(--mobius); outline-offset: -1px; background: var(--mobius-wash); }

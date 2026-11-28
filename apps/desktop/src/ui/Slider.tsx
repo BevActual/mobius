@@ -38,7 +38,7 @@ export interface SliderProps {
   remake?: boolean;
   hideLabel?: boolean;
   hideValue?: boolean;
-  /** Mobius set this value and nobody has kept it yet: the value reads in indigo inside a dashed indigo edge. */
+  /** Mobius set this value and nobody has kept it yet: the value reads in Mobius's colour inside a dashed Mobius edge. */
   proposed?: boolean;
   disabled?: boolean;
   className?: string;

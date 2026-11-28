@@ -23,7 +23,7 @@ import { levelPosition } from './Pro';
  *   Enter on another ends it; Escape cancels. Delete removes the chosen box or cable, or a focused port's cables.
  *   Alt+arrows nudge a box one grid step (Shift for four).
  * - `levels` feeds each cable its level (`levels.current.set(cableId, db)`) without a re-render; a louder cable is
- *   drawn thicker. A cable takes its source box's colour, or ink. `proposed` boxes and cables are dashed indigo.
+ *   drawn thicker. A cable takes its source box's colour, or ink. `proposed` boxes and cables are dashed Mobius.
  * - `readOnly` shows the patch: choosing and Tab still work, nothing moves or connects.
  */
 

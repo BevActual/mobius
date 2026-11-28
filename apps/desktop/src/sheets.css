@@ -65,7 +65,7 @@
 .sheet-page .sheet-table td[data-in] { background: color-mix(in srgb, var(--sel) 60%, var(--bg)); }
 .sheet-page .sheet-table td[data-focus] { z-index: 1; }
 .sheet-page .sheet-table td[data-fresh] { animation: cal-fresh var(--dur-slow) var(--ease) 2; }
-/* What Mobius changed in its last turn: the shared dashed indigo edge, as in Docs and Tasks, until you keep it. */
+/* What Mobius changed in its last turn: the shared dashed Mobius edge, as in Docs and Tasks, until you keep it. */
 .sheet-page .sheet-table td[data-changed] { background: var(--mobius-wash); outline: var(--hairline-w) dashed var(--mobius); outline-offset: -2px; }
 /* The ranges a formula names, each in its own content colour from the shared palette, as a soft tint. */
 .sheet-page .sheet-table td[data-ref="0"] { background: color-mix(in srgb, var(--c-blue) 16%, var(--bg)); }

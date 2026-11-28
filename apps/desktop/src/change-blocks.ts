@@ -13,7 +13,7 @@ import { MARK_PATHS } from './MobiusMark';
 
 /*
  * Mobius's change block, shared by every page that is written in the editor (Docs, Notes): each change of the agent's
- * last turn drawn where it is, as one dashed indigo block, with Discard, Try another and Keep for that change alone.
+ * last turn drawn where it is, as one dashed Mobius block, with Discard, Try another and Keep for that change alone.
  */
 
 /** What Mobius's last turn changed, as the page shows it: each change one dashed block where it is (the blocks it

@@ -249,7 +249,7 @@ export function EnvelopeGraph({ label = 'Envelope', value, onChange: change, onC
   /** What double-clicking a handle puts back (the instrument's own sound). */
   reset?: Envelope;
   ranges?: EnvelopeRanges;
-  /** The settings Mobius moved that nobody has kept yet: they read in indigo, their handles dashed, the shape dashed. */
+  /** The settings Mobius moved that nobody has kept yet: they read in Mobius's colour, their handles dashed, the shape dashed. */
   proposed?: Partial<Record<keyof Envelope, boolean>>;
   disabled?: boolean;
   className?: string;
@@ -365,7 +365,7 @@ export function FilterGraph({ label = 'Filter', value, onChange: change, onCommi
   onEnvAmountCommit?: (next: number) => void;
   /** Sweep's default, 0 to 1; double-click puts it back. */
   envAmountReset?: number;
-  /** The settings Mobius moved that nobody has kept yet: they read in indigo, the point and curve dashed. */
+  /** The settings Mobius moved that nobody has kept yet: they read in Mobius's colour, the point and curve dashed. */
   proposed?: Partial<Record<keyof FilterValue, boolean>>;
   disabled?: boolean;
   className?: string;

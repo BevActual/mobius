@@ -120,7 +120,7 @@
 .studio-dev-head { margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
 .studio-dev-section { display: grid; gap: var(--sp-2); }
 .studio-dev-note { margin: var(--sp-2) 0; color: var(--muted); font-size: var(--fs-sm); }
-/* What Mobius proposes: the dashed indigo edge every Mobius change carries until it is kept. */
+/* What Mobius proposes: the dashed Mobius edge every Mobius change carries until it is kept. */
 /* What Mobius proposes: the shared change bar, as a dashed strip above the tracks until it is kept or discarded. */
 .studio-float { position: sticky; left: 0; z-index: 3; display: flex; justify-content: center; margin-top: var(--sp-4); padding: 0 var(--sp-3); box-sizing: border-box; }
 .studio-page .studio-float .change-float { max-width: 100%; }

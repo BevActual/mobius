@@ -1,7 +1,7 @@
 /*
  * Views, in the Instrument style: a dashboard of tiles, each a flat card (a dashboard tile is an object in its own right)
  * with its app's line icon and name, a big tabular number where there is one, and a few rows. Colour only comes from
- * the content (an event's calendar, as a dot), indigo only from Mobius, red only for overdue and for removing. Edit
+ * the content (an event's calendar, as a dot), Mobius's colour only from Mobius, red only for overdue and for removing. Edit
  * shows a remove button on each tile and lets them be dragged into a new order. Mobius's changes come dashed.
  */
 
