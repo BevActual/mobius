@@ -535,8 +535,27 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  */
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 
-export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An electric piano track's settings (`instrument` "electric"). */ electric?: ElectricSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
-export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[]; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature }
+export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An electric piano track's settings (`instrument` "electric"). */ electric?: ElectricSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number>; /** The group track it plays into (Live 12, 18.3), by the group's id; left out, Main. */ group?: string }
+export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[]; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature; /** Group tracks (Live 12, 18.3), each summing the tracks and groups in it. */ groups?: GroupTrack[] }
+/**
+ * A group track (Live 12 manual, 18.3 "Group Tracks"): the tracks whose `group` is its id, and the groups in it, play
+ * into it, through its effects, then its volume and pan, into the group it is in or Main. It holds no clips of its own.
+ * Muting it mutes everything in it, soloing it solos everything in it. Its id never matches a track's or a return's.
+ */
+export interface GroupTrack { id: string; name: string; color: TrackColour; volume: number; pan: number; muted?: boolean; solo?: boolean; fx?: Effect[]; /** Its tracks hidden under it in Arrange and the Mixer ("Unfold Group" off). */ folded?: boolean; /** The group it is in. */ group?: string }
+/** The most groups a song keeps (the engine's own limit). */
+export const MAX_GROUPS = 64;
+/** The group with id `from` and the groups it is in, innermost first (a loop of groups ends where it repeats). */
+export function groupsUp(song: Pick<Song, 'groups'>, from: string | undefined): GroupTrack[] {
+  const out: GroupTrack[] = [];
+  for (let at = from; at && out.length < MAX_GROUPS;) {
+    const g = song.groups?.find((x) => x.id === at);
+    if (!g || out.includes(g)) break;
+    out.push(g);
+    at = g.group;
+  }
+  return out;
+}
 /** A named place in the song, at `beat` (Live 12, "Locators"). */
 export interface Locator { beat: number; name: string }
 /** The most locators a song keeps. */
@@ -740,6 +759,33 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     if (fx.length > 0) ret.fx = fx;
     return ret;
   });
+  // Group tracks (18.3): ids no track or return has; a group in a group that is not there, or in a loop of groups, is
+  // in none.
+  const groups = (Array.isArray(o.groups) ? o.groups : []).slice(0, MAX_GROUPS).map((g, i): GroupTrack & { in?: unknown } => {
+    const go = obj(g);
+    let id = typeof go.id === 'string' && go.id ? go.id.slice(0, 40) : `g-${i + 1}`;
+    while (taken.has(id)) id = `g-${id}`;
+    taken.add(id);
+    const color = TRACK_COLOURS.includes(go.color as TrackColour) ? (go.color as TrackColour) : TRACK_COLOURS[i % (TRACK_COLOURS.length - 2)]!;
+    const group: GroupTrack & { in?: unknown } = { id, name: typeof go.name === 'string' && go.name ? go.name.slice(0, 60) : 'Group', color, volume: num(go.volume, 0.8, 0, 1), pan: num(go.pan, 0, -1, 1), in: go.group };
+    if (go.muted === true) group.muted = true;
+    if (go.solo === true) group.solo = true;
+    if (go.folded === true) group.folded = true;
+    const fx = readFx(go.fx, `Group “${group.name}”`, (why) => { refused ??= why; });
+    if (fx.length > 0) group.fx = fx;
+    return group;
+  });
+  const groupIds = new Set(groups.map((g) => g.id));
+  for (const g of groups) {
+    const parent = g.in;
+    delete g.in;
+    if (typeof parent === 'string' && groupIds.has(parent) && parent !== g.id) g.group = parent;
+  }
+  for (const g of groups) if (g.group && groupsUp({ groups }, g.group).some((x) => x.id === g.id)) delete g.group;
+  (Array.isArray(o.tracks) ? o.tracks : []).slice(0, 32).forEach((t, i) => {
+    const gi = obj(t).group;
+    if (typeof gi === 'string' && groupIds.has(gi) && tracks[i]) tracks[i]!.group = gi;
+  });
   const returnIds = new Set(returns.map((r) => r.id));
   (Array.isArray(o.tracks) ? o.tracks : []).slice(0, 32).forEach((t, i) => {
     const so = obj(obj(t).sends);
@@ -760,6 +806,7 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     if (mainOff) song.main.autoOff = mainOff;
   }
   if (returns.length > 0) song.returns = returns;
+  if (groups.length > 0) song.groups = groups;
   const met = obj(o.metronome);
   if (typeof met.volume === 'number' && Number.isFinite(met.volume)) song.metronome = { volume: num(met.volume, METRONOME_VOLUME, 0, 1) };
   if (Array.isArray(o.scenes) && o.scenes.length > 0) song.scenes = o.scenes.slice(0, MAX_SCENES).map((n) => (typeof n === 'string' ? n.slice(0, 40) : ''));
@@ -837,6 +884,7 @@ export function writeSong(song: Song): string {
     ...(song.main ? [`  "main": ${JSON.stringify(song.main)},`] : []),
     ...(song.metronome ? [`  "metronome": ${JSON.stringify(song.metronome)},`] : []),
     ...(song.locators && song.locators.length > 0 ? [`  "locators": ${JSON.stringify(song.locators)},`] : []),
+    ...(song.groups && song.groups.length > 0 ? ['  "groups": [', ...song.groups.map((g, i) => `    ${JSON.stringify(g)}${i < song.groups!.length - 1 ? ',' : ''}`), '  ],'] : []),
     ...(song.returns && song.returns.length > 0 ? ['  "returns": [', ...song.returns.map((r, i) => `    ${JSON.stringify(r)}${i < song.returns!.length - 1 ? ',' : ''}`), '  ],'] : []),
     '  "tracks": ['];
   song.tracks.forEach((t, i) => {
@@ -846,6 +894,7 @@ export function writeSong(song: Song): string {
     if (t.instrumentOn === false) head.instrumentOn = false;
     if (t.pan) head.pan = t.pan;
     if (t.sends && Object.keys(t.sends).length > 0) head.sends = t.sends;
+    if (t.group) head.group = t.group;
     if (t.sound && isSynth(t.instrument)) head.sound = t.sound;
     if (t.string && t.instrument === 'string') head.string = t.string;
     if (t.mallet && t.instrument === 'mallet') head.mallet = t.mallet;
@@ -904,8 +953,13 @@ export const songSeconds = (song: Song) => secondsAt(song, song.bars * barBeats(
 
 /** Which tracks are heard: the soloed ones if any are, else every one not muted. */
 export function audible(song: Song): Track[] {
-  const solo = song.tracks.filter((t) => t.solo);
-  return solo.length > 0 ? solo : song.tracks.filter((t) => !t.muted);
+  return song.tracks.filter((t) => heard(song, t));
+}
+/** Whether a track is heard: soloed (or in a soloed group) when anything is soloed, else neither it nor a group it is in muted. */
+export function heard(song: Song, t: Track): boolean {
+  const up = groupsUp(song, t.group);
+  const solo = song.tracks.some((x) => x.solo) || (song.groups ?? []).some((g) => g.solo);
+  return solo ? t.solo || up.some((g) => g.solo) : !t.muted && !up.some((g) => g.muted);
 }
 
 /** A new track's id. */

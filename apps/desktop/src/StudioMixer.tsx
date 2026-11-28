@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Button, Knob, MixerStrip, SendKnob, Sends, type LevelFeed } from './ui';
-import { MAIN_VOLUME, METRONOME_VOLUME, MAX_RETURNS, returnName, type ReturnTrack, type Song, type Track } from './song-format';
+import { MAIN_VOLUME, METRONOME_VOLUME, MAX_RETURNS, heard, returnName, type GroupTrack, type ReturnTrack, type Song, type Track } from './song-format';
+import { groupRows } from './studio-groups';
 import { override } from './studio-auto';
 import { stoppedMeter, type Player } from './studio-engine';
 
@@ -20,7 +21,8 @@ export function freshReturnId(song: Song): string {
 
 /**
  * Music's Mixer, a tab beside the Detail at the bottom (Design's layout, after Live's Mixer view): a strip per track
- * with its sends, pan, fader and meter, mute and solo; then the return tracks; then Main with its own fader. The
+ * with its sends, pan, fader and meter, mute and solo, each group track's strip before its tracks (Live 12, 18.3), a
+ * folded group's tracks left out; then the return tracks; then Main with its own fader. The
  * meters move while the engine plays, and for a key played while stopped.
  */
 export function StudioMixer({ song, selected, onSelect, setTrack, setSong, source, playing }: {
@@ -36,7 +38,6 @@ export function StudioMixer({ song, selected, onSelect, setTrack, setSong, sourc
   playing: boolean;
 }) {
   const feeds = useRef(new Map<string, LevelFeed | null>());
-  const anySolo = song.tracks.some((t) => t.solo);
   useEffect(() => {
     const quiet = () => { for (const f of feeds.current.values()) f?.set(-90, -90); };
     let id = 0;
@@ -54,6 +55,9 @@ export function StudioMixer({ song, selected, onSelect, setTrack, setSong, sourc
   }, [playing, source]);
   const feed = (key: string) => (f: LevelFeed | null) => { feeds.current.set(key, f); };
   const returns = song.returns ?? [];
+  // Dimmed: not heard while something is soloed.
+  const anySolo = song.tracks.some((t) => t.solo) || (song.groups ?? []).some((g) => g.solo);
+  const setGroup = (id: string, fn: (g: GroupTrack) => void, tag = '') => setSong((s) => { const g = s.groups?.find((x) => x.id === id); if (g) fn(g); }, tag);
   const setReturn = (id: string, fn: (r: ReturnTrack) => void, tag = '') => setSong((s) => { const r = s.returns?.find((x) => x.id === id); if (r) fn(r); }, tag);
   // Every strip has the same room for sends, so the faders line up: knobs on a track, the same space on the others.
   const spacer = <Sends count={returns.length} />;
@@ -69,15 +73,26 @@ export function StudioMixer({ song, selected, onSelect, setTrack, setSong, sourc
   return (
     // The panel around it is already the "Mixer" region.
     <div className="studio-mixer">
-      {song.tracks.map((t) => (
+      {groupRows(song).map((row) => row.hidden ? null : row.kind === 'group' ? (() => {
+        const g = row.group;
+        return (
+          <MixerStrip key={g.id} name={g.name} color={g.color} className="studio-mixer-group" sends={spacer}
+            volume={gainToDb(g.volume)} ceiling={0} volumeReset={gainToDb(0.8)}
+            onVolume={(db) => setGroup(g.id, (x) => { x.volume = dbToGain(db); }, `mix-vol:${g.id}`)}
+            pan={g.pan} onPan={(p) => setGroup(g.id, (x) => { x.pan = Math.round(p * 100) / 100; }, `mix-pan:${g.id}`)}
+            mute={!!g.muted} onMute={(on) => setGroup(g.id, (x) => { if (on) x.muted = true; else delete x.muted; })}
+            solo={!!g.solo} onSolo={(on) => setGroup(g.id, (x) => { if (on) x.solo = true; else delete x.solo; })}
+            meter={feed(g.id)} />
+        );
+      })() : (() => { const t = row.track; return (
         <MixerStrip key={t.id} name={t.name} color={t.color} selected={t.id === selected} onSelect={() => onSelect(t.id)}
           volume={gainToDb(t.volume)} ceiling={0} volumeReset={gainToDb(0.8)}
           onVolume={(db) => setTrack(t.id, (x) => { x.volume = dbToGain(db); override(x, 'volume'); }, `mix-vol:${t.id}`)}
           pan={t.pan} onPan={(p) => setTrack(t.id, (x) => { x.pan = Math.round(p * 100) / 100; override(x, 'pan'); }, `mix-pan:${t.id}`)}
           mute={t.muted} onMute={(on) => setTrack(t.id, (x) => { x.muted = on; })}
           solo={t.solo} onSolo={(on) => setTrack(t.id, (x) => { x.solo = on; })}
-          dimmed={anySolo && !t.solo} meter={feed(t.id)} sends={sendsOf(t)} />
-      ))}
+          dimmed={anySolo && !heard(song, t)} meter={feed(t.id)} sends={sendsOf(t)} />
+      ); })())}
       {returns.map((r, i) => (
         <MixerStrip key={r.id} name={`${returnName(r, i)} Return`} className="studio-mixer-return" sends={spacer}
           volume={gainToDb(r.volume)} ceiling={0} volumeReset={gainToDb(MAIN_VOLUME)}

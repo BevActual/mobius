@@ -1090,6 +1090,60 @@ test('the song tempo changes along a line on Main: the playhead reads it, and Cl
   await expect(tempo).toHaveValue('112');
 });
 
+test('Group Tracks puts tracks in a group with its own mute, fold and Mixer strip; Ungroup and Delete undo it (Live 12, 18.3)', async () => {
+  await start();
+  type Saved = { groups?: { id: string; name: string; muted?: boolean; folded?: boolean; volume: number }[]; tracks: { name: string; group?: string }[] };
+  const song = () => saved() as unknown as Saved;
+  await addTrack('Bass');
+  await expect.poll(() => song().tracks.length).toBe(2);
+  // Keys, then Ctrl+click Bass: both chosen, and Ctrl+G groups them.
+  await tracks().getByRole('listitem', { name: 'Keys' }).locator('.studio-track-no').click();
+  await tracks().getByRole('listitem', { name: 'Bass' }).locator('.studio-track-no').click({ modifiers: ['Control'] });
+  await shell().keyboard.press('Control+g');
+  await expect.poll(() => song().groups?.map((g) => g.name)).toEqual(['Group']);
+  const id = song().groups![0]!.id;
+  expect(song().tracks.map((t) => t.group)).toEqual([id, id]);
+  const group = tracks().getByRole('listitem', { name: 'Group group' });
+  await expect(group).toContainText('2 tracks');
+  // The overview in its lane shows where the tracks' clips are.
+  await expect(group.locator('.studio-group-clip').first()).toBeVisible();
+  // Its mute mutes everything in it: the tracks read as not heard.
+  await group.getByRole('button', { name: 'Mute Group' }).click();
+  await expect.poll(() => song().groups![0]!.muted).toBe(true);
+  await expect(tracks().getByRole('listitem', { name: 'Keys' })).toHaveAttribute('data-muted', 'true');
+  await group.getByRole('button', { name: 'Mute Group' }).click();
+  await expect.poll(() => song().groups![0]!.muted).toBeUndefined();
+  // Fold hides its tracks, Unfold shows them again.
+  await group.getByRole('button', { name: 'Fold Group' }).click();
+  await expect(tracks().getByRole('listitem', { name: 'Keys' })).toHaveCount(0);
+  await expect.poll(() => song().groups![0]!.folded).toBe(true);
+  await group.getByRole('button', { name: 'Unfold Group' }).click();
+  await expect(tracks().getByRole('listitem', { name: 'Keys' })).toBeVisible();
+  // The Mixer has its strip, with its own fader.
+  await shell().getByRole('button', { name: 'Mixer', exact: true }).click();
+  const mixer = shell().getByRole('region', { name: 'Mixer' });
+  const fader = mixer.getByRole('slider', { name: 'Group volume' });
+  await expect(fader).toBeVisible();
+  await fader.focus();
+  await shell().keyboard.press('PageDown');
+  await expect.poll(() => song().groups![0]!.volume).toBeLessThan(0.5);
+  // Ungroup (from its menu) puts the tracks back on their own; Ctrl+Z brings the group back.
+  await group.locator('.studio-track-head').click({ button: 'right', position: { x: 60, y: 10 } });
+  await shell().getByRole('menuitem', { name: /Ungroup Tracks/ }).click();
+  await expect.poll(() => song().groups).toBeUndefined();
+  expect(song().tracks.every((t) => !t.group)).toBe(true);
+  await tracks().getByRole('listitem', { name: 'Keys' }).locator('.studio-track-no').click();
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => song().groups?.length).toBe(1);
+  // Delete Group takes its tracks with it, as Live's does.
+  await tracks().getByRole('listitem', { name: 'Group group' }).locator('.studio-track-sub').click();
+  await shell().keyboard.press('Delete');
+  await expect.poll(() => song().tracks.length).toBe(0);
+  await shell().getByRole('status').filter({ hasText: 'Deleted “Group”' }).getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => song().tracks.length).toBe(2);
+  expect(song().groups?.length).toBe(1);
+});
+
 test('automation draws a volume or pan line under a track with points, kept in the song', async () => {
   await start();
   // Wide enough that the Automation button stays in the toolbar rather than the ⋯ menu.
