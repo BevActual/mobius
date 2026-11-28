@@ -99,6 +99,8 @@ pub enum Instrument {
     Pad,
     Lead,
     Drums,
+    /// A modelled string (Live 12's Tension): its `string` settings, not a `sound`.
+    String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -144,6 +146,9 @@ pub struct Track {
     pub notes: Vec<Note>,
     #[serde(default)]
     pub sound: Option<Sound>,
+    /// A string track's settings (`instrument` "string"); none plays the string's own.
+    #[serde(default)]
+    pub string: Option<crate::string::StringSound>,
     /// An instrument stack (Live 12's Instrument Rack): its chains play each note in their key and velocity zones in
     /// place of the track's own instrument. None, or no chain, plays the track's own.
     #[serde(default)]
@@ -525,7 +530,7 @@ impl Sound {
             Instrument::Bass => Some(s(1.0, 0.0, 700.0, 0.1, 0.3, 1.0, 0.005, 0.08)),
             Instrument::Pad => Some(s(1.0, 14.0, 1800.0, 0.1, 0.3, 1.0, 0.25, 0.5)),
             Instrument::Lead => Some(s(0.7, 0.0, 5000.0, 0.1, 0.3, 1.0, 0.005, 0.08)),
-            Instrument::Drums => None,
+            Instrument::Drums | Instrument::String => None,
         }
     }
 }

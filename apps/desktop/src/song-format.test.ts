@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song } from './song-format';
+import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song, soundOf, stringOf, STRING_DEFAULTS } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -541,5 +541,22 @@ describe('the metronome level', () => {
     if ('error' in plain) throw new Error(plain.error);
     expect(plain.song.metronome).toBeUndefined();
     expect(writeSong(plain.song)).not.toContain('metronome');
+  });
+});
+
+describe('a string track', () => {
+  it('keeps its string settings in range, writes them back, and has no synth sound', () => {
+    const read = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 4, tracks: [{ id: 't1', instrument: 'string', clips: [], sound: { cutoff: 900 }, string: { exciter: 'bow', decay: 99, damping: 0.25, position: -3, tone: 'loud' } }] }));
+    if (!('song' in read)) throw new Error(read.error);
+    const t = read.song.tracks[0]!;
+    expect(t.string).toEqual({ exciter: 'bow', decay: 30, damping: 0.25, position: 0.02, tone: 0.6 });
+    expect(t.sound).toBeUndefined();
+    expect(soundOf(t)).toBeNull();
+    expect(stringOf(t)?.exciter).toBe('bow');
+    expect(JSON.parse(writeSong(read.song)).tracks[0].string).toEqual(t.string);
+    const plain = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 4, tracks: [{ id: 't1', instrument: 'string', clips: [] }] }));
+    if (!('song' in plain)) throw new Error(plain.error);
+    expect(stringOf(plain.song.tracks[0]!)).toEqual(STRING_DEFAULTS);
+    expect(stringOf({ instrument: 'piano' })).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { EFFECT_KINDS, EFFECT_NAMES, INSTRUMENT_NAMES, KIT_DEFAULTS, SOUND_DEFAULTS, type EffectKind, type Instrument, type KitSound, type Sound } from './song-format';
+import { EFFECT_KINDS, EFFECT_NAMES, INSTRUMENT_NAMES, KIT_DEFAULTS, SOUND_DEFAULTS, type EffectKind, type Instrument, type SynthInstrument, type KitSound, type Sound } from './song-format';
 import type { TagPicks } from './ui';
 
 /**
@@ -30,8 +30,8 @@ export const TAG_GROUPS = [
   { id: 'character', name: 'Character', tags: ['Warm', 'Bright', 'Dark', 'Soft', 'Hard', 'Wide'] },
 ] as const;
 
-const sound = (base: Exclude<Instrument, 'drums'>, over: Partial<Sound>): Sound => ({ ...SOUND_DEFAULTS[base], ...over });
-const preset = (id: string, name: string, instrument: Exclude<Instrument, 'drums'>, over: Partial<Sound>, type: string, character: string[]): LibraryItem =>
+const sound = (base: SynthInstrument, over: Partial<Sound>): Sound => ({ ...SOUND_DEFAULTS[base], ...over });
+const preset = (id: string, name: string, instrument: SynthInstrument, over: Partial<Sound>, type: string, character: string[]): LibraryItem =>
   ({ id: `sound:${id}`, name, category: 'sounds', instrument, sound: sound(instrument, over), tags: { type: [type], character } });
 const kit = (id: string, name: string, k: Partial<KitSound>, character: string[]): LibraryItem =>
   ({ id: `drums:${id}`, name, category: 'drums', instrument: 'drums', kit: { ...KIT_DEFAULTS, ...k }, tags: { type: ['Drums'], character } });

@@ -26,5 +26,6 @@ pub mod render;
 pub mod sample;
 pub mod sampler;
 pub mod song;
+pub mod string;
 pub mod voice;
 pub mod wav;

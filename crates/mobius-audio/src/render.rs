@@ -25,6 +25,8 @@ struct Lane {
     /// The first note not yet started.
     next: usize,
     sound: Option<Sound>,
+    /// A string track's settings.
+    string: Option<crate::string::StringSound>,
     instrument: Instrument,
     /// Its instrument stack's chains, which play its notes in place of its instrument when there are any.
     chains: Vec<InstrumentChain>,
@@ -511,10 +513,7 @@ impl Lane {
             return;
         }
         // A track with no sound of its own plays its instrument's own voices, as the window does.
-        let mut voice = match &self.sound {
-            Some(sound) => Voice::new(self.instrument, sound, note.pitch, note.length * spb, note.velocity),
-            None => Voice::legacy(self.instrument, note.pitch, note.length * spb, note.velocity),
-        };
+        let mut voice = Voice::for_note(self.instrument, self.sound.as_ref(), self.string.as_ref(), note.pitch, note.length * spb, note.velocity);
         voice.add_to(&mut self.scratch[offset.min(frames)..frames], rate);
         if self.voices.len() >= MAX_VOICES {
             self.voices.remove(0);
@@ -546,10 +545,7 @@ pub type Gains = (f32, f32);
 /// A stack chain's note: its instrument with its sound, or the instrument's own.
 #[must_use]
 pub fn chain_voice(chain: &InstrumentChain, pitch: u8, seconds: f64, velocity: f64) -> Voice {
-    match &chain.sound {
-        Some(sound) => Voice::new(chain.instrument, sound, pitch, seconds, velocity),
-        None => Voice::legacy(chain.instrument, pitch, seconds, velocity),
-    }
+    Voice::for_note(chain.instrument, chain.sound.as_ref(), None, pitch, seconds, velocity)
 }
 
 /// A stack chain's volume and pan as left and right gains on its instrument's (mono) sound.
@@ -1043,6 +1039,7 @@ impl Renderer {
                     notes,
                     next,
                     sound: t.sound,
+                    string: t.string,
                     instrument: t.instrument,
                     chains: if is_frozen { Vec::new() } else { t.chains().to_vec() },
                     stacked: Vec::with_capacity(MAX_VOICES),
@@ -1818,6 +1815,25 @@ mod tests {
         new.render(&mut l, &mut r);
         assert!(l.iter().any(|x| x.abs() > 0.01));
         assert_eq!(new.track_ids().collect::<Vec<_>>(), ["t"]);
+    }
+
+    #[test]
+    fn a_string_track_plays_its_notes_on_a_modelled_string() {
+        // A2 plucked, then the same bowed: each sounds at its pitch, the bow only while held.
+        let pluck = render_song(&song(r#"{"id":"t","instrument":"string","notes":[{"pitch":45,"start":0,"length":1,"velocity":0.9}]}"#), 48_000).0;
+        let bow = render_song(&song(r#"{"id":"t","instrument":"string","string":{"exciter":"bow","decay":0.5},"notes":[{"pitch":45,"start":0,"length":2,"velocity":0.9}]}"#), 48_000).0;
+        let rms = |x: &[f32]| (x.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>() / x.len() as f64).sqrt();
+        assert!(rms(&pluck[2_000..12_000]) > 0.01, "pluck {}", rms(&pluck[2_000..12_000]));
+        // At 120 bpm two beats are a second: the bow still sounds near its end, and is quiet well after.
+        assert!(rms(&bow[40_000..46_000]) > 0.005, "bow {}", rms(&bow[40_000..46_000]));
+        assert!(bow.len() < 80_000 || rms(&bow[72_000..78_000]) < rms(&bow[40_000..46_000]) * 0.05);
+        // 110 Hz at 48 kHz: the wave repeats every 436.4 samples, so it matches itself one period on.
+        let like = |shift: usize| {
+            let (a, b) = (&pluck[4_800..9_600], &pluck[4_800 + shift..9_600 + shift]);
+            a.iter().zip(b).map(|(x, y)| f64::from(*x) * f64::from(*y)).sum::<f64>() / (rms(a) * rms(b) * a.len() as f64)
+        };
+        assert!(like(436) > 0.9 && like(218) < 0.5, "{} {}", like(436), like(218));
+        assert!(pluck.iter().chain(&bow).all(|v| v.is_finite() && v.abs() <= 1.0));
     }
 
     #[test]
