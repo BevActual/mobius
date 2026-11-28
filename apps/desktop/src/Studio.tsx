@@ -16,7 +16,7 @@ import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
 import { StudioGrooves } from './StudioGrooves';
 import { addGroove, commitGroove, extractGroove } from './studio-groove';
-import { applyScene, sceneSettingsOf, setSceneSetting } from './studio-scenes';
+import { applyScene, sceneFollowAsk, sceneFollowTarget, sceneSettingsOf, setSceneSetting } from './studio-scenes';
 import { deleteGroup, groupRows, groupTracks, leaveGroup, soloInside, tracksIn, ungroup } from './studio-groups';
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
@@ -1213,6 +1213,16 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const jam = useRef<Jam | null>(null);
   const [jamming, setJamming] = useState(false);
   const endJam = useRef<() => void>(() => {});
+  /** The scene launched last whose follow action is waiting (Live 12, 16.7): its slot, and the beat to ask for it. */
+  const sceneRun = useRef<{ slot: number; ask: number } | null>(null);
+  const fireScene = useRef<(slot: number) => void>(() => {});
+  // A scene's follow action, asked for the bar before it is due so it lands on time.
+  useEffect(() => {
+    const run = sceneRun.current;
+    if (!run || !session.current || beat < run.ask) return;
+    sceneRun.current = null;
+    fireScene.current(run.slot);
+  }, [beat]);
   const stop = useCallback(() => {
     endJam.current();
     counting.current?.stop(); counting.current = null;
@@ -1220,6 +1230,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     setRecording(false);
     player.current?.stop(); player.current = null;
     session.current?.stop(); session.current = null;
+    sceneRun.current = null;
     setSessionNow({ playing: {}, queued: {} });
     setPlaying(false);
   }, []);
@@ -1593,12 +1604,23 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   /** Launches a row: each track plays its clip in that scene, and a track with none there stops. */
   const launchScene = (slot: number) => {
     // A scene's own tempo and time signature, taken by the song as it launches (Live 12, 7.2.1).
-    if (sceneSettingsOf(song, slot)) change((s) => { applyScene(s, slot); }, 'scene-tempo');
+    const set = sceneSettingsOf(song, slot);
+    if (set && (set.tempo !== undefined || set.signature)) change((s) => { applyScene(s, slot); }, 'scene-tempo');
+    // Its follow action, timed from where its clips start: the next bar, or the first beat when Session starts now.
+    const bar = barBeats(set?.signature ? { signature: set.signature } : song);
+    const start = session.current ? Math.max(0, Math.ceil(beat / bar - 1e-9) * bar) : 0;
+    sceneRun.current = set?.follow?.time ? { slot, ask: sceneFollowAsk(start, set.follow.time, bar) } : null;
     const row = Object.fromEntries(song.tracks.map((t) => [t.id, t.slots?.[slot] ? slot : null]));
     if (session.current) for (const [id, at] of Object.entries(row)) session.current.launch(id, at);
     else startSession(Object.fromEntries(Object.entries(row).filter(([, at]) => at !== null)));
   };
-  const stopAll = () => { for (const t of song.tracks) session.current?.launch(t.id, null); };
+  const stopAll = () => { sceneRun.current = null; for (const t of song.tracks) session.current?.launch(t.id, null); };
+  fireScene.current = (slot) => {
+    const follow = sceneSettingsOf(song, slot)?.follow;
+    if (!follow) return;
+    const to = sceneFollowTarget(song, slot, follow, Math.random(), Math.random());
+    if (to === 'stop') stopAll(); else if (to !== null) launchScene(to);
+  };
   const deleteClip = (id: string, slot: number) => {
     if (sessionNow.playing[id]?.slot === slot) session.current?.launch(id, null);
     setSlot(id, slot, null);

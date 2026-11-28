@@ -605,7 +605,7 @@ export function readGrooves(v: unknown): Groove[] {
  */
 export interface GroupTrack { id: string; name: string; color: TrackColour; volume: number; pan: number; muted?: boolean; solo?: boolean; fx?: Effect[]; /** Its tracks hidden under it in Arrange and the Mixer ("Unfold Group" off). */ folded?: boolean; /** The group it is in. */ group?: string }
 /** A scene's tempo (30 to 300 BPM) and time signature, either or both (Live 12 manual, 7.2.1). */
-export interface SceneSettings { tempo?: number; signature?: Signature }
+export interface SceneSettings { tempo?: number; signature?: Signature; /** Its follow action (Live 12, 16.7: "You can also apply Follow Actions to scenes"): what is launched `time` beats after it; Jump goes to scene `jump`. A scene's is never linked to a length. */ follow?: Follow }
 
 /** The most groups a song keeps (the engine's own limit). */
 export const MAX_GROUPS = 64;
@@ -900,6 +900,8 @@ export function parseSong(text: string): { song: Song } | { error: string } {
         const m = meterOf({ signature: asked });
         if (m[0] === asked[0] && m[1] === asked[1]) out.signature = [m[0], m[1]];
       }
+      const follow = readFollow(so.follow);
+      if (follow && (follow.a !== 'none' || follow.b !== 'none')) { delete follow.times; follow.time ??= 16; out.follow = follow; }
       return Object.keys(out).length > 0 ? out : null;
     });
     while (sets.length > 0 && sets[sets.length - 1] === null) sets.pop();

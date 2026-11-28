@@ -246,11 +246,11 @@
 .studio-session-name { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; width: 100%; height: 100%; padding: 0 var(--sp-1); border: 0; background: none; color: var(--ink); font: inherit; font-weight: var(--fw-semibold); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
 .studio-scene-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-1); padding: 0 var(--sp-1) 0 var(--sp-2); color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
 /* Scene tempo and time signature (Live 12, 7.2.1): the scene column widens to show them. */
-.studio-session[data-scene-tempo] { grid-template-columns: repeat(var(--cols), minmax(calc(var(--sp-8) * 4), calc(var(--sp-8) * 5))) calc(var(--sp-8) * 10); }
+.studio-session[data-scene-tempo] { grid-template-columns: repeat(var(--cols), minmax(calc(var(--sp-8) * 4), calc(var(--sp-8) * 5))) calc(var(--sp-8) * 16); }
 .studio-scene-set { display: inline-flex; flex: none; align-items: center; gap: var(--sp-1); }
 .studio-scene-field { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .studio-scene-set .ui-number-box { min-width: 0; height: calc(var(--row-list) - 8px); padding: 0 var(--sp-1); font-size: var(--fs-sm); }
-.studio-session[data-scene-tempo] .studio-scene-name { min-width: 8ch; }
+.studio-session[data-scene-tempo] .studio-scene-name { flex: 0 0 10ch; min-width: 0; }
 .studio-scene-field[data-unset] { opacity: 0.5; }
 .studio-scene-field[data-unset]:hover, .studio-scene-field[data-unset]:focus-within { opacity: 1; }
 .studio-scene-launch[data-set] { background: var(--ink); color: var(--paper); }
