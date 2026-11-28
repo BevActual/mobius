@@ -1,7 +1,8 @@
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
+import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { Button, IconButton } from './ui';
 import { BEATS_PER_BAR, sceneCount, sceneName, type Song } from './song-format';
 import type { SessionPlaying, SessionQueued } from './studio-engine';
+import { CLIP_DRAG } from './studio-moves';
 
 /**
  * Music's Session view: a grid of clips, a column per track and a row per scene. A clip is a short loop that starts on
@@ -13,7 +14,7 @@ const PLAY = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5l8 5-8 5z"
 const ADD = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>;
 const STOP = <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1" /></svg>;
 
-export function SessionGrid({ song, selected, chosen, playing, queued, beat, onSelect, onChoose, onCreate, onLaunch, onLaunchScene, onStopAll, onSceneName, onAddScene, onClipMenu }: {
+export function SessionGrid({ song, selected, chosen, playing, queued, beat, onSelect, onChoose, onCreate, onLaunch, onLaunchScene, onStopAll, onSceneName, onAddScene, onClipMenu, onDropClip }: {
   song: Song;
   selected: string | null;
   /** The chosen clip's slot on the selected track, shown in the bottom area. */
@@ -31,7 +32,19 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
   onSceneName: (slot: number, name: string) => void;
   onAddScene: () => void;
   onClipMenu: (trackId: string, slot: number, x: number, y: number) => void;
+  /** A clip dragged onto a slot: moved there, or copied with Ctrl held (Live 12, 7.4). */
+  onDropClip: (from: { trackId: string; slot: number }, to: { trackId: string; slot: number }, copy: boolean) => void;
 }) {
+  // A slot takes a Session clip dragged onto it; the drop reads which one from the drag's data.
+  const dropOn = (trackId: string, slot: number) => ({
+    onDragOver: (e: DragEvent<HTMLDivElement>) => { if (Array.from(e.dataTransfer.types).includes(CLIP_DRAG)) { e.preventDefault(); e.dataTransfer.dropEffect = e.ctrlKey || e.metaKey ? 'copy' : 'move'; } },
+    onDrop: (e: DragEvent<HTMLDivElement>) => {
+      const raw = e.dataTransfer.getData(CLIP_DRAG);
+      if (!raw) return;
+      e.preventDefault();
+      try { const from = JSON.parse(raw) as { trackId: string; slot: number }; onDropClip(from, { trackId, slot }, e.ctrlKey || e.metaKey); } catch { /* not a clip */ }
+    },
+  });
   const scenes = sceneCount(song);
   const soloed = song.tracks.some((t) => t.solo);
   return (
@@ -57,7 +70,7 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
             const style = { '--tc': `var(--c-${t.color})` } as CSSProperties;
             if (!clip) {
               return (
-                <div key={t.id} role="gridcell" className="studio-slot" style={style}>
+                <div key={t.id} role="gridcell" className="studio-slot" style={style} {...dropOn(t.id, i)}>
                   <button type="button" className="studio-slot-empty" aria-label={`New clip on ${t.name}, scene ${sceneName(song, i)}`} title="New clip" onClick={() => onCreate(t.id, i)} />
                 </div>
               );
@@ -66,10 +79,11 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
             const round = on && now ? (((beat - now.start) % length) + length) % length / length : 0;
             const isChosen = selected === t.id && chosen === i;
             return (
-              <div key={t.id} role="gridcell" className="studio-slot" style={style} data-playing={on || undefined} data-queued={waiting || undefined} aria-selected={isChosen}
+              <div key={t.id} role="gridcell" className="studio-slot" style={style} data-playing={on || undefined} data-queued={waiting || undefined} aria-selected={isChosen} {...dropOn(t.id, i)}
                 onContextMenu={(e: ReactMouseEvent) => { e.preventDefault(); onClipMenu(t.id, i, e.clientX, e.clientY); }}>
                 <IconButton className="studio-clip-launch" label={`Launch ${clip.name}, scene ${sceneName(song, i)}`} pressed={on} title={on ? 'Playing: launch again to start it over' : 'Launch: starts on the next bar'} icon={PLAY} onClick={() => onLaunch(t.id, i)} />
-                <button type="button" className="studio-clip-body" aria-label={`${clip.name}, ${clip.bars} ${clip.bars === 1 ? 'bar' : 'bars'}`} aria-pressed={isChosen} onClick={() => onChoose(t.id, i)}>
+                <button type="button" className="studio-clip-body" aria-label={`${clip.name}, ${clip.bars} ${clip.bars === 1 ? 'bar' : 'bars'}`} aria-pressed={isChosen} onClick={() => onChoose(t.id, i)}
+                  draggable onDragStart={(e) => { e.dataTransfer.setData(CLIP_DRAG, JSON.stringify({ trackId: t.id, slot: i })); e.dataTransfer.effectAllowed = 'copyMove'; }}>
                   <span className="studio-clip-name">{clip.name}</span>
                   {on && <span className="studio-clip-round" style={{ ['--p' as string]: round }} aria-hidden="true" />}
                 </button>

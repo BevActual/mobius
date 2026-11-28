@@ -45,7 +45,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Live does | Music today | Gap | Size |
 | --- | --- | --- | --- |
 | Clips are objects on a track: start, length, loop, offset, name, colour | Real clips in Arrange with name and mute; **loop and start marker in the format and played by the engine and the window player alike; Loop in a clip's menu, stretching a looped clip repeats it** | Clip View's Set buttons, the loop brace in the notes editor, colour | XL (format) |
-| Drag clips between Session and Arrange; record Session into Arrange | Separate | Comes with real clips | L |
+| Drag clips between Session and Arrange; record Session into Arrange | Copy to Arrange and Copy to Session in the clips' menus, a Session clip dragged over Arrange's name and dropped on a track, slot-to-slot drags (Ctrl copies), and Consolidate Loop to New Scene (Live 12 manual, 7.5 "Recording Sessions into the Arrangement"; audio tracks are left empty there for now, as Live renders a new sample) | Arrangement Record and Back to Arrangement (next) | M |
 | Time signature and tempo changes along the song | One tempo, 4/4 | Tempo and meter lanes | M |
 | Locators and arrangement markers, sections to move as a whole | None | Markers, then sections | M |
 | Group tracks, folding, a group's own level and effects | None | Groups | L |
