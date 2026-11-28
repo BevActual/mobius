@@ -570,6 +570,38 @@ test('a drum kit has a pad per drum with its own settings, and its notes can be 
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 38)).toMatchObject({ start: 1, length: 0.25 });
 });
 
+test('Follow Actions play the next clip once one has played, as set in the Clip bar (Live 12, 16.7)', async () => {
+  await start();
+  await shell().getByRole('radio', { name: 'Session' }).click();
+  const grid = shell().getByRole('grid', { name: 'Clips' });
+  await grid.getByRole('button', { name: 'New clip on Keys, scene 2' }).click();
+  await grid.getByRole('button', { name: 'New clip on Keys, scene 1' }).click();
+  type Slot = { name: string; follow?: { a: string; b: string; chance: number; time?: number; times?: number } } | null;
+  const slots = () => (saved().tracks[0] as { slots?: Slot[] }).slots;
+  await expect.poll(() => slots()?.length).toBe(2);
+  // On: Next at the clip's end, as Live starts them.
+  await shell().getByRole('button', { name: 'Follow Actions' }).click();
+  await expect.poll(() => slots()?.[0]?.follow).toEqual({ a: 'next', b: 'none', chance: 1 });
+  const follow = shell().getByRole('group', { name: 'Follow Actions' });
+  await follow.getByRole('combobox', { name: 'After' }).click();
+  await shell().getByRole('option', { name: '1 beat', exact: true }).click();
+  await expect.poll(() => slots()?.[0]?.follow?.time).toBe(1);
+  await follow.getByRole('combobox', { name: 'B' }).click();
+  await shell().getByRole('option', { name: 'Stop', exact: true }).click();
+  await expect.poll(() => slots()?.[0]?.follow?.b).toBe('stop');
+  await expect(grid.getByRole('button', { name: /^Keys 1, 1 bar, then Next$/ })).toBeVisible();
+  // Launched, it plays a beat and then the clip below takes over.
+  await grid.getByRole('button', { name: 'Launch Keys 1, scene 1' }).click();
+  await expect(grid.getByRole('button', { name: 'Launch Keys 2, scene 2' })).toHaveAttribute('aria-pressed', 'true', { timeout: 8000 });
+  await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene 1' })).toHaveAttribute('aria-pressed', 'false');
+  await grid.getByRole('button', { name: 'Stop all' }).click();
+  await shell().getByRole('button', { name: 'Stop', exact: true }).click();
+  // Off again: the clip goes round as before.
+  await grid.getByRole('button', { name: /^Keys 1, 1 bar/ }).click();
+  await shell().getByRole('button', { name: 'Follow Actions' }).click();
+  await expect.poll(() => slots()?.[0]?.follow).toBeUndefined();
+});
+
 test('the Session view has clips to launch in scenes, each with its own notes, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();

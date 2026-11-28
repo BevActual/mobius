@@ -256,6 +256,10 @@
 .studio-slot > .studio-clip-launch svg { width: var(--sp-3); height: var(--sp-3); fill: currentColor; stroke: none; }
 .studio-slot[data-playing] > .studio-clip-launch { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .studio-clip-body { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-left: 0; border-radius: 0 var(--radius-small) var(--radius-small) 0; background: var(--paper); color: var(--ink); font: inherit; text-align: left; overflow: hidden; cursor: default; }
+/* A clip with Follow Actions: a small mark at its right end. */
+.studio-clip-follow { flex: none; margin-left: auto; padding-left: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); line-height: 1; }
+/* The clip's Follow Actions in the Clip bar, side by side. */
+.studio-follow { display: inline-flex; align-items: center; gap: var(--sp-2); }
 .studio-clip-body:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 /* The chosen clip: the current fill and a hairline ink edge, as a current list row has. */
 .studio-slot[aria-selected="true"] > .studio-clip-launch:not([aria-pressed="true"]), .studio-slot[aria-selected="true"] > .studio-clip-body { background: var(--sel); }
