@@ -564,7 +564,7 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** The groove in the Groove Pool it plays with (Live 12, 14); left out, as written. */ groove?: string; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 
 export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An electric piano track's settings (`instrument` "electric"). */ electric?: ElectricSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number>; /** The group track it plays into (Live 12, 18.3), by the group's id; left out, Main. */ group?: string; /** Step rows with a length of their own (Live 13's step sequencer), in steps, by pitch; a row left out runs the whole clip. */ stepRows?: Record<string, number> }
-export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[]; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature; /** Group tracks (Live 12, 18.3), each summing the tracks and groups in it. */ groups?: GroupTrack[]; /** The Groove Pool (Live 12, 14.1): the grooves its clips can play with. */ grooves?: Groove[]; /** Global Amount (14.1.1), 0 to 1.3: how much of every groove's Timing, Random and Velocity is heard; left out, 1. */ grooveAmount?: number }
+export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** Each scene's own tempo and time signature (Live 12, 7.2.1), by scene; the song takes them when the scene is launched. A scene with none is null. */ sceneSettings?: (SceneSettings | null)[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[]; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature; /** Group tracks (Live 12, 18.3), each summing the tracks and groups in it. */ groups?: GroupTrack[]; /** The Groove Pool (Live 12, 14.1): the grooves its clips can play with. */ grooves?: Groove[]; /** Global Amount (14.1.1), 0 to 1.3: how much of every groove's Timing, Random and Velocity is heard; left out, 1. */ grooveAmount?: number }
 
 /**
  * A groove in the Groove Pool (Live 12 manual, 14 "Using Grooves"): its notes (`hits`, in its own beats, going round
@@ -604,6 +604,9 @@ export function readGrooves(v: unknown): Groove[] {
  * Muting it mutes everything in it, soloing it solos everything in it. Its id never matches a track's or a return's.
  */
 export interface GroupTrack { id: string; name: string; color: TrackColour; volume: number; pan: number; muted?: boolean; solo?: boolean; fx?: Effect[]; /** Its tracks hidden under it in Arrange and the Mixer ("Unfold Group" off). */ folded?: boolean; /** The group it is in. */ group?: string }
+/** A scene's tempo (30 to 300 BPM) and time signature, either or both (Live 12 manual, 7.2.1). */
+export interface SceneSettings { tempo?: number; signature?: Signature }
+
 /** The most groups a song keeps (the engine's own limit). */
 export const MAX_GROUPS = 64;
 /** The group with id `from` and the groups it is in, innermost first (a loop of groups ends where it repeats). */
@@ -885,6 +888,23 @@ export function parseSong(text: string): { song: Song } | { error: string } {
   const met = obj(o.metronome);
   if (typeof met.volume === 'number' && Number.isFinite(met.volume)) song.metronome = { volume: num(met.volume, METRONOME_VOLUME, 0, 1) };
   if (Array.isArray(o.scenes) && o.scenes.length > 0) song.scenes = o.scenes.slice(0, MAX_SCENES).map((n) => (typeof n === 'string' ? n.slice(0, 40) : ''));
+  // Scene tempo and time signature (7.2.1): a tempo in the song's range, a signature the control bar can write.
+  if (Array.isArray(o.sceneSettings)) {
+    const sets = o.sceneSettings.slice(0, MAX_SCENES).map((v): SceneSettings | null => {
+      const so = obj(v);
+      const out: SceneSettings = {};
+      if (typeof so.tempo === 'number' && Number.isFinite(so.tempo)) out.tempo = Math.round(num(so.tempo, 120, 30, 300));
+      const sg = so.signature;
+      if (Array.isArray(sg) && sg.length === 2) {
+        const asked: Signature = [Number(sg[0]), Number(sg[1])];
+        const m = meterOf({ signature: asked });
+        if (m[0] === asked[0] && m[1] === asked[1]) out.signature = [m[0], m[1]];
+      }
+      return Object.keys(out).length > 0 ? out : null;
+    });
+    while (sets.length > 0 && sets[sets.length - 1] === null) sets.pop();
+    if (sets.length > 0) song.sceneSettings = sets;
+  }
   // Locators inside the song, a beat apart at least once rounded to a sixteenth, in time order.
   const seen = new Set<number>();
   const locators = (Array.isArray(o.locators) ? o.locators : []).flatMap((l): Locator[] => {
@@ -955,7 +975,7 @@ export const sceneName = (song: Song, i: number): string => song.scenes?.[i] || 
 
 /** One note to a line, so a change reads as the notes it touched. */
 export function writeSong(song: Song): string {
-  const lines = ['{', '  "version": 2,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.signature ? [`  "signature": ${JSON.stringify(song.signature)},`] : []), ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []),
+  const lines = ['{', '  "version": 2,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.signature ? [`  "signature": ${JSON.stringify(song.signature)},`] : []), ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []), ...(song.sceneSettings?.some((x) => x) ? [`  "sceneSettings": ${JSON.stringify(song.sceneSettings)},`] : []),
     ...(song.main ? [`  "main": ${JSON.stringify(song.main)},`] : []),
     ...(song.metronome ? [`  "metronome": ${JSON.stringify(song.metronome)},`] : []),
     ...(song.locators && song.locators.length > 0 ? [`  "locators": ${JSON.stringify(song.locators)},`] : []),

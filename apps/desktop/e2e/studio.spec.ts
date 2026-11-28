@@ -649,6 +649,42 @@ test('a clip plays with a groove from the Groove Pool, commits it into its notes
   await expect.poll(() => now().grooves?.map((g) => g.name)).toEqual(['Keys 1 Groove']);
 });
 
+test('a scene carries its own tempo and time signature, and the song takes them when it is launched (Live 12, 7.2.1)', async () => {
+  await start();
+  await shell().getByRole('radio', { name: 'Session' }).click();
+  const grid = shell().getByRole('grid', { name: 'Clips' });
+  await grid.getByRole('button', { name: 'New clip on Keys, scene 1' }).click();
+  await grid.getByRole('button', { name: 'New clip on Keys, scene 2' }).click();
+  type Saved = { tempo: number; signature?: number[]; sceneSettings?: ({ tempo?: number; signature?: number[] } | null)[] };
+  const now = () => saved() as unknown as Saved;
+  // Hidden until shown, as Live keeps them.
+  await expect(grid.getByRole('group', { name: 'Scene 2 tempo and time signature' })).toHaveCount(0);
+  await grid.getByRole('button', { name: 'Scene tempo and time signature' }).click();
+  const scene2 = grid.getByRole('group', { name: 'Scene 2 tempo and time signature' });
+  await scene2.getByRole('spinbutton', { name: 'Scene tempo' }).focus();
+  await shell().keyboard.type('140');
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => now().sceneSettings).toEqual([null, { tempo: 140 }]);
+  await scene2.getByRole('spinbutton', { name: 'Scene beats in a bar' }).focus();
+  await shell().keyboard.type('3');
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => now().sceneSettings?.[1]).toEqual({ tempo: 140, signature: [3, 4] });
+  // Launched, the song plays at them; the song's own were 112 and 4/4.
+  expect([now().tempo, now().signature]).toEqual([112, undefined]);
+  await grid.getByRole('button', { name: 'Launch scene 2, 140 BPM, 3/4' }).click();
+  await expect.poll(() => [now().tempo, now().signature]).toEqual([140, [3, 4]]);
+  await expect(grid.getByRole('button', { name: 'Launch Keys 2, scene 2' })).toHaveAttribute('aria-pressed', 'true', { timeout: 8000 });
+  // A scene with none leaves them as they are.
+  await grid.getByRole('button', { name: 'Launch scene 1', exact: true }).click();
+  await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene 1' })).toHaveAttribute('aria-pressed', 'true', { timeout: 8000 });
+  expect(now().tempo).toBe(140);
+  await grid.getByRole('button', { name: 'Stop all' }).click();
+  await shell().getByRole('button', { name: 'Stop', exact: true }).click();
+  // Return to default.
+  await grid.getByRole('button', { name: 'Clear scene 2 tempo and time signature' }).click();
+  await expect.poll(() => now().sceneSettings).toBeUndefined();
+});
+
 test('the Session view has clips to launch in scenes, each with its own notes, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();
