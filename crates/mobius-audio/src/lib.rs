@@ -18,6 +18,7 @@ pub mod conv;
 pub mod drum;
 pub mod engine;
 pub mod fx;
+pub mod mallet;
 pub mod meeting;
 pub mod midi;
 pub mod param;

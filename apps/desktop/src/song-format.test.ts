@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song, soundOf, stringOf, STRING_DEFAULTS } from './song-format';
+import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song, soundOf, stringOf, STRING_DEFAULTS, malletOf, MALLET_DEFAULTS } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -558,5 +558,22 @@ describe('a string track', () => {
     if (!('song' in plain)) throw new Error(plain.error);
     expect(stringOf(plain.song.tracks[0]!)).toEqual(STRING_DEFAULTS);
     expect(stringOf({ instrument: 'piano' })).toBeNull();
+  });
+});
+
+describe('a mallet track', () => {
+  it('keeps its mallet settings in range, writes them back, and has no synth sound', () => {
+    const read = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 4, tracks: [{ id: 't1', instrument: 'mallet', clips: [], sound: { cutoff: 900 }, string: { decay: 2 }, mallet: { resonator: 'gong', decay: 40, material: 0, hardness: 2, position: 'middle' } }] }));
+    if (!('song' in read)) throw new Error(read.error);
+    const t = read.song.tracks[0]!;
+    expect(t.mallet).toEqual({ resonator: 'marimba', decay: 20, material: 0, hardness: 1, position: 0.2 });
+    expect(t.sound).toBeUndefined();
+    expect(t.string).toBeUndefined();
+    expect(soundOf(t)).toBeNull();
+    expect(JSON.parse(writeSong(read.song)).tracks[0].mallet).toEqual(t.mallet);
+    const plain = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 4, tracks: [{ id: 't1', instrument: 'mallet', clips: [], mallet: { resonator: 'bell' } }] }));
+    if (!('song' in plain)) throw new Error(plain.error);
+    expect(malletOf(plain.song.tracks[0]!)).toEqual({ ...MALLET_DEFAULTS, resonator: 'bell' });
+    expect(malletOf({ instrument: 'string' })).toBeNull();
   });
 });
