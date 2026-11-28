@@ -61,8 +61,14 @@ the editor made afresh on each visit costs about 15 ms and Notes' panels and sta
 editor a frame later did not help (72 ms): the switch is timed to the frame after the panels show, and the page then
 lands in it. The budget stays at 180 ms.
 
-A later idea, not built: keep a heavy app (Notes, Docs) mounted but hidden after its first visit, so switching back
-makes nothing afresh. It is a shell change: a hidden app must ignore keys and shortcuts, and it holds its memory.
+On 28 November 2026 that idea was built and measured (#993, closed). Notes was kept, hidden, after its first visit,
+and its editor and list were made once for the whole run. Even so, switching to Notes in the test's cycle stayed at
+65 to 78 ms locally and 168 to 323 ms on the runners, so making Notes afresh was not the cost. Placing the cursor on
+arrival was not the cost either. Drawing no rows of the 2,000-page notebook brought Notes to 46 ms, the same as the
+other apps: its rows were the cost. The first 30 rows are drawn with the page, and the other 70 of the first hundred
+used to come two frames later, still inside the switch. They now come 350 ms on, once the switch has played, or at
+once if the list is scrolled to them sooner. Locally, switching to Notes went from 79 ms to 54 to 57 ms (the other
+apps 31 to 41 ms).
 
 On 23 November 2026 the DOM growth budget came down from 1,500 to 400 nodes. Every visit to Docs or Notes had kept its
 editor's Markdown reader in the shared `marked` instance (about 105 nodes a visit), which the old budget let through
