@@ -24,15 +24,17 @@ function nextIds(clips: readonly ArrangeClip[]): () => string {
  * so stretching it repeats it, as Live's pasted clips do. What it covers there goes, as a recording would replace it,
  * and the song grows to hold it. Returns the new clip's id, or null when the track or clip is not there.
  */
-export function placeInArrange(song: Song, trackId: string, clip: Clip, at: number): string | null {
+export function placeInArrange(song: Song, trackId: string, clip: Clip, at: number, played?: number): string | null {
   const t = song.tracks.find((x) => x.id === trackId);
   // An audio clip goes on an audio track and a clip of notes on any other, as Live keeps them.
   if (!t || t.frozen || !!clip.audio !== (t.kind === 'audio')) return null;
   const start = r4(Math.max(0, at));
-  const length = Math.max(1, clip.bars) * BEATS_PER_BAR;
+  const pass = Math.max(1, clip.bars) * BEATS_PER_BAR;
+  // `played`: how long it went round (a recorded launch), else one pass.
+  const length = r4(Math.max(0.25, played ?? pass));
   const id = nextIds(t.clips);
   const kept = recordOver(t.clips, start, start + length, song.tempo, id);
-  const placed: ArrangeClip = { id: id(), start, length, name: clip.name, loop: { start: 0, end: length }, notes: clip.notes.map((n) => ({ ...n })) };
+  const placed: ArrangeClip = { id: id(), start, length, name: clip.name, loop: { start: 0, end: pass }, notes: clip.notes.map((n) => ({ ...n })) };
   if (clip.audio) placed.audio = { ...clip.audio };
   if (clip.envelopes) placed.envelopes = structuredClone(clip.envelopes);
   if (clip.unlinked) placed.unlinked = structuredClone(clip.unlinked);
@@ -136,4 +138,58 @@ export function consolidateToScene(song: Song, from: number, to: number, after: 
     if (slots.length > 0) t.slots = slots; else delete t.slots;
   }
   return row;
+}
+
+/** One launch heard while recording a Session jam: the clip as it was then, and when it started and stopped (Session beats). */
+export interface JamPart { slot: number; clip: Clip; from: number; to: number | null }
+/** A Session jam being recorded into Arrange (Live 12, 7.5 "Arrangement Record"): what each track played, in order. */
+export interface Jam { from: number; at: number; parts: Record<string, JamPart[]> }
+
+/**
+ * Starts recording a jam at Session beat `beat` (moved back to its bar), to land in Arrange from beat `at`. What is
+ * already playing is heard from there.
+ */
+export function startJam(song: Song, playing: Readonly<Record<string, { slot: number; start: number }>>, beat: number, at: number): Jam {
+  const jam: Jam = { from: Math.floor(Math.max(0, beat) / BEATS_PER_BAR) * BEATS_PER_BAR, at: Math.max(0, at), parts: {} };
+  hearJam(jam, song, playing, beat);
+  for (const list of Object.values(jam.parts)) for (const p of list) p.from = Math.max(p.from, jam.from);
+  return jam;
+}
+
+/**
+ * Notes what plays now: a track that starts a clip (or starts one over) begins a part, ending the one before where
+ * the new one starts; a track that stopped ends its part on the bar it stopped at.
+ */
+export function hearJam(jam: Jam, song: Song, playing: Readonly<Record<string, { slot: number; start: number }>>, beat: number): void {
+  const ids = new Set([...Object.keys(jam.parts), ...Object.keys(playing)]);
+  for (const id of ids) {
+    const list = (jam.parts[id] ??= []);
+    const open = list[list.length - 1];
+    const now = playing[id];
+    if (open && open.to === null && (!now || now.slot !== open.slot || now.start > open.from + 1e-9)) {
+      open.to = now ? now.start : Math.max(open.from, Math.floor(beat / BEATS_PER_BAR) * BEATS_PER_BAR);
+    }
+    const still = open && open.to === null;
+    if (now && !still) {
+      const clip = song.tracks.find((t) => t.id === id)?.slots?.[now.slot];
+      if (clip) list.push({ slot: now.slot, clip: structuredClone(clip), from: now.start, to: null });
+    }
+    if (list.length === 0) delete jam.parts[id];
+  }
+}
+
+/**
+ * The song with a recorded jam laid into Arrange: each launch a clip on its track at its place, going round for as
+ * long as it played, replacing what was there. What still plays ends at `beat`. Returns how many clips it laid.
+ */
+export function writeJam(song: Song, jam: Jam, beat: number): number {
+  let laid = 0;
+  for (const [id, list] of Object.entries(jam.parts)) {
+    for (const p of list) {
+      const to = p.to ?? Math.max(p.from, beat);
+      if (to - p.from < 1e-9) continue;
+      if (placeInArrange(song, id, p.clip, jam.at + p.from - jam.from, to - p.from)) laid += 1;
+    }
+  }
+  return laid;
 }

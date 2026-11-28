@@ -652,6 +652,32 @@ test('clips go between Session and Arrange: dragged or copied either way, and lo
   await expect.poll(() => saved().tracks[1]!.clips).toHaveLength(2);
 });
 
+test('Record in Session lays what is launched into Arrange, each clip going round for as long as it played', async () => {
+  const riff = { name: 'Riff', bars: 1, notes: [{ pitch: 45, start: 0, length: 1, velocity: 0.9 }] };
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, { ...BASS, slots: [riff] }] }));
+  await start();
+  await shell().getByRole('radio', { name: 'Session' }).click();
+  const grid = shell().getByRole('grid', { name: 'Clips' });
+  // Record starts the Session's clock; a clip launched then is heard into Arrange (Live 12, 7.5).
+  const rec = shell().getByRole('group', { name: 'Transport' }).getByRole('button', { name: 'Record' });
+  await rec.click();
+  await expect(rec).toHaveAttribute('aria-pressed', 'true');
+  await grid.getByRole('button', { name: 'Launch Riff, scene 1' }).click();
+  await expect(grid.getByRole('button', { name: 'Launch Riff, scene 1' })).toHaveAttribute('aria-pressed', 'true', { timeout: 6000 });
+  await shell().waitForTimeout(1500);
+  await shell().getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(rec).toHaveAttribute('aria-pressed', 'false');
+  // On Bass in Arrange: a looped Riff from where it started, as long as it played; it replaced what was there.
+  await expect.poll(() => saved().tracks[1]!.clips?.find((c) => c.name === 'Riff')).toMatchObject({ loop: { start: 0, end: 4 } });
+  const laid = saved().tracks[1]!.clips.find((c) => c.name === 'Riff')!;
+  expect(laid.start % 4).toBe(0);
+  expect(laid.length).toBeGreaterThan(0.5);
+  // One Undo takes it back out.
+  await shell().getByRole('radio', { name: 'Arrange' }).click();
+  await shell().getByRole('slider', { name: 'Playhead' }).press('Control+z');
+  await expect.poll(() => (saved().tracks[1]!.clips ?? []).some((c) => c.name === 'Riff')).toBe(false);
+});
+
 test('a melody is written as steps too, a row per note of the key', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start([], 'Bass');
