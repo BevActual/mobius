@@ -940,6 +940,37 @@ test('an Electric track is a modelled electric piano: tine or reed, its decay, h
   await expect.poll(() => (saved().tracks[1] as { electric?: unknown }).electric).toBeUndefined();
 });
 
+test('a Wavetable track is a wavetable synth: two oscillators on their tables, then sub, filter, envelope and modulation, kept in the song', async () => {
+  await start();
+  await tracks().getByRole('button', { name: 'Add track' }).click();
+  await shell().getByRole('menu', { name: 'Add track' }).getByRole('menuitem', { name: 'Wavetable' }).click();
+  await expect.poll(() => saved().tracks.map((t) => [t.name, (t as { instrument?: string }).instrument])).toEqual([['Keys', 'piano'], ['Wavetable', 'wavetable']]);
+  const device = await openDevice('Wavetable');
+  // Its own panel, not the synths' (Live 12's Wavetable).
+  await expect(device.getByRole('slider', { name: 'Cutoff and resonance' })).toHaveCount(0);
+  const osc1 = device.getByRole('region', { name: 'Oscillator 1' });
+  await expect(osc1.getByRole('slider', { name: 'Position' })).toHaveAttribute('aria-valuetext', '50%');
+  await osc1.getByRole('combobox', { name: 'Table' }).click();
+  await shell().getByRole('option', { name: 'Wave Fold' }).click();
+  await osc1.getByRole('slider', { name: 'Position' }).focus();
+  await shell().keyboard.press('ArrowUp');
+  const wave = () => (saved().tracks[1] as { wavetable?: Record<string, unknown> }).wavetable;
+  await expect.poll(() => wave() && { table1: wave()!.table1, position1: wave()!.position1 }).toEqual({ table1: 'fold', position1: 0.51 });
+  const unison = device.getByRole('region', { name: 'Sub and Unison' });
+  await unison.getByRole('slider', { name: 'Unison' }).focus();
+  await shell().keyboard.press('ArrowUp');
+  await expect(unison.getByRole('slider', { name: 'Unison' })).toHaveAttribute('aria-valuetext', '2 voices');
+  await expect.poll(() => wave()?.unison).toBe(2);
+  await unison.getByRole('combobox', { name: 'Sub octave' }).click();
+  await shell().getByRole('option', { name: '-2 oct' }).click();
+  await expect.poll(() => wave()?.subOctave).toBe(-2);
+  await expect(device.getByRole('region', { name: 'Modulation' }).getByRole('slider', { name: 'LFO Rate' })).toHaveAttribute('aria-valuetext', '0.50 Hz');
+  // Another instrument chosen for the track leaves no wavetable settings behind.
+  await device.getByRole('combobox', { name: 'Instrument' }).click();
+  await shell().getByRole('option', { name: 'Lead' }).click();
+  await expect.poll(wave).toBeUndefined();
+});
+
 test('a song takes a time signature: bars, the playhead and the ruler count in it, and 4/4 is written as none', async () => {
   await start();
   const meter = shell().getByRole('group', { name: 'Time signature' });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song, soundOf, stringOf, STRING_DEFAULTS, malletOf, MALLET_DEFAULTS, electricOf, ELECTRIC_DEFAULTS, barBeats, meterOf } from './song-format';
+import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song, soundOf, stringOf, STRING_DEFAULTS, malletOf, MALLET_DEFAULTS, electricOf, ELECTRIC_DEFAULTS, wavetableOf, WAVETABLE_DEFAULTS, barBeats, meterOf } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -592,6 +592,25 @@ describe('an electric piano track', () => {
     if (!('song' in plain)) throw new Error(plain.error);
     expect(electricOf(plain.song.tracks[0]!)).toEqual({ ...ELECTRIC_DEFAULTS, fork: 'reed' });
     expect(electricOf({ instrument: 'piano' })).toBeNull();
+  });
+});
+
+describe('a wavetable synth track', () => {
+  it('keeps its settings in range, whole where they step, writes them back, and has no synth sound', () => {
+    const read = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 4, tracks: [{ id: 't1', instrument: 'wavetable', clips: [], sound: { cutoff: 900 }, electric: { decay: 2 },
+      wavetable: { table1: 'fold', table2: 'noise', position1: 3, transpose2: 7.6, unison: 20, subOctave: -2, cutoff: 5, envPosition: -0.5, attack: 'slow' } }] }));
+    if (!('song' in read)) throw new Error(read.error);
+    const t = read.song.tracks[0]!;
+    expect(t.wavetable).toEqual({ ...WAVETABLE_DEFAULTS, table1: 'fold', position1: 1, transpose2: 8, unison: 8, subOctave: -2, cutoff: 30, envPosition: -0.5 });
+    expect(t.sound).toBeUndefined();
+    expect(t.electric).toBeUndefined();
+    expect(soundOf(t)).toBeNull();
+    expect(JSON.parse(writeSong(read.song)).tracks[0].wavetable).toEqual(t.wavetable);
+    const plain = parseSong(JSON.stringify({ version: 2, tempo: 120, key: 'C major', bars: 4, tracks: [{ id: 't1', instrument: 'wavetable', clips: [] }] }));
+    if (!('song' in plain)) throw new Error(plain.error);
+    expect(plain.song.tracks[0]!.wavetable).toBeUndefined();
+    expect(wavetableOf(plain.song.tracks[0]!)).toEqual(WAVETABLE_DEFAULTS);
+    expect(wavetableOf({ instrument: 'lead' })).toBeNull();
   });
 });
 

@@ -13,10 +13,10 @@ import { FILTER_TYPES, LFO_SHAPES, parseDevice, PART_KINDS, type Device, type De
  * number (60 is middle C); `velocity` runs from 0 to 1. On a drums track the pitch picks the drum: 36 kick, 38 snare,
  * 42 closed hat, 46 open hat, 39 clap, 45 tom. Mobius writes notes, never audio over recordings.
  */
-export type Instrument = 'piano' | 'bass' | 'pad' | 'lead' | 'drums' | 'string' | 'mallet' | 'electric';
-export const INSTRUMENTS: Instrument[] = ['piano', 'bass', 'pad', 'lead', 'drums', 'string', 'mallet', 'electric'];
+export type Instrument = 'piano' | 'bass' | 'pad' | 'lead' | 'drums' | 'string' | 'mallet' | 'electric' | 'wavetable';
+export const INSTRUMENTS: Instrument[] = ['piano', 'bass', 'pad', 'lead', 'drums', 'string', 'mallet', 'electric', 'wavetable'];
 /** The modelled instruments, each with settings of its own in place of a `sound`. */
-export const MODELLED = ['string', 'mallet', 'electric'] as const;
+export const MODELLED = ['string', 'mallet', 'electric', 'wavetable'] as const;
 /** The instruments made of oscillators, with a `sound` to set: not drums (a kit) or a modelled one (its own settings). */
 export type SynthInstrument = Exclude<Instrument, 'drums' | (typeof MODELLED)[number]>;
 export const isSynth = (i: Instrument): i is SynthInstrument => i !== 'drums' && !(MODELLED as readonly string[]).includes(i);
@@ -56,7 +56,58 @@ export const ELECTRIC_DEFAULTS: ElectricSound = { fork: 'tine', decay: 4, hardne
 export const ELECTRIC_RANGE: Record<Exclude<keyof ElectricSound, 'fork'>, { lo: number; hi: number }> = { decay: { lo: 0.2, hi: 20 }, hardness: { lo: 0, hi: 1 }, bell: { lo: 0, hi: 1 }, drive: { lo: 0, hi: 1 } };
 /** An electric piano track's settings: its own, or the piano's own. */
 export const electricOf = (t: Pick<Track, 'instrument' | 'electric'>): ElectricSound | null => (t.instrument === 'electric' ? { ...ELECTRIC_DEFAULTS, ...t.electric } : null);
-export const INSTRUMENT_NAMES: Record<Instrument, string> = { piano: 'Piano', bass: 'Bass', pad: 'Pad', lead: 'Lead', drums: 'Drums', string: 'String', mallet: 'Mallet', electric: 'Electric' };
+/** A wavetable oscillator's table (crates/mobius-audio/src/wavetable.rs): each morphs across 16 frames as its position moves. */
+export const TABLES = ['basic', 'pulse', 'sync', 'fold', 'harmonics', 'formant'] as const;
+export type Table = (typeof TABLES)[number];
+export const TABLE_NAMES: Record<Table, string> = { basic: 'Basic Shapes', pulse: 'Pulse Width', sync: 'Hard Sync', fold: 'Wave Fold', harmonics: 'Harmonics', formant: 'Formant' };
+/**
+ * A wavetable synth track's settings (Live 12's Wavetable, crates/mobius-audio/src/wavetable.rs): two oscillators reading
+ * their table at a position (0 to 1), a sub, unison, FM, a low-pass filter the envelope can open, the amp envelope, and
+ * an LFO and envelope moving both positions.
+ */
+export interface WavetableSound {
+  table1: Table; position1: number; level1: number; transpose1: number; detune1: number;
+  table2: Table; position2: number; level2: number; transpose2: number; detune2: number;
+  sub: number; subOctave: -1 | -2; unison: number; spread: number; fm: number;
+  cutoff: number; resonance: number; filterEnv: number;
+  attack: number; decay: number; sustain: number; release: number;
+  lfoRate: number; lfoPosition: number; envPosition: number; modDecay: number;
+}
+export const WAVETABLE_DEFAULTS: WavetableSound = {
+  table1: 'basic', position1: 0.5, level1: 1, transpose1: 0, detune1: 0,
+  table2: 'harmonics', position2: 0.3, level2: 0, transpose2: 12, detune2: 0,
+  sub: 0, subOctave: -1, unison: 1, spread: 0.3, fm: 0,
+  cutoff: 12000, resonance: 0.1, filterEnv: 0,
+  attack: 0.005, decay: 0.4, sustain: 0.8, release: 0.25,
+  lfoRate: 0.5, lfoPosition: 0, envPosition: 0, modDecay: 0.6,
+};
+export type WavetableKnob = Exclude<keyof WavetableSound, 'table1' | 'table2' | 'subOctave'>;
+export const WAVETABLE_RANGE: Record<WavetableKnob, { lo: number; hi: number; whole?: true }> = {
+  position1: { lo: 0, hi: 1 }, level1: { lo: 0, hi: 1 }, transpose1: { lo: -24, hi: 24, whole: true }, detune1: { lo: -50, hi: 50 },
+  position2: { lo: 0, hi: 1 }, level2: { lo: 0, hi: 1 }, transpose2: { lo: -24, hi: 24, whole: true }, detune2: { lo: -50, hi: 50 },
+  sub: { lo: 0, hi: 1 }, unison: { lo: 1, hi: 8, whole: true }, spread: { lo: 0, hi: 1 }, fm: { lo: 0, hi: 1 },
+  cutoff: { lo: 30, hi: 18000 }, resonance: { lo: 0, hi: 1 }, filterEnv: { lo: 0, hi: 1 },
+  attack: { lo: 0, hi: 10 }, decay: { lo: 0.001, hi: 10 }, sustain: { lo: 0, hi: 1 }, release: { lo: 0.001, hi: 10 },
+  lfoRate: { lo: 0.01, hi: 20 }, lfoPosition: { lo: 0, hi: 1 }, envPosition: { lo: -1, hi: 1 }, modDecay: { lo: 0.01, hi: 10 },
+};
+/** A wavetable track's settings: its own, or the synth's own. */
+export const wavetableOf = (t: Pick<Track, 'instrument' | 'wavetable'>): WavetableSound | null => (t.instrument === 'wavetable' ? { ...WAVETABLE_DEFAULTS, ...t.wavetable } : null);
+/** A song file's wavetable settings, each in range (an unknown table is the default's). */
+export function readWavetable(v: unknown): WavetableSound {
+  const w = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+  const d = WAVETABLE_DEFAULTS;
+  const out = { ...d };
+  for (const k of Object.keys(WAVETABLE_RANGE) as WavetableKnob[]) {
+    const r = WAVETABLE_RANGE[k];
+    const x = w[k];
+    if (typeof x === 'number' && Number.isFinite(x)) { const c = Math.min(r.hi, Math.max(r.lo, x)); out[k] = r.whole ? Math.round(c) : c; }
+  }
+  out.table1 = (TABLES as readonly unknown[]).includes(w.table1) ? (w.table1 as Table) : d.table1;
+  out.table2 = (TABLES as readonly unknown[]).includes(w.table2) ? (w.table2 as Table) : d.table2;
+  out.subOctave = w.subOctave === -2 ? -2 : -1;
+  return out;
+}
+export const INSTRUMENT_NAMES: Record<Instrument, string> = { piano: 'Piano', bass: 'Bass', pad: 'Pad', lead: 'Lead', drums: 'Drums', string: 'String', mallet: 'Mallet', electric: 'Electric', wavetable: 'Wavetable' };
 export interface SongNote { pitch: number; start: number; length: number; velocity: number; /** The chance it plays each time it comes round, 0 to 1 (Live 12's note Chance); left out, always. */ chance?: number; /** How many times it plays, evenly over its length (Live 13's step Repeat), 2 to 8; left out, once. */ repeat?: number }
 /** A Session clip's follow actions (Live 12 manual, 16.7): A or B by `chance` (A's, 0 to 1), after `time` beats or, left out, after the clip `times` over (linked); Jump goes to slot `jump`. */
 export interface Follow { a: FollowAction; b: FollowAction; chance: number; time?: number; times?: number; jump?: number }
@@ -563,7 +614,7 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  */
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** The groove in the Groove Pool it plays with (Live 12, 14); left out, as written. */ groove?: string; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 
-export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An electric piano track's settings (`instrument` "electric"). */ electric?: ElectricSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number>; /** The group track it plays into (Live 12, 18.3), by the group's id; left out, Main. */ group?: string; /** Step rows with a length of their own (Live 13's step sequencer), in steps, by pitch; a row left out runs the whole clip. */ stepRows?: Record<string, number> }
+export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** A string track's settings (`instrument` "string"). */ string?: StringSound; /** A mallet track's settings (`instrument` "mallet"). */ mallet?: MalletSound; /** An electric piano track's settings (`instrument` "electric"). */ electric?: ElectricSound; /** A wavetable synth track's settings (`instrument` "wavetable"). */ wavetable?: WavetableSound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number>; /** The group track it plays into (Live 12, 18.3), by the group's id; left out, Main. */ group?: string; /** Step rows with a length of their own (Live 13's step sequencer), in steps, by pitch; a row left out runs the whole clip. */ stepRows?: Record<string, number> }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** Each scene's own tempo and time signature (Live 12, 7.2.1), by scene; the song takes them when the scene is launched. A scene with none is null. */ sceneSettings?: (SceneSettings | null)[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number }; /** Locators (Live 12's markers in the Arrangement's scrub area): named places in the song to jump to, in time order. */ locators?: Locator[]; /** The time signature (Live 12's control bar); left out, 4/4. */ signature?: Signature; /** Group tracks (Live 12, 18.3), each summing the tracks and groups in it. */ groups?: GroupTrack[]; /** The Groove Pool (Live 12, 14.1): the grooves its clips can play with. */ grooves?: Groove[]; /** Global Amount (14.1.1), 0 to 1.3: how much of every groove's Timing, Random and Velocity is heard; left out, 1. */ grooveAmount?: number }
 
 /**
@@ -783,6 +834,7 @@ export function parseSong(text: string): { song: Song } | { error: string } {
         bell: num(el.bell, d.bell, r.bell.lo, r.bell.hi), drive: num(el.drive, d.drive, r.drive.lo, r.drive.hi),
       };
     }
+    if (instrument === 'wavetable' && to.wavetable && typeof to.wavetable === 'object') track.wavetable = readWavetable(to.wavetable);
     const stack = readInstrumentStack(to.stack);
     if (stack) track.stack = stack;
     const fx = readFx(to.fx, `Track “${track.name}”`, (why) => { refused ??= why; });
@@ -999,6 +1051,7 @@ export function writeSong(song: Song): string {
     if (t.string && t.instrument === 'string') head.string = t.string;
     if (t.mallet && t.instrument === 'mallet') head.mallet = t.mallet;
     if (t.electric && t.instrument === 'electric') head.electric = t.electric;
+    if (t.wavetable && t.instrument === 'wavetable') head.wavetable = t.wavetable;
     if (t.kind === 'sampler' && t.sampler) head.sampler = t.sampler;
     if (t.stack && t.stack.chains.length > 0) head.stack = t.stack;
     if (t.frozen) head.frozen = t.frozen;

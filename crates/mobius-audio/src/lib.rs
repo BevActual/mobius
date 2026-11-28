@@ -31,4 +31,5 @@ pub mod sampler;
 pub mod song;
 pub mod string;
 pub mod voice;
+pub mod wavetable;
 pub mod wav;
