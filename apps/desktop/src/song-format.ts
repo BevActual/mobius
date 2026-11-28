@@ -58,6 +58,25 @@ export const ELECTRIC_RANGE: Record<Exclude<keyof ElectricSound, 'fork'>, { lo: 
 export const electricOf = (t: Pick<Track, 'instrument' | 'electric'>): ElectricSound | null => (t.instrument === 'electric' ? { ...ELECTRIC_DEFAULTS, ...t.electric } : null);
 export const INSTRUMENT_NAMES: Record<Instrument, string> = { piano: 'Piano', bass: 'Bass', pad: 'Pad', lead: 'Lead', drums: 'Drums', string: 'String', mallet: 'Mallet', electric: 'Electric' };
 export interface SongNote { pitch: number; start: number; length: number; velocity: number; /** The chance it plays each time it comes round, 0 to 1 (Live 12's note Chance); left out, always. */ chance?: number; /** How many times it plays, evenly over its length (Live 13's step Repeat), 2 to 8; left out, once. */ repeat?: number }
+/** A Session clip's follow actions (Live 12 manual, 16.7): A or B by `chance` (A's, 0 to 1), after `time` beats or, left out, after the clip `times` over (linked); Jump goes to slot `jump`. */
+export interface Follow { a: FollowAction; b: FollowAction; chance: number; time?: number; times?: number; jump?: number }
+export const FOLLOW_ACTIONS = ['none', 'stop', 'again', 'previous', 'next', 'first', 'last', 'any', 'other', 'jump'] as const;
+export type FollowAction = (typeof FOLLOW_ACTIONS)[number];
+/** Each action's name, as Live's chooser has it. */
+export const FOLLOW_NAMES: Record<FollowAction, string> = { none: 'No Action', stop: 'Stop', again: 'Play Again', previous: 'Previous', next: 'Next', first: 'First', last: 'Last', any: 'Any', other: 'Other', jump: 'Jump' };
+/** A clip's follow actions as they start: on to the next clip at its end, as Live's do once switched on. */
+export const FOLLOW_DEFAULT: Follow = { a: 'next', b: 'none', chance: 1 };
+/** Follow actions from a file, kept to what the engine plays. */
+export function readFollow(v: unknown): Follow | undefined {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return undefined;
+  const f = v as Record<string, unknown>;
+  const action = (x: unknown, or: FollowAction): FollowAction => ((FOLLOW_ACTIONS as readonly unknown[]).includes(x) ? (x as FollowAction) : or);
+  const out: Follow = { a: action(f.a, 'next'), b: action(f.b, 'none'), chance: Math.round(num(f.chance, 1, 0, 1) * 100) / 100 };
+  if (typeof f.time === 'number' && Number.isFinite(f.time) && f.time > 0) out.time = Math.round(Math.min(f.time, 256) * 4) / 4 || 0.25;
+  if (typeof f.times === 'number' && Number.isFinite(f.times) && f.times > 1) out.times = Math.min(64, Math.round(f.times));
+  if (typeof f.jump === 'number' && Number.isInteger(f.jump) && f.jump >= 0 && f.jump < MAX_SCENES) out.jump = f.jump;
+  return out;
+}
 /** The most times a note repeats (the engine's own limit). */
 export const MAX_REPEAT = 8;
 /** A note's chance and repeat from a file, kept only when they change how it plays. */
@@ -331,7 +350,7 @@ export function freshEffectId(track: { fx?: readonly Effect[] }): string {
  * A clip in the Session view: a short loop of notes for one track, started and stopped live. Its notes start from the
  * clip's own beat 0 and it goes round every `bars` bars.
  */
-export interface Clip { name: string; bars: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
+export interface Clip { name: string; bars: number; notes: SongNote[]; /** What happens when it has played a while (Live 12, 16.7 "Follow Actions"); left out, it goes round. */ follow?: Follow; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats: see `readEnvelopes`. */ envelopes?: Automation; /** Envelopes with a loop of their own: see `readEnvelopes`. */ unlinked?: Unlinked }
 /**
  * An audio clip's sound (Live 12 manual, chapter 9), as the engine reads it (mobius-audio song.rs `Audio`): a WAV file
  * in the song's folder (`file`, relative to it), from `offset` seconds in, at `gainDb`. Unwarped, it plays at its own
@@ -655,6 +674,8 @@ function readClip(v: unknown, fallbackName: string, perBar = BEATS_PER_BAR): Cli
   const envelopes = readEnvelopes(c.envelopes, bars * perBar, unlinked);
   if (envelopes) clip.envelopes = envelopes;
   if (unlinked) clip.unlinked = unlinked;
+  const follow = readFollow(c.follow);
+  if (follow) clip.follow = follow;
   return clip;
 }
 

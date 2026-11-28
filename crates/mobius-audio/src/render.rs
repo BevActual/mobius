@@ -855,7 +855,7 @@ pub struct Playing {
 }
 
 /// A Session slot's clip as it plays: its length in beats, its notes and, on an audio track, its sound.
-type SlotPlay = (f64, Vec<Note>, Option<Placed>);
+type SlotPlay = (f64, Vec<Note>, Option<Placed>, Option<crate::song::Follow>);
 
 /// A track in the Session view: its slots' clips (length in beats, notes), what it is playing (the slot, from which
 /// beat) and the launch waiting for the next bar (a slot, or `None` to stop).
@@ -867,6 +867,30 @@ struct SessionTrack {
     slots: Vec<Option<SlotPlay>>,
     playing: Option<(usize, f64)>,
     queued: Option<Option<usize>>,
+    /// The beat the playing clip's follow action fires on (16.7), if it has one.
+    follow_at: Option<f64>,
+    /// Its dice, for the follow actions' chances.
+    dice: u64,
+}
+
+impl SessionTrack {
+    /// When the clip it plays, launched at `beat`, fires its follow action.
+    fn follow_from(&self, beat: f64) -> Option<f64> {
+        let (slot, _) = self.playing?;
+        let (length, _, _, follow) = self.slots.get(slot)?.as_ref()?;
+        follow.as_ref()?.after(*length).map(|after| beat + after)
+    }
+}
+
+/// A roll from 0 to 1 for a follow action, the same each time the song plays from the start.
+fn roll(dice: u64, slot: usize, beat: f64) -> f64 {
+    let mut x = dice ^ (slot as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9) ^ ((beat * 960.0).round() as i64 as u64).wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^= x >> 30;
+    x = x.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    x ^= x >> 27;
+    x = x.wrapping_mul(0x94D0_49BB_1331_11EB);
+    x ^= x >> 31;
+    (x >> 11) as f64 / (1u64 << 53) as f64
 }
 
 /// What a track of the Session view is doing: playing a slot since a beat, and a launch waiting for the next bar.
@@ -950,13 +974,15 @@ impl Renderer {
                             // Frozen, a slot plays its file: two times round the clip (38.1.4).
                             if let Some(files) = frozen_slots(t) {
                                 let sound = song.sounds.get(files.get(k)?.as_ref()?)?;
-                                return Some((2.0 * c.bars * song.bar_beats(), Vec::new(), Some(frozen_sound(sound, song.tempo))));
+                                return Some((2.0 * c.bars * song.bar_beats(), Vec::new(), Some(frozen_sound(sound, song.tempo)), c.follow));
                             }
-                            Some((c.bars * song.bar_beats(), c.notes.iter().flat_map(Note::repeats).collect(), placed(song, Song::is_audio(t), c.audio.as_ref())))
+                            Some((c.bars * song.bar_beats(), c.notes.iter().flat_map(Note::repeats).collect(), placed(song, Song::is_audio(t), c.audio.as_ref()), c.follow))
                         })
                         .collect(),
                     playing: None,
                     queued: None,
+                    follow_at: None,
+                    dice: crate::song::dice_of(&t.id),
                 })
                 .collect::<Vec<_>>()
         });
@@ -1271,7 +1297,48 @@ impl Renderer {
         for track in self.session.iter_mut().flatten() {
             if let Some(slot) = track.queued.take() {
                 track.playing = slot.filter(|s| track.slots.get(*s).is_some_and(Option::is_some)).map(|s| (s, at));
+                track.follow_at = track.follow_from(at);
             }
+        }
+    }
+
+    /// The follow actions due now fire (16.7): each track's clip whose time has come chooses A or B by its chance and
+    /// plays what that names from the beat it fired on.
+    fn follow(&mut self) {
+        let clock = self.clock.clone();
+        let sample = self.sample;
+        for track in self.session.iter_mut().flatten() {
+            let Some(at) = track.follow_at.filter(|b| clock.sample_of_beat(*b) <= sample) else { continue };
+            track.follow_at = None;
+            let Some((slot, _)) = track.playing else { continue };
+            let Some(Some((_, _, _, Some(follow)))) = track.slots.get(slot) else { continue };
+            let roll = |salt: u64| roll(track.dice ^ salt.wrapping_mul(0x9E37_79B9_7F4A_7C15), slot, at);
+            let action = if roll(1) < follow.chance { follow.a } else { follow.b };
+            // The clip's group: the filled slots next to it, above and below.
+            let filled = |s: usize| track.slots.get(s).is_some_and(Option::is_some);
+            let lo = (0..=slot).rev().take_while(|&s| filled(s)).last().unwrap_or(slot);
+            let hi = (slot..track.slots.len()).take_while(|&s| filled(s)).last().unwrap_or(slot);
+            let size = hi - lo + 1;
+            use crate::song::FollowAction as A;
+            let next = match action {
+                A::None => continue,
+                A::Stop => None,
+                A::Again => Some(slot),
+                A::Next => Some(if slot < hi { slot + 1 } else { lo }),
+                A::Previous => Some(if slot > lo { slot - 1 } else { hi }),
+                A::First => Some(lo),
+                A::Last => Some(hi),
+                A::Any => Some(lo + ((roll(2) * size as f64) as usize).min(size - 1)),
+                // One of the others, each as likely: a pick among them, stepping over this one.
+                A::Other if size > 1 => {
+                    let k = lo + ((roll(2) * (size - 1) as f64) as usize).min(size - 2);
+                    Some(if k >= slot { k + 1 } else { k })
+                }
+                A::Other => Some(slot),
+                A::Jump => follow.jump.filter(|&s| filled(s)).or(Some(slot)),
+            };
+            track.playing = next.map(|s| (s, at));
+            track.follow_at = track.follow_from(at);
         }
     }
 
@@ -1310,6 +1377,7 @@ impl Renderer {
             for track in new {
                 if let Some(was) = old.iter().find(|w| w.id == track.id) {
                     track.playing = was.playing.filter(|(s, _)| track.slots.get(*s).is_some_and(Option::is_some));
+                    track.follow_at = track.playing.and(was.follow_at);
                     track.queued = was.queued;
                 }
             }
@@ -1355,17 +1423,28 @@ impl Renderer {
             if let Some((_, to)) = self.cycle.filter(|_| in_loop) {
                 n = n.min(usize::try_from(to - self.sample).unwrap_or(usize::MAX));
             }
-            // In the Session view a piece stops at the next bar line, where launches land.
+            // In the Session view a piece stops at the next bar line, where launches land, and at the next follow
+            // action, which fires on its own beat (16.7: follow actions are not held to the global quantization).
             let mut bar = None;
-            if self.session.is_some() {
+            let mut follow = None;
+            if let Some(tracks) = &self.session {
                 let next = self.clock.sample_of_beat(self.bar_at_or_after(self.sample + 1));
                 if next - self.sample <= n as u64 {
                     n = usize::try_from(next - self.sample).unwrap_or(n);
                     bar = Some(next);
                 }
+                if let Some(at) = tracks.iter().filter_map(|t| t.follow_at).map(|b| self.clock.sample_of_beat(b).max(self.sample + 1)).min() {
+                    if at - self.sample <= n as u64 {
+                        n = usize::try_from(at - self.sample).unwrap_or(n);
+                        follow = Some(at);
+                    }
+                }
             }
             self.piece(&mut left[done..done + n], &mut right[done..done + n]);
             done += n;
+            if follow == Some(self.sample) {
+                self.follow();
+            }
             if bar == Some(self.sample) {
                 self.land();
             }
@@ -1439,7 +1518,7 @@ impl Renderer {
             // The clip the Session view is playing on this track, if any.
             let clip = self.session.as_ref().and_then(|s| s.iter().find(|t| t.lane == Some(index))).and_then(|t| {
                 let (slot, start) = t.playing?;
-                let (length, notes, audio) = t.slots.get(slot)?.as_ref()?;
+                let (length, notes, audio, _) = t.slots.get(slot)?.as_ref()?;
                 Some((*length, notes, start, audio.as_ref(), slot))
             });
             lane.scratch[..frames].fill(0.0);
@@ -2385,6 +2464,49 @@ mod tests {
             assert!(level(&unlinked, beat) < 1e-6, "{beat}");
             assert!((level(&unlinked, beat + 0.5) / level(&dry, beat + 0.5) - 1.0).abs() < 0.02, "{beat}");
         }
+    }
+
+    #[test]
+    fn follow_actions_play_the_next_clip_in_its_group_stop_or_go_by_chance() {
+        // Live 12 manual, 16.7: two one-bar clips that each go on to the next, going round their group.
+        let slots = |follow: &str| {
+            let clip = |p: u8| format!(r#"{{"bars":1,"notes":[{{"pitch":{p},"start":0,"length":1,"velocity":1}}]{follow}}}"#);
+            Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":4,"tracks":[{{"id":"t","instrument":"lead","slots":[{},{},null,{}]}}]}}"#, clip(60), clip(62), clip(64))).unwrap()
+        };
+        // Which slot plays at each half bar (a bar is 96 000 samples at 120).
+        let playing = |s: &Song, halves: usize| {
+            let mut r = Renderer::playing(s, 48_000, Playing { session: true, ..Playing::default() });
+            r.launch(0, Some(0));
+            let (mut l, mut rt) = (vec![0f32; 48_000], vec![0f32; 48_000]);
+            (0..halves)
+                .map(|_| {
+                    for (a, b) in l.chunks_mut(500).zip(rt.chunks_mut(500)) {
+                        r.render(a, b);
+                    }
+                    r.session().next().and_then(|(_, st)| st.playing).map(|(slot, _)| slot)
+                })
+                .collect::<Vec<_>>()
+        };
+        let next = slots(r#","follow":{"a":"next"}"#);
+        assert_eq!(playing(&next, 6), [Some(0), Some(1), Some(1), Some(0), Some(0), Some(1)]);
+        // Stop after two beats (unlinked: Follow Action Time).
+        let stop = slots(r#","follow":{"a":"stop","time":2}"#);
+        assert_eq!(playing(&stop, 2), [None, None]);
+        // Linked, twice round the clip: still the first clip after one bar.
+        let twice = slots(r#","follow":{"a":"next","times":2}"#);
+        assert_eq!(playing(&twice, 6), [Some(0), Some(0), Some(0), Some(1), Some(1), Some(1)]);
+        // No chance of A: B plays (Previous goes round to the last of the group).
+        let b = slots(r#","follow":{"a":"next","b":"previous","chance":0}"#);
+        assert_eq!(playing(&b, 2), [Some(0), Some(1)]);
+        // Other never plays the same clip again; a jump goes to its slot, outside the group too.
+        let other = slots(r#","follow":{"a":"other"}"#);
+        let seen = playing(&other, 16);
+        let bars: Vec<_> = seen.iter().step_by(2).collect();
+        assert!(bars.windows(2).all(|w| w[0] != w[1]), "{seen:?}");
+        let jump = slots(r#","follow":{"a":"jump","jump":3}"#);
+        assert_eq!(playing(&jump, 2), [Some(0), Some(3)]);
+        // The same song follows the same way each time.
+        assert_eq!(playing(&slots(r#","follow":{"a":"any"}"#), 12), playing(&slots(r#","follow":{"a":"any"}"#), 12));
     }
 
     #[test]

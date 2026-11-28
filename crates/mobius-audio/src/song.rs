@@ -459,6 +459,68 @@ pub struct SlotClip {
     /// not the clip's.
     #[serde(default)]
     pub unlinked: std::collections::BTreeMap<String, Span>,
+    /// What happens when it has played a while (Live 12 manual, 16.7 "Follow Actions"); none, it goes round.
+    #[serde(default)]
+    pub follow: Option<Follow>,
+}
+
+/// A Session clip's follow action (16.7): what plays next on its track.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FollowAction {
+    /// Nothing: the clip goes on round, and no follow action fires again until it is launched.
+    #[default]
+    None,
+    Stop,
+    /// The clip again, from its start.
+    Again,
+    /// The clip above in its group (the filled slots next to each other), going round to the last.
+    Previous,
+    /// The clip below in its group, going round to the first.
+    Next,
+    First,
+    Last,
+    /// Any clip in its group, this one too.
+    Any,
+    /// Any other clip in its group (this one when it is alone).
+    Other,
+    /// The slot in `jump`.
+    Jump,
+}
+
+/// A clip's two follow actions, A and B, and the chance of A (B has the rest), fired after `time` beats or, linked,
+/// after its length `times` over.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Follow {
+    pub a: FollowAction,
+    pub b: FollowAction,
+    /// The chance of A, 0 to 1 (Live's Chance A against Chance B).
+    pub chance: f64,
+    /// Beats from its launch to the action (Live's Follow Action Time, unlinked); none, linked to the clip's end.
+    pub time: Option<f64>,
+    /// Linked: how many times round the clip before the action (Live's Follow Action Multiplier).
+    pub times: f64,
+    /// Jump's slot.
+    pub jump: Option<usize>,
+}
+
+impl Default for Follow {
+    fn default() -> Follow {
+        Follow { a: FollowAction::Next, b: FollowAction::None, chance: 1.0, time: None, times: 1.0, jump: None }
+    }
+}
+
+impl Follow {
+    /// Beats from the clip's launch to its action, for a clip `length` beats long; none when it never fires.
+    #[must_use]
+    pub fn after(&self, length: f64) -> Option<f64> {
+        let beats = match self.time {
+            Some(t) if t.is_finite() => t,
+            _ => length * if self.times.is_finite() { self.times.clamp(1.0, 64.0) } else { 1.0 },
+        };
+        (beats > 1e-9 && (self.a != FollowAction::None || self.b != FollowAction::None)).then_some(beats)
+    }
 }
 
 /// A clip in Arrange: `length` song beats from `start`, playing its own notes from `offset`, going round `loop` if it

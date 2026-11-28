@@ -1,6 +1,6 @@
 import type { CSSProperties, DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { Button, IconButton } from './ui';
-import { barBeats, sceneCount, sceneName, type Song } from './song-format';
+import { FOLLOW_NAMES, barBeats, sceneCount, sceneName, type Song } from './song-format';
 import type { SessionPlaying, SessionQueued } from './studio-engine';
 import { CLIP_DRAG } from './studio-moves';
 
@@ -82,9 +82,11 @@ export function SessionGrid({ song, selected, chosen, playing, queued, beat, onS
               <div key={t.id} role="gridcell" className="studio-slot" style={style} data-playing={on || undefined} data-queued={waiting || undefined} aria-selected={isChosen} {...dropOn(t.id, i)}
                 onContextMenu={(e: ReactMouseEvent) => { e.preventDefault(); onClipMenu(t.id, i, e.clientX, e.clientY); }}>
                 <IconButton className="studio-clip-launch" label={`Launch ${clip.name}, scene ${sceneName(song, i)}`} pressed={on} title={on ? 'Playing: launch again to start it over' : 'Launch: starts on the next bar'} icon={PLAY} onClick={() => onLaunch(t.id, i)} />
-                <button type="button" className="studio-clip-body" aria-label={`${clip.name}, ${clip.bars} ${clip.bars === 1 ? 'bar' : 'bars'}`} aria-pressed={isChosen} onClick={() => onChoose(t.id, i)}
+                <button type="button" className="studio-clip-body" aria-label={`${clip.name}, ${clip.bars} ${clip.bars === 1 ? 'bar' : 'bars'}${clip.follow ? `, then ${FOLLOW_NAMES[clip.follow.a]}` : ''}`} aria-pressed={isChosen} onClick={() => onChoose(t.id, i)}
                   draggable onDragStart={(e) => { e.dataTransfer.setData(CLIP_DRAG, JSON.stringify({ trackId: t.id, slot: i })); e.dataTransfer.effectAllowed = 'copyMove'; }}>
                   <span className="studio-clip-name">{clip.name}</span>
+                  {/* It has Follow Actions (Live 12, 16.7): a small arrow, as Live marks such a clip. */}
+                  {clip.follow && <span className="studio-clip-follow" title={`Then ${FOLLOW_NAMES[clip.follow.a]}${clip.follow.chance < 1 ? ` (${Math.round(clip.follow.chance * 100)}%) or ${FOLLOW_NAMES[clip.follow.b]}` : ''}`} aria-hidden="true">↻</span>}
                   {on && <span className="studio-clip-round" style={{ ['--p' as string]: round }} aria-hidden="true" />}
                 </button>
               </div>

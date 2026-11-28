@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { MAIN_VOLUME, heard as isHeard, type GroupTrack, barBeats, meterOf, SIGNATURE_UNITS, isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { FOLLOW_ACTIONS, FOLLOW_DEFAULT, FOLLOW_NAMES, type Follow, MAIN_VOLUME, heard as isHeard, type GroupTrack, barBeats, meterOf, SIGNATURE_UNITS, isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { AudioClipDetail } from './studio-audio-clip';
@@ -149,6 +149,7 @@ const ICONS = {
   locPrev: 'M12.5 5.5 8 10l4.5 4.5M5.5 5v10',
   locSet: 'M6.5 4v12M6.5 4.5h7l-2 2.5 2 2.5h-7',
   locNext: 'M7.5 5.5 12 10l-4.5 4.5M14.5 5v10',
+  follow: 'M4 6.5h8.5M10 4l2.5 2.5L10 9M16 13.5H7.5M10 11l-2.5 2.5L10 16',
 };
 
 /** The notes editor's Transform menu, Quantize first: each row changes the picked notes, or all of them when none are picked. */
@@ -756,6 +757,7 @@ const ELECTRIC_CELLS: { k: Exclude<keyof ElectricSound, 'fork'>; name: string; l
 const TEMPO_LANE = { lo: TEMPO_MIN, hi: TEMPO_MAX };
 const UNIT_CHOICES = SIGNATURE_UNITS.map((u) => ({ value: String(u), label: String(u) }));
 const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
+const FOLLOW_CHOICES = FOLLOW_ACTIONS.map((a) => ({ value: a, label: FOLLOW_NAMES[a] }));
 const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
 
 const SAMPLER_MODES = [{ value: 'classic', label: 'Classic' }, { value: 'oneshot', label: 'One-Shot' }] as const;
@@ -2185,6 +2187,28 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         {clip && clipAt !== null && detail === 'notes' && <>
           <input className="studio-clip-title" aria-label="Clip name" value={clip.name} maxLength={60} onChange={(e) => setClip(track.id, clipAt, (c) => { c.name = e.target.value; }, `clip-name:${track.id}:${clipAt}`)} />
           <Select inline label="Clip length" value={String(clip.bars)} choices={LENGTH_CHOICES} onChange={(b) => setClip(track.id, clipAt, (c) => { c.bars = Number(b); c.notes = c.notes.filter((n) => n.start < c.bars * perBar); })} />
+          {/* Follow Actions (Live 12, 16.7): what plays next on the track once this clip has played a while. */}
+          <IconButton label="Follow Actions" pressed={!!clip.follow} title={clip.follow ? 'Follow Actions on: what plays after this clip' : 'Follow Actions: play another clip, or stop, once this one has played'} icon={<Icon d={ICONS.follow} />}
+            onClick={() => setClip(track.id, clipAt, (c) => { if (c.follow) delete c.follow; else c.follow = { ...FOLLOW_DEFAULT }; }, `clip-follow:${track.id}:${clipAt}`)} />
+          {clip.follow && (() => {
+            const f = clip.follow;
+            const setFollow = (fn: (x: Follow) => void) => setClip(track.id, clipAt, (c) => { if (c.follow) fn(c.follow); }, `clip-follow:${track.id}:${clipAt}`);
+            const after = f.time !== undefined ? `b${f.time}` : `x${f.times ?? 1}`;
+            const afterChoices = [{ value: 'x1', label: 'End of clip' }, { value: 'x2', label: '2× clip' }, { value: 'x4', label: '4× clip' }, { value: 'b1', label: '1 beat' }, { value: 'b2', label: '2 beats' }, { value: `b${perBar}`, label: '1 bar' }, { value: `b${perBar * 2}`, label: '2 bars' }, { value: `b${perBar * 4}`, label: '4 bars' }]
+              .filter((c, i, all) => all.findIndex((d) => d.value === c.value) === i);
+            const scenes = sceneCount(song);
+            return (
+              <span className="studio-follow" role="group" aria-label="Follow Actions">
+                <Select inline label="After" value={afterChoices.some((c) => c.value === after) ? after : 'x1'} choices={afterChoices}
+                  onChange={(v) => setFollow((x) => { const n = Number(v.slice(1)); delete x.time; delete x.times; if (v[0] === 'b') x.time = n; else if (n > 1) x.times = n; })} />
+                <Select inline label="A" value={f.a} choices={FOLLOW_CHOICES} onChange={(v) => setFollow((x) => { x.a = v as Follow['a']; })} />
+                <span className="ui-field-label" aria-hidden="true">Chance</span>
+                <NumberField label="Chance A" hideLabel value={Math.round(f.chance * 100)} min={0} max={100} step={5} decimals={0} width={3} unit="%" onChange={(v) => setFollow((x) => { x.chance = Math.round(v) / 100; })} />
+                <Select inline label="B" value={f.b} choices={FOLLOW_CHOICES} onChange={(v) => setFollow((x) => { x.b = v as Follow['b']; })} />
+                {(f.a === 'jump' || f.b === 'jump') && <Select inline label="Jump to" value={String(f.jump ?? 0)} choices={Array.from({ length: scenes }, (_, k) => ({ value: String(k), label: `Slot ${k + 1}` }))} onChange={(v) => setFollow((x) => { x.jump = Number(v); })} />}
+              </span>
+            );
+          })()}
         </>}
         {arrClip && detail === 'notes' && (
           // Live's Clip View loop settings for the Arrange clip opened: its start marker and loop, in beats of its own time.
