@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { MAIN_VOLUME, barBeats, meterOf, SIGNATURE_UNITS, isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { MAIN_VOLUME, heard as isHeard, type GroupTrack, barBeats, meterOf, SIGNATURE_UNITS, isSynth, stringOf, STRING_DEFAULTS, STRING_RANGE, type Exciter, type StringSound, malletOf, MALLET_DEFAULTS, MALLET_RANGE, type MalletSound, type Resonator, electricOf, ELECTRIC_DEFAULTS, ELECTRIC_RANGE, type ElectricSound, type Fork, MAX_UNLINKED, builtinDevice, EFFECT_WORDS, VIBRATO_START, type ChorusMode, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { AudioClipDetail } from './studio-audio-clip';
@@ -14,6 +14,7 @@ import { addLocator, locatorName, loopToNext, moveLocator, nextLocator, previous
 import { CLIP_DRAG, consolidateToScene, copyToSession, hearJam, moveSlot, placeInArrange, startJam, writeJam, type Jam } from './studio-moves';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
+import { deleteGroup, groupRows, groupTracks, leaveGroup, soloInside, tracksIn, ungroup } from './studio-groups';
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
@@ -993,6 +994,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const parsed = useMemo(() => (songs.page ? parseSong(songs.text) : null), [songs.page, songs.text]);
   const song = parsed && 'song' in parsed ? parsed.song : null;
   const [selected, setSelected] = useState<string | null>(null);
+  // The track rows chosen in Arrange, tracks' and groups' ids: a click chooses one, Ctrl+click adds or takes one away
+  // (what Ctrl+G groups, as Live's Group Tracks).
+  const [chosenRows, setRows] = useState<ReadonlySet<string>>(new Set());
   const [picked, setPicked] = useState<Picked>(new Set());
   const [playing, setPlaying] = useState(false);
   const [loop, setLoop] = useState(false);
@@ -1320,7 +1324,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   }), []);
   // Waits for the engine to open, so a song read before it is ready still reaches it.
   useEffect(() => { if (!song) return; const now = song, path = songs.page?.path ?? null; void engineReady().then(() => loadSong(now, path)); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRange(null); setClipAt(null); }, [songs.page?.path, stop]);
+  useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRows(new Set()); setRange(null); setClipAt(null); }, [songs.page?.path, stop]);
   // Each view plays its own way, so switching stops what is playing.
   useEffect(() => { stop(); setBeat(0); setClipAt(null); setPicked(new Set()); }, [view, stop]);
   useEffect(() => { setPicked(new Set()); }, [selected]);
@@ -1512,6 +1516,38 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     change((s) => { s.tracks = s.tracks.filter((x) => x.id !== id); if (selected === id) setSelected(null); });
     setUndoText(`Deleted “${name}”`);
   };
+  // ---------- Group tracks (Live 12 manual, 18.3) ----------
+  const setGroup = (id: string, fn: (g: GroupTrack) => void, tag = '') => change((s) => { const g = s.groups?.find((x) => x.id === id); if (g) fn(g); }, tag);
+  /** Puts the chosen rows (or the chosen track) in a new group, and chooses it. */
+  const groupChosen = () => {
+    const ids = chosenRows.size > 0 ? [...chosenRows] : selected ? [selected] : [];
+    if (ids.length === 0) return;
+    let made: string | null = null;
+    change((s) => { made = groupTracks(s, ids); }, 'group');
+    if (made) setRows(new Set([made]));
+  };
+  const ungroupChosen = (id: string) => { change((s) => { ungroup(s, id); }, 'ungroup'); setRows(new Set()); };
+  const deleteGroupNamed = (id: string) => {
+    const name = song.groups?.find((g) => g.id === id)?.name ?? 'group';
+    change((s) => { const gone = deleteGroup(s, id); if (selected && gone.includes(selected)) setSelected(null); });
+    setRows(new Set());
+    setUndoText(`Deleted “${name}” and what was in it`);
+  };
+  /** A click on a row: chooses it alone, or with Ctrl adds it to the rows chosen (or takes it away). */
+  const chooseRow = (id: string, e: { ctrlKey: boolean; metaKey: boolean }) => setRows((was) => {
+    if (!(e.ctrlKey || e.metaKey)) return new Set([id]);
+    const next = new Set(was.size > 0 ? was : selected ? [selected] : []);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const groupMenu = (g: GroupTrack, x: number, y: number) => setMenu({ x, y, label: g.name, items: [
+    { label: g.folded ? 'Unfold Group' : 'Fold Group', run: () => setGroup(g.id, (v) => { if (v.folded) delete v.folded; else v.folded = true; }) },
+    { label: g.muted ? 'Unmute' : 'Mute', keys: 'M', run: () => setGroup(g.id, (v) => { if (v.muted) delete v.muted; else v.muted = true; }) },
+    { label: g.solo ? 'Unsolo' : 'Solo', keys: 'S', run: () => setGroup(g.id, (v) => { if (v.solo) delete v.solo; else v.solo = true; }) },
+    { label: 'Assign Group Colour to Its Tracks', separated: true, run: () => change((s) => { for (const t of tracksIn(s, g.id)) t.color = g.color; }) },
+    { label: 'Ungroup Tracks', keys: 'Ctrl+Shift+G', separated: true, run: () => ungroupChosen(g.id) },
+    { action: 'delete', label: 'Delete Group', keys: 'Delete', danger: true, separated: true, run: () => deleteGroupNamed(g.id) },
+  ] });
   /** Opens the notes editor on a track, scrolled to `fromBeat`. */
   const openNotes = (id: string, fromBeat = 0, arrangeClipId: string | null = null) => {
     setSelected(id);
@@ -1723,6 +1759,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     // Freeze (Live 12, 38.1.4): renders the track and plays that, to spare the computer; its mix stays live.
     t.frozen ? { label: 'Unfreeze Track', run: () => unfreeze(t.id) } : { label: 'Freeze Track', disabled: freezing !== null || (t.kind === 'audio' && t.clips.length === 0), run: () => void freeze(t.id) },
     { action: 'duplicate', keys: 'Ctrl+D', separated: true, run: () => duplicateTrack(t.id) },
+    { label: chosenRows.size > 1 && chosenRows.has(t.id) ? 'Group Tracks' : 'Group Track', keys: 'Ctrl+G', run: groupChosen },
+    ...(t.group ? [{ label: 'Take Out of Group', run: () => change((s) => { leaveGroup(s, t.id); }) }] : []),
     { label: t.muted ? 'Unmute' : 'Mute', keys: 'M', run: () => setTrack(t.id, (v) => { v.muted = !v.muted; }) },
     { label: t.solo ? 'Unsolo' : 'Solo', keys: 'S', run: () => setTrack(t.id, (v) => { v.solo = !v.solo; }) },
     ...(t.autoOff?.length ? [{ label: 'Re-Enable Automation', separated: true, run: () => setTrack(t.id, (v) => reEnable(v)) }] : []),
@@ -1743,6 +1781,37 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (moved.length) parts.push(`${t.name}: ${moved.slice(0, 3).map((c) => c.text).join(', ')}${moved.length > 3 ? ` and ${moved.length - 3} more` : ''}`);
     return parts.length ? parts : [t.name];
   });
+  /**
+   * A group track's row in Arrange (Live 12, 18.3): its fold, name, mute and solo, and in its lane an overview of the
+   * clips of the tracks in it, so a folded group still shows where they play.
+   */
+  const groupRow = (g: GroupTrack, depth: number) => {
+    const inside = tracksIn(song, g.id);
+    const half = soloInside(song, g);
+    return (
+      <div key={g.id} role="listitem" aria-label={`${g.name} group`} tabIndex={-1} className="studio-track studio-group-track" style={{ '--tc': `var(--c-${g.color})`, '--depth': depth } as CSSProperties}
+        data-picked={chosenRows.has(g.id) || undefined} data-folded={g.folded || undefined} data-muted={g.muted || (!g.solo && !half && !inside.some((t) => isHeard(song, t))) || undefined}
+        onClick={(e) => chooseRow(g.id, e)}>
+        <div className="studio-track-head" onContextMenu={(e) => { e.preventDefault(); setRows(new Set([g.id])); groupMenu(g, e.clientX, e.clientY); }}>
+          <button type="button" className="studio-group-fold" aria-label={g.folded ? `Unfold ${g.name}` : `Fold ${g.name}`} title={g.folded ? 'Unfold Group: show its tracks' : 'Fold Group: hide its tracks'} aria-expanded={!g.folded}
+            onClick={(e) => { e.stopPropagation(); setGroup(g.id, (v) => { if (v.folded) delete v.folded; else v.folded = true; }); }}>
+            <svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M3 2l4 3-4 3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+          <input className="studio-track-name" aria-label="Group name" value={g.name} maxLength={60} onChange={(e) => setGroup(g.id, (x) => { x.name = e.target.value; }, `name:${g.id}`)} />
+          <span className="studio-track-sub">{inside.length === 1 ? '1 track' : `${inside.length} tracks`}</span>
+          <div className="studio-track-buttons" data-on={g.muted || g.solo || half || undefined}>
+            <button type="button" className="studio-ms" aria-label={`Mute ${g.name}`} title="Mute everything in it (M)" aria-pressed={!!g.muted} onClick={(e) => { e.stopPropagation(); setGroup(g.id, (x) => { if (x.muted) delete x.muted; else x.muted = true; }); }}>M</button>
+            <button type="button" className="studio-ms" aria-label={`Solo ${g.name}`} title={half ? 'Something in it is soloed. Solo the whole group (S)' : 'Solo everything in it (S)'} aria-pressed={!!g.solo} data-half={half || undefined} onClick={(e) => { e.stopPropagation(); setGroup(g.id, (x) => { if (x.solo) delete x.solo; else x.solo = true; }); }}>S</button>
+          </div>
+        </div>
+        <div className="studio-lane studio-group-lane" style={{ width: total * bw }} aria-hidden="true">
+          {inside.flatMap((t, k) => t.clips.filter((c) => c.start < total).map((c) => (
+            <span key={`${t.id}:${c.id}`} className="studio-group-clip" style={{ left: c.start * bw, width: Math.max(2, Math.min(c.length, total - c.start) * bw - 1), top: `${8 + (k % 4) * 6}px`, '--tc': `var(--c-${t.color})` } as CSSProperties} data-muted={c.muted || undefined} />
+          )))}
+        </div>
+      </div>
+    );
+  };
   const pos = position(beat, song.tempo, meterOf(song), view === 'arrange' && tempoChanges(song) ? secondsAt(song, beat) : undefined);
 
   // ---------- The piano roll's pointer ----------
@@ -2021,6 +2090,19 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (track && clip && clipAt !== null && t.closest('.studio-session')) {
       if (mod && k === 'd') { duplicateClip(track.id, clipAt); return true; }
       if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) { deleteClip(track.id, clipAt); return true; }
+    }
+    if (t.closest('.studio-tracks')) {
+      if (mod && !e.shiftKey && !e.altKey && k === 'g') { groupChosen(); return true; }
+      // A group chosen on its own: its keys, as a track's.
+      const g = chosenRows.size === 1 ? song.groups?.find((x) => chosenRows.has(x.id)) : undefined;
+      if (g && t.closest('.studio-group-track')) {
+        if (mod && e.shiftKey && k === 'g') { ungroupChosen(g.id); return true; }
+        if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) { deleteGroupNamed(g.id); return true; }
+        if (!mod && k === 'm') { setGroup(g.id, (v) => { if (v.muted) delete v.muted; else v.muted = true; }); return true; }
+        if (!mod && k === 's') { setGroup(g.id, (v) => { if (v.solo) delete v.solo; else v.solo = true; }); return true; }
+        return false;
+      }
+      if (mod && e.shiftKey && k === 'g' && track?.group) { ungroupChosen(track.group); return true; }
     }
     if (!track || !t.closest('.studio-tracks')) return false;
     if (mod && k === 'd') { duplicateTrack(track.id); return true; }
@@ -2457,8 +2539,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   onChange={(next) => change((s) => { setTempoLine(s, fromLane(next, tempoLine(s), TEMPO_LANE).map((p) => ({ ...p, value: Math.round(p.value * 10) / 10 })), MAIN_VOLUME); }, 'tempo-line')} />
               </div>
             )}
-            {song.tracks.map((t, n) => (
-              <div key={t.id} role="listitem" aria-label={t.name} tabIndex={-1} className="studio-track" style={{ '--tc': `var(--c-${t.color})` } as CSSProperties} aria-current={track?.id === t.id || undefined} data-instrument={t.instrument} data-muted={(t.muted || (song.tracks.some((x) => x.solo) && !t.solo)) || undefined} onClick={() => setSelected(t.id)}>
+            {groupRows(song).map((row) => row.hidden ? null : row.kind === 'group' ? groupRow(row.group, row.depth) : (() => { const t = row.track; const n = song.tracks.indexOf(t); return (
+              <div key={t.id} role="listitem" aria-label={t.name} tabIndex={-1} className="studio-track" style={{ '--tc': `var(--c-${t.color})`, '--depth': row.depth } as CSSProperties} aria-current={track?.id === t.id || undefined} data-picked={(chosenRows.size > 1 && chosenRows.has(t.id)) || undefined} data-instrument={t.instrument} data-muted={!isHeard(song, t) || undefined} onClick={(e) => { setSelected(t.id); chooseRow(t.id, e); }}>
                 <div className="studio-track-head" onContextMenu={(e) => { e.preventDefault(); setSelected(t.id); trackMenu(t, e.clientX, e.clientY); }} onDoubleClick={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') openDevice(t.id); }}>
                   <span className="studio-track-no" aria-hidden="true">{String(n + 1).padStart(2, '0')}</span>
                   <input className="studio-track-name" aria-label="Track name" value={t.name} maxLength={60} onChange={(e) => setTrack(t.id, (x) => { x.name = e.target.value; }, `name:${t.id}`)} />
@@ -2513,7 +2595,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   </>;
                 })()}
               </div>
-            ))}
+            ); })())}
             <div className="studio-add-row">
               <Button kind="quiet" className="studio-add" icon={<Icon d="M10 4.5v11M4.5 10h11" />} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); soundsMenu(r.left, r.bottom); }}>Add track</Button>
               {song.tracks.length === 0 && <span className="studio-none">No tracks yet.</span>}

@@ -1,6 +1,7 @@
 //! The song made into sound, block by block on the sample clock: the same code for offline render and, next, for the
 //! audio thread. Notes start on their own sample; each track's notes are mixed, set to its volume and pan, and sent
-//! on to the returns; tracks and returns go into Main, through its effects and its level (0.8 unless the song says).
+//! on to the returns; tracks go into their group track if they are in one (Live 12 manual, 18.3), groups and returns
+//! into Main, through its effects and its level (0.8 unless the song says).
 
 use crate::clock::Clock;
 use crate::drum::Hit;
@@ -21,6 +22,8 @@ pub const RENDER_TAIL: f64 = 2.0;
 
 struct Lane {
     id: String,
+    /// The group lane it plays into (18.3 "Group Tracks"), or none for Main.
+    group: Option<usize>,
     notes: Vec<Note>,
     /// The first note not yet started.
     next: usize,
@@ -433,6 +436,22 @@ impl AudioClip {
 }
 
 /// A return track as it plays: what the tracks send it, through its effects, volume and pan, into Main.
+/// A group track playing: what its tracks and groups put in it, through its effects, volume and pan, into the group
+/// it is in or Main.
+struct GroupLane {
+    id: String,
+    /// The group lane it plays into, or none for Main.
+    group: Option<usize>,
+    stem: (Vec<f32>, Vec<f32>),
+    volume: f64,
+    pan: f64,
+    chain: Option<Chain>,
+    fx_key: String,
+    left: Vec<f32>,
+    right: Vec<f32>,
+    peak: (f32, f32),
+}
+
 struct ReturnLane {
     id: String,
     /// As a lane's `stem`.
@@ -783,6 +802,9 @@ pub struct Renderer {
     clock: Clock,
     lanes: Vec<Lane>,
     returns: Vec<ReturnLane>,
+    /// Group tracks, and the order they are summed in: a group before the group it is in.
+    groups: Vec<GroupLane>,
+    group_order: Vec<usize>,
     /// Main's effects (and what they were made from) and its level.
     main: Option<Chain>,
     main_key: String,
@@ -1044,6 +1066,7 @@ impl Renderer {
                 // A frozen clip's envelopes are in its file.
                 let slot_envs = if how.session && !is_frozen { t.slots.iter().map(|c| c.as_ref().and_then(|c| Envelopes::of(&c.envelopes, &c.unlinked, &sends, &fx_auto))).collect() } else { Vec::new() };
                 Lane {
+                    group: None,
                     id: t.id.clone(),
                     notes,
                     next,
@@ -1090,6 +1113,31 @@ impl Renderer {
             .collect();
         let mut lanes = lanes;
         let mut returns = returns;
+        // Group tracks (18.3): each lane into its group, each group into the one it is in; a group in a loop of groups
+        // goes to Main.
+        let group_list: Vec<&crate::song::Group> = song.groups().collect();
+        let depth = |id: &str| song.groups_up(Some(id)).count();
+        let index_of = |id: Option<&str>| id.and_then(|id| group_list.iter().position(|g| g.id == id));
+        let groups: Vec<GroupLane> = group_list
+            .iter()
+            .map(|g| GroupLane {
+                id: g.id.clone(),
+                group: index_of(g.group.as_deref()).filter(|&p| depth(&group_list[p].id) < depth(&g.id)),
+                stem: (Vec::new(), Vec::new()),
+                volume: if g.muted { 0.0 } else { g.volume.max(0.0) },
+                pan: g.pan,
+                chain: Chain::new(&g.fx, sample_rate, 60.0 / song.tempo, true),
+                fx_key: serde_json::to_string(&g.fx).unwrap_or_default(),
+                left: vec![0.0; MAX_BLOCK],
+                right: vec![0.0; MAX_BLOCK],
+                peak: (0.0, 0.0),
+            })
+            .collect();
+        let mut group_order: Vec<usize> = (0..groups.len()).collect();
+        group_order.sort_by_key(|&g| std::cmp::Reverse(depth(&groups[g].id)));
+        for lane in &mut lanes {
+            lane.group = index_of(song.tracks.iter().find(|t| t.id == lane.id).and_then(|t| t.group.as_deref()));
+        }
         let main = Chain::new(&song.main.fx, sample_rate, 60.0 / song.tempo, true);
         // Sidechains: which lane keys each chain, each lane's level kept for those that key one, and the lanes in an
         // order that has each keying lane made before the lanes it keys.
@@ -1110,6 +1158,8 @@ impl Renderer {
             clock: clock.clone(),
             lanes,
             returns,
+            groups,
+            group_order,
             main,
             main_fx_auto,
             main_key_from,
@@ -1144,20 +1194,23 @@ impl Renderer {
         for ret in &mut self.returns {
             ret.stem = (vec![0.0; MAX_BLOCK], vec![0.0; MAX_BLOCK]);
         }
+        for group in &mut self.groups {
+            group.stem = (vec![0.0; MAX_BLOCK], vec![0.0; MAX_BLOCK]);
+        }
         self
     }
 
     /// After a `render` of `frames` (at most [`MAX_BLOCK`], with no loop or Session view, so it is made in one piece),
-    /// what each track heard and then each return put into Main, in [`Renderer::track_ids`] order: post-fader, before
+    /// what each track heard, then each return put into Main, then each group put out, in [`Renderer::track_ids`] order: post-fader, before
     /// Main's effects and level (Live 12 manual, 5.1.3.1 "Selection Options": All Individual Tracks).
     pub fn stems(&self, frames: usize) -> impl Iterator<Item = (&[f32], &[f32])> {
         let n = frames.min(MAX_BLOCK);
-        self.lanes.iter().map(|l| &l.stem).chain(self.returns.iter().map(|r| &r.stem)).map(move |(l, r)| (&l[..n.min(l.len())], &r[..n.min(r.len())]))
+        self.lanes.iter().map(|l| &l.stem).chain(self.returns.iter().map(|r| &r.stem)).chain(self.groups.iter().map(|g| &g.stem)).map(move |(l, r)| (&l[..n.min(l.len())], &r[..n.min(r.len())]))
     }
 
-    /// The tracks heard, then the returns, in the order `peaks` gives their levels.
+    /// The tracks heard, then the returns, then the groups, in the order `peaks` gives their levels.
     pub fn track_ids(&self) -> impl Iterator<Item = &str> {
-        self.lanes.iter().map(|l| l.id.as_str()).chain(self.returns.iter().map(|r| r.id.as_str()))
+        self.lanes.iter().map(|l| l.id.as_str()).chain(self.returns.iter().map(|r| r.id.as_str())).chain(self.groups.iter().map(|g| g.id.as_str()))
     }
 
     /// Listens to the parts of one effect (by its [`crate::fx::fx_key`]) on the lane at `lane`, or to none.
@@ -1176,9 +1229,9 @@ impl Renderer {
         }
     }
 
-    /// Each track's loudest sample in the last block (left, right), then each return's, then Main's.
+    /// Each track's loudest sample in the last block (left, right), then each return's, then each group's, then Main's.
     pub fn peaks(&self) -> impl Iterator<Item = (f32, f32)> + '_ {
-        self.lanes.iter().map(|l| l.peak).chain(self.returns.iter().map(|r| r.peak)).chain(std::iter::once(self.peak))
+        self.lanes.iter().map(|l| l.peak).chain(self.returns.iter().map(|r| r.peak)).chain(self.groups.iter().map(|g| g.peak)).chain(std::iter::once(self.peak))
     }
 
     /// In the Session view, each track's id and what it is doing, in song order.
@@ -1240,6 +1293,11 @@ impl Renderer {
                 std::mem::swap(&mut ret.chain, &mut was.chain);
             }
         }
+        for group in &mut self.groups {
+            if let Some(was) = old.groups.iter_mut().find(|w| w.id == group.id && w.fx_key == group.fx_key) {
+                std::mem::swap(&mut group.chain, &mut was.chain);
+            }
+        }
         if self.main_key == old.main_key {
             std::mem::swap(&mut self.main, &mut old.main);
             let_go(self.main.as_mut(), old.main.as_ref(), &old.main_fx_auto);
@@ -1282,6 +1340,9 @@ impl Renderer {
         }
         for ret in &mut self.returns {
             ret.peak = (0.0, 0.0);
+        }
+        for group in &mut self.groups {
+            group.peak = (0.0, 0.0);
         }
         let mut done = 0;
         while done < frames {
@@ -1343,17 +1404,27 @@ impl Renderer {
             ret.left[..frames].fill(0.0);
             ret.right[..frames].fill(0.0);
         }
+        for group in &mut self.groups {
+            group.left[..frames].fill(0.0);
+            group.right[..frames].fill(0.0);
+        }
         let returns = &mut self.returns;
-        // A track's sound into Main (before Main's effects and level) and on to its returns; its meter reads it at
+        let groups = &mut self.groups;
+        // A track's sound into its group or Main (before Main's effects and level) and on to its returns; its meter reads it at
         // Main's level, as it is heard with no effects on Main.
-        let out = |peak: &mut (f32, f32), stem: &mut (Vec<f32>, Vec<f32>), sends: &[Send], returns: &mut [ReturnLane], i: usize, (l, r): (f32, f32), left: &mut [f32], right: &mut [f32]| {
+        let out = |peak: &mut (f32, f32), stem: &mut (Vec<f32>, Vec<f32>), sends: &[Send], returns: &mut [ReturnLane], (groups, to): (&mut [GroupLane], Option<usize>), i: usize, (l, r): (f32, f32), left: &mut [f32], right: &mut [f32]| {
             *peak = (peak.0.max((l * mains[i]).abs()), peak.1.max((r * mains[i]).abs()));
             if !stem.0.is_empty() {
                 stem.0[i] = l;
                 stem.1[i] = r;
             }
-            left[i] += l;
-            right[i] += r;
+            if let Some(g) = to.and_then(|g| groups.get_mut(g)) {
+                g.left[i] += l;
+                g.right[i] += r;
+            } else {
+                left[i] += l;
+                right[i] += r;
+            }
             for send in sends {
                 let level = send.at(i);
                 returns[send.to].left[i] += l * level;
@@ -1496,7 +1567,7 @@ impl Renderer {
                     }
                     let p = if lane.pans.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
                     let (a, b) = balance(a, b, p);
-                    out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (a as f32, b as f32), left, right);
+                    out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, (&mut groups[..], lane.group), i, (a as f32, b as f32), left, right);
                 }
                 continue;
             }
@@ -1510,8 +1581,47 @@ impl Renderer {
                 // Each side keeps its own channel (a mono sound has the same on both).
                 let (gl, gr) = if lane.pans.is_empty() { lane.gains } else { pan_gains(p) };
                 let (l, r) = (a * gl * volume, b * gr * volume);
-                out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (l as f32, r as f32), left, right);
+                out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, (&mut groups[..], lane.group), i, (l as f32, r as f32), left, right);
             }
+        }
+        // Each group, inner ones first: what its tracks and groups put in it, through its effects, then its volume and
+        // pan, into the group it is in or Main.
+        for &g in &self.group_order {
+            // Its buffers taken out while it plays, so the group it goes into can be written (nothing is allocated).
+            let (mut gl, mut gr) = (std::mem::take(&mut groups[g].left), std::mem::take(&mut groups[g].right));
+            let group = &mut groups[g];
+            if let Some(chain) = &mut group.chain {
+                chain.set_clock(clock.beat(from), clock.beat(from + 1) - clock.beat(from));
+                chain.process(&mut gl[..frames], &mut gr[..frames], rate);
+            }
+            for i in 0..frames {
+                let (a, b) = (f64::from(gl[i]) * group.volume, f64::from(gr[i]) * group.volume);
+                let (a, b) = balance(a, b, group.pan);
+                let (l, r) = (a as f32, b as f32);
+                group.peak = (group.peak.0.max((l * mains[i]).abs()), group.peak.1.max((r * mains[i]).abs()));
+                if !group.stem.0.is_empty() {
+                    group.stem.0[i] = l;
+                    group.stem.1[i] = r;
+                }
+                gl[i] = l;
+                gr[i] = r;
+            }
+            match group.group.and_then(|p| groups.get_mut(p)) {
+                Some(parent) => {
+                    for i in 0..frames {
+                        parent.left[i] += gl[i];
+                        parent.right[i] += gr[i];
+                    }
+                }
+                None => {
+                    for i in 0..frames {
+                        left[i] += gl[i];
+                        right[i] += gr[i];
+                    }
+                }
+            }
+            groups[g].left = gl;
+            groups[g].right = gr;
         }
         // Each return: what was sent to it, through its effects, then its volume and pan, into Main.
         for ret in returns.iter_mut() {
@@ -1801,6 +1911,45 @@ mod tests {
         assert!(left[0] == 0.0 && left[10].abs() > 0.0 && right[10].abs() > 0.0);
         assert!(left[36_000..38_000].iter().all(|x| x.abs() < 1e-6));
         assert!(right[36_000..38_000].iter().any(|x| x.abs() > 0.01));
+    }
+
+    #[test]
+    fn a_group_sums_its_tracks_through_its_own_level_and_its_mute_and_solo_reach_them() {
+        // Live 12 manual, 18.3 "Group Tracks": the tracks in a group play into it, and it into Main.
+        let track = |id: &str, extra: &str| format!(r#"{{"id":"{id}","instrument":"bass","volume":0.5,{extra}"notes":[{{"pitch":45,"start":0,"length":1,"velocity":1}}]}}"#);
+        let peak = |v: &[f32]| v.iter().fold(0f32, |m, s| m.max(s.abs()));
+        let with = |groups: &str, tracks: &str| Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":1,"groups":[{groups}],"tracks":[{tracks}]}}"#)).unwrap();
+        let alone = peak(&render_song(&song(&track("a", "")), 48_000).0);
+        let grouped = peak(&render_song(&with(r#"{"id":"g","volume":0.5}"#, &track("a", r#""group":"g","#)), 48_000).0);
+        assert!((grouped / alone - 0.5).abs() < 0.01, "{grouped} {alone}");
+        // A group in a group: both levels.
+        let nested = peak(&render_song(&with(r#"{"id":"g","volume":0.5,"group":"h"},{"id":"h","volume":0.5}"#, &track("a", r#""group":"g","#)), 48_000).0);
+        assert!((nested / alone - 0.25).abs() < 0.01, "{nested}");
+        // Muting the outer group mutes the track two groups down.
+        let muted = render_song(&with(r#"{"id":"g","group":"h"},{"id":"h","muted":true}"#, &track("a", r#""group":"g","#)), 48_000);
+        assert_eq!(peak(&muted.0), 0.0);
+        // Soloing a group solos what is in it: the track outside is not heard.
+        let tracks = format!("{},{}", track("a", r#""group":"g","#), track("b", r#""pan":-1,"#));
+        let solo = render_song(&with(r#"{"id":"g","solo":true}"#, &tracks), 48_000);
+        assert!((peak(&solo.0) - alone).abs() < 1e-4 && (peak(&solo.1) - alone).abs() < 1e-4, "{:?}", (peak(&solo.0), peak(&solo.1)));
+        // A group panned hard left takes its tracks there.
+        let left = render_song(&with(r#"{"id":"g","pan":-1}"#, &track("a", r#""group":"g","#)), 48_000);
+        assert!(peak(&left.0) > 0.01 && peak(&left.1) < 1e-6);
+        // Groups that are in each other, or a group the song does not have, go to Main.
+        let looped = peak(&render_song(&with(r#"{"id":"g","group":"h"},{"id":"h","group":"g"}"#, &track("a", r#""group":"g","#)), 48_000).0);
+        assert!((looped - alone).abs() < 1e-4, "{looped}");
+        let missing = peak(&render_song(&song(&track("a", r#""group":"nope","#)), 48_000).0);
+        assert!((missing - alone).abs() < 1e-6);
+        // Its meter and its stem come after the returns'.
+        let s = with(r#"{"id":"g","volume":0.5}"#, &track("a", r#""group":"g","#));
+        let mut r = Renderer::new(&s, 48_000, 0.0).with_stems();
+        let (mut l, mut rr) = (vec![0.0; 2_048], vec![0.0; 2_048]);
+        r.render(&mut l, &mut rr);
+        assert_eq!(r.track_ids().collect::<Vec<_>>(), ["a", "g"]);
+        let stems: Vec<_> = r.stems(2_048).collect();
+        assert!((peak(stems[1].0) / peak(stems[0].0) - 0.5).abs() < 0.01);
+        // What Main hears is the group, at Main's level.
+        assert!((peak(&l) - peak(stems[1].0) * 0.8).abs() < 1e-6, "{} {}", peak(&l), peak(stems[1].0));
     }
 
     #[test]

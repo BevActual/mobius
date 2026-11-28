@@ -27,6 +27,10 @@ pub struct Song {
     /// Return tracks, fed by the tracks' sends (at most [`MAX_RETURNS`]).
     #[serde(default)]
     pub returns: Vec<Return>,
+    /// Group tracks (Live 12 manual, 18.3 "Group Tracks"): each sums the tracks in it (and the groups in it) through
+    /// its own effects, volume and pan, on to the group it is in or to Main.
+    #[serde(default)]
+    pub groups: Vec<Group>,
     /// The sounds its audio clips, samplers and drum pads play, by the file they name: read from the song's folder by
     /// [`crate::sample::Samples::attach`], not from the song file.
     #[serde(skip)]
@@ -91,6 +95,32 @@ pub struct Return {
     pub muted: bool,
     #[serde(default)]
     pub fx: Vec<serde_json::Value>,
+}
+
+/// The most groups a song has; any past them are left out.
+pub const MAX_GROUPS: usize = 64;
+
+/// A group track: what its tracks and groups play is summed, through its effects, then its volume and pan, into the
+/// group it is in (`group`) or into Main. Muting it mutes everything in it; soloing it solos everything in it.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Group {
+    pub id: String,
+    /// What the person calls it (a stem is named for it).
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default = "one")]
+    pub volume: f64,
+    #[serde(default)]
+    pub pan: f64,
+    #[serde(default)]
+    pub muted: bool,
+    #[serde(default)]
+    pub solo: bool,
+    #[serde(default)]
+    pub fx: Vec<serde_json::Value>,
+    /// The group it is in, if any.
+    #[serde(default)]
+    pub group: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -198,6 +228,9 @@ pub struct Track {
     /// song does not have is left out.
     #[serde(default)]
     pub sends: std::collections::BTreeMap<String, f64>,
+    /// The group track it is in (18.3), by the group's id; none goes straight to Main.
+    #[serde(default)]
+    pub group: Option<String>,
 }
 
 /// A track's instrument stack: chains side by side, each an instrument of its own.
@@ -563,8 +596,34 @@ impl Song {
 
     /// The tracks heard: the soloed ones if any are, else every one not muted (song-format.ts `audible`).
     pub fn audible(&self) -> impl Iterator<Item = &Track> {
-        let solo = self.tracks.iter().any(|t| t.solo);
-        self.tracks.iter().filter(move |t| if solo { t.solo } else { !t.muted })
+        // A group's mute and solo reach everything in it, however deep.
+        let solo = self.tracks.iter().any(|t| t.solo) || self.groups().any(|g| g.solo);
+        self.tracks.iter().filter(move |t| {
+            let mut up = self.groups_up(t.group.as_deref());
+            if solo { t.solo || up.any(|g| g.solo) } else { !t.muted && !up.any(|g| g.muted) }
+        })
+    }
+
+    /// The groups the engine plays: the first [`MAX_GROUPS`], each id once.
+    pub fn groups(&self) -> impl Iterator<Item = &Group> {
+        self.groups.iter().take(MAX_GROUPS).enumerate().filter(|(i, g)| !self.groups[..*i].iter().any(|h| h.id == g.id)).map(|(_, g)| g)
+    }
+
+    /// The group with this id, and the groups it is in, innermost first; a group named twice in the chain (a loop)
+    /// ends it.
+    pub fn groups_up<'a>(&'a self, from: Option<&'a str>) -> impl Iterator<Item = &'a Group> + 'a {
+        let mut seen: Vec<&str> = Vec::new();
+        let mut at = from;
+        std::iter::from_fn(move || {
+            let id = at?;
+            if seen.contains(&id) || seen.len() >= MAX_GROUPS {
+                return None;
+            }
+            seen.push(id);
+            let g = self.groups().find(|g| g.id == id)?;
+            at = g.group.as_deref();
+            Some(g)
+        })
     }
 
     /// Every note a track plays, in song beats and in time order: its clips laid out (cut at a clip's end, and going

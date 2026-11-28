@@ -464,12 +464,14 @@ impl Music {
             .find(|(_, f)| std::fs::create_dir(f).is_ok())
             .ok_or("The stems folder could not be made.")?;
         let mut renderer = Renderer::new(&song, RENDER_RATE, 0.0).with_stems();
-        // Each stem's name: a track's own (or its id), a return's letter as Live names them, then Main.
+        // Each stem's name: a track's own (or its id), a return's letter as Live names them, a group's name, then Main.
         let mut names: Vec<String> = Vec::new();
         let mut returns = 0u8;
         for id in renderer.track_ids() {
             let label = match song.tracks.iter().find(|t| t.id == id) {
                 Some(t) => t.name.clone().unwrap_or_else(|| id.to_owned()),
+                // A group track's stem: its name, or "Group" (18.3).
+                None if song.groups.iter().any(|g| g.id == id) => song.groups.iter().find(|g| g.id == id).and_then(|g| g.name.clone()).unwrap_or_else(|| "Group".to_owned()),
                 None => {
                     returns += 1;
                     format!("Return {}", char::from(b'A' + (returns - 1) % 26))

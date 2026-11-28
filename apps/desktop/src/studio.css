@@ -76,6 +76,24 @@
 .studio-page .studio-ms { width: var(--fs-xl); height: var(--fs-xl); padding: 0; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-small); background: var(--paper); color: var(--muted); font: var(--fw-semibold) var(--fs-floor) / 1 var(--font-mono); }
 .studio-page .studio-ms[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
 .studio-track[data-muted] .studio-lane { opacity: 0.4; }
+/* Group tracks (Live 12, 18.3): what is in a group sits indented under it; the group's own row is a shade apart, with
+   its fold, and in its lane a small overview of the clips in it. */
+.studio-page .studio-track-head { padding-left: calc(var(--sp-3) + var(--depth, 0) * var(--sp-3)); }
+.studio-page .studio-track[data-picked] .studio-track-head { background: var(--sel); }
+.studio-page .studio-group-track .studio-track-head { background: color-mix(in srgb, var(--tc) 7%, var(--paper)); padding-left: calc(var(--sp-1) + var(--depth, 0) * var(--sp-3)); }
+.studio-page .studio-group-track[data-picked] .studio-track-head { background: var(--sel); }
+.studio-page .studio-group-track .studio-track-name { font-weight: var(--fw-medium); }
+.studio-page .studio-group-fold { flex: none; display: grid; place-items: center; width: var(--fs-xl); height: var(--fs-xl); padding: 0; border: 0; border-radius: var(--radius-small); background: none; color: var(--muted); }
+.studio-page .studio-group-fold:hover { color: var(--ink); background: var(--sel); }
+.studio-page .studio-group-fold svg { transform: rotate(90deg); transition: transform var(--dur-fast) var(--ease); }
+.studio-page .studio-group-track[data-folded] .studio-group-fold svg { transform: none; }
+.studio-page .studio-group-fold:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.studio-page .studio-ms[data-half]:not([aria-pressed="true"]) { background: linear-gradient(135deg, var(--ink) 50%, var(--paper) 50%); color: var(--muted); }
+.studio-page .studio-group-lane { background-color: color-mix(in srgb, var(--tc) 6%, transparent); }
+.studio-group-clip { position: absolute; height: 4px; border-radius: 2px; background: var(--tc); opacity: 0.85; }
+.studio-group-clip[data-muted] { opacity: 0.3; }
+.studio-track[data-muted] .studio-group-lane { opacity: 0.4; }
+@media (prefers-reduced-motion: reduce) { .studio-page .studio-group-fold svg { transition: none; } }
 
 /* After the last track: Add track, so a short song never ends in a blank field. */
 .studio-add-row { position: sticky; left: 0; display: flex; align-items: center; gap: var(--sp-3); width: var(--head); height: var(--row-list); padding: 0 var(--sp-2); border-right: var(--hairline-w) solid var(--line); box-sizing: border-box; }
