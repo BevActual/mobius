@@ -180,7 +180,7 @@ export function notesIn(notes: readonly SongNote[], b0: number, b1: number, p0: 
  * Where the song is, as the transport shows it: bar.beat.sixteenth, and minutes and seconds. The beat is the time
  * signature's own (an eighth in 6/8), as Live counts it.
  */
-export function position(beat: number, tempo: number, signature?: readonly [number, number]): { bars: string; time: string } {
+export function position(beat: number, tempo: number, signature?: readonly [number, number], at?: number): { bars: string; time: string } {
   const b = Math.max(0, beat);
   const [num, unit] = signature ?? [4, 4];
   const perBar = (num * 4) / unit;
@@ -189,7 +189,8 @@ export function position(beat: number, tempo: number, signature?: readonly [numb
   const into = Math.max(0, b - (bar - 1) * perBar);
   const inBar = Math.floor(into / per + 1e-9) + 1;
   const sixteenth = Math.floor(((into - (inBar - 1) * per) / 0.25) + 1e-9) + 1;
-  const seconds = (b * 60) / tempo;
+  // `at`: the seconds it falls at along a tempo line, when the song has one.
+  const seconds = at ?? (b * 60) / tempo;
   const m = Math.floor(seconds / 60);
   const s = seconds - m * 60;
   return { bars: `${bar}.${inBar}.${sixteenth}`, time: `${m}:${s.toFixed(1).padStart(4, '0')}` };

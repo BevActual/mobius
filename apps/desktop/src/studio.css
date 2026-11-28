@@ -467,3 +467,7 @@
 .studio-locator-name { position: absolute; bottom: 0; height: 16px; width: 120px; padding: 0 4px; border: var(--hairline-w) solid var(--ink); border-radius: var(--radius-small); background: var(--paper); color: var(--ink); font: var(--fs-xs) / 1 var(--font); z-index: 2; }
 .studio-arrange-tools { display: flex; align-items: center; gap: var(--sp-3); }
 .studio-locator-tools { display: flex; align-items: center; gap: 2px; }
+
+/* The Song Tempo lane (Main's tempo line), above the tracks while their lines are shown. */
+.studio-page .studio-tempo-track { background: var(--paper); }
+.studio-page .studio-tempo-name { cursor: default; color: var(--ink); }

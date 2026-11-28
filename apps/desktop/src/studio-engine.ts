@@ -1,3 +1,4 @@
+import { beatAt, secondsAt, tempoChanges } from './studio-tempo';
 import type { MusicPosition, MusicTake } from '@mobius/shared';
 import { BEATS_PER_BAR, barBeats, type ArrangeClip, type DrumPad, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
 import type { Cycle } from './studio-view';
@@ -295,7 +296,9 @@ function clockPlay(song: Song, fromBeat: number, loop: Cycle | null, endless = f
   const started = performance.now();
   let stopped: number | null = null;
   const beat = () => {
-    let b = fromBeat + (((stopped ?? performance.now()) - started) / 60000) * song.tempo;
+    const elapsed = ((stopped ?? performance.now()) - started) / 1000;
+    // Arrange follows the song's tempo line; the Session view (`endless`) keeps the song's tempo.
+    let b = !endless && tempoChanges(song) ? beatAt(song, secondsAt(song, fromBeat) + elapsed) : fromBeat + (elapsed / 60) * song.tempo;
     if (loop && fromBeat < loop.to && b >= loop.to) b = loop.from + ((b - loop.from) % (loop.to - loop.from));
     return loop || endless ? b : Math.min(b, song.bars * barBeats(song));
   };

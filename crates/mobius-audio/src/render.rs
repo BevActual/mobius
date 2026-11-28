@@ -901,7 +901,9 @@ impl Renderer {
     /// Ready to play `song` as `how` says, at `sample_rate`. Played from after a loop, it starts at the loop.
     #[must_use]
     pub fn playing(song: &Song, sample_rate: u32, how: Playing) -> Renderer {
-        let clock = Clock::new(sample_rate, song.tempo);
+        // Arrange follows the song's tempo line (Live 12's tempo automation on Main); the Session view keeps its tempo.
+        let line: Vec<(f64, f64)> = if how.session { Vec::new() } else { song.main_auto_of("tempo").iter().map(|p| (p.beat, p.value)).collect() };
+        let clock = Clock::with_tempo_line(sample_rate, song.tempo, &line);
         let total = song.beats();
         let cycle = how.cycle.map(|(a, b)| (a.max(0.0), b.min(total))).filter(|(a, b)| b - a > 1e-9);
         // Started past the loop's end, it plays on to the song's end, as Live does; it loops once it is in the loop.
@@ -1105,7 +1107,7 @@ impl Renderer {
         let order = keyed_order(&lanes.iter().map(|l| l.key_from.iter().flatten().copied().collect()).collect::<Vec<Vec<usize>>>());
         let main_fx_auto = fx_moves(main.as_ref(), &song.main.fx, song.main.auto.keys(), |name| if how.session { Vec::new() } else { song.main_auto_of(name) }, |_| Vec::new(), |_| false, 60.0 / song.tempo);
         Renderer {
-            clock,
+            clock: clock.clone(),
             lanes,
             returns,
             main,
@@ -1314,7 +1316,7 @@ impl Renderer {
     /// Moves to `sample`: the next notes are the first at or after it.
     fn go_to(&mut self, sample: u64) {
         self.sample = sample;
-        let clock = self.clock;
+        let clock = self.clock.clone();
         for lane in &mut self.lanes {
             lane.next = lane.notes.iter().position(|n| clock.sample_of_beat(n.start) >= sample).unwrap_or(lane.notes.len());
         }
@@ -1327,7 +1329,7 @@ impl Renderer {
         let rate = self.clock.sample_rate;
         let spb = self.clock.seconds_per_beat();
         let (from, to) = (self.sample, self.sample + frames as u64);
-        let clock = self.clock;
+        let clock = self.clock.clone();
         if self.main_auto.is_empty() {
             self.main_volumes[..frames].fill(self.main_volume as f32);
         } else {
@@ -1381,6 +1383,8 @@ impl Renderer {
                 lane.next += 1;
                 let offset = usize::try_from(at.saturating_sub(from)).unwrap_or(frames).min(frames);
                 let note = *note;
+                // Along a tempo line a note lasts as long as its beats take where it plays.
+                let spb = if self.clock.changes() && note.length > 1e-9 { self.clock.seconds_between(note.start, note.start + note.length) / note.length } else { spb };
                 lane.start(&note, offset, frames, spb, rate);
             }
             if let Some((length, notes, start, _, _)) = clip {
@@ -1446,7 +1450,7 @@ impl Renderer {
                 for i in 0..frames {
                     let beat = clock.beat(from + i as u64);
                     for c in &mut lane.audio {
-                        if let Some((own, fade)) = c.own_beat(beat, spb) {
+                        if let Some((own, fade)) = c.own_beat(beat, 60.0 / clock.tempo_at(beat)) {
                             let more = if c.transpose.is_empty() { 0.0 } else { c.transpose.at(own, beat - c.start) };
                             let (l, r) = c.placed.at_transposed(own, &mut c.stretch, more);
                             scratch[i] += l * fade;
@@ -1539,7 +1543,7 @@ impl Renderer {
         }
         // The metronome, on each beat in this piece (inside the song), straight to the master.
         if self.click {
-            let clock = self.clock;
+            let clock = self.clock.clone();
             let (unit, bar) = (self.unit, self.bar);
             let mut beat = (clock.beat(from) / unit).floor().max(0.0) * unit;
             while clock.sample_of_beat(beat) < from {
@@ -1606,7 +1610,8 @@ fn placed(song: &Song, audio_track: bool, audio: Option<&crate::song::Audio>) ->
 /// How many frames a render of the whole song makes: to its end and its tail.
 #[must_use]
 pub fn song_frames(song: &Song, sample_rate: u32) -> usize {
-    let seconds = song.beats() * 60.0 / song.tempo + RENDER_TAIL;
+    let line: Vec<(f64, f64)> = song.main_auto_of("tempo").iter().map(|p| (p.beat, p.value)).collect();
+    let seconds = Clock::with_tempo_line(sample_rate, song.tempo, &line).seconds_of_beat(song.beats()) + RENDER_TAIL;
     (seconds * f64::from(sample_rate)).ceil() as usize
 }
 
@@ -1961,6 +1966,28 @@ mod tests {
         // Without the click, silence.
         let (quiet, _) = play_for(&s, Playing::default(), 48_000);
         assert!(quiet.iter().all(|x| *x == 0.0));
+    }
+
+    #[test]
+    fn a_tempo_line_on_main_moves_the_notes_and_the_songs_end() {
+        // A note on each beat, at 120 for two beats then ramping to 60 by beat 4: the notes come later and later.
+        let held = r#""sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.1,"sustain":1,"release":0.02,"vibrato":0,"rate":5}"#;
+        let notes = (0..4).map(|b| format!(r#"{{"pitch":69,"start":{b},"length":0.25,"velocity":1}}"#)).collect::<Vec<_>>().join(",");
+        let mut s = song(&format!(r#"{{"id":"t","instrument":"lead",{held},"notes":[{notes}]}}"#));
+        s.main.auto.insert("tempo".into(), vec![AutoPoint { beat: 2.0, value: 120.0, curve: 0.0 }, AutoPoint { beat: 4.0, value: 60.0, curve: 0.0 }]);
+        let (l, _) = render_song(&s, 48_000);
+        let clock = Clock::with_tempo_line(48_000, 120.0, &[(2.0, 120.0), (4.0, 60.0)]);
+        for b in 0..4 {
+            let at = clock.sample_of_beat(f64::from(b)) as usize;
+            assert_eq!(onset(&l[at..], 1e-4).map(|i| i < 4), Some(true), "beat {b} at {at}");
+            assert!(at < 4 || l[at - 4..at - 1].iter().all(|x| x.abs() < 1e-4) || b == 0, "beat {b} early");
+        }
+        // Beat 3 is at 1 s + 2·ln(4/3) s (it was at 1.5 s at 120); the song ends later too.
+        assert_eq!(clock.sample_of_beat(3.0), (48_000.0 * (1.0 + 2.0 * (4.0f64 / 3.0).ln())).ceil() as u64);
+        assert!(song_frames(&s, 48_000) > (4.0 * 0.5 * 48_000.0) as usize + 12_000);
+        // The Session view keeps the song's own tempo.
+        let r = Renderer::playing(&s, 48_000, Playing { session: true, ..Playing::default() });
+        assert!(!r.clock.changes());
     }
 
     #[test]
