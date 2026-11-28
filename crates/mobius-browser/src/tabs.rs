@@ -40,11 +40,47 @@ struct Tab {
     muted: bool,
     /// The shell itself sent the page somewhere (an address typed, back, forward, reload): not a link to peek at.
     sent: bool,
+    /// How the page is told it is shown: a narrower screen and a light or dark preference (Code's Preview).
+    emulation: Emulation,
 }
+
+/// A screen the page is told it has, so its media queries answer as they would there. None is the tab's own.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Emulation {
+    /// The page's width in CSS pixels, from 200 to 3840; its height stays the tab's own.
+    pub width: Option<u32>,
+    /// What `prefers-color-scheme` answers.
+    pub scheme: Option<Scheme>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scheme {
+    Light,
+    Dark,
+}
+
+impl Scheme {
+    pub fn parse(s: &str) -> Option<Scheme> {
+        match s {
+            "light" => Some(Scheme::Light),
+            "dark" => Some(Scheme::Dark),
+            _ => None,
+        }
+    }
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Scheme::Light => "light",
+            Scheme::Dark => "dark",
+        }
+    }
+}
+
+/// The widths a page may be told it has.
+const EMULATED_WIDTH: (u32, u32) = (200, 3840);
 
 impl Tab {
     fn new(id: String) -> Tab {
-        Tab { id, url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false, driver: None, zoom: 1.0, audible: false, muted: false, sent: false }
+        Tab { id, url: String::new(), title: String::new(), loading: true, can_back: false, can_forward: false, icon: None, icon_from: None, pinned: false, untitled_visit: false, driver: None, zoom: 1.0, audible: false, muted: false, sent: false, emulation: Emulation::default() }
     }
 }
 
@@ -116,10 +152,24 @@ impl State {
         if let (Some(peek), Some(card)) = (&self.peek, roomy(self.peek_bounds)) {
             return vec![(peek.id.clone(), card)];
         }
-        match (&self.split, roomy(self.beside_bounds)) {
+        let shown: Vec<(String, Bounds)> = match (&self.split, roomy(self.beside_bounds)) {
             (Some((first, second)), Some(beside)) => vec![(first.clone(), bounds), (second.clone(), beside)],
             _ => self.active.iter().map(|id| (id.clone(), bounds)).collect(),
+        };
+        shown.into_iter().map(|(id, b)| { let b = self.narrowed(&id, b); (id, b) }).collect()
+    }
+
+    /// A tab told it has a narrower screen is that wide, centred in its place: the page really is that wide, so its
+    /// layout and media queries answer as on that screen, in every engine. A width wider than the place stays the
+    /// place's.
+    fn narrowed(&self, id: &str, place: Bounds) -> Bounds {
+        let Some(tab) = self.tabs.iter().find(|t| t.id == id) else { return place };
+        let Some(width) = tab.emulation.width else { return place };
+        let wide = (f64::from(width) * tab.zoom).round() as i32;
+        if wide >= place.width {
+            return place;
         }
+        Bounds { x: place.x + (place.width - wide) / 2, width: wide, ..place }
     }
 }
 
@@ -160,6 +210,7 @@ impl Browser {
                     "id": t.id, "url": url, "title": if t.title.is_empty() { if url.is_empty() { "New tab" } else { url } } else { t.title.as_str() },
                     "loading": t.loading, "canGoBack": t.can_back, "canGoForward": t.can_forward, "pinned": t.pinned, "active": s.active.as_deref() == Some(t.id.as_str()), "icon": t.icon, "driver": t.driver.map(Driver::as_str),
                     "zoom": t.zoom, "audible": t.audible, "muted": t.muted,
+                    "emulation": if t.emulation == Emulation::default() { Value::Null } else { json!({ "width": t.emulation.width, "colorScheme": t.emulation.scheme.map(Scheme::as_str) }) },
                 })
             })
             .collect();
@@ -297,6 +348,19 @@ impl Browser {
         }
         self.update(id, |t| t.zoom = factor);
         self.engine.zoom_page(id, factor);
+        self.layout();
+    }
+
+    /// Tells a tab's page it is shown on another screen: a width (kept within 200 to 3840) and a light or dark
+    /// preference. `Emulation::default()` gives the page back its own. The tab keeps it as it navigates.
+    pub fn emulate(&self, id: &str, emulation: Emulation) {
+        if !self.has_tab(id) {
+            return;
+        }
+        let emulation = Emulation { width: emulation.width.map(|w| w.clamp(EMULATED_WIDTH.0, EMULATED_WIDTH.1)), ..emulation };
+        self.update(id, |t| t.emulation = emulation);
+        self.engine.emulate(id, emulation);
+        self.layout();
     }
 
     /// Silences a tab's page, or lets it be heard again.
@@ -942,6 +1006,30 @@ mod tests {
         assert_eq!(b.state()["tabs"][0]["zoom"], 5.0, "kept within 25% to 500%");
         let zooms: Vec<String> = engine.calls().into_iter().filter(|c| c.starts_with("zoom")).collect();
         assert_eq!(zooms, vec!["zoom tab-1 1.25", "zoom tab-1 5"], "nothing for a bad factor or a tab that is not open");
+    }
+
+    #[test]
+    fn a_page_can_be_told_another_width_and_colour_scheme_and_given_its_own_back() {
+        let (b, engine, _, _) = browser();
+        b.open(None);
+        assert_eq!(b.state()["tabs"][0]["emulation"], Value::Null);
+        b.emulate("tab-1", Emulation { width: Some(390), scheme: Some(Scheme::Dark) });
+        assert_eq!(b.state()["tabs"][0]["emulation"], json!({ "width": 390, "colorScheme": "dark" }));
+        b.emulate("tab-1", Emulation { width: Some(20), scheme: None });
+        assert_eq!(b.state()["tabs"][0]["emulation"], json!({ "width": 200, "colorScheme": null }), "kept within 200 to 3840");
+        b.emulate("tab-9", Emulation { width: Some(390), scheme: None });
+        b.emulate("tab-1", Emulation::default());
+        assert_eq!(b.state()["tabs"][0]["emulation"], Value::Null);
+        let area = Bounds { x: 10, y: 20, width: 700, height: 500 };
+        b.set_bounds(Some(area));
+        b.emulate("tab-1", Emulation { width: Some(390), scheme: None });
+        assert_eq!(last_layout(&engine), vec![("tab-1".into(), Bounds { x: 165, y: 20, width: 390, height: 500 })], "that wide, centred in the place");
+        b.emulate("tab-1", Emulation { width: Some(1440), scheme: None });
+        assert_eq!(last_layout(&engine), vec![("tab-1".into(), area)], "no wider than the place");
+        b.emulate("tab-1", Emulation::default());
+        assert_eq!(last_layout(&engine), vec![("tab-1".into(), area)]);
+        let calls: Vec<String> = engine.calls().into_iter().filter(|c| c.starts_with("emulate")).collect();
+        assert_eq!(calls, vec!["emulate tab-1 Some(390) Some(Dark)", "emulate tab-1 Some(200) None", "emulate tab-1 None None", "emulate tab-1 Some(390) None", "emulate tab-1 Some(1440) None", "emulate tab-1 None None"], "nothing for a tab that is not open");
     }
 
     #[test]

@@ -28,6 +28,15 @@ export interface BrowserTabState {
   audible?: boolean;
   /** The person silenced the page. */
   muted?: boolean;
+  /** The screen the page is told it has (Code's Preview); null or absent, its own. */
+  emulation?: BrowserEmulation | null;
+}
+
+/** Another screen for a page: its width in CSS pixels (200 to 3840) and what `prefers-color-scheme` answers. Only
+ * WebView2 (Windows) applies it to the page; elsewhere the tab keeps it and the page is unchanged. */
+export interface BrowserEmulation {
+  width?: number | null;
+  colorScheme?: 'light' | 'dark' | null;
 }
 
 export interface SavedServer {
@@ -1587,6 +1596,9 @@ export interface MobiusBridge {
     setZoom?(tabId: string, factor: number): void;
     /** Silence a tab's page, or let it be heard again. */
     mute?(tabId: string, muted: boolean): void;
+    /** Tell a tab's page it is shown on another screen (a width, light or dark); `{}` gives it back its own. It stays as
+     * the page navigates and reloads. */
+    emulate?(tabId: string, emulation: BrowserEmulation): void;
     /** Peek: open a web address over the pages for a look (again: the same peek goes there), or close it with null. Escape in the peek closes it too. */
     peek?(url: string | null): void;
     /** Keep the peek as a tab next to the active one, and make it active. Its id, or null with no peek. */
