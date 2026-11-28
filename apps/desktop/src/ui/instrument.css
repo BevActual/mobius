@@ -76,6 +76,10 @@
 .ui-step[data-on] .ui-step-mark { color: var(--on-ink); }
 /* With both, the repeat sits in the top corner, clear of the chance. */
 .ui-step-mark[data-first] { top: var(--hairline-w); left: var(--hairline-w); right: auto; bottom: auto; }
+/* Live 13's row lengths: steps past a row's own length repeat its start, dimmer; its last step of each pass has an edge. */
+.ui-steps .ui-step[data-echo] { opacity: 0.55; }
+.ui-steps .ui-step[data-end] { box-shadow: inset calc(var(--hairline-w) * -2) 0 0 var(--ink); }
+.ui-steps .ui-step[data-end][data-now] { box-shadow: inset calc(var(--hairline-w) * -2) 0 0 var(--ink), inset 0 0 0 var(--hairline-w) var(--ink); }
 .ui-steps .ui-step:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); z-index: 1; }
 
 /* A numbered handle (an EQ band): a larger dot with its number; the chosen band is filled. */
