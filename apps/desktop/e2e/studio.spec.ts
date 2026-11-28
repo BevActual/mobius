@@ -603,6 +603,55 @@ test('the Session view has clips to launch in scenes, each with its own notes, k
   await expect(tracks()).toBeVisible();
 });
 
+test('clips go between Session and Arrange: dragged or copied either way, and looped bars become a new scene', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
+  await start();
+  await resizeWindow(mobius!.app, 1440, 900);
+  type Slot = { name: string; bars: number; notes: Note[] } | null;
+  const slots = (i: number) => ((saved().tracks[i] as { slots?: Slot[] }).slots ?? []).map((c) => c?.name ?? null);
+  // Looped bars 2 to 3 in Arrange become a new scene: a clip per track with what plays there (Live 12, 7.5).
+  const ruler = shell().getByRole('slider', { name: 'Playhead' });
+  const r = (await ruler.boundingBox())!;
+  const bar = r.width / 4;
+  await shell().mouse.move(r.x + bar * 1.5, r.y + 4);
+  await shell().mouse.down();
+  await shell().mouse.move(r.x + bar * 2.5, r.y + 4, { steps: 4 });
+  await shell().mouse.up();
+  await expect(ruler.getByRole('img', { name: 'Loop: bars 2 to 3' })).toBeVisible();
+  await ruler.click({ button: 'right', position: { x: bar * 0.5, y: 16 } });
+  await shell().getByRole('menu', { name: 'Loop' }).getByRole('menuitem', { name: 'Consolidate Loop to New Scene' }).click();
+  await expect.poll(() => (saved().tracks[1] as { slots?: Slot[] }).slots?.[0]?.notes).toEqual([0, 4].map((start) => ({ pitch: 45, start, length: 1.5, velocity: 0.9 })));
+  expect((saved().tracks[1] as { slots?: Slot[] }).slots?.[0]).toMatchObject({ name: 'Bass', bars: 2 });
+  // Keys plays nothing there, so its slot in the scene stays empty.
+  expect(slots(0)).toEqual([]);
+  // An Arrange clip's menu copies it to Session, into the first empty slot of its track.
+  await shell().getByRole('button', { name: 'Bass, bars 1 to 4' }).click({ button: 'right' });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'Copy to Session' }).click();
+  await expect.poll(() => slots(1)).toEqual(['Bass', 'Bass']);
+  // In Session, a clip dragged onto another slot moves there.
+  await shell().getByRole('radio', { name: 'Session' }).click();
+  const grid = shell().getByRole('grid', { name: 'Clips' });
+  await grid.getByRole('button', { name: 'Bass, 4 bars' }).dragTo(grid.getByRole('button', { name: 'New clip on Keys, scene 3' }));
+  await expect.poll(() => slots(0)).toEqual([null, null, 'Bass']);
+  expect(slots(1)).toEqual(['Bass']);
+  // Its menu copies it to Arrange at the playhead's bar, as a looped clip that replaces what it covers.
+  await grid.getByRole('button', { name: 'Bass, 2 bars' }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Bass' }).getByRole('menuitem', { name: 'Copy to Arrange at Bar 1' }).click();
+  await expect.poll(() => saved().tracks[1]!.clips.map((c) => [c.start, c.length, c.name ?? ''])).toEqual([[0, 8, 'Bass'], [8, 8, '']]);
+  // Dragged over Arrange's name, the view opens to drop it on a track there.
+  const drag = await shell().evaluateHandle(() => new DataTransfer());
+  await grid.getByRole('button', { name: 'Bass, 2 bars' }).dispatchEvent('dragstart', { dataTransfer: drag });
+  await shell().getByRole('radio', { name: 'Arrange' }).dispatchEvent('dragover', { dataTransfer: drag });
+  await expect(tracks()).toBeVisible();
+  const lane = shell().locator('.studio-lane').nth(1);
+  const box = (await lane.boundingBox())!;
+  await lane.dispatchEvent('drop', { dataTransfer: drag, clientX: box.x + bar * 3 + 2, clientY: box.y + 4 });
+  await expect.poll(() => saved().tracks[1]!.clips.map((c) => [c.start, c.length, c.name ?? ''])).toEqual([[0, 8, 'Bass'], [8, 4, ''], [12, 8, 'Bass']]);
+  // Each move is one Undo.
+  await ruler.press('Control+z');
+  await expect.poll(() => saved().tracks[1]!.clips).toHaveLength(2);
+});
+
 test('a melody is written as steps too, a row per note of the key', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start([], 'Bass');

@@ -10,6 +10,7 @@ import { AudioClipDetail } from './studio-audio-clip';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
 import { pressKey, soundInputs, chooseInput, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
+import { CLIP_DRAG, consolidateToScene, copyToSession, moveSlot, placeInArrange } from './studio-moves';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
 import type { LibraryItem } from './studio-library';
@@ -1469,6 +1470,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         { label: 'Duplicate', keys: 'Ctrl+D', separated: true, disabled: !duplicateArrange(song.tracks.find((t) => t.id === trackId)!.clips, id, song.bars * BEATS_PER_BAR), run: () => arrangeClip(trackId, id, 'duplicate') },
         { label: c.muted ? 'Unmute' : 'Mute', keys: '0', run: () => arrangeClip(trackId, id, 'mute') },
         { label: c.loop ? 'Stop Looping' : 'Loop', run: () => editClips(trackId, (cs) => toggleClipLoop(cs, id), '') },
+        { label: 'Copy to Session', separated: true, run: () => change((s) => { copyToSession(s, trackId, id); }) },
         { label: 'Delete', keys: 'Delete', run: () => arrangeClip(trackId, id, 'delete') },
       ] });
     },
@@ -1477,8 +1479,11 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const c = song.tracks.find((t) => t.id === id)?.slots?.[slot];
     if (!c) return;
     chooseClip(id, slot);
+    const t = song.tracks.find((k) => k.id === id);
+    const at = Math.floor(beat / BEATS_PER_BAR) * BEATS_PER_BAR;
     setMenu({ x, y, label: c.name, items: [
       { label: 'Launch', run: () => launch(id, slot) },
+      { label: `Copy to Arrange at Bar ${at / BEATS_PER_BAR + 1}`, separated: true, disabled: !!t?.frozen || !!c.audio !== (t?.kind === 'audio'), run: () => change((s) => { placeInArrange(s, id, c, at); }) },
       { label: 'Duplicate', keys: 'Ctrl+D', separated: true, run: () => duplicateClip(id, slot) },
       { label: 'Delete', keys: 'Delete', run: () => deleteClip(id, slot) },
     ] });
@@ -2134,7 +2139,13 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       <ToolbarControls label="Transport">
         {/* Left to right as in a studio: the view, the transport, then tempo. The view, the transport and the tempo
             never drop into the ⋯ menu when the toolbar is short of room; the rest may. */}
-        <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
+        {/* A Session clip dragged over a view's name opens that view, to drop it there (Live 12, 7.5). */}
+        <span className="studio-views" onDragOver={(e) => {
+          if (!Array.from(e.dataTransfer.types).includes(CLIP_DRAG)) return;
+          const name = (e.target as HTMLElement).closest('button')?.textContent ?? '';
+          const to = VIEWS.find((v) => name.includes(v.name))?.id;
+          if (to && to !== view) setView(to);
+        }}><ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} /></span>
         <span className="studio-sep" aria-hidden="true" />
         <ToolbarItem priority="keep">
           <Transport playing={playing} onPlay={() => (playing ? stop() : start())} onStop={stopOrRewind}
@@ -2187,7 +2198,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           {view === 'session' ? (<>
             <SessionGrid song={song} selected={track?.id ?? null} chosen={clipAt} playing={sessionNow.playing} queued={sessionNow.queued} beat={beat}
               onSelect={(id) => { setSelected(id); setClipAt(null); }} onChoose={chooseClip} onCreate={createClip} onLaunch={launch} onLaunchScene={launchScene}
-              onStopAll={stopAll} onSceneName={setSceneName} onAddScene={addScene} onClipMenu={clipMenu} />
+              onStopAll={stopAll} onSceneName={setSceneName} onAddScene={addScene} onClipMenu={clipMenu}
+              onDropClip={(from, to, copy) => change((s) => { moveSlot(s, from, to, copy); })} />
             {proposal && <div className="studio-float">{proposal}</div>}
           </>) : <>
           <div className="studio-ruler-row">
@@ -2208,6 +2220,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               onPointerUp={(e) => { if (loopDrag.current && !loopDrag.current.moved) lastZonePress.current = e.timeStamp; loopDrag.current = null; }}
               onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, label: 'Loop', items: [
               { label: 'Loop Whole Song', disabled: loop && !range, run: () => { setRange(null); setLoop(true); } },
+              // Live's Consolidate Time to New Scene (7.5), for the bars looped: a new scene, a clip per track.
+              { label: 'Consolidate Loop to New Scene', disabled: !range, run: () => { if (!range) return; const cy = cycleOf(range.a, range.b, song.bars); change((s) => { consolidateToScene(s, cy.from, cy.to, null); }); } },
               { label: loop ? 'Turn Loop Off' : 'Turn Loop On', keys: 'L', run: () => setLoop((l) => !l) },
               { label: click ? 'Turn Metronome Off' : 'Turn Metronome On', keys: 'K', run: () => setClick((c) => !c) },
               { label: counts ? 'Turn Count-In Off' : 'Turn Count-In On', run: () => setCounts((c) => { try { window.localStorage.setItem(COUNT_IN_KEY, c ? '0' : '1'); } catch { /* not kept */ } return !c; }) },
@@ -2245,15 +2259,25 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   </div>
                 </div>
                 <div className="studio-lane" style={{ width: total * bw }}
-                  onDragOver={t.kind === 'audio' ? (e) => { if (Array.from(e.dataTransfer.types).includes(SAMPLE_DRAG)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } } : undefined}
-                  onDrop={t.kind === 'audio' ? (e) => {
-                    const file = e.dataTransfer.getData(SAMPLE_DRAG);
+                  onDragOver={(e) => { const types = Array.from(e.dataTransfer.types); if ((t.kind === 'audio' && types.includes(SAMPLE_DRAG)) || (types.includes(CLIP_DRAG) && !t.frozen)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+                  onDrop={(e) => {
+                    const dragged = e.dataTransfer.getData(CLIP_DRAG);
+                    if (dragged) {
+                      // A Session clip: on this track from the beat it was dropped on, as Live pastes it.
+                      e.preventDefault();
+                      const from = (() => { try { return JSON.parse(dragged) as { trackId: string; slot: number }; } catch { return null; } })();
+                      const c = from && song.tracks.find((k) => k.id === from.trackId)?.slots?.[from.slot];
+                      const at = Math.max(0, Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / bw));
+                      if (c) change((s) => { placeInArrange(s, t.id, c, at); });
+                      return;
+                    }
+                    const file = t.kind === 'audio' ? e.dataTransfer.getData(SAMPLE_DRAG) : '';
                     if (!file) return;
                     e.preventDefault();
                     // Where it was dropped, on the beat.
                     const at = Math.max(0, Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / bw));
                     void placeSample(t.id, file, at);
-                  } : undefined}>
+                  }}>
                   <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} songPath={songs.page?.path ?? ''} tempo={song.tempo} onOpen={(from, id) => openNotes(t.id, from, id)} actions={clipActions(t.id)} />
                 </div>
                 {showAuto && (() => {

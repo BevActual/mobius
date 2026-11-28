@@ -443,3 +443,6 @@
 .studio-audio-env { flex: none; display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-1) 0 0; border-top: var(--hairline-w) solid var(--line); color: var(--ink); }
 .studio-audio-env > .ui-select, .studio-audio-env > label { margin-inline: var(--sp-3); align-self: flex-start; }
 .studio-audio-lane { height: 72px; }
+
+/* The view switch, wrapped so a dragged Session clip can open the other view; it lays out as the switch alone. */
+.studio-views { display: contents; }
