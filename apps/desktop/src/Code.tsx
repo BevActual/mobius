@@ -12,7 +12,7 @@ import { applyGroups, changeGroups, codeOutline, gitMarks, highlight, langOf, li
 import { RowMark } from './RowMark';
 import type { CodeState, CodeTests } from './useCode';
 import { useLanguage, type LanguageState } from './code-lsp';
-import { pagePath, pickedLine, sourcePath, useCodePreview, type PreviewState } from './code-preview';
+import { SCREENS, pagePath, pickedLine, sourcePath, useCodePreview, type PreviewState } from './code-preview';
 import { useSideFile, type SideFile } from './code-split';
 import { testArgs, testKey, type TestMark } from './code-run';
 import { fixPrompt, reviewRequest } from './code-mobius';
@@ -641,6 +641,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
   const jump = useRef<((line: number) => void) | null>(null);
   const lsp = useLanguage(code);
   const preview = useCodePreview(code);
+  const [screenMenu, setScreenMenu] = useState<{ x: number; y: number } | null>(null);
   const base = useGitBase(code);
   // The split: a second editor beside the first (Ctrl+\\), with its own find bar and language smarts.
   const side = useSideFile(code);
@@ -734,6 +735,11 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
                   <>
                     <Button kind="quiet" pressed={preview.url !== null} title="Show the project's page in the Browser beside Code; saving reloads it" onClick={() => void preview.open().then(() => document.querySelector<HTMLTextAreaElement>('.code-page .ed-input')?.focus({ preventScroll: true }))}>Preview</Button>
                     {preview.url && <Button kind="quiet" pressed={preview.picking} title="Click an element on the page to go to its code" onClick={() => void preview.pick()}>Pick</Button>}
+                    {preview.tab && window.mobius.browser?.emulate && (
+                      <Button kind="quiet" pressed={preview.tab.emulation !== null} aria-haspopup="menu" title="The screen the preview's page is shown on: its width, light or dark" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setScreenMenu({ x: r.left, y: r.bottom + 4 }); }}>
+                        {screenLabel(preview.tab.emulation)}
+                      </Button>
+                    )}
                   </>
                 )}
                 {code.open.text !== null && !side.state && <Button kind="quiet" title={`Split the editor: a second file beside this one (${keyLabel('\\')})`} onClick={() => splitRef.current()}>Split</Button>}
@@ -766,6 +772,7 @@ export function CodeEditor({ code, review, listPanels = [], terminal, onAsk, onD
         {side.state && <SidePane side={side} lsp={side.shared ? lsp : sideLsp} base={side.shared ? base : sideBase} bar={sideBar} setBar={setSideBar} onQuick={() => setSideQuick(true)} onShowProblems={() => setShowProblems((n) => n + 1)} runner={runnerFor(side.state)} {...(fixIn(side.state) ? { onFix: fixIn(side.state)! } : {})} />}
       </div>
       {quick && <QuickOpen code={code} onClose={() => setQuick(false)} />}
+      {screenMenu && preview.tab && createPortal(<ContextMenu x={screenMenu.x} y={screenMenu.y} label="Preview screen" onClose={() => setScreenMenu(null)} items={[...SCREENS.map((sc) => ({ label: sc.width ? `${sc.name} · ${sc.width}` : sc.name, checked: (preview.tab?.emulation?.width ?? null) === sc.width, run: () => preview.screen({ width: sc.width }) })), { label: "The page's own colours", separated: true, checked: !preview.tab.emulation?.colorScheme, run: () => preview.screen({ colorScheme: null }) }, { label: 'Light', checked: preview.tab.emulation?.colorScheme === 'light', run: () => preview.screen({ colorScheme: 'light' }) }, { label: 'Dark', checked: preview.tab.emulation?.colorScheme === 'dark', run: () => preview.screen({ colorScheme: 'dark' }) }]} />, document.body)}
       {sideQuick && side.state && <QuickOpen code={{ ...side.state, openFile: (p: string) => side.open(p) }} onClose={() => { setSideQuick(false); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('.code-pane-side .ed-input')?.focus({ preventScroll: true })); }} />}
     </section>
     </PanelLayout>
@@ -826,6 +833,13 @@ function SidePane({ side, lsp, base, bar, setBar, onQuick, onShowProblems, runne
       )}
     </div>
   );
+}
+
+/** The Screen button's label: the size the preview shows at, and its colours when they are set. */
+function screenLabel(e: { width?: number | null; colorScheme?: 'light' | 'dark' | null } | null): string {
+  const width = SCREENS.find((sc) => sc.width === (e?.width ?? null))?.name ?? `${e?.width} px`;
+  const name = width === 'Full width' ? 'Screen' : width;
+  return e?.colorScheme ? `${name} · ${e.colorScheme === 'dark' ? 'Dark' : 'Light'}` : name;
 }
 
 /** What the preview reported: the page's last error, or the element just picked, each with a way to its code and to Mobius. */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type CodePreviewReport } from '@mobius/shared';
+import { isNotesFailure, type BrowserEmulation, type CodePreviewReport } from '@mobius/shared';
 import { besideUrlOk, openBeside } from './beside';
 import type { CodeState } from './useCode';
 
@@ -16,6 +16,25 @@ export type PreviewError = Extract<CodePreviewReport, { kind: 'error' }>;
 export type PreviewPick = Extract<CodePreviewReport, { kind: 'pick' }>;
 
 const MAX_ERRORS = 20;
+
+/** The screens a preview can be shown on, as browsers' device bars offer them: a width in CSS pixels, or the tab's own. */
+export const SCREENS: readonly { name: string; width: number | null }[] = [
+  { name: 'Full width', width: null },
+  { name: 'Laptop', width: 1280 },
+  { name: 'Tablet', width: 820 },
+  { name: 'Phone', width: 390 },
+];
+
+/** The Browser tab showing the preview: the first whose page is on the preview's server. */
+export function previewTab(tabs: readonly { id: string; url: string }[], base: string | null): string | null {
+  if (!base) return null;
+  try {
+    const origin = new URL(base).origin;
+    return tabs.find((t) => { try { return new URL(t.url).origin === origin; } catch { return false; } })?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 /** A page's own path (`/`, `/about.html`, `/src/app.js?x`) as a file in the project; `/` is its index.html. */
 export function pagePath(path: string | undefined): string {
@@ -72,8 +91,31 @@ export function useCodePreview(code: CodeState) {
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState<PreviewPick | null>(null);
   const [message, setMessage] = useState('');
+  /** The Browser tab showing it, and the screen that tab gives the page (null: its own). */
+  const [tab, setTab] = useState<{ id: string; emulation: BrowserEmulation | null } | null>(null);
   const live = useRef({ project, url });
   live.current = { project, url };
+  useEffect(() => {
+    const browser = window.mobius.browser;
+    if (!url || !browser?.onState) { setTab(null); return undefined; }
+    const read = (tabs: readonly { id: string; url: string; emulation?: BrowserEmulation | null }[]) => {
+      const id = previewTab(tabs, url);
+      const found = id ? tabs.find((t) => t.id === id) : undefined;
+      setTab(found ? { id: found.id, emulation: found.emulation ?? null } : null);
+    };
+    void browser.getState?.().then((s) => read(s.tabs)).catch(() => null);
+    return browser.onState((s) => read(s.tabs));
+  }, [url]);
+  /** Shows the preview on another screen: a width, light or dark; what is not given stays as it is. */
+  const screen = useCallback((change: BrowserEmulation) => {
+    if (!tab || !window.mobius.browser?.emulate) return;
+    const next = { ...(tab.emulation ?? {}), ...change };
+    const clean: BrowserEmulation = {};
+    if (next.width) clean.width = next.width;
+    if (next.colorScheme) clean.colorScheme = next.colorScheme;
+    window.mobius.browser.emulate(tab.id, clean);
+    setTab({ id: tab.id, emulation: Object.keys(clean).length > 0 ? clean : null });
+  }, [tab]);
 
   // Another project: its preview stops, and nothing of the last one shows.
   useEffect(() => {
@@ -141,6 +183,6 @@ export function useCodePreview(code: CodeState) {
     else setMessage('Open the preview first, then pick.');
   }, [open, picking, say]);
 
-  return { url, errors, clearErrors: () => setErrors([]), picking, picked, clearPicked: () => setPicked(null), message, open, reload: () => say('reload'), pick };
+  return { url, tab, screen, errors, clearErrors: () => setErrors([]), picking, picked, clearPicked: () => setPicked(null), message, open, reload: () => say('reload'), pick };
 }
 export type PreviewState = ReturnType<typeof useCodePreview>;
