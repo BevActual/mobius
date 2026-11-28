@@ -11,7 +11,6 @@ import { FromMobius } from './FromMobius';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { assignEntries, pageAssignment } from './assign';
 import { AppSidebar, SidebarRow, SidebarSection, SidebarSearch } from './ui';
-import { afterPaint } from './ui/frame';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
@@ -21,9 +20,12 @@ export interface SidebarWords { app: string; group: string; groups: string; item
  *  A notebook of thousands of pages then opens as fast as a short one (docs/developers/speed.md). */
 export const FIRST_ROWS = 100;
 const MORE_ROWS = 200;
-/** What the first frame of a visit draws: more than a tall window shows. The rest of FIRST_ROWS follows a frame
- *  later, so opening Notes on a long notebook draws one screenful before the page shows, not a hundred rows. */
+/** What the first frame of a visit draws: more than a tall window shows. The rest of FIRST_ROWS follows a moment
+ *  later (FILL_LATER), so opening Notes on a long notebook draws one screenful as the page shows, not a hundred rows. */
 const FIRST_FRAME_ROWS = 30;
+/** When the rest of FIRST_ROWS is drawn: once the switch to the app has played (--dur-med), so its rows don't land in
+ *  the frames the switch is drawn in. Scrolled to sooner, they come at once. */
+const FILL_LATER = 350;
 
 /** The end of a list drawn in part: when it scrolls into view, more rows are drawn. */
 function MoreRows({ onMore }: { onMore: () => void }) {
@@ -119,11 +121,13 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   // Long notebooks are drawn in part, and more as the list is scrolled; the open page is always drawn.
   const [rows, setRows] = useState(FIRST_FRAME_ROWS);
   const more = useCallback(() => setRows((n) => n + MORE_ROWS), []);
-  // Two frames on: the first shows the page with a screenful of rows, the next fills in the rest of the first hundred.
+  // The visit shows the page with a screenful of rows; the rest of the first hundred follow once the switch has played.
+  // Drawn a frame later, as they were, they cost the second frame of every switch to Notes about a third of its time.
+  const fill = useCallback(() => setRows((n) => Math.max(n, FIRST_ROWS)), []);
   useEffect(() => {
-    let cancel = afterPaint(() => { cancel = afterPaint(() => setRows((n) => Math.max(n, FIRST_ROWS))); });
-    return () => cancel();
-  }, []);
+    const t = window.setTimeout(fill, FILL_LATER);
+    return () => window.clearTimeout(t);
+  }, [fill]);
   const drawn = (pages: NotePage[]) => {
     const open = notes.page ? pages.findIndex((pg) => pg.path === notes.page?.path) : -1;
     return pages.slice(0, Math.max(rows, open + 1));
@@ -248,7 +252,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
               )}
               {nb.pages.length === 0 && <li className="side-empty">No {words.items} yet.</li>}
               {drawn(pagesOf(nb)).map((pg) => pageRow(pg))}
-              {rows >= FIRST_ROWS && nb.pages.length > drawn(pagesOf(nb)).length && <MoreRows onMore={more} />}
+              {nb.pages.length > drawn(pagesOf(nb)).length && <MoreRows onMore={rows < FIRST_ROWS ? fill : more} />}
             </SidebarSection>
           ))}
           {/* Design, Canvas and Research: New folder waits until there is something to put in one. Notes keeps New
