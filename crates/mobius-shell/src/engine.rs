@@ -443,10 +443,13 @@ impl Engine for WebViewEngine {
             let tab = tab.to_owned();
             // Off this thread: a DevTools call waits for the page, which answers on the thread that owns it.
             std::thread::spawn(move || {
-                let size = match emulation.width {
-                    Some(width) => engine_cdp(&pages, &tab, "Emulation.setDeviceMetricsOverride", json!({ "width": width, "height": 0, "deviceScaleFactor": 0, "mobile": width < 768 })),
-                    None => engine_cdp(&pages, &tab, "Emulation.clearDeviceMetricsOverride", json!({})),
-                };
+                // Always start from the page's own screen: a mobile override leaves its page scale and viewport behind,
+                // so a second override or a plain clear alone could leave the page at the old width.
+                let mut size = engine_cdp(&pages, &tab, "Emulation.clearDeviceMetricsOverride", json!({}));
+                let _ = engine_cdp(&pages, &tab, "Emulation.resetPageScaleFactor", json!({}));
+                if let Some(width) = emulation.width {
+                    size = size.and(engine_cdp(&pages, &tab, "Emulation.setDeviceMetricsOverride", json!({ "width": width, "height": 0, "deviceScaleFactor": 0, "mobile": width < 768 })));
+                }
                 let scheme = emulation.scheme.map_or("", |s| s.as_str());
                 let media = engine_cdp(&pages, &tab, "Emulation.setEmulatedMedia", json!({ "features": [{ "name": "prefers-color-scheme", "value": scheme }] }));
                 if let Err(e) = size.and(media) {
